@@ -1,7 +1,7 @@
 // Debug swatch (plan M0-08): every master-palette ramp as a column of 3×3 cells (dark at the bottom), and a
 // sky-ramp strip whose shade rises continuously left → right to show the Bayer 4×4 quantization.
 // Shown in the M0 scene; proves the atlas pipeline end to end (generator → atlas → Pixi Spritesheet).
-import type { RampName, SpriteGenerator } from '../../../../tools/lib/sprites/types.ts';
+import type { RampName, SpriteGenerator } from '../../lib/types.ts';
 
 const CELL = 3;
 const RAMPS: readonly RampName[] = [
@@ -38,13 +38,13 @@ const swatch: SpriteGenerator = {
       for (let shade = 0; shade < count; shade++) {
         const top = GRID_H - (shade + 1) * CELL;
         for (let y = 0; y < CELL; y++) {
-          for (let x = 0; x < CELL; x++) buffer.set(column * CELL + x, top + y, ramp, shade);
+          for (let x = 0; x < CELL; x++) buffer.set(column * CELL + x, top + y, { ramp, shade });
         }
       }
     });
     for (let x = 0; x < WIDTH; x++) {
       const shade = (x / (WIDTH - 1)) * SKY_TOP;
-      for (let y = 0; y < STRIP_H; y++) buffer.set(x, GRID_H + STRIP_GAP + y, 'sky', shade);
+      for (let y = 0; y < STRIP_H; y++) buffer.set(x, GRID_H + STRIP_GAP + y, { ramp: 'sky', shade });
     }
   },
 };

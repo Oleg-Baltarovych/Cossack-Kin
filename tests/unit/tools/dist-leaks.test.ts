@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PROD_CSP } from '../../../tools/lib/csp.ts';
-import { checkIndexHtml, findLeaks, isForbiddenFile } from '../../../tools/lib/dist-leaks.ts';
+import { checkAtlasIndex, checkIndexHtml, findLeaks, isForbiddenFile } from '../../../tools/lib/dist-leaks.ts';
 
 describe('findLeaks', () => {
   it.each([
@@ -15,7 +15,14 @@ describe('findLeaks', () => {
     ['source map', '//# sourceMappingURL=index-abc.js.map', 'source map reference'],
     ['eval call', 'x=eval(s)', 'eval call'],
     ['indirect eval', '(0,eval)(s)', 'eval call'],
-    ['new Function', 'f=new Function("a","return a")', 'new Function'],
+    ['new Function', 'f=new Function("a","return a")', 'Function constructor'],
+    ['minified new Function', 'f=Function(`x`)', 'Function constructor'],
+    ['Function with probe-like first arg', 'Function("param1","return 1")', 'Function constructor'],
+    ['Function with a Pixi-like prefix', 'Function(`r`,`s`,`sDx`,b)', 'Function constructor'],
+    ['Function with one Pixi arg', 'Function(`uv`)', 'Function constructor'],
+    ['window.eval', 'window.eval(s)', 'global eval / Function'],
+    ['globalThis.eval', 'globalThis.eval(s)', 'global eval / Function'],
+    ['globalThis.Function', 'globalThis.Function("x")', 'global eval / Function'],
   ])('%s', (_name, text, what) => {
     expect(findLeaks(text).map((leak) => leak.what)).toContain(what);
   });
@@ -25,7 +32,17 @@ describe('findLeaks', () => {
     ['identifier containing freeze', 'function freezeFrame(){}'],
     ['unrelated strings', 'const a="frozen",b="overlay",c="seed";'],
     // Pixi's bundled unsafe-eval probe after minification (never called: pixi.js/unsafe-eval replaces it).
-    ['Pixi probe', 'try{E=Function(`param1`,`param2`,`param3`,`return param1[param2] === param3;`)'],
+    ['Pixi probe (minified)', 'try{E=Function(`param1`,`param2`,`param3`,`return param1[param2] === param3;`)'],
+    [
+      'Pixi probe (source)',
+      'const func = new Function("param1", "param2", "param3", "return param1[param2] === param3;");',
+    ],
+    // Pixi's other code generators as Rolldown prints them (replaced at runtime by pixi.js/unsafe-eval).
+    ['Pixi compileBufferSync', 'return Function(`uv`,`data`,`dataInt32`,`offset`,a)'],
+    ['Pixi shader sync', 'return Function(`r`,`s`,`sD`,s)'],
+    ['Pixi uniforms sync', 'return Function(`ud`,`uv`,`renderer`,`syncData`,x)'],
+    ['Pixi particle update', 'return Function(`ps`,`f32v`,`u32v`,i)'],
+    ['identifiers ending in Function', 'a.syncFunction(e);this._createUniformSyncFunction(e,t);updateFunction(x)'],
     ['Pixi error text', '"Current environment does not allow unsafe-eval, please use pixi.js/unsafe-eval"'],
     ['method named eval', 'r.eval(x);t.evaluate(y)'],
   ])('clean: %s', (_name, text) => {
@@ -41,9 +58,29 @@ describe('findLeaks', () => {
 
 describe('isForbiddenFile', () => {
   it('rejects source maps anywhere in dist', () => {
-    expect(isForbiddenFile('dist/assets/index-abc.js.map')).toBe(true);
-    expect(isForbiddenFile('dist/assets/index-abc.css.map')).toBe(true);
-    expect(isForbiddenFile('dist/assets/index-abc.js')).toBe(false);
+    expect(isForbiddenFile('dist/assets/index-abc.js.map')).toBe('source map file');
+    expect(isForbiddenFile('dist/assets/index-abc.css.map')).toBe('source map file');
+    expect(isForbiddenFile('dist/assets/index-abc.js')).toBeNull();
+  });
+
+  it('rejects dev/test-only atlases', () => {
+    expect(isForbiddenFile('dist/atlases/debug.png')).toBe('dev/test-only atlas');
+    expect(isForbiddenFile('dist\\atlases\\debug.json')).toBe('dev/test-only atlas');
+    expect(isForbiddenFile('dist/atlases/khortytsia.png')).toBeNull();
+  });
+});
+
+describe('checkAtlasIndex', () => {
+  it('accepts production entries only', () => {
+    expect(checkAtlasIndex('{"version":1,"atlases":[{"name":"a","json":"a.json","debug":false}]}')).toEqual([]);
+    expect(checkAtlasIndex('{"version":1,"atlases":[]}')).toEqual([]);
+  });
+
+  it('rejects debug entries, malformed entries and bad JSON', () => {
+    expect(checkAtlasIndex('{"atlases":[{"name":"debug","json":"debug.json","debug":true}]}')).toHaveLength(1);
+    expect(checkAtlasIndex('{"atlases":[{"name":"x"}]}')).toHaveLength(1);
+    expect(checkAtlasIndex('{"atlases":{}}')).toEqual(['atlases/index.json has no "atlases" list']);
+    expect(checkAtlasIndex('nope')).toEqual(['atlases/index.json is not JSON']);
   });
 });
 
@@ -55,6 +92,19 @@ describe('checkIndexHtml', () => {
 
   it('accepts exactly the strict policy as Vite writes it', () => {
     expect(checkIndexHtml(page(meta(PROD_CSP)))).toEqual([]);
+  });
+
+  it('PROD_CSP locks down every directive the plan lists (+ form-action)', () => {
+    expect(PROD_CSP.split('; ')).toEqual([
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self'",
+      "img-src 'self' data: blob:",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+    ]);
   });
 
   it('rejects a missing, duplicated or relaxed policy', () => {

@@ -15,7 +15,14 @@ export async function startWorld(host: HTMLElement): Promise<WorldApp> {
   const settings = __CK_DEBUG__
     ? toRenderSettings(parseDebugParams(window.location.search, import.meta.env.MODE))
     : DEFAULT_RENDER_SETTINGS;
-  const world = await createWorldApp(host, settings);
+  let world: WorldApp;
+  try {
+    world = await createWorldApp(host, settings);
+  } catch (error) {
+    // Fail loudly for screenshots/e2e: `data-ready="error"` instead of a page that never becomes ready.
+    document.body.dataset.ready = 'error';
+    throw error;
+  }
   if (!__CK_DEBUG__) return world;
 
   let disposeDebug: () => void;

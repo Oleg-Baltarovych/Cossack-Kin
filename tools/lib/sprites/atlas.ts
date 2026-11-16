@@ -1,15 +1,23 @@
 // Atlas assembly for `pnpm sprites` (plan M0-08): generators → frames → checks → shelf pack → PNG + Pixi
-// Spritesheet JSON. Pure (no fs); tools/build-sprites.ts does the I/O.
+// Spritesheet JSON, plus the atlas index the game loads. Pure (no fs); tools/build-sprites.ts does the I/O.
+// Frame naming scheme: assets-src/gen/lib/types.ts.
+import { createIndexBuffer, quantize, type IndexBuffer } from '../../../assets-src/gen/lib/buffer.ts';
+import type { Palette } from '../../../assets-src/gen/lib/palette.ts';
+import { seededRng } from '../../../assets-src/gen/lib/rng.ts';
+import {
+  COMPANION_LAYERS,
+  type CompanionLayer,
+  type Size,
+  type SpriteGenerator,
+} from '../../../assets-src/gen/lib/types.ts';
 import { encodePng, type RgbaImage } from '../png.ts';
-import { createIndexBuffer, quantize } from './buffer.ts';
 import { checkFrame, SOFT_ALPHA_ATLASES } from './check.ts';
 import { packShelves } from './pack.ts';
-import type { Palette } from './palette.ts';
-import { seededRng } from './rng.ts';
-import type { Size, SpriteGenerator } from './types.ts';
 
 /** SPEC §12.4: one land atlas ≤ 2048². */
 export const MAX_ATLAS_SIZE = 2048;
+/** Atlases for dev/test builds only: listed with `debug: true` in the index, stripped from production `dist/`. */
+export const DEBUG_ATLASES: readonly string[] = ['debug'];
 const PADDING = 1;
 const NAME = /^[a-z][a-z0-9-]*$/;
 const MAX_FRAMES = 100;
@@ -24,7 +32,7 @@ export class SpriteBuildError extends Error {
 }
 
 export interface FrameImage {
-  /** `<entity>/<anim>/<nn>`. */
+  /** `<entity>[.<variant>][@<layer>]/<anim>/<nn>`. */
   readonly name: string;
   readonly image: RgbaImage;
   readonly declared: Size;
@@ -54,7 +62,24 @@ export interface AtlasOutput {
   readonly json: SpritesheetJson;
   /** Exact bytes written to `<name>.json`. */
   readonly jsonText: string;
+  /** Frame px / atlas px, 0..1. */
+  readonly utilisation: number;
 }
+
+/** `public/atlases/index.json`: what render loads (src/render/atlases.ts validates the same shape). */
+export interface AtlasIndex {
+  readonly version: 1;
+  readonly atlases: readonly { readonly name: string; readonly json: string; readonly debug: boolean }[];
+}
+
+export function atlasIndex(atlases: readonly AtlasOutput[]): AtlasIndex {
+  return {
+    version: 1,
+    atlases: atlases.map((a) => ({ name: a.name, json: `${a.name}.json`, debug: DEBUG_ATLASES.includes(a.name) })),
+  };
+}
+
+const frameNumber = (name: string): number => Number(name.slice(name.lastIndexOf('/') + 1));
 
 /** Checks, packs and encodes one atlas. Throws SpriteBuildError with every problem found. */
 export function composeAtlas(name: string, frames: readonly FrameImage[], palette: Palette): AtlasOutput {
@@ -62,6 +87,11 @@ export function composeAtlas(name: string, frames: readonly FrameImage[], palett
   const problems = frames.flatMap((f) =>
     checkFrame(f.image, palette, { name: `${name}:${f.name}`, declared: f.declared, softAlpha }),
   );
+  const names = new Set<string>();
+  for (const f of frames) {
+    if (names.has(f.name)) problems.push(`duplicate frame ${name}:${f.name}`);
+    names.add(f.name);
+  }
   if (problems.length > 0) throw new SpriteBuildError(problems);
 
   let packed;
@@ -88,6 +118,7 @@ export function composeAtlas(name: string, frames: readonly FrameImage[], palett
       scale: 1,
     },
   };
+  let framePx = 0;
   for (const p of packed.placements) {
     const f = byName.get(p.id);
     if (!f) continue;
@@ -95,6 +126,7 @@ export function composeAtlas(name: string, frames: readonly FrameImage[], palett
       const src = f.image.data.subarray(y * p.w * 4, (y + 1) * p.w * 4);
       data.set(src, ((p.y + y) * packed.width + p.x) * 4);
     }
+    framePx += p.w * p.h;
     json.frames[p.id] = {
       frame: { x: p.x, y: p.y, w: p.w, h: p.h },
       rotated: false,
@@ -106,10 +138,15 @@ export function composeAtlas(name: string, frames: readonly FrameImage[], palett
     const anim = p.id.slice(0, p.id.lastIndexOf('/'));
     (json.animations[anim] ??= []).push(p.id);
   }
-  // Frame names are zero-padded, so a plain sort is frame order.
-  for (const list of Object.values(json.animations)) list.sort();
+  for (const list of Object.values(json.animations)) list.sort((a, b) => frameNumber(a) - frameNumber(b));
   const png = encodePng({ width: packed.width, height: packed.height, data });
-  return { name, png, json, jsonText: `${JSON.stringify(json, null, 2)}\n` };
+  return {
+    name,
+    png,
+    json,
+    jsonText: `${JSON.stringify(json, null, 2)}\n`,
+    utilisation: framePx / (packed.width * packed.height),
+  };
 }
 
 /** Runs every generator and builds one atlas per `generator.atlas`, sorted by atlas name. */
@@ -118,36 +155,54 @@ export function buildAtlases(generators: readonly SpriteGenerator[], palette: Pa
   const atlases = new Map<string, FrameImage[]>();
   const seen = new Set<string>();
   const rampSize = (ramp: string): number => palette.ramps.get(ramp)?.length ?? 0;
+  const add = (atlas: string, frame: FrameImage): void => {
+    const key = `${atlas}:${frame.name}`;
+    if (seen.has(key)) {
+      problems.push(`duplicate frame ${key}`);
+      return;
+    }
+    seen.add(key);
+    const list = atlases.get(atlas) ?? [];
+    list.push(frame);
+    atlases.set(atlas, list);
+  };
+
   for (const gen of generators) {
     const contract = contractProblems(gen);
     if (contract.length > 0) {
       problems.push(...contract);
       continue;
     }
-    for (const [anim, count] of Object.entries(gen.frames)) {
-      for (let frame = 0; frame < count; frame++) {
-        const name = `${gen.id}/${anim}/${String(frame).padStart(2, '0')}`;
-        const key = `${gen.atlas}:${name}`;
-        if (seen.has(key)) {
-          problems.push(`duplicate frame ${key}`);
-          continue;
+    const anchor = gen.anchor ?? { x: 0.5, y: 1 };
+    const layerNames = gen.layers ?? [];
+    for (const variant of gen.variants ?? [null]) {
+      const entity = variant === null ? gen.id : `${gen.id}.${variant}`;
+      for (const [anim, count] of Object.entries(gen.frames)) {
+        for (let frame = 0; frame < count; frame++) {
+          const nn = String(frame).padStart(2, '0');
+          const name = `${entity}/${anim}/${nn}`;
+          const buffer = createIndexBuffer(gen.size.w, gen.size.h, palette);
+          const layers: Partial<Record<CompanionLayer, IndexBuffer>> = {};
+          for (const layer of layerNames) layers[layer] = createIndexBuffer(gen.size.w, gen.size.h, palette);
+          try {
+            gen.generate(seededRng(`${gen.atlas}:${name}`), { variant, anim, frame, buffer, layers, rampSize });
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            problems.push(`${gen.atlas}:${name}: generator failed: ${reason}`);
+            continue;
+          }
+          add(gen.atlas, { name, image: quantize(buffer, palette), declared: gen.size, anchor });
+          for (const layer of layerNames) {
+            const layerBuffer = layers[layer];
+            if (!layerBuffer) continue;
+            add(gen.atlas, {
+              name: `${entity}@${layer}/${anim}/${nn}`,
+              image: quantize(layerBuffer, palette),
+              declared: gen.size,
+              anchor,
+            });
+          }
         }
-        seen.add(key);
-        const buffer = createIndexBuffer(gen.size.w, gen.size.h, palette);
-        try {
-          gen.generate(seededRng(key), { anim, frame, buffer, rampSize });
-        } catch (error) {
-          problems.push(`${key}: generator failed: ${error instanceof Error ? error.message : String(error)}`);
-          continue;
-        }
-        const list = atlases.get(gen.atlas) ?? [];
-        list.push({
-          name,
-          image: quantize(buffer, palette),
-          declared: gen.size,
-          anchor: gen.anchor ?? { x: 0.5, y: 1 },
-        });
-        atlases.set(gen.atlas, list);
       }
     }
   }
@@ -169,8 +224,14 @@ export function buildAtlases(generators: readonly SpriteGenerator[], palette: Pa
 function contractProblems(gen: SpriteGenerator): string[] {
   const label = `generator ${gen.atlas}/${gen.id}`;
   const problems: string[] = [];
-  if (!NAME.test(gen.atlas)) problems.push(`${label}: atlas "${gen.atlas}" must match ${String(NAME)}`);
-  if (!NAME.test(gen.id)) problems.push(`${label}: id "${gen.id}" must match ${String(NAME)}`);
+  const named = (what: string, value: string): void => {
+    if (!NAME.test(value)) problems.push(`${label}: ${what} "${value}" must match ${String(NAME)}`);
+  };
+  const unique = (what: string, list: readonly string[]): void => {
+    if (new Set(list).size !== list.length) problems.push(`${label}: duplicate ${what} in [${list.join(', ')}]`);
+  };
+  named('atlas', gen.atlas);
+  named('id', gen.id);
   const { w, h } = gen.size;
   if (!Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1 || w > MAX_ATLAS_SIZE || h > MAX_ATLAS_SIZE) {
     problems.push(`${label}: size ${String(w)}×${String(h)} must be whole px in 1..${String(MAX_ATLAS_SIZE)}`);
@@ -178,10 +239,21 @@ function contractProblems(gen: SpriteGenerator): string[] {
   const anims = Object.entries(gen.frames);
   if (anims.length === 0) problems.push(`${label}: no animations in "frames"`);
   for (const [anim, count] of anims) {
-    if (!NAME.test(anim)) problems.push(`${label}: animation "${anim}" must match ${String(NAME)}`);
+    named('animation', anim);
     if (!Number.isInteger(count) || count < 1 || count > MAX_FRAMES) {
       problems.push(`${label}: "${anim}" frame count ${String(count)} must be 1..${String(MAX_FRAMES)}`);
     }
   }
+  if (gen.variants !== undefined) {
+    if (gen.variants.length === 0) problems.push(`${label}: "variants" is empty (omit it instead)`);
+    for (const v of gen.variants) named('variant', v);
+    unique('variants', gen.variants);
+  }
+  for (const layer of gen.layers ?? []) {
+    if (!(COMPANION_LAYERS as readonly string[]).includes(layer)) {
+      problems.push(`${label}: layer "${layer}" is not one of ${COMPANION_LAYERS.join(', ')}`);
+    }
+  }
+  unique('layers', gen.layers ?? []);
   return problems;
 }

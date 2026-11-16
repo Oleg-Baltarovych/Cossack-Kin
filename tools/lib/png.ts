@@ -62,19 +62,38 @@ function chunk(type: string, body: Buffer): Buffer {
   return Buffer.concat([head, body, crc]);
 }
 
+/** Largest accepted width/height (screenshots are ≤ ~3200 px; atlases ≤ 2048). */
+export const MAX_PNG_SIDE = 8192;
+
+/**
+ * Decodes an 8-bit RGB/RGBA PNG. Treats input as untrusted: IHDR must come first (13 bytes), every chunk must
+ * fit the buffer and pass its CRC, IDAT needs IHDR before it, IEND is required, sides are 1..MAX_PNG_SIDE,
+ * and inflation stops at the exact expected size (no zip bombs). Every failure is a plain Error.
+ */
 export function decodePng(png: Buffer): RgbaImage {
-  if (!png.subarray(0, 8).equals(SIGNATURE)) throw new Error('not a PNG');
+  if (png.length < 8 || !png.subarray(0, 8).equals(SIGNATURE)) throw new Error('not a PNG');
   let width = 0;
   let height = 0;
   let channels = 0;
+  let sawEnd = false;
   const idat: Buffer[] = [];
-  for (let at = 8; at < png.length;) {
+  for (let at = 8; at < png.length && !sawEnd;) {
+    if (at + 12 > png.length) throw new Error(`PNG truncated: chunk header at ${String(at)}`);
     const length = png.readUInt32BE(at);
+    if (at + 12 + length > png.length)
+      throw new Error(`PNG truncated: chunk at ${String(at)} needs ${String(length)} bytes`);
     const type = png.toString('latin1', at + 4, at + 8);
     const body = png.subarray(at + 8, at + 8 + length);
+    const crc = png.readUInt32BE(at + 8 + length);
+    if (crc32(png.subarray(at + 4, at + 8 + length)) >>> 0 !== crc) throw new Error(`PNG CRC mismatch in ${type}`);
+    if (at === 8 && type !== 'IHDR') throw new Error('PNG: IHDR must be the first chunk');
     if (type === 'IHDR') {
+      if (at !== 8 || length !== 13) throw new Error('PNG: bad IHDR (must be first and 13 bytes)');
       width = body.readUInt32BE(0);
       height = body.readUInt32BE(4);
+      if (width < 1 || height < 1 || width > MAX_PNG_SIDE || height > MAX_PNG_SIDE) {
+        throw new Error(`PNG size ${String(width)}×${String(height)} is outside 1..${String(MAX_PNG_SIDE)}`);
+      }
       const [bitDepth, colorType, , , interlace] = [body[8], body[9], body[10], body[11], body[12]];
       channels = COLOR_TYPE_CHANNELS[colorType ?? -1] ?? 0;
       if (bitDepth !== 8 || channels === 0 || interlace !== 0) {
@@ -85,13 +104,23 @@ export function decodePng(png: Buffer): RgbaImage {
     } else if (type === 'IDAT') {
       idat.push(body);
     } else if (type === 'IEND') {
-      break;
+      sawEnd = true;
     }
     at += 12 + length;
   }
+  if (!sawEnd) throw new Error('PNG: missing IEND');
+  if (idat.length === 0) throw new Error('PNG: no IDAT');
 
-  const raw = inflateSync(Buffer.concat(idat));
   const stride = width * channels;
+  const expected = height * (stride + 1);
+  let raw: Buffer;
+  try {
+    raw = inflateSync(Buffer.concat(idat), { maxOutputLength: expected });
+  } catch (error) {
+    throw new Error(
+      `PNG data does not inflate to ${String(expected)} bytes: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   if (raw.length !== height * (stride + 1)) throw new Error('PNG data size mismatch');
   const rows = new Uint8Array(height * stride);
   for (let y = 0; y < height; y++) unfilterRow(raw, y, stride, channels, rows);

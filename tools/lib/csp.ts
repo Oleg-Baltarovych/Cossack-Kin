@@ -15,6 +15,7 @@ export const PROD_CSP = [
   "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
+  "form-action 'none'",
 ].join('; ');
 
 export const DEV_CSP = [
@@ -25,6 +26,7 @@ export const DEV_CSP = [
   "connect-src 'self' ws: wss:",
   "object-src 'none'",
   "base-uri 'none'",
+  "form-action 'none'",
 ].join('; ');
 
 /** Vite plugins: strict CSP for build, relaxed CSP for the dev server. `pnpm check:dist` verifies dist/index.html. */

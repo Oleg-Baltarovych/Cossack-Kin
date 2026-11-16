@@ -67,6 +67,9 @@ export default defineConfig(
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/ban-ts-comment': 'error',
+      // Security backstop (M0-12 review, security.md): the strict CSP blocks these at runtime anyway.
+      'no-eval': 'error',
+      'no-new-func': 'error',
     },
   },
   {

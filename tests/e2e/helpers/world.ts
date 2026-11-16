@@ -10,14 +10,18 @@ export interface WorldStats {
   readonly frames: number;
 }
 
-/** Opens `url` and waits until the first world frame reached the canvas (`body[data-ready="1"]`). */
+/**
+ * Opens `url` and waits until the first world frame reached the canvas (`body[data-ready="1"]`). A failed
+ * world init (e.g. a missing atlas) sets `data-ready="error"` and fails here at once, not on a timeout.
+ */
 export async function gotoReady(page: Page, url: string): Promise<void> {
   await page.goto(url);
   await waitReady(page);
 }
 
 export async function waitReady(page: Page): Promise<void> {
-  await expect(page.locator('body[data-ready="1"]')).toBeAttached();
+  await expect(page.locator('body[data-ready]')).toBeAttached();
+  await expect(page.locator('body'), 'world init failed (see the browser console)').toHaveAttribute('data-ready', '1');
 }
 
 export async function readStats(page: Page): Promise<WorldStats> {

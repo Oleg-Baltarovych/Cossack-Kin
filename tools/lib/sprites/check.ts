@@ -2,8 +2,8 @@
 // binary outside the soft-alpha atlases, the frame fits its declared size. Defence in depth for generators
 // (palette by construction) and the only guard for external RGB sources.
 import type { RgbaImage } from '../png.ts';
-import type { Palette } from './palette.ts';
-import type { Size } from './types.ts';
+import type { Palette } from '../../../assets-src/gen/lib/palette.ts';
+import type { Size } from '../../../assets-src/gen/lib/types.ts';
 
 /** Atlases allowed to contain semi-transparent px (soft gradients, glows). Explicit list, plan M0-08. */
 export const SOFT_ALPHA_ATLASES: readonly string[] = ['fx'];

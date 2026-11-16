@@ -86,7 +86,10 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     disposers.push(() => {
       world.destroy();
     });
-    const layers = createWorldLayers({ swatch: frame(atlases, 'debug', 'swatch/idle/00') });
+    // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
+    const layers = createWorldLayers({
+      swatch: __CK_DEBUG__ ? frame(atlases, 'debug', 'swatch/idle/00') : undefined,
+    });
     disposers.push(() => {
       for (const layer of layers) layer.destroy();
     });

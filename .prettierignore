@@ -5,7 +5,8 @@ coverage/
 reports/
 public/atlases/
 tests/fixtures/saves/
-assets-src/
+assets-src/palettes/
+assets-src/px/
 pnpm-lock.yaml
 test-results/
 playwright-report/

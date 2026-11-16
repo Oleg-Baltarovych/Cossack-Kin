@@ -9,6 +9,27 @@ export interface Leak {
   readonly context: string;
 }
 
+/**
+ * Pixi v8 (8.23) code generators that use `new Function`, identified by their exact leading parameter names.
+ * They stay in the bundle but never run: pixi.js/unsafe-eval (render/App.ts) swaps in eval-free polyfills.
+ * After a Pixi upgrade a new site makes check:dist fail — review it, then add its signature here.
+ *   unsafeEvalSupported (probe) · compileBufferSync · GenerateShaderSyncCode · generateUniformsSync ·
+ *   generateParticleUpdateFunction
+ */
+export const PIXI_FUNCTION_SIGNATURES: readonly (readonly string[])[] = [
+  ['param1', 'param2', 'param3', 'return param1[param2] === param3;'],
+  ['uv', 'data', 'dataInt32', 'offset'],
+  ['r', 's', 'sD'],
+  ['ud', 'uv', 'renderer', 'syncData'],
+  ['ps', 'f32v', 'u32v'],
+];
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const QUOTE = `["'\`]`;
+/** Lookahead body: the argument list starts with one of the allowed signatures, then `,` or `)`. */
+const PIXI_ARGS = PIXI_FUNCTION_SIGNATURES.map(
+  (args) => args.map((arg) => `\\s*${QUOTE}${escapeRegExp(arg)}${QUOTE}\\s*`).join(',') + '[,)]',
+).join('|');
+
 export const FORBIDDEN: readonly (readonly [string, RegExp])[] = [
   // The URL key as parseDebugParams reads it: read("freeze", …). Pixi's own Object.freeze is not a string.
   ['debug param key "freeze"', /(["'`])freeze\1/g],
@@ -17,17 +38,35 @@ export const FORBIDDEN: readonly (readonly [string, RegExp])[] = [
   ['window.__CK__ debug handle', /__CK__/g],
   ['debug overlay', /debug-overlay/g],
   ['source map reference', /sourceMappingURL/g],
-  // Tripwires for our own code (M0-12). Rolldown prints `new Function(` as `Function(`, and Pixi's bundled
-  // unsafe-eval probe `Function("param1", …)` (never called: pixi.js/unsafe-eval replaces it) must not
-  // match, so a bare `Function(` is deliberately not banned. The CSP blocks both at runtime anyway.
+  // Tripwires (M0-12; the CSP blocks these at runtime, ESLint no-eval/no-new-func at source level).
   // `eval(…)` and indirect `(0,eval)(…)`; a property such as `x.eval(` or `evaluate(` is not eval.
   ['eval call', /(?<![\w$.])eval(?=\s*[()])/g],
-  ['new Function', /\bnew\s+Function\s*\(/g],
+  // `Function(…)` / `new Function(…)` (Rolldown prints the latter as the former), except the exact Pixi
+  // sites in PIXI_FUNCTION_SIGNATURES.
+  ['Function constructor', new RegExp(`(?<![\\w$.])Function\\s*\\((?!(?:${PIXI_ARGS}))`, 'g')],
+  ['global eval / Function', /\b(?:window|globalThis|self)\s*\.\s*(?:eval|Function)\b/g],
 ];
 
-/** Files that must not exist in dist/ at all. */
-export function isForbiddenFile(path: string): boolean {
-  return path.endsWith('.map');
+/** Files that must not exist in dist/ at all: source maps and dev/test-only atlases (M0-08 review). */
+export function isForbiddenFile(path: string): string | null {
+  if (path.endsWith('.map')) return 'source map file';
+  if (/(^|[\\/])atlases[\\/]debug\.(png|json)$/.test(path)) return 'dev/test-only atlas';
+  return null;
+}
+
+/** Problems with dist/atlases/index.json: it must parse and list no dev/test-only atlas. */
+export function checkAtlasIndex(text: string): string[] {
+  let index: unknown;
+  try {
+    index = JSON.parse(text);
+  } catch {
+    return ['atlases/index.json is not JSON'];
+  }
+  const list = typeof index === 'object' && index !== null ? (index as { atlases?: unknown }).atlases : undefined;
+  if (!Array.isArray(list)) return ['atlases/index.json has no "atlases" list'];
+  return list
+    .filter((e: unknown) => typeof e !== 'object' || e === null || (e as { debug?: unknown }).debug !== false)
+    .map((e: unknown) => `atlases/index.json lists a dev/test-only or malformed atlas: ${JSON.stringify(e)}`);
 }
 
 export function findLeaks(text: string): Leak[] {

@@ -3,15 +3,21 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import swatch from '../../../assets-src/gen/debug/swatch/index.ts';
+import { createIndexBuffer, PIXEL_DEFAULTS, quantize } from '../../../assets-src/gen/lib/buffer.ts';
+import { loadPalette, nearestColor, type Palette } from '../../../assets-src/gen/lib/palette.ts';
+import { hashString, seededRng } from '../../../assets-src/gen/lib/rng.ts';
+import type { SpriteGenerator } from '../../../assets-src/gen/lib/types.ts';
 import { decodePng, type RgbaImage } from '../../../tools/lib/png.ts';
-import { buildAtlases, composeAtlas, SpriteBuildError, type FrameImage } from '../../../tools/lib/sprites/atlas.ts';
-import { createIndexBuffer, quantize } from '../../../tools/lib/sprites/buffer.ts';
+import {
+  atlasIndex,
+  buildAtlases,
+  composeAtlas,
+  SpriteBuildError,
+  type FrameImage,
+} from '../../../tools/lib/sprites/atlas.ts';
 import { checkFrame } from '../../../tools/lib/sprites/check.ts';
 import { packShelves, type PackRect } from '../../../tools/lib/sprites/pack.ts';
-import { loadPalette, nearestColor, type Palette } from '../../../tools/lib/sprites/palette.ts';
-import { seededRng } from '../../../tools/lib/sprites/rng.ts';
-import type { SpriteGenerator } from '../../../tools/lib/sprites/types.ts';
-import swatch from '../../../assets-src/gen/debug/swatch/index.ts';
 
 const palette: Palette = loadPalette(JSON.parse(readFileSync('assets-src/palettes/master.json', 'utf8')));
 const hex = (rgb: number): string => `#${rgb.toString(16).padStart(6, '0')}`;
@@ -29,6 +35,17 @@ function solid(w: number, h: number, rgba: number, px?: { x: number; y: number; 
 
 const GRASS_3 = 0x3f7535;
 const opaque = (rgb: number): number => ((rgb << 8) | 0xff) >>> 0;
+/** seededRng('debug:swatch/idle/00') (FNV-1a → mulberry32), pinned at M0-08: k / 2^32 floats are exact. */
+const GOLDEN_HASH = 723189658;
+const GOLDEN_RNG = [0.9888619754929096, 0.7192477204371244, 0.9565023416653275];
+const nn = (i: number): string => String(i).padStart(2, '0');
+
+const frame = (name: string, img: RgbaImage): FrameImage => ({
+  name,
+  image: img,
+  declared: { w: img.width, h: img.height },
+  anchor: { x: 0.5, y: 1 },
+});
 
 describe('palette', () => {
   it('loads every ramp of master.json dark → light', () => {
@@ -51,8 +68,8 @@ describe('palette', () => {
 describe('index buffer → quantize', () => {
   it('maps integer shades to exact ramp colors and leaves unset px transparent', () => {
     const buf = createIndexBuffer(3, 1, palette);
-    buf.set(0, 0, 'grass', 3);
-    buf.set(1, 0, 'grass', 99); // clamps to the lightest
+    buf.set(0, 0, { ramp: 'grass', shade: 3 });
+    buf.set(1, 0, { ramp: 'grass', shade: 99 }); // clamps to the lightest
     const img = quantize(buf, palette);
     expect([...img.data.subarray(0, 4)]).toEqual([0x3f, 0x75, 0x35, 255]);
     expect(hex(((img.data[4] ?? 0) << 16) | ((img.data[5] ?? 0) << 8) | (img.data[6] ?? 0))).toBe('#dfe08a');
@@ -61,7 +78,7 @@ describe('index buffer → quantize', () => {
 
   it('dithers a fractional shade with Bayer 4×4 between the two neighbouring colors only', () => {
     const buf = createIndexBuffer(4, 4, palette);
-    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) buf.set(x, y, 'sky', 2.5);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) buf.set(x, y, { ramp: 'sky', shade: 2.5 });
     const img = quantize(buf, palette);
     const seen = new Map<number, number>();
     for (let i = 0; i < 16; i++) {
@@ -75,11 +92,70 @@ describe('index buffer → quantize', () => {
   it('throws on a write outside the buffer and on an unknown ramp', () => {
     const buf = createIndexBuffer(2, 2, palette);
     expect(() => {
-      buf.set(2, 0, 'grass', 1);
+      buf.set(2, 0, { ramp: 'grass', shade: 1 });
     }).toThrow('outside 2×2');
     expect(() => {
-      buf.set(0, 0, 'nope' as 'grass', 1);
+      buf.set(0, 0, { ramp: 'nope' as 'grass', shade: 1 });
     }).toThrow('unknown ramp "nope"');
+  });
+
+  it('stores every per-px field, reads it back and applies explicit defaults', () => {
+    const buf = createIndexBuffer(2, 1, palette);
+    buf.set(0, 0, { ramp: 'wood', shade: 2.25, alpha: 1, material: 7, normal: [-90, 10, 80], partId: 300, depth: 4.5 });
+    buf.set(1, 0, { ramp: 'grass', shade: 1 });
+    expect(buf.get(0, 0)).toEqual({
+      ramp: 'wood',
+      shade: 2.25,
+      alpha: 1,
+      material: 7,
+      normal: [-90, 10, 80],
+      partId: 300,
+      depth: 4.5,
+    });
+    expect(buf.get(1, 0)).toEqual({ ramp: 'grass', shade: 1, ...PIXEL_DEFAULTS });
+  });
+
+  it('clear() resets every field, not just the ramp', () => {
+    const buf = createIndexBuffer(1, 1, palette);
+    buf.set(0, 0, { ramp: 'wood', shade: 3, alpha: 0.5, material: 9, normal: [1, 2, 3], partId: 5, depth: 2 });
+    buf.clear(0, 0);
+    expect(buf.get(0, 0)).toEqual({ ramp: null, shade: 0, ...PIXEL_DEFAULTS, alpha: 0 });
+    expect(buf.get(0, 0)).toEqual(createIndexBuffer(1, 1, palette).get(0, 0));
+  });
+
+  it('inBounds() guards neighbour passes; get() throws outside', () => {
+    const buf = createIndexBuffer(3, 2, palette);
+    const probes: [number, number][] = [
+      [0, 0],
+      [2, 1],
+      [3, 0],
+      [-1, 0],
+      [0.5, 0],
+    ];
+    expect(probes.map(([x, y]) => buf.inBounds(x, y))).toEqual([true, true, false, false, false]);
+    expect(() => buf.get(0, 2)).toThrow('outside 3×2');
+  });
+
+  it.each([
+    ['alpha', { alpha: 1.5 }, 'alpha 1.5'],
+    ['material', { material: 256 }, 'material 256'],
+    ['normal', { normal: [0, 0, 128] as const }, 'normal [0, 0, 128]'],
+    ['partId', { partId: 70000 }, 'partId 70000'],
+    ['depth', { depth: Number.NaN }, 'depth NaN'],
+    ['shade', { shade: Number.POSITIVE_INFINITY }, 'shade Infinity'],
+  ])('rejects an invalid %s', (_field, extra, message) => {
+    const buf = createIndexBuffer(1, 1, palette);
+    expect(() => {
+      buf.set(0, 0, { ramp: 'grass', shade: 1, ...extra });
+    }).toThrow(message);
+  });
+});
+
+describe('seededRng', () => {
+  it('golden values: the sequence for a fixed key never changes', () => {
+    expect(hashString('debug:swatch/idle/00')).toBe(GOLDEN_HASH);
+    const rng = seededRng('debug:swatch/idle/00');
+    expect([rng(), rng(), rng()]).toEqual(GOLDEN_RNG);
   });
 });
 
@@ -167,23 +243,45 @@ describe('packShelves', () => {
 });
 
 describe('composeAtlas', () => {
-  const frame = (name: string, img: RgbaImage): FrameImage => ({
-    name,
-    image: img,
-    declared: { w: img.width, h: img.height },
-    anchor: { x: 0.5, y: 1 },
+  it('writes a Pixi spritesheet whose frames hold the source pixels', () => {
+    const out = composeAtlas('debug', [frame('swatch/idle/00', solid(3, 2, opaque(GRASS_3)))], palette);
+    expect(out.json.meta).toMatchObject({ image: 'debug.png', scale: 1, format: 'RGBA8888' });
+    expect(out.json.frames['swatch/idle/00']?.frame).toMatchObject({ w: 3, h: 2 });
+    expect(out.json.animations).toEqual({ 'swatch/idle': ['swatch/idle/00'] });
   });
 
-  it('writes a Pixi spritesheet whose frames hold the source pixels', () => {
-    const a = solid(3, 2, opaque(GRASS_3));
-    const out = composeAtlas('debug', [frame('swatch/idle/00', a)], palette);
-    expect(out.json.meta).toMatchObject({ image: 'debug.png', scale: 1, format: 'RGBA8888' });
-    const rect = out.json.frames['swatch/idle/00']?.frame;
-    expect(rect).toMatchObject({ w: 3, h: 2 });
-    expect(out.json.animations).toEqual({ 'swatch/idle': ['swatch/idle/00'] });
-    const img = decodePng(out.png);
-    const at = ((rect?.y ?? 0) * img.width + (rect?.x ?? 0)) * 4;
-    expect([...img.data.subarray(at, at + 4)]).toEqual([0x3f, 0x75, 0x35, 255]);
+  it('packs frames of different sizes byte-exact, padding transparent, animations in frame order', () => {
+    const colors = [GRASS_3, 0x2a6292, 0xb8203f, 0xf2a92e];
+    const color = (i: number): number => opaque(colors[i % colors.length] ?? GRASS_3);
+    const frames: FrameImage[] = [
+      frame('big/idle/00', solid(9, 5, color(0), { x: 3, y: 2, rgba: color(1) })),
+      frame('tall/idle/00', solid(2, 7, color(2))),
+      // 11 frames, inserted out of order: 10 must follow 09 in the animation.
+      ...Array.from({ length: 11 }, (_, k) => 10 - k).map((i) =>
+        frame(`run/go/${nn(i)}`, solid(1 + (i % 4), 3, color(i), { x: 0, y: i % 3, rgba: color(i + 1) })),
+      ),
+    ];
+    const out = composeAtlas('test', frames, palette);
+    const atlas = decodePng(out.png);
+    const covered = new Uint8Array(atlas.width * atlas.height);
+    for (const f of frames) {
+      const rect = out.json.frames[f.name]?.frame;
+      expect(rect, f.name).toMatchObject({ w: f.image.width, h: f.image.height });
+      if (!rect) continue;
+      for (let y = 0; y < rect.h; y++) {
+        const start = (rect.y + y) * atlas.width + rect.x;
+        const actual = Buffer.from(atlas.data.subarray(start * 4, (start + rect.w) * 4));
+        const expected = Buffer.from(f.image.data.subarray(y * rect.w * 4, (y + 1) * rect.w * 4));
+        expect(actual.equals(expected), `${f.name} row ${String(y)}`).toBe(true);
+        covered.fill(1, start, start + rect.w);
+      }
+    }
+    const paddingAlpha = new Set<number>();
+    for (let i = 0; i < covered.length; i++) if (covered[i] === 0) paddingAlpha.add(atlas.data[i * 4 + 3] ?? -1);
+    expect([...paddingAlpha]).toEqual([0]);
+    expect(out.json.animations['run/go']).toEqual(Array.from({ length: 11 }, (_, i) => `run/go/${nn(i)}`));
+    const framePx = frames.reduce((sum, f) => sum + f.image.width * f.image.height, 0);
+    expect(out.utilisation).toBeCloseTo(framePx / (atlas.width * atlas.height), 10);
   });
 
   it('refuses soft alpha outside fx and accepts it in fx', () => {
@@ -217,12 +315,68 @@ describe('buildAtlases', () => {
       id: 'leaky',
       size: { w: 2, h: 1 },
       generate(_rng, { buffer }) {
-        buffer.set(0, 0, 'grass', 3, 0.5);
-        buffer.set(1, 0, 'grass', 3, 0.5);
+        buffer.set(0, 0, { ramp: 'grass', shade: 3, alpha: 0.5 });
+        buffer.set(1, 0, { ramp: 'grass', shade: 3, alpha: 0.5 });
       },
     };
     expect(() => buildAtlases([leaky], palette)).toThrow(
       /leaky\/idle\/00: semi-transparent alpha 128 at \(0, 0\)[\s\S]*at \(1, 0\)/,
     );
+  });
+
+  it('names variants and companion layers <entity>[.<variant>][@<layer>]/<anim>/<nn>', () => {
+    const calls: string[] = [];
+    const hut: SpriteGenerator = {
+      atlas: 'test',
+      id: 'hut',
+      size: { w: 2, h: 2 },
+      frames: { idle: 2 },
+      variants: ['t1', 't2'],
+      layers: ['emissive', 'shadow'],
+      generate(_rng, { variant, anim, frame: n, buffer, layers }) {
+        calls.push(`${String(variant)}/${anim}/${String(n)}`);
+        buffer.set(0, 0, { ramp: 'wood', shade: 2 });
+        layers.emissive?.set(1, 0, { ramp: 'gold', shade: 4 });
+        layers.shadow?.set(0, 1, { ramp: 'ink', shade: 1 });
+      },
+    };
+    const [atlas] = buildAtlases([hut], palette);
+    expect(calls).toEqual(['t1/idle/0', 't1/idle/1', 't2/idle/0', 't2/idle/1']);
+    expect(Object.keys(atlas?.json.animations ?? {}).sort()).toEqual([
+      'hut.t1/idle',
+      'hut.t1@emissive/idle',
+      'hut.t1@shadow/idle',
+      'hut.t2/idle',
+      'hut.t2@emissive/idle',
+      'hut.t2@shadow/idle',
+    ]);
+    expect(atlas?.json.animations['hut.t2@emissive/idle']).toEqual([
+      'hut.t2@emissive/idle/00',
+      'hut.t2@emissive/idle/01',
+    ]);
+    const img = decodePng(atlas?.png ?? Buffer.alloc(0));
+    const rect = atlas?.json.frames['hut.t2@emissive/idle/01']?.frame ?? { x: 0, y: 0 };
+    const at = (rect.y * img.width + rect.x + 1) * 4;
+    expect(hex(((img.data[at] ?? 0) << 16) | ((img.data[at + 1] ?? 0) << 8) | (img.data[at + 2] ?? 0))).toBe('#ffd458');
+  });
+
+  it('rejects bad variants and layers', () => {
+    const base: SpriteGenerator = { ...swatch, atlas: 'test' };
+    expect(() => buildAtlases([{ ...base, variants: ['T1'] }], palette)).toThrow('variant "T1"');
+    expect(() => buildAtlases([{ ...base, variants: ['a', 'a'] }], palette)).toThrow('duplicate variants');
+    expect(() => buildAtlases([{ ...base, layers: ['glow' as 'shadow'] }], palette)).toThrow('layer "glow"');
+  });
+});
+
+describe('atlasIndex', () => {
+  it('lists every atlas and flags debug-only ones', () => {
+    const atlases = buildAtlases([swatch, { ...swatch, atlas: 'khortytsia' }], palette);
+    expect(atlasIndex(atlases)).toEqual({
+      version: 1,
+      atlases: [
+        { name: 'debug', json: 'debug.json', debug: true },
+        { name: 'khortytsia', json: 'khortytsia.json', debug: false },
+      ],
+    });
   });
 });

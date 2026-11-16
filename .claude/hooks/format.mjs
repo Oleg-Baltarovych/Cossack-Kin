@@ -13,8 +13,8 @@ try {
 
 const filePath = input?.tool_input?.file_path;
 if (!filePath || !/\.(ts|tsx|js|mjs|cjs|json|css|md|ya?ml)$/.test(filePath)) process.exit(0);
-// Generated or byte-exact files: atlases, save fixtures, pixel masks.
-if (/[\\/](public[\\/]atlases|tests[\\/]fixtures[\\/]saves|assets-src)[\\/]/.test(filePath)) process.exit(0);
+// Generated or byte-exact files: atlases, save fixtures, palettes, pixel masks (generator code in assets-src/gen is formatted).
+if (/[\\/](public[\\/]atlases|tests[\\/]fixtures[\\/]saves|assets-src[\\/](palettes|px))[\\/]/.test(filePath)) process.exit(0);
 
 const root = process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd();
 const bin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'prettier.cmd' : 'prettier');
