@@ -355,3 +355,67 @@ export const EMISSIVE_LEVELS: Readonly<Record<SkyKeyId, number>> = {
   dusk: 1,
   night: 1,
 };
+
+// --- Clouds (ART-07) ---------------------------------------------------------------------------------
+export type CloudVariant = 'c1' | 'c2' | 'c3' | 'c4' | 'c5';
+
+export interface CloudPlacement {
+  readonly variant: CloudVariant;
+  /** Start x in the clouds layer's own space (logical px; the layer moves at parallax 0.1). */
+  readonly x: number;
+  /** Base row as a share of the sky height from the top (0 = top of the view, 1 = horizon). */
+  readonly y: number;
+  /** Drift to the right, logical px per second (wind). */
+  readonly speed: number;
+}
+
+/**
+ * Two big clouds high, one mid-size, then a loose group of small ones low over the horizon; the band in between stays
+ * mostly open sky (art-director ART-07: an even zig-zag of five read as stamped).
+ */
+export const CLOUDS: readonly CloudPlacement[] = [
+  { variant: 'c1', x: 30, y: 0.13, speed: 1.6 },
+  { variant: 'c5', x: 250, y: 0.24, speed: 1.4 },
+  { variant: 'c2', x: 400, y: 0.4, speed: 1.1 },
+  { variant: 'c3', x: 120, y: 0.74, speed: 0.8 },
+  { variant: 'c4', x: 180, y: 0.8, speed: 0.7 },
+];
+/** Clouds lower than this share of the sky are far away: squashed vertically and see-through toward the sky. */
+export const LOW_CLOUD = { below: 0.65, scaleY: 0.7, alpha: 0.7 } as const;
+
+/**
+ * Per-key cloud look (blended like the sky). `brightness` multiplies the cloud before the LUT (dark masses at dusk and
+ * night instead of daytime clouds with a blue filter); `rim` tints the underside / sun-side rim frame, `rimAlpha`
+ * shows it (the glow of a low sun from below; none when the sun is high or gone).
+ */
+export interface CloudLook {
+  readonly brightness: number;
+  readonly rim: ColorRef;
+  readonly rimAlpha: number;
+}
+export const CLOUD_LOOKS: Readonly<Record<SkyKeyId, CloudLook>> = {
+  dawn: { brightness: 0.8, rim: ['sky', 4], rimAlpha: 0.8 },
+  morning: { brightness: 1, rim: ['gold', 5], rimAlpha: 0.25 },
+  day: { brightness: 1, rim: ['plaster', 6], rimAlpha: 0 },
+  // gold 3 at 0.85: the glow sits into the belly instead of edging it (gold 4 at 1 read as a yellow outline).
+  golden: { brightness: 0.95, rim: ['gold', 3], rimAlpha: 0.85 },
+  dusk: { brightness: 0.7, rim: ['sky', 3], rimAlpha: 0.6 },
+  night: { brightness: 0.45, rim: ['water', 6], rimAlpha: 0 },
+};
+/** Clouds re-enter on the left once they have drifted this far past the layer's right edge (logical px). */
+export const CLOUD_WRAP_MARGIN = 72;
+
+/**
+ * Cloud shadows on the ground: scroll speed (px/s, ground plane), opacity at full daylight, and the far strip under the
+ * horizon (its height in rows; it scrolls at `farSpeed` × speed, smaller shadows further away).
+ */
+export const CLOUD_SHADOW = { speed: 6, alpha: 0.24, farRows: 48, farSpeed: 0.5 } as const;
+/** Cloud-shadow strength per key (blended like the sky): only with direct sun; none at dusk or night. */
+export const CLOUD_SHADOW_LEVELS: Readonly<Record<SkyKeyId, number>> = {
+  dawn: 0.25,
+  morning: 0.8,
+  day: 1,
+  golden: 0.55,
+  dusk: 0,
+  night: 0,
+};

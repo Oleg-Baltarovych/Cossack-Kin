@@ -1,10 +1,13 @@
 // Layer 4 — ground (parallax 1.0, ART-05). Tiled ground rows from the scene layout (content/villages/
 // khortytsia.layout.ts, `ground.<tile>` 64×32 frames of the `khortytsia` atlas; grass picks one of its seeded
 // variants per tile), then flat decals (yards), then the props' `@shadow` frames, then the props themselves Y-sorted by
-// their pivot (SPEC §6.2), with the scripted walkers (render/walkers.ts) sorted among them and re-posed every frame. All sprites come from one atlas texture, so the
+// their pivot (SPEC §6.2), then the cloud shadows over everything (ART-07: one tiled overlay scrolling with the wind,
+// opacity by time of day), with the scripted walkers (render/walkers.ts) sorted among them and re-posed every frame. All sprites come from one atlas texture, so the
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Sprite, type Texture } from 'pixi.js';
 import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
+import { CLOUD_SHADOW } from '../atmosphere/config.ts';
+import { cloudShadowLevel } from '../atmosphere/emissive.ts';
 import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
@@ -50,7 +53,14 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
     const decals = new Container({ label: 'decals' });
     const shadows = new Container({ label: 'shadows' });
     const props = new Container({ label: 'props', sortableChildren: true });
-    container.addChild(tiles, decals, shadows, props);
+    // Cloud shadows: a far strip under the horizon (smaller, slower) and the near tiles below it.
+    const cloudShadows = new Container({ label: 'cloud-shadows' });
+    const farShadows = new Container({ label: 'cloud-shadows-far' });
+    const nearShadows = new Container({ label: 'cloud-shadows-near' });
+    cloudShadows.addChild(farShadows, nearShadows);
+    container.addChild(tiles, decals, shadows, props, cloudShadows);
+    const nearTexture = frame('cloud-shadow/idle/00');
+    const farTexture = frame('cloud-shadow-far/idle/00');
 
     const placedDecals = layout.decals.map((d) => {
       const sprite = new Sprite({ texture: frame(`${d.sprite}/idle/00`), roundPixels: true });
@@ -112,11 +122,30 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
         shadow.position.set(prop.x, y);
         sprite.zIndex = y;
       }
+      // Cloud shadows: whole tiles, one spare column for the scroll; the far strip right under the horizon.
+      const lay = (into: Container, texture: Texture, top: number, bottom: number): void => {
+        for (const child of into.removeChildren()) child.destroy();
+        for (let y = top; y < bottom; y += texture.height) {
+          for (let x = -texture.width; x < width; x += texture.width) {
+            const tile = new Sprite({ texture, roundPixels: true });
+            tile.position.set(x, y);
+            into.addChild(tile);
+          }
+        }
+      };
+      lay(farShadows, farTexture, horizon, horizon + CLOUD_SHADOW.farRows);
+      lay(nearShadows, nearTexture, horizon + CLOUD_SHADOW.farRows, size.viewH);
     };
 
     return {
       resize,
-      update: ({ seconds }) => {
+      update: ({ seconds, cycle }) => {
+        const level = cloudShadowLevel(cycle);
+        cloudShadows.visible = level > 0.01;
+        cloudShadows.alpha = CLOUD_SHADOW.alpha * level;
+        const scroll = (speed: number, w: number): number => Math.round((((seconds * speed) % w) + w) % w);
+        nearShadows.x = scroll(CLOUD_SHADOW.speed, nearTexture.width);
+        farShadows.x = scroll(CLOUD_SHADOW.speed * CLOUD_SHADOW.farSpeed, farTexture.width);
         for (const { walker, walk, idle, sprite, shadow } of walkers) {
           const pose = walkerPose(walker, seconds);
           const texture = (pose.anim === 'walk' ? walk : idle)[pose.frame];

@@ -19,8 +19,14 @@ export async function gotoReady(page: Page, url: string): Promise<void> {
   await waitReady(page);
 }
 
+/**
+ * First frame can take longer than the 5 s expect default under parallel SwiftShader workers (atlas decode, LUTs);
+ * startup time is not what these tests measure. An init error still fails at once via `data-ready="error"`.
+ */
+const READY_TIMEOUT_MS = 20_000;
+
 export async function waitReady(page: Page): Promise<void> {
-  await expect(page.locator('body[data-ready]')).toBeAttached();
+  await expect(page.locator('body[data-ready]')).toBeAttached({ timeout: READY_TIMEOUT_MS });
   await expect(page.locator('body'), 'world init failed (see the browser console)').toHaveAttribute('data-ready', '1');
 }
 

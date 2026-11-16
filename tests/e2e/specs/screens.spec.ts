@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { KHORTYTSIA_FARM } from '../../../src/content/villages/khortytsia.layout.ts';
+import { CLOUDS } from '../../../src/render/atmosphere/config.ts';
 import { split } from '../../../src/render/camera.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
@@ -24,6 +25,8 @@ const BASELINES_PENDING = !existsSync(
 );
 /** The 6 time-of-day keys (plan §0) — ART-04 matrix, farm zone, clear weather. */
 const SKY_KEY_TIMES = ['0530', '0700', '1300', '1930', '2100', '2300'] as const;
+/** Low-light keys where the "never black" rule applies. */
+const DARK_KEYS: ReadonlySet<string> = new Set(['0530', '2100', '2300']);
 const PALETTE = JSON.parse(readFileSync('assets-src/palettes/master.json', 'utf8')) as {
   ramps: Record<string, string[]>;
 };
@@ -142,12 +145,19 @@ const luma = (c: number): number => 0.2126 * ((c >> 16) & 0xff) + 0.7152 * ((c >
 const rgbAt = (data: Uint8Array, i: number): number =>
   ((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0);
 
-/** The sky is ungraded (it is the light source): its top rows must be pure palette colors. */
-function expectSkyOnPalette(png: Buffer): void {
+/** Tallest cloud frame (assets-src/gen/khortytsia/cloud: 44 rows, pivot on the base row 40). */
+const CLOUD_RISE = 41;
+/**
+ * The sky is ungraded (it is the light source): its rows above the highest cloud must be pure palette colors. Clouds
+ * (ART-07) are LUT-graded like the world, so the check stops above them.
+ */
+function expectSkyOnPalette(png: Buffer, scale: number): void {
   const { width, height, data } = decodePng(png);
   const palette = new Set(PALETTE_COLORS);
   const off = new Set<string>();
-  const rows = Math.floor(height * 0.3);
+  const skyRows = (height / scale) * KHORTYTSIA_FARM.horizonRatio;
+  const firstCloudRow = Math.min(...CLOUDS.map((c) => Math.round(skyRows * c.y))) - CLOUD_RISE;
+  const rows = Math.floor(Math.max(4, firstCloudRow - 1) * scale);
   for (let i = 0; i < rows * width * 4; i += 4) {
     const c = rgbAt(data, i);
     if (!palette.has(c)) off.add(`#${c.toString(16).padStart(6, '0')}`);
@@ -204,8 +214,9 @@ test.describe('ART-04 time of day @screens', () => {
       const name = `khortytsia-farm-${hhmm}-clear`;
       const png = await shoot(page, testInfo, name);
       expectPixelGrid(png, testInfo, scale, 0);
-      expectSkyOnPalette(png);
-      expectNoBlack(png);
+      expectSkyOnPalette(png, scale);
+      // ART-BIBLE §8: *night* is never black. By day, sprites legitimately use the darkest palette steps (outlines).
+      if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
       if (hhmm === '2300') expectGroundDarkerThanHorizon(png);
       await expectBaseline(page, testInfo, name);
     });
@@ -226,4 +237,37 @@ test.describe('ART-06 characters @screens', () => {
       expectPixelGrid(png, testInfo, scale, 0);
     });
   }
+});
+
+test.describe('ART-07 clouds @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  test('khortytsia farm 1300 clear: clouds and their ground shadows drift (freeze 0 vs 10)', async ({
+    page,
+  }, testInfo) => {
+    const shots: Buffer[] = [];
+    for (const t of [0, 10]) {
+      await gotoReady(page, `/?time=13:00&freeze=${String(t)}&seed=1&zone=farm`);
+      const scale = await expectWebGlWithinBudget(page);
+      const png = await shoot(page, testInfo, `khortytsia-farm-1300-clear-drift${String(t)}`);
+      expectPixelGrid(png, testInfo, scale, 0);
+      shots.push(png);
+    }
+    const [a, b] = shots.map((s) => decodePng(s));
+    if (!a || !b) throw new Error('missing shots');
+    const horizon = Math.round(a.height * KHORTYTSIA_FARM.horizonRatio);
+    const changed = (y0: number, y1: number): number => {
+      let n = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = 0; x < a.width; x++) {
+          const i = (y * a.width + x) * 4;
+          if (a.data[i] !== b.data[i] || a.data[i + 1] !== b.data[i + 1] || a.data[i + 2] !== b.data[i + 2]) n++;
+        }
+      }
+      return n;
+    };
+    // Sky (clouds moved) and ground (shadows moved) both change; nothing else is animated at 13:00 but walkers.
+    expect(changed(0, horizon)).toBeGreaterThan(0);
+    expect(changed(horizon + 4, a.height)).toBeGreaterThan(0);
+  });
 });

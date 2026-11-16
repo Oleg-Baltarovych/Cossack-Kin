@@ -16,7 +16,7 @@ export type WorldLayerOptions = GroundLayerOptions;
 export function createWorldLayers(options: WorldLayerOptions): WorldLayer[] {
   return [
     createSkyLayer(),
-    createCloudsLayer(),
+    createCloudsLayer({ frame: options.frame }),
     createFarLayer(),
     createMidLayer(),
     createGroundLayer(options),
