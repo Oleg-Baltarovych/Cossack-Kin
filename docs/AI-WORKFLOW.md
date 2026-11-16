@@ -29,7 +29,8 @@ which other flows call as steps; heavy work (`/release-check`) runs only on expl
 | `code-reviewer` | sonnet | read-only | purity, determinism, data/logic split, events, save versioning, types, tests | edits |
 | `ui-reviewer` | sonnet | read-only | mobile UX, pixel-perfect DOM, i18n/plurals, a11y settings, states | edits |
 | `art-director` | opus | read-only (+ run screenshot spec) | atmosphere, pixel discipline, palette, readability, cultural authenticity | edits |
-| `platform-reviewer` | sonnet | read-only | rewarded-ads integrity, consent/privacy, Play policy, saves, clock cheats, secrets | edits |
+| `security-reviewer` | opus | read-only (+ audit/grep) | supply chain, CI hardening, untrusted input (save import, URL params), CSP/XSS, debug code in prod, mobile hardening, secrets | edits |
+| `platform-reviewer` | sonnet | read-only | rewarded-ads integrity, consent/privacy, Play policy, saves, clock cheats | edits |
 | `playwright-test-planner/generator/healer` | sonnet | browser via MCP | e2e plans, e2e tests, fixing flaky e2e | unit tests |
 | `qa-lead` | sonnet | read-only + runs checks | final acceptance: every AC has code + a test or a screenshot, findings resolved | fixes |
 

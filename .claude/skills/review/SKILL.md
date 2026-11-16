@@ -11,6 +11,7 @@ argument-hint: "[base ref, default: main]"
    | `src/ui/**`, `src/i18n/**` | `ui-reviewer` |
    | `src/render/**`, `assets-src/**`, `docs/art/**` | `art-director` — first produce screenshots with `/art-review` and pass their paths |
    | `src/platform/**`, `src/core/save/**`, ads/analytics/notifications code, `capacitor.config.ts`, `android/**`, `ios/**`, `.github/workflows/**` | `platform-reviewer` |
+   | `package.json`, `pnpm-lock.yaml`, `.npmrc`, `pnpm-workspace.yaml`, `index.html`, `vite.config.ts`, `.github/**`, `src/core/save/**`, `src/platform/**`, `src/render/debug/**`, `capacitor.config.ts`, `android/**`, `ios/**` | `security-reviewer` (build `pnpm build` first so it can grep `dist/`) |
    | test files only | `code-reviewer` (test-quality focus) |
    Skip any agent with no files. Docs-only changes: no agents — just check `docs/CONTEXT.md` is consistent.
 3. Merge the findings into one list ordered by severity, deduplicated, with `file:line` (or screenshot + area). End with a combined verdict: ready / fix first (list) / rework.

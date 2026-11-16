@@ -11,5 +11,6 @@ description: Definition-of-Done gate — run typecheck/test/lint (+ balance and 
    - no magic numbers in logic · i18n keys in `uk` + `en` · save version + migration + fixture if state changed
    - offline-equivalence test still green · performance budget respected (draw calls / particles / fps) for render changes
    - accessibility settings honored (less motion, larger text) for UI/render changes
+   - security: `pnpm audit --prod` no high/critical · new deps justified · untrusted input validated (save import, URL params) · no debug code in `dist/` · CSP intact · no secrets
    - no `any` / `@ts-ignore` without comment · SPEC/ADR updated if behaviour changed · `docs/CONTEXT.md` updated
 6. Output: a table of checks + a DoD table + verdict **DONE** or **NOT DONE** (with what is missing).
