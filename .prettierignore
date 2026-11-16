@@ -1,5 +1,6 @@
 # Generated / byte-exact (mirrors .claude/hooks/format.mjs)
 dist/
+dist-test/
 coverage/
 reports/
 public/atlases/

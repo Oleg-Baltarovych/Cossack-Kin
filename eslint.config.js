@@ -43,6 +43,7 @@ export default defineConfig(
   {
     ignores: [
       'dist/',
+      'dist-test/',
       'coverage/',
       'reports/',
       'public/',
@@ -50,8 +51,6 @@ export default defineConfig(
       'playwright-report/',
       '.claude/',
       'tests/fixtures/lint/',
-      // Playwright is installed in M0-07; un-ignore (and add to tsconfig.tests.json) then.
-      'tests/e2e/',
     ],
   },
   {

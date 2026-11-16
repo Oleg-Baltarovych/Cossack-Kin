@@ -22,7 +22,8 @@ No backend in v1.
 - `pnpm build` — production build into `dist/`; then `pnpm check:dist` — fails if debug code (`freeze` param, `window.__CK__`, overlay) leaked into `dist/`
 - Dev/test URL params: `?seed=1&freeze[=sec]&time=HH:MM&weather=&season=&zone=&quality=&overlay&cam=<logical px>` (`render/debug/params.ts`); `document.body.dataset.ready === "1"` after the first frame
 - `pnpm exec vitest run tests/unit/render` — run a subset of unit tests
-- Planned, not yet wired: `pnpm sprites` (M0-08), `pnpm e2e` / `pnpm e2e --grep @screens` (M0-07), `pnpm balance` (M1)
+- `pnpm e2e` — Playwright (builds `--mode test` into `dist-test/`, serves it on :4317); `pnpm e2e --grep @screens` — M0 screenshot matrix (3 phones) → `reports/screens/<date>/`; first time: `pnpm exec playwright install chromium`
+- Planned, not yet wired: `pnpm sprites` (M0-08), `pnpm balance` (M1)
 
 ## Non-negotiable rules
 - If a task conflicts with the SPEC — stop and ask. Behaviour/architecture changes go into `docs/SPEC.md` + an ADR (`/adr`).

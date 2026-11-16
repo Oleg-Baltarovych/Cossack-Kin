@@ -5,6 +5,6 @@
     "jsx": "react-jsx",
     "types": ["node", "vite/client"]
   },
-  "include": ["tests"],
-  "exclude": ["tests/fixtures/lint", "tests/e2e"]
+  "include": ["tests", "playwright.config.ts"],
+  "exclude": ["tests/fixtures/lint"]
 }
