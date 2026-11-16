@@ -20,4 +20,4 @@
 ## Consequences
 - Positive: cheap shaders, guaranteed single pixel grid, readable UI.
 - Negative / trade-offs: two rendering systems to keep pixel-aligned; DOM over WebGL needs care for input and z-order.
-- Follow-ups: verify current Pixi v8 / pixi-filters versions and APIs at M0 (context7).
+- Follow-ups: ✅ versions verified at M0 (pixi.js 8.23.0, pixi-filters 6.1.5; see plan §1). Strict CSP needs `pixi.js/unsafe-eval` (eval-free polyfills) and `preferWorkers: false` (ADR 008). Draw calls are counted in dev by wrapping the GL draw methods.

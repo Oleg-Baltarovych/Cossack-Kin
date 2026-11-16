@@ -53,6 +53,7 @@ Legend: — not started · 🚧 in progress · ✅ done (link key files when don
 - All pixel art by code: material generators + palette quantization + art-director gate (004); music/ambience synthesized, physical modelling (005).
 - Rewarded ads only, UMP, caps in core (006). Settlement = farm + suburb + Sich, kharch/defence links; lands = Host's path Khortytsia → Nova Sich (007).
 - Names: «Козацький хутір» / «Cossack Kin»; applicationId `com.cossackkin.game` (fixed at first Play upload).
+- Toolchain & supply chain (008): TS ~6.0.3, exact versions, pnpm no build scripts + 3-day release age, SHA-pinned CI on ubuntu-26.04, strict CSP, `pnpm security`.
 
 ## 5. Conventions already fixed
 - Docs: SPEC and review in Ukrainian; code, identifiers, comments, commits, ADRs, agent/skill files in English.

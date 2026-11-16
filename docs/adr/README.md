@@ -12,3 +12,4 @@ Process and template: [000](000-record-architecture-decisions.md). New ADRs: `/a
 | [005](005-procedural-folk-audio.md) | Music and ambience synthesized by code | Accepted | Tracker data + physical-modelling folk instruments in Web Audio; optional pre-render |
 | [006](006-rewarded-only-ads.md) | Player-initiated rewarded ads only | Accepted | AdMob rewarded + UMP; caps in core; ads ≤ ~1.5× effect on bloom |
 | [007](007-settlement-zones-and-historical-lands.md) | Farm + suburb + Sich zones; historical lands | Accepted | One diorama, kharch/defence links; lands follow the Host from Khortytsia to Nova Sich |
+| [008](008-toolchain-pins-and-supply-chain.md) | Toolchain pins and supply-chain policy | Accepted | TS ~6.0.3 (typescript-eslint), exact versions, pnpm no-scripts + 3-day release age, SHA-pinned CI, strict CSP + check:dist |
