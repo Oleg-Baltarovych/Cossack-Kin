@@ -72,5 +72,16 @@ Enabled at project scope (`enabledPlugins`, `extraKnownMarketplaces` in `.claude
 | context7 | current docs for Pixi v8, pixi-filters, Capacitor, break_eternity (hosted MCP; queries leave the machine) |
 | Playwright Test Agents | `.claude/agents/playwright-test-*`, `.mcp.json`; regenerate after a Playwright upgrade (see CONTEXT §6) |
 
+### Recommended external skills (verified 2026-11-16, not installed yet — review SKILL.md/scripts and pin a commit before installing)
+| When | Tool | Install | Why |
+|---|---|---|---|
+| before M0 | **pixijs-skills** (official PixiJS) | `/plugin marketplace add pixijs/pixijs-skills` | Pixi v8 scene graph, filters, rendering, v7→v8 pitfalls |
+| M8–M9 | **capawesome-team/skills** | `claude plugin marketplace add capawesome-team/skills` → `capacitor-core` | Capacitor + React, plugins, upgrades, Android optimisation |
+| M9 | **android/skills** (official Google) — only `play`, `performance`, `build-system` | `/plugin marketplace add android/skills` | Gradle/AGP, R8, Play policy for the Android shell |
+| M9 | **tamtom/gplay-cli-skills** + play-console-cli | `npx skills add tamtom/gplay-cli-skills` | scripted Play release, preflight, metadata, vitals |
+| M9 | **appeeky/aso-skills** | `npx skills add appeeky/aso-skills` | store listing / ASO |
+| ideas only | gamedev-skills/awesome-gamedev-agent-skills (`shader-programming`, `game-feel`, `audio-design`) | cherry-pick | reference material for juice, shaders, adaptive audio |
+Rejected: Claude-Code-Game-Studios (clashes with this setup), game-creator (Phaser/Three, AGPL audio), Aseprite MCP (we do not use Aseprite; raw Lua tool), store-credential MCP servers (prefer the auditable CLI).
+
 Not carried over from Applyra (no use in a backend-less game): shadcn skill, Trail of Bits security skills, security-guidance,
 `/new-endpoint`, `/prisma-migration`, `/ai-task`, `security-reviewer` (replaced by `platform-reviewer`).

@@ -5,9 +5,10 @@
 > Last updated: 2026-11-16
 
 ## 1. Status
-- Phase: **pre-M0** — repository holds `docs/SPEC.md` (v1, Ukrainian), the SPEC review and the AI tooling config. No game code yet.
-- Done: git init; AI tooling adapted from the Applyra setup (see `docs/AI-WORKFLOW.md`); SPEC review `docs/SPEC-REVIEW.md`.
-- Next: user decisions on `docs/SPEC-REVIEW.md` §5 → SPEC v1.1 + ADRs 001–00N → **art spike (M-ART)** → M0 scaffold.
+- Phase: **pre-M0** — `docs/SPEC.md` **v1.1** (review decisions applied), ADR 000–007, art bible v0.1 + master palette, AI tooling. No game code yet.
+- Done: git init + private GitHub repo `cossack-kin`; AI tooling adapted from Applyra; SPEC review → v1.1; `docs/art/ART-BIBLE.md`; `assets-src/palettes/master.json` (88 colors, 14 ramps).
+- Next: backlog `docs/plans/2026-11-16-m0-m-art.md` → M0 scaffold → **M-ART** (atmospheric vertical slice, owner sign-off) → M1.
+- MVP = M0, M-ART, M1–M5, M8 with lands 1–2 (SPEC §14).
 - Earlier prototype (single HTML, claude.ai artifact, owner-only) is a reference for loop and mood only. Its art was rejected as too simple — the main reason for the art-first plan.
 
 ## 2. Repo map
@@ -33,13 +34,13 @@ android/ ios/  Capacitor (added at M9; M0–M8 run as web build)
 ## 3. Systems (SPEC §3, milestones §14)
 | System | Milestone | Status |
 |---|---|---|
-| scaffold, integer scale, sky + ground scene, CI | M0 | — |
-| art bible + atmospheric vertical slice (proposed M-ART) | before M0/M2 | — |
-| core: economy, store, tick/offline, save, return window | M1 | — |
-| living village: sprites pipeline, Dnipro, villagers FSM, tiers | M2 | — |
+| scaffold, integer scale, low-res target, debug params, `@screens`, CI | M0 | — |
+| atmospheric vertical slice: generators, sky/LUT, god rays, water, weather, night (art bible v1) | M-ART | — (art bible v0.1, palette ✅) |
+| core: economy (farm + Sich), kharch/defence, store, `advance()`, save, return window, balance-sim | M1 | — |
+| living village: 3 zones, all tiers, villagers & Cossacks FSM, food carts | M2 | — |
 | army, raids, relics | M3 | — |
-| culture, heroes, modifiers | M4 | — |
-| bloom/prestige, legacy tree, villages 2–3 | M5 | — |
+| culture (2 branches), heroes (3), modifiers | M4 | — |
+| bloom/prestige, legacy tree, land 2 (Velykyi Luh) | M5 | — |
 | meta: daily, quests, stork, notifications, weather/seasons | M6 | — |
 | audio | M7 | — |
 | ads (AdMob rewarded, UMP) | M8 | — |
@@ -47,8 +48,10 @@ android/ ios/  Capacitor (added at M9; M0–M8 run as web build)
 Legend: — not started · 🚧 in progress · ✅ done (link key files when done).
 
 ## 4. Key decisions (details in `docs/adr/README.md`)
-- ADR 000: decisions recorded as ADRs. Everything else is still SPEC-level and waits for the review decisions (§5 of `SPEC-REVIEW.md`).
-- From SPEC (to be recorded as ADRs after the review): Pixi v8 world + React DOM UI; pure deterministic core with analytic offline; `break_eternity.js`; Capacitor; rewarded-only ads; no backend in v1.
+- Pixi v8 world in a low-res target (320–400 px) + React DOM UI (001); pure core, one analytic `advance()` (002); Capacitor web-first, no backend (003).
+- All pixel art by code: material generators + palette quantization + art-director gate (004); music/ambience synthesized, physical modelling (005).
+- Rewarded ads only, UMP, caps in core (006). Settlement = farm + suburb + Sich, kharch/defence links; lands = Host's path Khortytsia → Nova Sich (007).
+- Names: «Козацький хутір» / «Cossack Kin»; applicationId `com.cossackkin.game` (fixed at first Play upload).
 
 ## 5. Conventions already fixed
 - Docs: SPEC and review in Ukrainian; code, identifiers, comments, commits, ADRs, agent/skill files in English.
@@ -68,17 +71,19 @@ _(append one line per non-obvious discovery: what, where, why)_
 Read only the section you need: `grep -n "^##" docs/SPEC.md`, then read that range.
 | § | Line | Topic |
 |---|---|---|
-| 0 | 10 | instructions for Claude Code (stage gates, core purity, balance, i18n, checks) |
-| 1–2 | 22 | vision, design pillars, micro/macro loop, pacing targets |
-| 3 | 72 | systems: currencies, buildings (start balance), taps/stork, army/raids, culture/heroes, prestige, villages, offline, meta |
-| 4 | 213 | monetization: rewarded placements and caps, AdMob/UMP |
-| 5 | 235 | art direction: resolution, sprite sizes, palette, font, art sources |
-| 6 | 279 | visuals: screen layout, parallax layers, day/weather, characters, buildings, villager AI, juice, a11y |
-| 7 | 381 | audio |
-| 8 | 412 | tech stack |
-| 9 | 433 | architecture: repo tree, data flow, key types, platform interfaces, saves, modifiers |
-| 10–11 | 559 | UX flows, localization |
-| 12 | 586 | quality: unit, e2e, balance sim, performance budgets |
-| 13 | 622 | analytics events |
-| 14 | 629 | roadmap M0–M10 with acceptance criteria |
-| 15–17 | 649 | release & store, cultural notes, open questions |
+| 0 | 11 | instructions for Claude Code (stage gates, core purity, balance, i18n, screenshots, art gate) |
+| 1–2 | 24 | vision, names, design pillars, micro/macro loop, pacing targets |
+| 3 | 76 | **3.0 settlement zones (farm/suburb/Sich, kharch, defence)**, currencies, farm + Sich buildings, taps/stork, army/raids, culture/heroes, prestige, **lands (historical order)**, offline `advance()`, meta |
+| 4 | 262 | monetization: rewarded placements and caps, AdMob/UMP, audience |
+| 5 | 285 | art direction: 320–400 px, sizes, palette, font, code-generated art pipeline |
+| 6 | 324 | visuals: screen, layers, atmosphere stack (god rays, fog, water, wind), characters, buildings, Sich life, juice, a11y |
+| 7 | 439 | audio: folk instruments via physical modelling, ambience, SFX |
+| 8 | 474 | tech stack |
+| 9 | 495 | architecture: repo tree, data flow, key types, platform interfaces, saves, modifiers |
+| 10–11 | 621 | UX flows, localization |
+| 12 | 648 | quality: unit, e2e + debug params, balance sim metric definitions, performance budgets |
+| 13 | 690 | analytics events |
+| 14 | 697 | roadmap M0, **M-ART**, M1–M10 with acceptance criteria; MVP |
+| 15–17 | 718 | release & store, cultural notes, resolved/open questions |
+
+Art: `docs/art/ART-BIBLE.md` (style source of truth), `docs/art/palette.png`, `assets-src/palettes/master.json`.

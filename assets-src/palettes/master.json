@@ -1,0 +1,20 @@
+{
+  "$comment": "Master palette of Козацький хутір. Source of truth for build-sprites quantization and docs/art/ART-BIBLE.md. Ramps run dark -> light and are hue-shifted (cool/violet shadows, warm lights).",
+  "version": 1,
+  "ramps": {
+    "ink": ["#140e17", "#21162a", "#2f2034", "#3f2c3c"],
+    "wood": ["#3b2419", "#57351f", "#774a28", "#966233", "#b37d42", "#cf9d5c", "#e6c084"],
+    "thatch": ["#4d3a1f", "#6e5426", "#93702e", "#b68f3b", "#d4ad52", "#ebcc78", "#f7e6a8"],
+    "plaster": ["#5b5770", "#7f7b90", "#a6a2b0", "#cac4c6", "#e5ddd3", "#f5eee0", "#fffaf0"],
+    "earth": ["#2e2119", "#47321f", "#634629", "#805d35", "#9f7a48", "#bd9a63"],
+    "grass": ["#13291f", "#1d3f2a", "#2a5931", "#3f7535", "#5c923a", "#84ad45", "#b3c95c", "#dfe08a"],
+    "foliage": ["#18232b", "#213a3a", "#2d4f40", "#3e6646"],
+    "water": ["#0d1b33", "#142f52", "#1d4772", "#2a6292", "#4587b4", "#6fb0d2", "#a8d8ea", "#e0f4f8"],
+    "sky": ["#2b2350", "#4b3168", "#7a3f72", "#b4536f", "#e0735f", "#f39b5e", "#fbc77a", "#ffe8b0"],
+    "crimson": ["#3a0a18", "#63102a", "#8f1434", "#b8203f", "#d9473f", "#f07a5a"],
+    "gold": ["#6e3a10", "#a55a14", "#d6801c", "#f2a92e", "#ffd458", "#fff0a0"],
+    "stone": ["#26262f", "#3b3c48", "#555867", "#737787", "#9599a6", "#bdc0c9", "#e2e4ea"],
+    "skin": ["#4f2c22", "#7a4733", "#a86c4c", "#cf9370", "#ebbd96", "#f8dcbd"],
+    "cloth": ["#151c3a", "#222f5c", "#344686", "#4f66ad"]
+  }
+}
