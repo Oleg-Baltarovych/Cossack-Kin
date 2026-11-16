@@ -15,12 +15,13 @@ own store + `useSyncExternalStore` · `break_eternity.js` behind `Big` · Capaci
 No backend in v1.
 
 ## Commands
-> Not scaffolded yet. Fill in real commands once they exist (keep only non-obvious ones).
-- `pnpm dev` — Vite dev server (web build, `MockAds`)
-- `pnpm typecheck && pnpm test && pnpm lint` — must be green before reporting a task done
-- `pnpm balance` — balance simulation report (run after any change in `src/content/`)
-- `pnpm sprites` — build atlases from `assets-src/` into `public/atlases/` (generated, git-ignored)
-- `pnpm e2e` — Playwright, mobile viewport 390×844
+> pnpm 12.21 on PATH (corepack not used). Node 24 runs `tools/*.ts` directly (no tsx).
+- `pnpm dev` — Vite dev server (web build)
+- `pnpm typecheck && pnpm test && pnpm lint` — must be green before reporting a task done (typecheck covers app, tools and tests projects)
+- `pnpm format` / `pnpm format:check` — Prettier (code only; markdown/docs are not reformatted)
+- `pnpm build` — production build into `dist/`
+- `pnpm exec vitest run tests/unit/render` — run a subset of unit tests
+- Planned, not yet wired: `pnpm sprites` (M0-08), `pnpm e2e` / `pnpm e2e --grep @screens` (M0-07), `pnpm balance` (M1)
 
 ## Non-negotiable rules
 - If a task conflicts with the SPEC — stop and ask. Behaviour/architecture changes go into `docs/SPEC.md` + an ADR (`/adr`).
