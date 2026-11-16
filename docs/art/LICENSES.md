@@ -6,3 +6,5 @@ Policy: SPEC §5.4 and `.claude/rules/art.md`. All art and music are currently m
 | Asset | Source / URL | Author | License | Changes |
 |---|---|---|---|---|
 | Pixelify Sans (planned UI font) | Google Fonts | — | verify at M0 (expected SIL OFL 1.1) | — |
+
+Reference images in `docs/art/references/` (public-domain paintings) are documentation only: not traced, not bundled, not listed above.
