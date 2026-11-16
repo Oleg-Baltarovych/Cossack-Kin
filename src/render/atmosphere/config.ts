@@ -454,3 +454,59 @@ export const FOLIAGE_LEVELS: Readonly<Record<SkyKeyId, number>> = {
   dusk: 1,
   night: 0,
 };
+
+// --- Water: the Dnipro (ART-09) ----------------------------------------------------------------------
+/**
+ * Mirror reflection of the scene above the horizon, one 1-px row per strip: rows shift by whole px (waves, larger
+ * toward the viewer) on a `waveHz` step clock; every `darkEvery` rows a broken line of wave dashes drifts down.
+ */
+export const WATER = { waveHz: 4, maxShift: 2, darkEvery: 5, maxDashes: 160, maxPath: 90, maxGlints: 28 } as const;
+
+/**
+ * Sun/moon path on the water: `sparkle` = loose glints sampled from the disc (high sun, dawn); `column` = a solid
+ * vertical path under the disc, 1 px wide far away, up to `width` px at the bank, `core` colour with `edge` dashes
+ * (Kuindzhi's moon path; the golden-hour sun column).
+ */
+export type WaterPath =
+  | { readonly kind: 'sparkle'; readonly density: number }
+  | { readonly kind: 'column'; readonly core: ColorRef; readonly edge: ColorRef; readonly width: number };
+
+/**
+ * Per-key water look. `tint` multiplies the reflection (a step darker and cooler than the sky it shows); `depth`
+ * darkens the near rows further (0..1 at the bank; none at night, where the water must not go black); `wave` scales
+ * the tint on the wave dashes (darker ripples by day, a moonlit sheen at night); `sheen` is the 1-px waterline at the
+ * far bank.
+ */
+export interface WaterLook {
+  readonly tint: number;
+  readonly depth: number;
+  readonly wave: number;
+  readonly sheen: ColorRef;
+  readonly path: WaterPath;
+}
+export const WATER_LOOKS: Readonly<Record<SkyKeyId, WaterLook>> = {
+  dawn: { tint: 0xa88e9c, depth: 0.15, wave: 0.85, sheen: ['sky', 6], path: { kind: 'sparkle', density: 0.6 } },
+  morning: { tint: 0x98b4d0, depth: 0.2, wave: 0.82, sheen: ['water', 5], path: { kind: 'sparkle', density: 0.35 } },
+  day: { tint: 0x8eaccc, depth: 0.22, wave: 0.82, sheen: ['water', 5], path: { kind: 'sparkle', density: 0.3 } },
+  golden: {
+    tint: 0xc89c8c,
+    depth: 0.15,
+    wave: 0.85,
+    sheen: ['sky', 6],
+    path: { kind: 'column', core: ['gold', 4], edge: ['gold', 3], width: 3 },
+  },
+  dusk: {
+    tint: 0x9a8eb2,
+    depth: 0.1,
+    wave: 0.92,
+    sheen: ['sky', 4],
+    path: { kind: 'column', core: ['water', 6], edge: ['water', 5], width: 3 },
+  },
+  night: {
+    tint: 0xc8d0f0,
+    depth: 0,
+    wave: 1.15,
+    sheen: ['water', 3],
+    path: { kind: 'column', core: ['water', 7], edge: ['water', 5], width: 5 },
+  },
+};

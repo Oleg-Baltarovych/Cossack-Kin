@@ -10,8 +10,11 @@ import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts';
 
-/** Frame budget for the sky + ground scene: M0's 5 (plan M0-06) + 1 grading pass (ART-04). */
-const MAX_DRAW_CALLS = 6;
+/**
+ * Frame budget (SPEC §12.4 caps the game at 30): the scene measured 5 before ART-09; the water adds 2 passes (ART-09:
+ * mirror into waterRT, row strips back onto worldRT). Raise only with the reason here.
+ */
+const MAX_DRAW_CALLS = 7;
 const SCENE = '/?seed=1&freeze&time=13:00';
 const CAM = 10.5;
 const COMPARE_BASELINES = process.platform === 'linux';

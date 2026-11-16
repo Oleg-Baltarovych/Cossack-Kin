@@ -115,6 +115,15 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
           }
         }
       }
+      // The near bank's edge under the river (ART-09): shore tiles right under the last water row.
+      if (layout.waterRows > 0) {
+        const shoreTexture = frame('shore/idle/00');
+        for (let x = 0; x < width; x += shoreTexture.width) {
+          const tile = new Sprite({ texture: shoreTexture, roundPixels: true });
+          tile.position.set(x, horizon + layout.waterRows);
+          tiles.addChild(tile);
+        }
+      }
       for (const { decal, sprite } of placedDecals) sprite.position.set(decal.x, horizon + decal.ground);
       for (const { prop, sprite, shadow } of placed) {
         const y = horizon + prop.ground;

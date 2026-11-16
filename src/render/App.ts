@@ -3,6 +3,7 @@
 // −fracDevicePx device px. The camera moves the world by whole logical px only.
 // Inside worldRT (ART-04/08): sky (ungraded light source) → far + mid landscape (ungraded, painted in the sky's
 // colours) → graded container (clouds, ground … fx, one ColorMapFilter with the CPU-blended time-of-day LUT) →
+// [water passes, ART-09 water.ts: the band above the horizon mirrored into the river under it, two draw calls] →
 // light layer (haze band) → post-grade container (emissive hook, debug swatch).
 // CSP (M0-12): without this Pixi probes `new Function` (a CSP violation under `script-src 'self'`) and
 // generates uniform/UBO sync code with it; the module swaps in eval-free polyfills before any renderer exists.
@@ -26,6 +27,8 @@ import { frame, loadAtlases, type Atlases } from './atlases.ts';
 import { cameraBounds, layerOffset, split } from './camera.ts';
 import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } from './clock.ts';
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
+import { horizonY } from './layers/Layer.ts';
+import { createWater } from './water.ts';
 import { createPostGrade } from './postGrade.ts';
 import { rampColor, rampCss } from './palette.ts';
 import type { RenderSettings } from './settings.ts';
@@ -104,9 +107,13 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       worldRT.destroy(true);
     });
 
+    // The world renders in two parts with the water passes between them (ART-09): the base (sky … graded ground)
+    // is what the river mirrors; the top (light layer with the haze band, post-grade emissive) lies over the water too.
     const world = new Container({ label: 'world' });
+    const worldTop = new Container({ label: 'world-top' });
     disposers.push(() => {
       world.destroy();
+      worldTop.destroy();
     });
     const grading = createGrading(luts);
     disposers.push(() => {
@@ -130,16 +137,24 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       post.container.destroy({ children: true });
     });
     const layers = createWorldLayers({ layout, frame: sceneFrame, weather: settings.weather });
+    const water = createWater(worldRT, layout.waterRows, settings.weather === 'fog');
+    disposers.push(() => {
+      water.destroy();
+    });
     disposers.push(() => {
       for (const layer of layers) layer.destroy();
     });
     for (const layer of layers) {
       // Sky, far/mid landscape (painted in the sky's colours) and the light layer are not graded by the world LUT.
       const ungraded = layer.id === 'sky' || layer.id === 'far' || layer.id === 'mid' || layer.id === 'light';
-      if (layer.id === 'light') world.addChild(graded);
+      if (layer.id === 'light') {
+        world.addChild(graded);
+        worldTop.addChild(layer.container);
+        continue;
+      }
       (ungraded ? world : graded).addChild(layer.container);
     }
-    world.addChild(post.container);
+    worldTop.addChild(post.container);
 
     const upscale = new Sprite({ texture: worldRT, label: 'upscale', roundPixels: true });
     app.stage.addChild(upscale);
@@ -165,6 +180,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const size = { viewW: target.width, viewH: target.height, worldW: WORLD_WIDTH };
       for (const layer of layers) layer.resize(size);
       post.resize(size);
+      water.resize(target.width, target.height, horizonY(target.height));
       // Whole worldRT: the filter pass covers every row even where the graded layers draw nothing yet.
       graded.filterArea = new Rectangle(0, 0, target.width, target.height);
     };
@@ -187,6 +203,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       post.container.x = layerOffset(cam.worldPx, post.parallax);
       upscale.x = -cam.fracDevicePx;
       app.renderer.render({ container: world, target: worldRT, clear: true });
+      water.render(app.renderer, frameInfo.seconds, frameInfo.cycle);
+      app.renderer.render({ container: worldTop, target: worldRT, clear: false });
     };
     app.ticker.maxFPS = TARGET_FPS;
     app.ticker.add(renderWorld);

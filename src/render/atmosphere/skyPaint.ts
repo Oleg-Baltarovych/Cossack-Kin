@@ -127,7 +127,7 @@ function put(out: Uint8Array, w: number, x: number, y: number, color: number): v
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /** Whether the moon is drawn for this blend (and lights its halo). */
-function moonShown(cycle: DayCycle): boolean {
+export function moonShown(cycle: DayCycle): boolean {
   const a = SKY_LOOKS[cycle.keyA].moon;
   const b = SKY_LOOKS[cycle.keyB].moon;
   return lerp(a, b, cycle.t) > 0.5 && cycle.moon.y > -0.02;

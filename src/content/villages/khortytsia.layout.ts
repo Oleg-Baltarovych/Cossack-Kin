@@ -94,6 +94,8 @@ export interface SceneLayout {
   readonly walkers: readonly Walker[];
   /** Back to front. */
   readonly farPlanes: readonly FarPlane[];
+  /** The river under the horizon (ART-09): rows of water from the horizon down; 0 = no water. */
+  readonly waterRows: number;
 }
 
 export const KHORTYTSIA_FARM: SceneLayout = {
@@ -131,6 +133,8 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'selianka.a', x0: 230, x1: 150, ground: 198, speed: 20, rest: 4, phase: 0.4 },
     { sprite: 'kozak.b', x0: 158, x1: 158, ground: 108, speed: 0, rest: 0, phase: 0.2 },
   ],
+  // The Dnipro between the far bank and the farm: it covers the far meadow row but the near bank below it.
+  waterRows: 26,
   // Far plane layer (parallax 0.2) is ~460 px wide on a 390 px phone, the mid layer (0.5) ~555 px.
   farPlanes: [
     // Left bank of the Dnipro: flat steppe with a chain of kurgans (Vasylkivsky's steppe).
