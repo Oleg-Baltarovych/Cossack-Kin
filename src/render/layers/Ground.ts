@@ -1,11 +1,12 @@
 // Layer 4 — ground (parallax 1.0, ART-05). Tiled ground rows from the scene layout (content/villages/
 // khortytsia.layout.ts, `ground.<tile>` 64×32 frames of the `khortytsia` atlas; grass picks one of its seeded
 // variants per tile), then flat decals (yards), then the props' `@shadow` frames, then the props themselves Y-sorted by
-// their pivot (SPEC §6.2). All sprites come from one atlas texture, so the
+// their pivot (SPEC §6.2), with the scripted walkers (render/walkers.ts) sorted among them and re-posed every frame. All sprites come from one atlas texture, so the
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Sprite, type Texture } from 'pixi.js';
 import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
-import { contentWidth, createLayer, horizonY, type WorldLayer } from './Layer.ts';
+import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
+import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
 const PARALLAX = 1;
 const TILE_W = 64;
@@ -70,10 +71,26 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
       return { prop: p, sprite, shadow };
     });
 
-    return (size) => {
+    const frameList = (stem: string, anim: string, count: number): Texture[] =>
+      Array.from({ length: count }, (_, i) => frame(`${stem}/${anim}/${String(i).padStart(2, '0')}`));
+    const walkers = layout.walkers.map((w) => {
+      const [entity = w.sprite, variant = ''] = w.sprite.split('.');
+      const walk = frameList(w.sprite, 'walk', WALK_FRAMES);
+      const idle = frameList(w.sprite, 'idle', IDLE_FRAMES);
+      const sprite = new Sprite({ texture: frame(`${w.sprite}/idle/00`), roundPixels: true });
+      const shadow = new Sprite({ texture: frame(`${entity}.${variant}@shadow/idle/00`), roundPixels: true });
+      sprite.anchor.copyFrom(sprite.texture.defaultAnchor ?? { x: 0.5, y: 1 });
+      shadow.anchor.copyFrom(shadow.texture.defaultAnchor ?? { x: 0.5, y: 1 });
+      shadows.addChild(shadow);
+      props.addChild(sprite);
+      return { walker: w, walk, idle, sprite, shadow };
+    });
+    let horizon = 0;
+
+    const resize = (size: LayerSize): void => {
       for (const child of tiles.removeChildren()) child.destroy();
       const width = contentWidth(PARALLAX, size);
-      const horizon = horizonY(size.viewH);
+      horizon = horizonY(size.viewH);
       const bands = [...layout.rows];
       const last = bands[bands.length - 1];
       const fillTop = last ? last.top + last.h : 0;
@@ -95,6 +112,23 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
         shadow.position.set(prop.x, y);
         sprite.zIndex = y;
       }
+    };
+
+    return {
+      resize,
+      update: ({ seconds }) => {
+        for (const { walker, walk, idle, sprite, shadow } of walkers) {
+          const pose = walkerPose(walker, seconds);
+          const texture = (pose.anim === 'walk' ? walk : idle)[pose.frame];
+          if (texture) sprite.texture = texture;
+          const y = horizon + walker.ground;
+          sprite.position.set(pose.x, y);
+          shadow.position.set(pose.x, y);
+          // Mirrored about the pivot column; the anchor keeps the feet on the same px.
+          sprite.scale.x = pose.facing;
+          sprite.zIndex = y;
+        }
+      },
     };
   });
 }

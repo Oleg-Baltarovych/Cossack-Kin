@@ -32,6 +32,23 @@ export interface Decal {
   readonly ground: number;
 }
 
+/** A person on a scripted route (ART-06 spike; villager FSM and path graph come in M2). */
+export interface Walker {
+  /** Atlas frame stem `<entity>.<variant>` (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/…`). */
+  readonly sprite: 'kozak.a' | 'kozak.b' | 'selianka.a' | 'selianka.b';
+  /** Route ends (world x of the pivot); equal ends = stands in idle. */
+  readonly x0: number;
+  readonly x1: number;
+  /** Pivot y below the horizon; also the Y-sort key. */
+  readonly ground: number;
+  /** Logical px per second; matched to the stride so feet do not slide (~2 steps per 0.6 s walk cycle). */
+  readonly speed: number;
+  /** Seconds of idle at each end. */
+  readonly rest: number;
+  /** Seconds added to the clock, so walkers do not move in step. */
+  readonly phase: number;
+}
+
 export interface SceneLayout {
   /** Horizon as a share of the view height (ART-BIBLE §2: 40–45 %; the bottom sheet covers the lowest ~25 %). */
   readonly horizonRatio: number;
@@ -40,6 +57,7 @@ export interface SceneLayout {
   readonly fill: GroundTile;
   readonly decals: readonly Decal[];
   readonly props: readonly Prop[];
+  readonly walkers: readonly Walker[];
 }
 
 export const KHORTYTSIA_FARM: SceneLayout = {
@@ -70,5 +88,11 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'khata.t3', x: 292, ground: 240 },
     { sprite: 'mallows', x: 266, ground: 243 },
     { sprite: 'tyn', x: 356, ground: 242 },
+  ],
+  walkers: [
+    // A Cossack walking the road; a woman between the two yards; a second Cossack resting by khata I.
+    { sprite: 'kozak.a', x0: 40, x1: 340, ground: 146, speed: 22, rest: 3, phase: 0 },
+    { sprite: 'selianka.a', x0: 230, x1: 150, ground: 198, speed: 20, rest: 4, phase: 0.4 },
+    { sprite: 'kozak.b', x0: 158, x1: 158, ground: 108, speed: 0, rest: 0, phase: 0.2 },
   ],
 };

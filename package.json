@@ -11,6 +11,7 @@
     "dev": "pnpm sprites && pnpm luts && vite",
     "sprites": "node tools/build-sprites.ts",
     "sprites:sheet": "node tools/contact-sheet.ts",
+    "sprites:strip": "node tools/anim-strip.ts",
     "luts": "node tools/build-luts.ts",
     "build": "pnpm sprites && pnpm luts && vite build",
     "preview": "vite preview",

@@ -211,3 +211,19 @@ test.describe('ART-04 time of day @screens', () => {
     });
   }
 });
+
+test.describe('ART-06 characters @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // Six consecutive walk frames (10 fps): freeze=0…0.5 s in 0.1 s steps.
+  for (let step = 0; step <= 5; step++) {
+    test(`khortytsia farm 1300 clear t${String(step)}: walkers on the pixel grid, within budget`, async ({
+      page,
+    }, testInfo) => {
+      await gotoReady(page, `/?time=13:00&freeze=${(step / 10).toFixed(1)}&seed=1&zone=farm`);
+      const scale = await expectWebGlWithinBudget(page);
+      const png = await shoot(page, testInfo, `khortytsia-farm-1300-clear-t${String(step)}`);
+      expectPixelGrid(png, testInfo, scale, 0);
+    });
+  }
+});

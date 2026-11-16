@@ -19,6 +19,7 @@ No backend in v1.
 - `pnpm dev` — Vite dev server (web build)
 - `pnpm typecheck && pnpm test && pnpm lint` — must be green before reporting a task done (typecheck covers app, tools and tests projects)
 - `pnpm format` / `pnpm format:check` — Prettier (code only; markdown/docs are not reformatted)
+- `pnpm sprites:strip <id…>` — ×8 animation strips (one row per variant/anim, with shadow, on grass) → `reports/sprites/<id>-anim.png`
 - `pnpm sprites` — run every generator in `assets-src/gen/**/index.ts` → `public/atlases/<atlas>.png|json` (Pixi Spritesheet; palette/alpha/size checks; prints SHA-256 per file, two runs must match). `pnpm dev` and `pnpm build` run it first
 - `pnpm build` — production build into `dist/` (strict CSP meta injected); then `pnpm check:dist` — fails if debug code (`freeze` param, `window.__CK__`, overlay), `eval(`/`new Function(` or source maps leaked into `dist/`, or `dist/index.html` lacks the exact strict CSP
 - `pnpm security` — `pnpm audit --prod --audit-level high` + `pnpm check:dist` (run after `pnpm build`)
