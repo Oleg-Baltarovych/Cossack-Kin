@@ -1,8 +1,9 @@
 // Pixi world app (plan §0, ADR 001): the world renders into a low-res worldRT of (W+1)×(H+1) logical px
 // with nearest sampling, then one upscale sprite draws it ×scale to the canvas, shifted by
 // −fracDevicePx device px. The camera moves the world by whole logical px only.
-// Inside worldRT (ART-04): sky (ungraded light source) → graded container (clouds … fx, one ColorMapFilter
-// with the CPU-blended time-of-day LUT) → light layer → post-grade container (emissive hook, debug swatch).
+// Inside worldRT (ART-04/08): sky (ungraded light source) → far + mid landscape (ungraded, painted in the sky's
+// colours) → graded container (clouds, ground … fx, one ColorMapFilter with the CPU-blended time-of-day LUT) →
+// light layer (haze band) → post-grade container (emissive hook, debug swatch).
 // CSP (M0-12): without this Pixi probes `new Function` (a CSP violation under `script-src 'self'`) and
 // generates uniform/UBO sync code with it; the module swaps in eval-free polyfills before any renderer exists.
 import 'pixi.js/unsafe-eval';
@@ -128,12 +129,13 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     disposers.push(() => {
       post.container.destroy({ children: true });
     });
-    const layers = createWorldLayers({ layout, frame: sceneFrame });
+    const layers = createWorldLayers({ layout, frame: sceneFrame, weather: settings.weather });
     disposers.push(() => {
       for (const layer of layers) layer.destroy();
     });
     for (const layer of layers) {
-      const ungraded = layer.id === 'sky' || layer.id === 'light';
+      // Sky, far/mid landscape (painted in the sky's colours) and the light layer are not graded by the world LUT.
+      const ungraded = layer.id === 'sky' || layer.id === 'far' || layer.id === 'mid' || layer.id === 'light';
       if (layer.id === 'light') world.addChild(graded);
       (ungraded ? world : graded).addChild(layer.container);
     }

@@ -49,6 +49,40 @@ export interface Walker {
   readonly phase: number;
 }
 
+/**
+ * A far landscape plane standing on the horizon (ART-08, SPEC §6.2 layers 2–3), painted on the CPU in the sky's
+ * colours: aerial perspective comes from `depth` (chain steps darker than the horizon sky; small = far and hazy).
+ * Units are logical px in the plane's own layer space (its parallax), heights above the horizon row.
+ */
+export type FarPlane =
+  | {
+      /** Opposite bank: low undulating steppe with kurgans. */
+      readonly kind: 'steppe';
+      readonly layer: 'far';
+      readonly depth: number;
+      readonly seed: number;
+      /** Kurgans: centre x, half width, height. */
+      readonly kurgans: readonly (readonly [number, number, number])[];
+    }
+  | {
+      /** Granite bluffs (кручі): plateaus with steep scarps, trees on the crest. */
+      readonly kind: 'cliffs';
+      readonly layer: 'far';
+      readonly depth: number;
+      readonly seed: number;
+      /** Plateaus: start x, end x, height. */
+      readonly plateaus: readonly (readonly [number, number, number])[];
+    }
+  | {
+      /** A line of tree crowns (oak and willow groves). */
+      readonly kind: 'grove';
+      readonly layer: 'mid';
+      readonly depth: number;
+      readonly seed: number;
+      /** Grove spans: start x, end x, crown height. */
+      readonly groves: readonly (readonly [number, number, number])[];
+    };
+
 export interface SceneLayout {
   /** Horizon as a share of the view height (ART-BIBLE §2: 40–45 %; the bottom sheet covers the lowest ~25 %). */
   readonly horizonRatio: number;
@@ -58,6 +92,8 @@ export interface SceneLayout {
   readonly decals: readonly Decal[];
   readonly props: readonly Prop[];
   readonly walkers: readonly Walker[];
+  /** Back to front. */
+  readonly farPlanes: readonly FarPlane[];
 }
 
 export const KHORTYTSIA_FARM: SceneLayout = {
@@ -94,5 +130,44 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'kozak.a', x0: 40, x1: 340, ground: 146, speed: 22, rest: 3, phase: 0 },
     { sprite: 'selianka.a', x0: 230, x1: 150, ground: 198, speed: 20, rest: 4, phase: 0.4 },
     { sprite: 'kozak.b', x0: 158, x1: 158, ground: 108, speed: 0, rest: 0, phase: 0.2 },
+  ],
+  // Far plane layer (parallax 0.2) is ~460 px wide on a 390 px phone, the mid layer (0.5) ~555 px.
+  farPlanes: [
+    // Left bank of the Dnipro: flat steppe with a chain of kurgans (Vasylkivsky's steppe).
+    {
+      kind: 'steppe',
+      layer: 'far',
+      depth: 0.8,
+      seed: 11,
+      // A continuous 8–11 px band; kurgans 4–6 px on top of it, 20–40 px wide.
+      kurgans: [
+        [64, 16, 5],
+        [300, 20, 6],
+        [430, 12, 4],
+      ],
+    },
+    // Khortytsia's granite bluffs: a long plateau and a lower spur, trees on the crest.
+    {
+      kind: 'cliffs',
+      layer: 'far',
+      depth: 1.4,
+      seed: 23,
+      plateaus: [
+        [150, 290, 36],
+        [330, 400, 24],
+      ],
+    },
+    // Groves on our side, between the far bank and the farm.
+    {
+      kind: 'grove',
+      layer: 'mid',
+      depth: 2.3,
+      seed: 37,
+      groves: [
+        [0, 70, 18],
+        [210, 330, 22],
+        [470, 560, 16],
+      ],
+    },
   ],
 };

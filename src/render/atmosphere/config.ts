@@ -419,3 +419,38 @@ export const CLOUD_SHADOW_LEVELS: Readonly<Record<SkyKeyId, number>> = {
   dusk: 0,
   night: 0,
 };
+
+// --- Far planes, aerial perspective and haze (ART-08) ------------------------------------------------
+/**
+ * Air haze per key (blended like the sky), 0..1: thins far planes toward the horizon colour and sets the strength of
+ * the dithered haze band over the ground under the horizon. Strongest at dawn (morning mist), weakest at noon.
+ */
+export const HAZE_LEVELS: Readonly<Record<SkyKeyId, number>> = {
+  dawn: 1,
+  morning: 0.7,
+  day: 0.2,
+  golden: 0.4,
+  dusk: 0.5,
+  night: 0.3,
+};
+/**
+ * Weather `fog`: haze at least this, plane depths scaled down and capped (far fades more than near), a tall dense
+ * band over the ground whose top `leadRows` reach above the horizon over the bases of the far planes.
+ */
+export const FOG = { haze: 1, depthScale: 0.35, maxDepth: 0.8, bandRows: 110, bandCover: 0.85, leadRows: 12 } as const;
+/** Clear-air haze band under the horizon: rows at haze 0 and 1, top coverage at haze 1. */
+export const HAZE_BAND = { rows: [10, 40], cover: 0.6 } as const;
+/** How much haze thins plane depth in clear air (depth × (1 − k·haze)). */
+export const HAZE_DEPTH_K = 0.35;
+/**
+ * Local colour of the nearest planes (groves): `foliage` shade per key, dithered 50 % into the aerial colour. Night
+ * and dusk sink it, day lifts it.
+ */
+export const FOLIAGE_LEVELS: Readonly<Record<SkyKeyId, number>> = {
+  dawn: 1,
+  morning: 2,
+  day: 3,
+  golden: 2,
+  dusk: 1,
+  night: 0,
+};

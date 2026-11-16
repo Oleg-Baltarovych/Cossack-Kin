@@ -15,13 +15,13 @@ export function bayer(x: number, y: number): number {
 
 const rgb = ([ramp, index]: ColorRef): number => rampColor(ramp, index);
 
-interface Prepared {
+export interface Prepared {
   readonly look: SkyLook;
   readonly chain: readonly number[];
 }
 
 const PREPARED = new Map<SkyKeyId, Prepared>();
-function prepared(id: SkyKeyId): Prepared {
+export function prepared(id: SkyKeyId): Prepared {
   let p = PREPARED.get(id);
   if (!p) {
     const look = SKY_LOOKS[id];
@@ -29,6 +29,12 @@ function prepared(id: SkyKeyId): Prepared {
     PREPARED.set(id, p);
   }
   return p;
+}
+
+/** Chain position of the sky's bottom row (gradient + horizon glow, capped like the painter; no halos). */
+export function horizonPos(id: SkyKeyId): number {
+  const look = SKY_LOOKS[id];
+  return Math.min(look.baseMax, look.horizon + look.glow);
 }
 
 /** Pixel position of a sky point in a w×h band (h − 1 = the horizon row). */
@@ -104,7 +110,7 @@ interface Pt {
  * Color for a chain position. The fraction is quantized to quarters, so dithering uses only the regular 25 / 50 /
  * 75 % Bayer patterns — no rows of isolated 1/16 dots where a band begins.
  */
-function pick(p: Prepared, pos: number, threshold: number): number {
+export function pick(p: Prepared, pos: number, threshold: number): number {
   const i = Math.floor(pos);
   const f = Math.round((pos - i) * 4) / 4;
   return (f > threshold ? p.chain[i + 1] : p.chain[i]) ?? p.chain[i] ?? 0;

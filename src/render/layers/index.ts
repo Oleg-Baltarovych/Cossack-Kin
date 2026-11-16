@@ -8,20 +8,23 @@ import type { WorldLayer } from './Layer.ts';
 import { createLightLayer } from './Light.ts';
 import { createMidLayer } from './Mid.ts';
 import { createSkyLayer } from './Sky.ts';
+import type { Weather } from '../settings.ts';
 
 export type { LayerFrame, LayerId, LayerSize, WorldLayer } from './Layer.ts';
 
-export type WorldLayerOptions = GroundLayerOptions;
+export interface WorldLayerOptions extends GroundLayerOptions {
+  readonly weather: Weather;
+}
 
 export function createWorldLayers(options: WorldLayerOptions): WorldLayer[] {
   return [
     createSkyLayer(),
     createCloudsLayer({ frame: options.frame }),
-    createFarLayer(),
-    createMidLayer(),
+    createFarLayer(options.layout.farPlanes, options.weather),
+    createMidLayer(options.layout.farPlanes, options.weather),
     createGroundLayer(options),
     createForegroundLayer(),
     createFxLayer(),
-    createLightLayer(),
+    createLightLayer(options.weather),
   ];
 }

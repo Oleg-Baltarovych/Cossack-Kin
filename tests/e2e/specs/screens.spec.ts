@@ -194,10 +194,13 @@ function bandLuma(png: Buffer, y0: number, y1: number): number {
  * above the horizon, so silhouettes read against the sky. The horizon sits at the scene layout's ratio of the view
  * height; bands are sampled 1–3% above and below it.
  */
-function expectGroundDarkerThanHorizon(png: Buffer): void {
+/** Far planes (ART-08) stand up to 60 logical rows on the horizon; the sky sample is taken just above them. */
+const FAR_PLANE_ROWS = 60;
+function expectGroundDarkerThanHorizon(png: Buffer, scale: number): void {
   const { height } = decodePng(png);
   const horizon = KHORTYTSIA_FARM.horizonRatio;
-  const sky = bandLuma(png, height * (horizon - 0.03), height * (horizon - 0.01));
+  const above = (FAR_PLANE_ROWS * scale) / height;
+  const sky = bandLuma(png, height * (horizon - above - 0.02), height * (horizon - above));
   const ground = bandLuma(png, height * (horizon + 0.01), height * (horizon + 0.03));
   expect(ground, `ground top band luma vs horizon sky ${sky.toFixed(1)}`).toBeLessThan(sky);
 }
@@ -217,7 +220,7 @@ test.describe('ART-04 time of day @screens', () => {
       expectSkyOnPalette(png, scale);
       // ART-BIBLE §8: *night* is never black. By day, sprites legitimately use the darkest palette steps (outlines).
       if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
-      if (hhmm === '2300') expectGroundDarkerThanHorizon(png);
+      if (hhmm === '2300') expectGroundDarkerThanHorizon(png, scale);
       await expectBaseline(page, testInfo, name);
     });
   }
@@ -269,5 +272,18 @@ test.describe('ART-07 clouds @screens', () => {
     // Sky (clouds moved) and ground (shadows moved) both change; nothing else is animated at 13:00 but walkers.
     expect(changed(0, horizon)).toBeGreaterThan(0);
     expect(changed(horizon + 4, a.height)).toBeGreaterThan(0);
+  });
+});
+
+test.describe('ART-08 far plane and fog @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  test('khortytsia farm 0700 fog: far planes and the back row sink into the fog, within budget', async ({
+    page,
+  }, testInfo) => {
+    await gotoReady(page, '/?time=07:00&freeze&seed=1&zone=farm&weather=fog');
+    const scale = await expectWebGlWithinBudget(page);
+    const png = await shoot(page, testInfo, 'khortytsia-farm-0700-fog');
+    expectPixelGrid(png, testInfo, scale, 0);
   });
 });
