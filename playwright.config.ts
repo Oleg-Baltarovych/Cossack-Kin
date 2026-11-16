@@ -28,6 +28,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: 0,
+  // SwiftShader (no GPU on CI) renders the textured 3.5x-DPR scene slowly; 30 s default is too tight.
+  timeout: 90_000,
   reporter: process.env['CI'] ? [['list'], ['html', { open: 'never' }]] : 'list',
   // Baselines are compared on Linux (CI) only; see screens.spec.ts.
   snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}-{platform}{ext}',
