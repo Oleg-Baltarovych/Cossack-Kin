@@ -1,6 +1,12 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { isDebugMode } from './src/render/debug/modes.ts';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-});
+  define: {
+    // Debug params, overlay and window.__CK__ exist only in allowlisted modes: development, test (M0-05/06).
+    // A compile-time constant, so production code paths are removed by dead-code elimination.
+    __CK_DEBUG__: JSON.stringify(isDebugMode(mode)),
+  },
+}));

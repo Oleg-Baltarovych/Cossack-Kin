@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeViewport } from '../../../src/render/viewport.ts';
+import { computeViewport, worldTargetSize } from '../../../src/render/viewport.ts';
 
 // SPEC §5.1 + plan Q2: scale = max(1, floor(deviceW / 320)); if deviceW / scale > 400 → scale + 1.
 describe('computeViewport', () => {
@@ -61,5 +61,28 @@ describe('computeViewport', () => {
   it('falls back to a 1×1 device surface and DPR 1 for degenerate input', () => {
     expect(computeViewport(0, 0, 0)).toEqual({ scale: 1, logicalW: 1, logicalH: 1, deviceW: 1, deviceH: 1 });
     expect(computeViewport(390, 844, Number.NaN)).toMatchObject({ deviceW: 390, scale: 1, logicalW: 390 });
+  });
+});
+
+describe('worldTargetSize', () => {
+  it('worldRT covers the whole canvas for every scale and camera remainder', () => {
+    for (let deviceW = 300; deviceW <= 2000; deviceW++) {
+      const deviceH = 2 * deviceW + 1;
+      for (const scale of new Set([computeViewport(deviceW, deviceH, 1).scale, 1, 2, 3, 4, 5])) {
+        const { width, height } = worldTargetSize({ deviceW, deviceH, scale });
+        for (let frac = 0; frac < scale; frac++) {
+          // The upscale sprite starts at −frac device px and must still reach the right edge.
+          expect(
+            width * scale - frac,
+            `deviceW ${String(deviceW)} ×${String(scale)} frac ${String(frac)}`,
+          ).toBeGreaterThanOrEqual(deviceW);
+        }
+        expect(height * scale).toBeGreaterThanOrEqual(deviceH);
+      }
+    }
+  });
+
+  it('1001 px at ×3 needs 335 logical columns (ceil + 1)', () => {
+    expect(worldTargetSize({ deviceW: 1001, deviceH: 800, scale: 3 }).width).toBe(335);
   });
 });

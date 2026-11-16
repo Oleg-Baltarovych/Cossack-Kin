@@ -1,4 +1,29 @@
-// Root DOM UI. The world canvas is a placeholder until the Pixi app lands (M0-04).
+// Root DOM UI. Hosts the Pixi world canvas; HUD and sheets arrive in M1+.
+import { useEffect, useRef } from 'react';
+import { startWorld, type WorldApp } from '../render/index.ts';
+
 export function App() {
-  return <canvas id="world" style={{ display: 'block', width: '100%', height: '100%' }} />;
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    // StrictMode mounts twice: a disposed effect destroys its app as soon as init resolves.
+    let disposed = false;
+    let world: WorldApp | null = null;
+    startWorld(host)
+      .then((created) => {
+        if (disposed) created.destroy();
+        else world = created;
+      })
+      .catch((error: unknown) => {
+        console.error('world init failed', error);
+      });
+    return () => {
+      disposed = true;
+      world?.destroy();
+    };
+  }, []);
+
+  return <div ref={hostRef} id="world" />;
 }

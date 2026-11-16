@@ -1,0 +1,11 @@
+/* Global layout. Kept out of index.html so the M0-12 CSP can use style-src 'self'.
+   No colors here: the world host background comes from the master palette (render/App.ts). */
+html,
+body,
+#root,
+#world {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}

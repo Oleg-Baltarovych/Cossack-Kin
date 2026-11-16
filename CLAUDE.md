@@ -19,7 +19,8 @@ No backend in v1.
 - `pnpm dev` — Vite dev server (web build)
 - `pnpm typecheck && pnpm test && pnpm lint` — must be green before reporting a task done (typecheck covers app, tools and tests projects)
 - `pnpm format` / `pnpm format:check` — Prettier (code only; markdown/docs are not reformatted)
-- `pnpm build` — production build into `dist/`
+- `pnpm build` — production build into `dist/`; then `pnpm check:dist` — fails if debug code (`freeze` param, `window.__CK__`, overlay) leaked into `dist/`
+- Dev/test URL params: `?seed=1&freeze[=sec]&time=HH:MM&weather=&season=&zone=&quality=&overlay&cam=<logical px>` (`render/debug/params.ts`); `document.body.dataset.ready === "1"` after the first frame
 - `pnpm exec vitest run tests/unit/render` — run a subset of unit tests
 - Planned, not yet wired: `pnpm sprites` (M0-08), `pnpm e2e` / `pnpm e2e --grep @screens` (M0-07), `pnpm balance` (M1)
 

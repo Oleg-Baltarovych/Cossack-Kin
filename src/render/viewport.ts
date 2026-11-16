@@ -35,3 +35,20 @@ function toDevicePx(cssPx: number, ratio: number): number {
   const device = Math.round(cssPx * ratio);
   return Number.isFinite(device) ? Math.max(1, device) : 1;
 }
+
+export interface TargetSize {
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Size of worldRT in logical px: every (partial) logical column/row of the canvas plus one spare, so the
+ * upscale sprite shifted left by up to `scale − 1` device px still reaches the right edge
+ * (`width·scale − frac ≥ deviceW`). `logicalW + 1` is not enough when `deviceW mod scale ≥ 2`.
+ */
+export function worldTargetSize(viewport: Pick<Viewport, 'deviceW' | 'deviceH' | 'scale'>): TargetSize {
+  return {
+    width: Math.ceil(viewport.deviceW / viewport.scale) + 1,
+    height: Math.ceil(viewport.deviceH / viewport.scale) + 1,
+  };
+}
