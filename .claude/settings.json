@@ -106,13 +106,20 @@
     "pr-review-toolkit@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
-    "context7@claude-plugins-official": true
+    "context7@claude-plugins-official": true,
+    "pixijs-skills@pixijs-skills": true
   },
   "extraKnownMarketplaces": {
     "superpowers-marketplace": {
       "source": {
         "source": "github",
         "repo": "obra/superpowers-marketplace"
+      }
+    },
+    "pixijs-skills": {
+      "source": {
+        "source": "github",
+        "repo": "pixijs/pixijs-skills"
       }
     }
   }
