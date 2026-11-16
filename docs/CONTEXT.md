@@ -5,7 +5,7 @@
 > Last updated: 2026-11-16 (M0-10/11)
 
 ## 1. Status
-- Phase: **M0 done, in acceptance (M0-11)** — M0-01..10 + M0-12: scaffold, lint/test, `computeViewport`, Pixi app + worldRT + camera, debug params/clock, debug overlay, Playwright `@screens` + pixel-grid check, `pnpm sprites` + `debug/swatch`, security baseline (pnpm supply-chain policy, strict CSP, `pnpm security`, Dependabot), CI `.github/workflows/ci.yml` + gitleaks — green on GitHub (runs 43926861870, 43931751047), Linux baselines committed in `tests/e2e/__screenshots__/` (ubuntu-26.04). SPEC **v1.1**, ADR 000–008, art bible v0.1 + master palette.
+- Phase: **M0 ✅ accepted (qa-lead, 2026-11-16); next: M-ART** — M0-01..10 + M0-12: scaffold, lint/test, `computeViewport`, Pixi app + worldRT + camera, debug params/clock, debug overlay, Playwright `@screens` + pixel-grid check, `pnpm sprites` + `debug/swatch`, security baseline (pnpm supply-chain policy, strict CSP, `pnpm security`, Dependabot), CI `.github/workflows/ci.yml` + gitleaks — green on GitHub (runs 43926861870, 43931751047), Linux baselines committed in `tests/e2e/__screenshots__/` (ubuntu-26.04). SPEC **v1.1**, ADR 000–008, art bible v0.1 + master palette.
 - Open follow-up: remove `minimumReleaseAgeExclude` from `pnpm-workspace.yaml` after 2026-11-17T15:00Z.
 - Done: git init + private GitHub repo `cossack-kin`; AI tooling adapted from Applyra; SPEC review → v1.1; `docs/art/ART-BIBLE.md`; `assets-src/palettes/master.json` (88 colors, 14 ramps).
 - Next: backlog `docs/plans/2026-11-16-m0-m-art.md` → M0 scaffold → **M-ART** (atmospheric vertical slice, owner sign-off) → M1.
@@ -36,7 +36,7 @@ Commands: `pnpm dev` · `pnpm sprites` · `pnpm build` + `pnpm check:dist` · `p
 ## 3. Systems (SPEC §3, milestones §14)
 | System | Milestone | Status |
 |---|---|---|
-| scaffold, integer scale, low-res target, debug params, `@screens`, CI | M0 | 🚧 scaffold, lint/test, viewport, `render/App.ts` + `camera.ts`, `render/debug/*`, `@screens` (`tests/e2e/specs/screens.spec.ts`), `pnpm sprites` (`tools/build-sprites.ts`), security baseline (`pnpm-workspace.yaml`, `tools/lib/csp.ts`, `tests/e2e/specs/csp.spec.ts`) ✅; CI `.github/workflows/ci.yml` ✅ (green on GitHub, strict screenshot compare on ubuntu-26.04) — acceptance M0-11 pending |
+| scaffold, integer scale, low-res target, debug params, `@screens`, CI | M0 | ✅ scaffold, lint/test, viewport, `render/App.ts` + `camera.ts`, `render/debug/*`, `@screens` (`tests/e2e/specs/screens.spec.ts`), `pnpm sprites` (`tools/build-sprites.ts`), security baseline (`pnpm-workspace.yaml`, `tools/lib/csp.ts`, `tests/e2e/specs/csp.spec.ts`) ✅; CI `.github/workflows/ci.yml` ✅ (green on GitHub, strict screenshot compare on ubuntu-26.04) — M0 accepted |
 | atmospheric vertical slice: generators, sky/LUT, god rays, water, weather, night (art bible v1) | M-ART | — (art bible v0.1, palette ✅) |
 | core: economy (farm + Sich), kharch/defence, store, `advance()`, save, return window, balance-sim | M1 | — |
 | living village: 3 zones, all tiers, villagers & Cossacks FSM, food carts | M2 | — |
