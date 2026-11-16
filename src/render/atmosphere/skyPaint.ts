@@ -51,15 +51,18 @@ function halo(look: HaloLook, cx: number, cy: number, x: number, y: number): num
 function chainPos(p: Prepared, x: number, y: number, h: number, sun: Pt, moon: Pt | null): number {
   const { look } = p;
   const v = h > 1 ? y / (h - 1) : 1;
-  let pos = look.top + (look.horizon - look.top) * Math.pow(v, look.curve);
+  let base = look.top + (look.horizon - look.top) * Math.pow(v, look.curve);
   const fromHorizon = (1 - v) / look.glowHeight;
-  if (fromHorizon < 1) pos += look.glow * (1 - fromHorizon) * (1 - fromHorizon);
-  // Soft air streaks, stretched 4:1 along the horizon: band edges wander instead of running ruler-straight.
-  if (look.streaks > 0) pos += look.streaks * streakNoise(x, y);
+  if (fromHorizon < 1) base += look.glow * (1 - fromHorizon) * (1 - fromHorizon);
   // Gradient + glow stop at baseMax (the horizon stays a step below whitewash); halos may go above it.
-  if (pos > look.baseMax) pos = look.baseMax;
-  pos += halo(look.sunHalo, sun.x, sun.y, x, y);
-  if (moon) pos += halo(look.moonHalo, moon.x, moon.y, x, y);
+  if (base > look.baseMax) base = look.baseMax;
+  // Halos are round lifts over the clean gradient, combined by max: added on top of the streaks they would
+  // inherit the streak contours and drip into "keyhole" shapes.
+  const lift = Math.max(halo(look.sunHalo, sun.x, sun.y, x, y), moon ? halo(look.moonHalo, moon.x, moon.y, x, y) : 0);
+  // Soft air streaks, stretched 4:1 along the horizon: band edges wander instead of running ruler-straight.
+  // They fade out inside a halo so its rings stay round.
+  const streaks = look.streaks > 0 ? look.streaks * streakNoise(x, y) * Math.max(0, 1 - lift) : 0;
+  const pos = Math.max(base + streaks, base + lift);
   // The lightest chain color is reserved for the sun/moon disc, so the disc never melts into its own halo.
   const max = Math.max(0, p.chain.length - 2);
   return pos < 0 ? 0 : pos > max ? max : pos;

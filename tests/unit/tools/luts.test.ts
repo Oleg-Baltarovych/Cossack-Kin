@@ -54,11 +54,14 @@ describe('buildLut', () => {
     expect(luma(plaster)).toBeLessThan(luma(hex(master.ramps['plaster']?.[4] ?? '#000000')) * 0.75);
   });
 
-  it('golden hour: mid greens turn olive/ochre, darkest tones lean to ink 3 (lit by sunset)', () => {
+  it('golden hour: grass warms but stays green (not olive mud), darkest tones lean to ink 3', () => {
     const lut = buildLut(GRADE_LOOKS.golden, palette);
-    const grass = lutLookup(lut, ramp('grass', 5)); // #84ad45
-    expect(grass[0]).toBeGreaterThan(grass[1] - 12); // red caught up with green: olive/ochre, not lime
-    expect(grass[2]).toBeLessThan(grass[1] - 40);
+    for (const i of [2, 3, 4]) {
+      const src = ramp('grass', i);
+      const grass = lutLookup(lut, src);
+      expect(grass[1]).toBeGreaterThan(grass[0] + 20); // still clearly green
+      expect(grass[0] - grass[1]).toBeGreaterThan(src[0] - src[1]); // warmer: red gained on green
+    }
     const earth = lutLookup(lut, ramp('earth', 0));
     expect(Math.abs(earth[0] - ramp('ink', 3)[0])).toBeLessThan(20);
     expect(earth[2]).toBeGreaterThan(ramp('earth', 0)[2]); // toward violet ink 3, away from brown

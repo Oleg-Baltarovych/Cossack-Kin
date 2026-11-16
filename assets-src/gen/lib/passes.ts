@@ -415,29 +415,31 @@ export function contactShadow(layer: IndexBuffer, spec: ContactShadowSpec): void
   }
 }
 
-export interface WedgeShadowSpec {
-  /** First column right of the wall. */
-  readonly x: number;
+export interface CastShadowSpec {
+  /** Base span that throws the shadow: from the middle of the base to its right end (exclusive). */
+  readonly x0: number;
+  readonly x1: number;
   readonly groundY: number;
-  /** Reach to the right in px (recipe 8–10, default 9). */
-  readonly length?: number;
-  /** Height at the wall foot in px (recipe 3–4, default 4). */
-  readonly height?: number;
+  /** Reach to the right over `depth` rows (art-director ART-05 review: 12 px over 5 rows). */
+  readonly reach?: number;
+  readonly depth?: number;
 }
 
-/** Building shadow on the `shadow` layer: a wedge skewed right-and-down from the wall foot, tapering, dithered tail. */
-export function wedgeShadow(layer: IndexBuffer, spec: WedgeShadowSpec): void {
-  const length = spec.length ?? 9;
-  const height = spec.height ?? 4;
-  for (let dx = 0; dx < length; dx++) {
-    // The top edge falls toward the ground line as it reaches right: a tapering wedge skewed right-and-down.
-    const top = spec.groundY - height + 1 + Math.round((dx * height) / length);
-    const bottom = spec.groundY;
-    for (let y = top; y <= bottom; y++) {
-      const x = spec.x + dx;
-      if (!layer.inBounds(x, y)) continue;
-      const tail = dx >= length * 0.6 || y === top;
-      if (!tail || (x + y) % 2 === 0) layer.set(x, y, { ramp: 'ink', shade: 1 });
+/**
+ * Building shadow on the `shadow` layer (sun top-left): a parallelogram that leaves the right half of the base and
+ * slides right as it comes down toward the viewer, filled `ink` 1 (#21162a) at 50 % Bayer, with a solid 1-px
+ * contact line along the base. The sprite covers the part under the building.
+ */
+export function castShadow(layer: IndexBuffer, spec: CastShadowSpec): void {
+  const reach = spec.reach ?? 12;
+  const depth = spec.depth ?? 5;
+  const ink = { ramp: 'ink', shade: 1 } as const;
+  for (let x = spec.x0; x < spec.x1; x++) if (layer.inBounds(x, spec.groundY)) layer.set(x, spec.groundY, ink);
+  for (let row = 0; row < depth; row++) {
+    const y = spec.groundY - 1 + row;
+    const shift = Math.round(((row + 1) * reach) / depth);
+    for (let x = spec.x0 + shift; x < spec.x1 + shift; x++) {
+      if (layer.inBounds(x, y) && (x + y) % 2 === 0) layer.set(x, y, ink);
     }
   }
 }

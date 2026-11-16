@@ -37,9 +37,11 @@ Pixel-level recipes that extend ART-BIBLE §5. Hex values are from `assets-src/p
 - Keep 2–3 gold/yellow flower flecks per tile.
 
 ## Wattle fence (tyn) and pot (глечик)
-- Stakes 2 px wide every 8–10 px: lit left `#966233`, dark right `#57351f`; rise 4–6 px above the top rod (±2 px), 1-px pointed/split tops.
-- Rods 2 px tall: top row `#b37d42` on front-passing segments, bottom `#774a28`; 1-px `#3b2419` gap row between rods.
-- Over/under: a rod passes in front of stake A, behind stake B, swapping each row. Front: rod over stake, stake darkened 1 px above/below. Behind: rod breaks 1 px before the stake, stake drawn intact. 1-px sag mid-segment.
+*Revised after the ART-05 review: the rod-and-gap version read as a rail fence.*
+- Stakes 2 px wide every 8–10 px: body `#774a28`, lit left face `#b37d42`; rise 3–7 px above the weave, 1-px pointed tops.
+- Weave: stacked courses of 4 rows. Row 1 is a rim `#b37d42` (it catches the moon, so the fence reads at night). Rows 2–4 are diagonal rods on a 3-px period: lit rod `#cf9d5c`, its shadow `#966233`, gap `#57351f`. Shaded half of a segment: `#966233` / `#774a28` / `#57351f`. A 2-px period of 1-px diagonals degenerates into a checkerboard — never use it.
+- Over/under: the diagonal flips at every stake and every course. A course passes in front of stake A and behind stake B, swapping each course. Front: the course covers the stake, its bottom row `#774a28` over the stake. Behind: the stake stays intact, the course darkens 1 px before it.
+- The weave ends 2 rows above the ground, so the stake feet show.
 - Pot ~7×9 px: 1-px rim 4 wide; 2-px neck 3 wide; 3-px shoulder 7 wide; 2-px taper to a 4-px foot. Body `#9f7a48`, highlight `#bd9a63` upper-left shoulder, right side `#634629`, outline `#47321f`, optional 1-px `#805d35` glaze band. Hung **upside-down on a stake top**.
 
 ## Earth and path
@@ -47,8 +49,20 @@ Pixel-level recipes that extend ART-BIBLE §5. Hex values are from `assets-src/p
 - Path: 2 ruts 1–2 px `#634629`, wavering ±1 px every 6–8 px, 1-px `#bd9a63` lip on the upper edge, broken for 2–3 px every 10–15 px; irregular grass bite into the path edge, 1–3 px.
 
 ## Cast shadow (shadow layer)
-- Ellipse under the object, 1–2 px wider than the base each side, 4–5 px tall: core `#21162a`, outer ring 50 % dither.
-- Buildings: right-and-down skew wedge — khata ≈ 8–10 px to the right of the wall at ground level, 3–4 px tall at the wall foot, tapering. Same for tower and church.
+- Small props: an ellipse under the object, 1–2 px wider than the base each side, 4–5 px tall: core `#21162a`, outer ring 50 % dither.
+- Buildings (revised in ART-05): a solid 1-px `#21162a` contact line along the base, plus a parallelogram from the right half of the base that slides 12 px right over 5 rows, `#21162a` at 50 % Bayer (`castShadow`). Same for tower and church.
+
+## Khata volume (ART-05 review)
+- 3/4 view: the last ~9 px of the wall are a side wall under the right hip. Base `#cac4c6`, 1-px `#7f7b90` outer edge, its own 3-row AO, splash one step darker than the front.
+- The front face stays lit (`#f5eee0`) up to a 1-px `#e5ddd3` corner.
+- Eave AO on the front: a solid `#7f7b90` row, then `#7f7b90`/`#a6a2b0` at 50 %. The lit left third is one step lighter. The right end gets a third row.
+- The right hip foot widens to cover the side wall and overhang; its last 7 columns are one thatch step deeper.
+- Mallows are a separate prop, not part of the khata sprite (colour budget).
+
+## Yard (двір) decal
+- Ragged ellipse 80×20 under each khata, edge dithered into the grass (50 %, then 25 %).
+- Sun-dried, lighter than the grass: `#9f7a48` base, `#bd9a63` at 50 % on the lit top-left third, 1-px `#805d35` rim on the bottom and right edges only.
+- A few `#634629` foot and wheel marks, 2–3 pebbles. Never darker than the path (it reads as a mud pit).
 
 ## Other primitives
 - Keep: tower log courses; tent roof's clean left-lit / right-dark split (model for roof plane shading); planks swatch as is.

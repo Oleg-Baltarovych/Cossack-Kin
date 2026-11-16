@@ -28,4 +28,13 @@ describe('khortytsia farm layout', () => {
       expect(p.ground).toBeLessThan(depth);
     }
   });
+
+  it('every khata stands on a yard decal (not on a uniform lawn)', () => {
+    const khatas = KHORTYTSIA_FARM.props.filter((p) => p.sprite.startsWith('khata'));
+    expect(khatas.length).toBeGreaterThan(0);
+    for (const k of khatas) {
+      const yard = KHORTYTSIA_FARM.decals.find((d) => Math.abs(d.x - k.x) <= 8 && Math.abs(d.ground - k.ground) <= 8);
+      expect(yard, `yard under ${k.sprite} at ${String(k.x)}`).toBeDefined();
+    }
+  });
 });

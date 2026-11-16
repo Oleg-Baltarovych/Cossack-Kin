@@ -2,7 +2,7 @@
 // a log tower under a tent roof, a pear dome with ґонт scales on a whitewashed drum, a hung pot, an emissive slit
 // window. Debug atlas only; reviewed via `pnpm sprites:sheet primitives`. The khata is the real `khortytsia/khata`.
 import { stake } from '../../lib/materials.ts';
-import { compose, contactShadow, wedgeShadow, type Material } from '../../lib/passes.ts';
+import { compose, contactShadow, castShadow, type Material } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import { glechyk, whitewashWall } from '../../lib/recipes.ts';
 import { rand2 } from '../../lib/noise.ts';
@@ -78,9 +78,9 @@ const primitives: SpriteGenerator = {
     const shadow = layers.shadow;
     if (shadow) {
       contactShadow(shadow, { x0: 6, x1: 20, groundY: GROUND - 1 });
-      wedgeShadow(shadow, { x: 20, groundY: GROUND - 1 });
+      castShadow(shadow, { x0: 12, x1: 20, groundY: GROUND - 1 });
       contactShadow(shadow, { x0: 40, x1: 52, groundY: GROUND - 1 });
-      wedgeShadow(shadow, { x: 52, groundY: GROUND - 1 });
+      castShadow(shadow, { x0: 44, x1: 52, groundY: GROUND - 1 });
     }
   },
 };

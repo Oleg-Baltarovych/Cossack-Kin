@@ -74,7 +74,7 @@ function swatch(name: Swatch): { parts: Part[]; options: ComposeOptions } {
       };
     }
     case 'wattle': {
-      const stakes = wattle(plot, { seed, x: 0, w: S, ground: S, topRod: 13, rods: 5, rise: { 1: 4 } });
+      const stakes = wattle(plot, { seed, x: 0, w: S, ground: S, top: 9, courses: 5, rise: { 1: 4 } });
       const st = stakes[1];
       if (st) glechyk(plot, st.x, st.top - (POT_HEIGHT - 1));
       return { parts: [plot.part(MATERIAL.rod, 1)], options: RECIPE };

@@ -31,6 +31,11 @@ export interface RoofSpec {
   readonly lip: number;
   /** Ridge length as a share of the eave width (recipe: 0.40–0.50). */
   readonly ridge?: number;
+  /**
+   * Hip-end width at the eave as a share of the hip's run (default 0.45 both). A wider right foot covers a side wall
+   * under the shaded right hip (3/4 view).
+   */
+  readonly hipFoot?: { readonly left: number; readonly right: number };
 }
 
 export interface RoofInfo {
@@ -70,14 +75,15 @@ export function thatchRoof(plot: Plot, spec: RoofSpec): RoofInfo {
   const { x, w, top, lip } = spec;
   const body = lip - top;
   const side = (w - Math.round(w * (spec.ridge ?? 0.45))) / 2;
-  const hipFoot = Math.round(side * 0.45);
+  const leftFoot = Math.round(side * (spec.hipFoot?.left ?? 0.45));
+  const rightFoot = Math.round(side * (spec.hipFoot?.right ?? 0.45));
   const tOf = (r: number): number => (body > 1 ? r / (body - 1) : 1);
   const span = (r: number): readonly [number, number] => {
     const inset = Math.round(side * (1 - tOf(r))) + (r === 0 ? 2 : r === 1 ? 1 : 0);
     return [x + inset, x + w - inset];
   };
-  const hipLeft = (r: number): number => x + side + (hipFoot - side) * tOf(r);
-  const hipRight = (r: number): number => x + w - side + (side - hipFoot) * tOf(r);
+  const hipLeft = (r: number): number => x + side + (leftFoot - side) * tOf(r);
+  const hipRight = (r: number): number => x + w - side + (side - rightFoot) * tOf(r);
 
   // Per column: staggered strand segments and broken groove runs.
   const columns = Array.from({ length: w }, (_, c) => {
@@ -129,6 +135,8 @@ export function thatchRoof(plot: Plot, spec: RoofSpec): RoofInfo {
         }
       }
       if (col.runs.some(([a, b]) => r >= a && r < b)) shade = plane.groove;
+      // The far end of the shaded right hip turns one step deeper (art-director ART-05 re-review).
+      if (plane === PLANES.right && px >= right - 7) shade = Math.max(1, shade - 1);
       plot.set(px, y, 'thatch', shade);
     }
   }
@@ -165,15 +173,40 @@ export function thatchRoof(plot: Plot, spec: RoofSpec): RoofInfo {
   return { ridgeX0: r0, ridgeX1: r1 };
 }
 
-/** AO under the eave on the wall: 1 px on the lit left third, 2 px in the middle, 3 px at the shaded right end. */
+/**
+ * AO under the eave on the wall (art-director ART-05 review: the band must read): a solid `#7f7b90` row, then
+ * `#7f7b90`/`#a6a2b0` at 50 % (the lit left third: `#a6a2b0`/`#cac4c6`), and at the shaded right end a third
+ * `#a6a2b0`/`#cac4c6` row.
+ */
 export function eaveAO(plot: Plot, x0: number, x1: number, y: number): void {
   // plaster: 1 #7f7b90, 2 #a6a2b0, 3 #cac4c6
   for (let c = x0; c < x1; c++) {
     const f = (c - x0) / (x1 - x0);
-    const rows = f < 1 / 3 ? [1] : f >= 0.8 ? [1, 2, 3] : [1, 2];
-    rows.forEach((shade, i) => {
-      plot.set(c, y + i, 'plaster', shade);
-    });
+    const odd = c % 2 === 1;
+    plot.set(c, y, 'plaster', f < 1 / 3 ? 2 : 1);
+    plot.set(c, y + 1, 'plaster', f < 1 / 3 ? (odd ? 2 : 3) : odd ? 1 : 2);
+    if (f >= 0.7) plot.set(c, y + 2, 'plaster', odd ? 3 : 2);
+  }
+}
+
+/**
+ * Side wall under the right hip (3/4 view, the shade face ART-BIBLE §11.2 asks for): `#cac4c6` base, a 3-row eave AO
+ * (`#7f7b90` → 50 % `#7f7b90`/`#a6a2b0` → 50 % `#a6a2b0`/`#cac4c6`), a 1-px `#7f7b90` outline on the outer edge
+ * and the dithered ground splash one step darker than the lit front.
+ */
+export function sideWall(plot: Plot, r: Rect): void {
+  for (let row = 0; row < r.h; row++) {
+    for (let c = r.x; c < r.x + r.w; c++) {
+      const odd = (c + row) % 2 === 1;
+      let shade = 3;
+      if (row === 0) shade = 1;
+      else if (row === 1) shade = odd ? 1 : 2;
+      else if (row === 2) shade = odd ? 2 : 3;
+      else if (row === r.h - 2) shade = odd ? 2 : 3;
+      else if (row === r.h - 1) shade = odd ? 1 : 2;
+      if (c === r.x + r.w - 1) shade = Math.min(shade, 1);
+      plot.set(c, r.y + row, 'plaster', shade);
+    }
   }
 }
 
@@ -187,6 +220,8 @@ export interface WallSpec extends Rect {
   readonly aoRows?: number;
   /** Draw a clay show-through (default true; at most one per wall). */
   readonly clay?: boolean;
+  /** Darken the last 2 columns (default true). Off for a front face that meets a side wall at its right edge. */
+  readonly shadeEdge?: boolean;
 }
 
 /**
@@ -208,7 +243,18 @@ export function whitewashWall(plot: Plot, spec: WallSpec): void {
   }
   for (let r = 0; r < h; r++) {
     for (let c = x; c < x + w; c++) {
-      let shade = c >= x + w - 2 && w >= 16 ? 3 : c >= (boundary[r] ?? x + w) ? 4 : 5;
+      const edged = spec.shadeEdge ?? true;
+      // Without the shaded edge (a front face meeting a side wall) the face stays lit up to a 1-px #e5ddd3 corner,
+      // so the step to the #cac4c6 side wall reads as a turn of the wall.
+      let shade = edged
+        ? c >= x + w - 2 && w >= 16
+          ? 3
+          : c >= (boundary[r] ?? x + w)
+            ? 4
+            : 5
+        : c === x + w - 1
+          ? 4
+          : 5;
       if (r === h - 2) shade = Math.min(shade, (c + r) % 2 === 0 ? 4 : 3);
       if (r === h - 1) shade = Math.min(shade, (c + r) % 2 === 0 ? 3 : 2);
       plot.set(c, y + r, 'plaster', shade);
@@ -535,10 +581,11 @@ export interface WattleSpec {
   readonly w: number;
   /** Ground row (stakes stand on it). */
   readonly ground: number;
-  /** Top row of the first rod. */
-  readonly topRod: number;
-  readonly rods: number;
-  /** Fixed rise above the top rod for stake `index` (e.g. the stake that carries a pot). */
+  /** Top row of the first weave course. */
+  readonly top: number;
+  /** Weave courses, each `WATTLE_COURSE` rows tall, stacked down from `top`. */
+  readonly courses: number;
+  /** Fixed rise above the weave for stake `index` (e.g. the stake that carries a pot). */
   readonly rise?: Readonly<Record<number, number>>;
 }
 
@@ -547,76 +594,78 @@ export interface Stake {
   readonly top: number;
 }
 
+/** Rows per weave course: a 1-px lit rim and three rows of diagonal rods. */
+export const WATTLE_COURSE = 4;
+
 /**
- * Тин: 2-px stakes every 8–10 px (lit left `#966233`, dark right `#57351f`) rising 3–7 px above the top rod to a 1-px
- * point; 2-px rods (top `#b37d42` near the stake they pass in front of, `#966233` near the one they pass behind;
- * bottom `#774a28`) over `#3b2419` gap rows. Over/under: rod `k` passes in front of stake `i` when (k + i) is even
- * and swaps each row; in front it covers the stake and darkens the stake px above/below, behind it breaks 1 px
- * before the stake. 1-px sag mid-segment.
+ * Тин (art-director, ART-05 review): woven, not a rail fence. 2-px stakes every 8–10 px (`#774a28`, lit left face
+ * `#b37d42`) rise 3–7 px above the weave to a 1-px point. The weave is stacked courses of `WATTLE_COURSE` rows: a
+ * top rim `#b37d42` (moonlight catches it, so the fence still reads at night), then diagonal rods on a 3-px period
+ * (lit rod, its shadow, a `#57351f` gap). The diagonal flips at every stake and every course, so the bundles read as passing
+ * over and under the stakes. A course passing in front of a stake covers it; behind, the stake stays intact and the
+ * course darkens 1 px before it. Rods on the half of a segment by a front pass are lit (`#cf9d5c`), the rest shaded
+ * (`#966233`).
  */
 export function wattle(plot: Plot, spec: WattleSpec): readonly Stake[] {
   const rng = seededRng(`${spec.seed}:wattle`);
-  const { x, w, ground, topRod, rods } = spec;
+  const { x, w, ground, top, courses } = spec;
   const stakes: Stake[] = [];
   for (let sx = x + int(rng, 1, 2); sx + 1 < x + w; sx += int(rng, 8, 10)) {
     const rise = spec.rise?.[stakes.length] ?? int(rng, 3, 7);
-    stakes.push({ x: sx, top: topRod - rise });
+    stakes.push({ x: sx, top: top - rise });
   }
-  const rowOf = (k: number): number => topRod + 3 * k;
-  // Gap rows behind everything.
-  for (let k = 0; k < rods - 1; k++) for (let c = x; c < x + w; c++) plot.set(c, rowOf(k) + 2, 'wood', 0);
-  // Stakes, intact.
+  // wood: 0 #3b2419, 1 #57351f, 2 #774a28, 3 #966233, 4 #b37d42, 5 #cf9d5c
   for (const st of stakes) {
     const tipLeft = rng() < 0.5;
     for (let y = st.top; y < ground; y++) {
       if (y === st.top) {
-        plot.set(tipLeft ? st.x : st.x + 1, y, 'wood', tipLeft ? 3 : 1);
+        plot.set(tipLeft ? st.x : st.x + 1, y, 'wood', tipLeft ? 4 : 2);
         continue;
       }
-      plot.set(st.x, y, 'wood', 3);
-      plot.set(st.x + 1, y, 'wood', 1);
+      plot.set(st.x, y, 'wood', 4);
+      plot.set(st.x + 1, y, 'wood', 2);
     }
   }
   const stakeAt = (c: number): number => stakes.findIndex((st) => c === st.x || c === st.x + 1);
-  for (let k = 0; k < rods; k++) {
-    const y0 = rowOf(k);
+  /** Index of the last stake left of column c (−1: none). */
+  const leftOf = (c: number): number => {
+    let li = -1;
+    for (let i = 0; i < stakes.length; i++) if ((stakes[i]?.x ?? 0) < c) li = i;
+    return li;
+  };
+  for (let k = 0; k < courses; k++) {
+    const y0 = top + k * WATTLE_COURSE;
+    // Course k passes in front of stake i when (k + i) is even; the pattern swaps each course.
     const front = (i: number): boolean => (k + i) % 2 === 0;
     for (let c = x; c < x + w; c++) {
       const on = stakeAt(c);
-      if (on >= 0) {
-        if (!front(on)) continue; // behind: the stake stays intact
-        const st = stakes[on];
-        plot.set(c, y0, 'wood', 4);
-        plot.set(c, y0 + 1, 'wood', 2);
-        if (st) {
-          for (const yy of [y0 - 1, y0 + 2]) {
-            if (yy >= st.top && yy < ground) plot.set(c, yy, 'wood', c === st.x ? 2 : 0);
-          }
-        }
-        continue;
-      }
-      // Between stakes: which stake is left / right of this column?
-      let li = -1;
-      for (let i = 0; i < stakes.length; i++) if ((stakes[i]?.x ?? 0) < c) li = i;
+      if (on >= 0 && !front(on)) continue; // behind: the stake stays intact
+      const li = on >= 0 ? on : leftOf(c);
       const ri = li + 1 < stakes.length ? li + 1 : -1;
       const ls = li >= 0 ? stakes[li] : undefined;
       const rs = ri >= 0 ? stakes[ri] : undefined;
-      // Behind a neighbouring stake: break 1 px before it.
-      if ((ls && c === ls.x + 2 && !front(li)) || (rs && c === rs.x - 1 && !front(ri))) {
-        plot.set(c, y0, 'wood', 0);
-        plot.set(c, y0 + 1, 'wood', 0);
-        continue;
-      }
       const a = ls ? ls.x + 2 : x - 1;
-      const b = rs ? rs.x - 1 : x + w;
+      const b = rs ? rs.x : x + w;
       const t = (c - a) / Math.max(1, b - a);
-      const sag = ls !== undefined && rs !== undefined && t > 1 / 3 && t < 2 / 3 ? 1 : 0;
-      const nearLeft = t < 0.5;
-      const nearIndex = nearLeft ? li : ri;
-      const lit = nearIndex >= 0 ? front(nearIndex) : true;
-      if (sag) plot.set(c, y0, 'wood', 0);
-      plot.set(c, y0 + sag, 'wood', lit ? 4 : 3);
-      plot.set(c, y0 + 1 + sag, 'wood', 2);
+      const near = on >= 0 ? on : t < 0.5 ? li : ri;
+      const lit = near < 0 || front(near);
+      // Diagonal direction flips per segment and per course: "/" then "\" — the over/under read.
+      const dir = (li + k) % 2 === 0 ? 1 : -1;
+      const beforeBack = (rs && c === rs.x - 1 && !front(ri)) || (ls && c === ls.x + 2 && !front(li));
+      for (let r = 0; r < WATTLE_COURSE; r++) {
+        const y = y0 + r;
+        if (y >= ground) continue;
+        let shade: number;
+        if (r === 0) shade = lit ? 4 : 3;
+        else {
+          // 3-px period: rod, rod shadow, gap. (A 2-px period of 1-px diagonals degenerates into a checkerboard.)
+          const m = (((c + dir * r) % 3) + 3) % 3;
+          shade = m === 0 ? (lit ? 5 : 3) : m === 1 ? (lit ? 3 : 2) : 1;
+        }
+        if (beforeBack) shade = Math.min(shade, r === 0 ? 2 : 1);
+        if (on >= 0 && r === WATTLE_COURSE - 1) shade = 2; // the bundle rounds over the stake
+        plot.set(c, y, 'wood', shade);
+      }
     }
   }
   return stakes;

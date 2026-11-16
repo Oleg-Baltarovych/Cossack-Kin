@@ -2,14 +2,15 @@
 // docs/art/recipes/materials-1.md). Pivot at the base; contact shadow on the `shadow` layer.
 import { compose, contactShadow } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
-import { glechyk, POT_HEIGHT, wattle } from '../../lib/recipes.ts';
+import { glechyk, POT_HEIGHT, wattle, WATTLE_COURSE } from '../../lib/recipes.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 
 const W = 40;
 const H = 32;
 /** Ground row (stakes stand on it); the sprite's pivot is the bottom edge of this row. */
 export const TYN_GROUND = 27;
-const TOP_ROD = 14;
+/** First weave row: three 4-row courses end 2 rows above the ground, so the stake feet show. */
+const WEAVE_TOP = TYN_GROUND - 3 * WATTLE_COURSE - 1;
 const POT_STAKE = 2;
 const POT_RISE = 5;
 
@@ -27,8 +28,8 @@ const tyn: SpriteGenerator = {
       x: 0,
       w: W,
       ground: TYN_GROUND + 1,
-      topRod: TOP_ROD,
-      rods: 4,
+      top: WEAVE_TOP,
+      courses: 3,
       rise: { [POT_STAKE]: POT_RISE },
     });
     const st = stakes[POT_STAKE];

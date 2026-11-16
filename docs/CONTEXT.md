@@ -2,10 +2,10 @@
 
 > Living map for AI agents and humans. Goal: orient in a new session without re-reading code or the whole SPEC.
 > Keep it terse and current. Update in the same commit that changes structure, systems, commands, or decisions.
-> Last updated: 2026-11-16 (M-ART: ART-01…05)
+> Last updated: 2026-11-16 (M-ART: ART-01…05 ✅)
 
 ## 1. Status
-- Phase: **M-ART 🚧** — ART-01 references ✅ · ART-02 generator framework ✅ · ART-03 material recipes ✅ (pending second art pass) · ART-04 sky, day cycle, 6-key LUT grading ✅ (pending art pass; known: contour-like dither strata at 1930, concentric moon-halo rings) · ART-05 scene composition 🚧 (horizon 0.42, textured ground rows, khata t1/t3 + tyn from `khortytsia.layout.ts`, night windows). Linux screenshot baselines deleted for regeneration (see §6 baselines).
+- Phase: **M-ART 🚧** — ART-01 references ✅ · ART-02 generator framework ✅ · ART-03 material recipes ✅ · ART-04 sky, day cycle, 6-key LUT grading ✅ · ART-05 first scene ✅ (art-director, second pass: golden grade keeps grass green, woven tyn, 3/4 khata with side wall + cast shadow, round halos, yard decals, 3 grass tile variants, mallows as a prop; recipes in `docs/art/recipes/materials-1.md`). Next: ART-06 character spike (go/no-go). Open: building colour budget (~24 colours / 6 ramps vs bible ~16 / 3–4) → architect, ART-20. Linux screenshot baselines deleted for regeneration (see §6 baselines).
 - M0 ✅ accepted (qa-lead, 2026-11-16) — M0-01..10 + M0-12: scaffold, lint/test, `computeViewport`, Pixi app + worldRT + camera, debug params/clock, debug overlay, Playwright `@screens` + pixel-grid check, `pnpm sprites` + `debug/swatch`, security baseline (pnpm supply-chain policy, strict CSP, `pnpm security`, Dependabot), CI `.github/workflows/ci.yml` + gitleaks — green on GitHub (runs 43926861870, 43931751047), Linux baselines committed in `tests/e2e/__screenshots__/` (ubuntu-26.04). SPEC **v1.1**, ADR 000–008, art bible v0.1 + master palette.
 - Open follow-up: remove `minimumReleaseAgeExclude` from `pnpm-workspace.yaml` after 2026-11-17T15:00Z.
 - Done: git init + private GitHub repo `cossack-kin`; AI tooling adapted from Applyra; SPEC review → v1.1; `docs/art/ART-BIBLE.md`; `assets-src/palettes/master.json` (88 colors, 14 ramps).
@@ -38,7 +38,7 @@ Commands: `pnpm dev` · `pnpm sprites` · `pnpm sprites:sheet [id…]` · `pnpm 
 | System | Milestone | Status |
 |---|---|---|
 | scaffold, integer scale, low-res target, debug params, `@screens`, CI | M0 | ✅ scaffold, lint/test, viewport, `render/App.ts` + `camera.ts`, `render/debug/*`, `@screens` (`tests/e2e/specs/screens.spec.ts`), `pnpm sprites` (`tools/build-sprites.ts`), security baseline (`pnpm-workspace.yaml`, `tools/lib/csp.ts`, `tests/e2e/specs/csp.spec.ts`) ✅; CI `.github/workflows/ci.yml` ✅ (green on GitHub, strict screenshot compare on ubuntu-26.04) — M0 accepted |
-| atmospheric vertical slice: generators, sky/LUT, god rays, water, weather, night (art bible v1) | M-ART | 🚧 ART-01…04 ✅ (art passes pending), ART-05 🚧 — `assets-src/gen/`, `src/render/atmosphere/`, `src/content/villages/khortytsia.layout.ts` |
+| atmospheric vertical slice: generators, sky/LUT, god rays, water, weather, night (art bible v1) | M-ART | 🚧 ART-01…05 ✅, next ART-06 — `assets-src/gen/`, `src/render/atmosphere/`, `src/content/villages/khortytsia.layout.ts` |
 | core: economy (farm + Sich), kharch/defence, store, `advance()`, save, return window, balance-sim | M1 | — |
 | living village: 3 zones, all tiers, villagers & Cossacks FSM, food carts | M2 | — |
 | army, raids, relics | M3 | — |
