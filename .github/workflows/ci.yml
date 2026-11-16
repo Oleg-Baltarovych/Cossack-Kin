@@ -1,0 +1,138 @@
+# CI (plan M0-09, .claude/rules/security.md). Hardening: every third-party action is pinned by full commit SHA
+# (tag in the comment; Dependabot github-actions bumps both), read-only token by default, no
+# pull_request_target, no secrets used, checkout without persisted credentials.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: 'Regenerate Linux toHaveScreenshot baselines and upload them as the "screenshot-baselines" artifact (commit them by hand)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check, build, e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UPDATE_SNAPSHOTS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_snapshots }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No `version` input: the action reads `packageManager` (pnpm@12.21.0) from package.json — one source of truth.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # pnpm-workspace.yaml policy applies: blocked dependency build scripts, minimumReleaseAge.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm sprites
+      - run: pnpm build
+
+      # After build, so check:dist inspects the fresh dist/ (prod deps audit is blocking).
+      - run: pnpm security
+
+      # Dev dependencies also run code in CI: full audit is reported but does not block (plan M0-09).
+      - name: pnpm audit (all deps, non-blocking)
+        id: audit_full
+        continue-on-error: true
+        run: pnpm audit --audit-level high
+      - name: Report full audit result
+        if: steps.audit_full.outcome == 'failure'
+        run: echo "::warning title=pnpm audit::high/critical advisories in dev dependencies — see the 'pnpm audit (all deps, non-blocking)' step"
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Baselines (tests/e2e/__screenshots__/, compared on Linux only) are created by a manual run with
+      # update_snapshots=true and committed by the owner. Until the first set is committed, comparisons are
+      # skipped with a warning; once any baseline exists, a missing or different one fails the run.
+      - name: e2e
+        run: |
+          if [ "$UPDATE_SNAPSHOTS" = "true" ]; then
+            pnpm e2e --update-snapshots=all
+          elif [ -z "$(find tests/e2e/__screenshots__ -name '*.png' -print -quit 2>/dev/null)" ]; then
+            echo "::warning title=Screenshot baselines::none committed yet — toHaveScreenshot skipped. Run CI via workflow_dispatch with update_snapshots=true and commit the artifact."
+            pnpm e2e --ignore-snapshots
+          else
+            pnpm e2e --update-snapshots=none
+          fi
+
+      - name: Upload e2e reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-reports
+          path: |
+            reports/screens/
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload screenshot baselines
+        if: env.UPDATE_SNAPSHOTS == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshot-baselines
+          path: tests/e2e/__screenshots__/
+          if-no-files-found: error
+          retention-days: 7
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # gitleaks CLI from a pinned release, verified by SHA-256, instead of gitleaks/gitleaks-action: the action
+    # is free for personal accounts but needs a GITLEAKS_LICENSE secret for organizations and is not MIT since
+    # v2; the plain binary needs no license, no token and no third-party JS. Bump: version + checksum from
+    # the release's gitleaks_<ver>_checksums.txt.
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks
+        run: |
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          "$RUNNER_TEMP/gitleaks/gitleaks" version
+
+      # gitleaks reads allowlists from the scanned repo; a change could hide a committed secret. Any such file
+      # must be added deliberately together with an edit to this step (security-reviewer, M0-09).
+      - name: Refuse in-repo gitleaks allowlists
+        run: |
+          for f in .gitleaks.toml .gitleaksignore; do
+            if [ -e "$f" ]; then echo "::error file=$f::in-repo gitleaks config is not allowed"; exit 1; fi
+          done
+
+      # Whole history; findings are redacted in the log.
+      - run: '"$RUNNER_TEMP/gitleaks/gitleaks" git --redact --no-banner --exit-code 1 .'

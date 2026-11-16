@@ -25,6 +25,7 @@ No backend in v1.
 - Dev/test URL params: `?seed=1&freeze[=sec]&time=HH:MM&weather=&season=&zone=&quality=&overlay&cam=<logical px>` (`render/debug/params.ts`); `document.body.dataset.ready === "1"` after atlases loaded and the first frame
 - `pnpm exec vitest run tests/unit/render` — run a subset of unit tests
 - `pnpm e2e` — Playwright (builds `--mode test` into `dist-test/`, serves it on :4317); `pnpm e2e --grep @screens` — M0 screenshot matrix (3 phones) → `reports/screens/<date>/`; first time: `pnpm exec playwright install chromium`
+- CI: `.github/workflows/ci.yml` runs the same sequence on push to main / PR / manual dispatch, plus gitleaks; Linux screenshot baselines via manual dispatch with `update_snapshots` (procedure in `docs/CONTEXT.md` §6)
 - Planned, not yet wired: `pnpm balance` (M1)
 
 ## Non-negotiable rules
