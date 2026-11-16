@@ -49,7 +49,9 @@ describe('computeViewport', () => {
 
   it('keeps every value an integer for fractional DPR (412×915 @3.5)', () => {
     const viewport = computeViewport(412, 915, 3.5);
-    expect(viewport).toEqual({ scale: 4, logicalW: 360, logicalH: 800, deviceW: 1442, deviceH: 3203 });
+    // 915 × 3.5 = 3202.5: floor, so the canvas never overhangs the viewport by a fractional row (an overhang makes
+    // the compositor rescale the canvas and drop a device row — found by the ART-05 pixel-grid check).
+    expect(viewport).toEqual({ scale: 4, logicalW: 360, logicalH: 800, deviceW: 1442, deviceH: 3202 });
     for (const value of Object.values(viewport)) expect(Number.isInteger(value)).toBe(true);
   });
 

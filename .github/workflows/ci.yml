@@ -48,6 +48,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm sprites
+      - run: pnpm luts
       - run: pnpm build
 
       # After build, so check:dist inspects the fresh dist/ (prod deps audit is blocking).

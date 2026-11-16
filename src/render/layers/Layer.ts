@@ -1,5 +1,7 @@
 // World layer contract (SPEC §6.2). Each layer owns one Container inside worldRT.
 import { Container } from 'pixi.js';
+import { KHORTYTSIA_FARM } from '../../content/villages/khortytsia.layout.ts';
+import type { DayCycle } from '../atmosphere/dayCycle.ts';
 
 export type LayerId = 'sky' | 'clouds' | 'far' | 'mid' | 'ground' | 'foreground' | 'fx' | 'light';
 
@@ -10,17 +12,34 @@ export interface LayerSize {
   readonly worldW: number;
 }
 
+/** Per-frame input (App ticker, before the world render). */
+export interface LayerFrame {
+  /** Time of day in minutes after midnight (fractional). */
+  readonly minutes: number;
+  /** Animation time in seconds (pinned under `?freeze`). */
+  readonly seconds: number;
+  readonly cycle: DayCycle;
+}
+
 export interface WorldLayer {
   readonly id: LayerId;
   /** Horizontal parallax factor relative to the ground (1.0). */
   readonly parallax: number;
   readonly container: Container;
   resize(size: LayerSize): void;
+  update(frame: LayerFrame): void;
   destroy(): void;
 }
 
-/** Builds the layer's display objects into `container`; returns its resize handler (if it has one). */
-export type LayerBuild = (container: Container) => ((size: LayerSize) => void) | undefined;
+export interface LayerHooks {
+  readonly resize?: (size: LayerSize) => void;
+  readonly update?: (frame: LayerFrame) => void;
+  /** Frees what the container does not own (textures created by the layer); runs before the container is destroyed. */
+  readonly dispose?: () => void;
+}
+
+/** Builds the layer's display objects into `container`; returns its resize handler or its hooks. */
+export type LayerBuild = (container: Container) => ((size: LayerSize) => void) | LayerHooks | undefined;
 
 export interface LayerOptions {
   readonly sortableChildren?: boolean;
@@ -32,15 +51,20 @@ export interface LayerOptions {
  */
 export function createLayer(id: LayerId, parallax: number, build?: LayerBuild, options: LayerOptions = {}): WorldLayer {
   const container = new Container({ label: `layer:${id}`, sortableChildren: options.sortableChildren ?? false });
-  const resize = build?.(container);
+  const built = build?.(container);
+  const hooks: LayerHooks = typeof built === 'function' ? { resize: built } : (built ?? {});
   return {
     id,
     parallax,
     container,
     resize: (size) => {
-      resize?.(size);
+      hooks.resize?.(size);
+    },
+    update: (frame) => {
+      hooks.update?.(frame);
     },
     destroy: () => {
+      hooks.dispose?.();
       container.destroy({ children: true });
     },
   };
@@ -56,8 +80,8 @@ export function contentWidth(parallax: number, size: LayerSize): number {
   return Math.ceil(size.worldW * parallax + size.viewW * (1 - parallax) - 1e-9);
 }
 
-/** Temporary M0 horizon: sky above, ground strip below (replaced by the scene layout in ART-05). */
-export const HORIZON_RATIO = 0.68;
+/** Horizon as a share of the view height (scene layout, ART-BIBLE §2); sky above, ground rows below. */
+export const HORIZON_RATIO = KHORTYTSIA_FARM.horizonRatio;
 
 export function horizonY(viewH: number): number {
   return Math.round(viewH * HORIZON_RATIO);

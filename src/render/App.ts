@@ -1,20 +1,39 @@
 // Pixi world app (plan §0, ADR 001): the world renders into a low-res worldRT of (W+1)×(H+1) logical px
 // with nearest sampling, then one upscale sprite draws it ×scale to the canvas, shifted by
 // −fracDevicePx device px. The camera moves the world by whole logical px only.
+// Inside worldRT (ART-04): sky (ungraded light source) → graded container (clouds … fx, one ColorMapFilter
+// with the CPU-blended time-of-day LUT) → light layer → post-grade container (emissive hook, debug swatch).
 // CSP (M0-12): without this Pixi probes `new Function` (a CSP violation under `script-src 'self'`) and
 // generates uniform/UBO sync code with it; the module swaps in eval-free polyfills before any renderer exists.
 import 'pixi.js/unsafe-eval';
-import { Application, Container, RenderTexture, Sprite, TextureSource, UPDATE_PRIORITY } from 'pixi.js';
+import {
+  Application,
+  Container,
+  Rectangle,
+  RenderTexture,
+  Sprite,
+  TextureSource,
+  UPDATE_PRIORITY,
+  type Texture,
+} from 'pixi.js';
+import { KHORTYTSIA_FARM } from '../content/villages/khortytsia.layout.ts';
+import { WORLD_WIDTH_PX } from '../content/world.ts';
+import { dayCycle } from './atmosphere/dayCycle.ts';
+import { emissiveLevel } from './atmosphere/emissive.ts';
+import { createGrading, loadLuts } from './atmosphere/grading.ts';
 import { frame, loadAtlases, type Atlases } from './atlases.ts';
 import { cameraBounds, layerOffset, split } from './camera.ts';
 import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } from './clock.ts';
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
+import { createPostGrade } from './postGrade.ts';
 import { rampColor, rampCss } from './palette.ts';
 import type { RenderSettings } from './settings.ts';
 import { computeViewport, worldTargetSize, type Viewport } from './viewport.ts';
 
-/** M0 scene width in logical px (≈ 2 screens, plan Q3); the village layout takes over in ART-05. */
-export const WORLD_WIDTH = 720;
+/** Scene width in logical px (≈ 2 screens, plan Q3). */
+export const WORLD_WIDTH = WORLD_WIDTH_PX;
+/** Atlas of the current scene (the farm of land 1). */
+const SCENE_ATLAS = 'khortytsia';
 /** SPEC §9.2: 30 fps idle / 60 interactive — fixed at 60 until the interaction-driven switch (M2). */
 export const TARGET_FPS = 60;
 
@@ -22,6 +41,8 @@ export interface WorldApp {
   readonly app: Application;
   readonly world: Container;
   readonly layers: readonly WorldLayer[];
+  /** Post-grade container at ground parallax for emissive night masks (ART-05/16). */
+  readonly emissive: Container;
   readonly atlases: Atlases;
   readonly clock: RenderClock;
   /** Cosmetic RNG (seeded by `?seed` in dev/test); never for game state. */
@@ -38,8 +59,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
   TextureSource.defaultOptions.scaleMode = 'nearest';
   host.style.background = rampCss('ink', 0);
 
-  // Atlases first: nothing to clean up if loading fails, and the first frame already has every texture.
-  const atlases = await loadAtlases();
+  // Atlases and LUTs first: nothing to clean up if loading fails, and the first frame already has everything.
+  const [atlases, luts] = await Promise.all([loadAtlases(), loadLuts()]);
   let vp = measure(host);
   const app = new Application();
   await app.init({
@@ -86,14 +107,37 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     disposers.push(() => {
       world.destroy();
     });
+    const grading = createGrading(luts);
+    disposers.push(() => {
+      grading.destroy();
+    });
+    const graded = new Container({ label: 'graded' });
+    graded.filters = [grading.filter];
+    disposers.push(() => {
+      graded.filters = [];
+      graded.destroy();
+    });
     // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
-    const layers = createWorldLayers({
+    const layout = KHORTYTSIA_FARM;
+    const sceneFrame = (name: string): Texture => frame(atlases, SCENE_ATLAS, name);
+    const post = createPostGrade({
+      layout,
+      frame: (name) => atlases.get(SCENE_ATLAS)?.textures[name] ?? null,
       swatch: __CK_DEBUG__ ? frame(atlases, 'debug', 'swatch/idle/00') : undefined,
     });
     disposers.push(() => {
+      post.container.destroy({ children: true });
+    });
+    const layers = createWorldLayers({ layout, frame: sceneFrame });
+    disposers.push(() => {
       for (const layer of layers) layer.destroy();
     });
-    for (const layer of layers) world.addChild(layer.container);
+    for (const layer of layers) {
+      const ungraded = layer.id === 'sky' || layer.id === 'light';
+      if (layer.id === 'light') world.addChild(graded);
+      (ungraded ? world : graded).addChild(layer.container);
+    }
+    world.addChild(post.container);
 
     const upscale = new Sprite({ texture: worldRT, label: 'upscale', roundPixels: true });
     app.stage.addChild(upscale);
@@ -118,6 +162,9 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       upscale.scale.set(vp.scale);
       const size = { viewW: target.width, viewH: target.height, worldW: WORLD_WIDTH };
       for (const layer of layers) layer.resize(size);
+      post.resize(size);
+      // Whole worldRT: the filter pass covers every row even where the graded layers draw nothing yet.
+      graded.filterArea = new Rectangle(0, 0, target.width, target.height);
     };
     applyViewport();
 
@@ -127,7 +174,15 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       // floor, the camera could stop up to one partial column past the world's right edge. The spare
       // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
       const cam = split(camX, vp.scale, cameraBounds(WORLD_WIDTH, target.width - 1));
-      for (const layer of layers) layer.container.x = layerOffset(cam.worldPx, layer.parallax);
+      const minutes = clock.minutesOfDay();
+      const frameInfo = { minutes, seconds: clock.seconds(), cycle: dayCycle(minutes) };
+      grading.update(frameInfo.cycle, minutes);
+      post.setEmissive(emissiveLevel(frameInfo.cycle));
+      for (const layer of layers) {
+        layer.update(frameInfo);
+        layer.container.x = layerOffset(cam.worldPx, layer.parallax);
+      }
+      post.container.x = layerOffset(cam.worldPx, post.parallax);
       upscale.x = -cam.fracDevicePx;
       app.renderer.render({ container: world, target: worldRT, clear: true });
     };
@@ -164,6 +219,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       app,
       world,
       layers,
+      emissive: post.emissive,
       atlases,
       clock,
       rng,

@@ -9,7 +9,7 @@ import { createLightLayer } from './Light.ts';
 import { createMidLayer } from './Mid.ts';
 import { createSkyLayer } from './Sky.ts';
 
-export type { LayerId, LayerSize, WorldLayer } from './Layer.ts';
+export type { LayerFrame, LayerId, LayerSize, WorldLayer } from './Layer.ts';
 
 export type WorldLayerOptions = GroundLayerOptions;
 

@@ -8,8 +8,9 @@ dist-test/
 coverage/
 *.tsbuildinfo
 
-# Generated assets (rebuilt by `pnpm sprites` from assets-src/)
+# Generated assets (rebuilt by `pnpm sprites` / `pnpm luts` from assets-src/)
 public/atlases/
+public/luts/
 
 # Reports (balance-sim writes here; commit a report only when a PR asks for it)
 reports/

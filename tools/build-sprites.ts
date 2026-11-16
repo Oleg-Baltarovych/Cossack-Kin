@@ -4,51 +4,15 @@
 // The output directory is generated and git-ignored: .png/.json files of atlases that no longer exist are
 // removed. Prints SHA-256 per file (two runs must print the same hashes) and atlas utilisation.
 import { createHash } from 'node:crypto';
-import { globSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { extname, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { loadPalette } from '../assets-src/gen/lib/palette.ts';
-import type { SpriteGenerator } from '../assets-src/gen/lib/types.ts';
 import { atlasIndex, buildAtlases, SpriteBuildError } from './lib/sprites/atlas.ts';
+import { loadGenerators } from './lib/sprites/load.ts';
 
 const PALETTE = 'assets-src/palettes/master.json';
-const GENERATORS = 'assets-src/gen/**/index.ts';
-const LIBRARY = 'assets-src/gen/lib/';
 const OUT = 'public/atlases';
 const INDEX = 'index.json';
-
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
-
-/** Shape check of a module's default export; the full contract is validated by buildAtlases. */
-function isGenerator(value: unknown): value is SpriteGenerator {
-  if (!isObject(value)) return false;
-  const { atlas, id, size, frames, generate } = value;
-  return (
-    typeof atlas === 'string' &&
-    typeof id === 'string' &&
-    isObject(size) &&
-    typeof size['w'] === 'number' &&
-    typeof size['h'] === 'number' &&
-    isObject(frames) &&
-    Object.values(frames).every((n) => typeof n === 'number') &&
-    typeof generate === 'function'
-  );
-}
-
-async function loadGenerators(): Promise<SpriteGenerator[]> {
-  // Sorted paths + sorted atlases/frames downstream: output never depends on directory listing order.
-  const files = globSync(GENERATORS)
-    .map((f) => f.replaceAll('\\', '/'))
-    .filter((f) => !f.startsWith(LIBRARY))
-    .sort();
-  const generators: SpriteGenerator[] = [];
-  for (const file of files) {
-    const mod = (await import(pathToFileURL(resolve(file)).href)) as { default?: unknown };
-    if (!isGenerator(mod.default)) throw new Error(`${file}: default export is not a SpriteGenerator`);
-    generators.push(mod.default);
-  }
-  return generators;
-}
 
 const sha256 = (data: Buffer | string): string => createHash('sha256').update(data).digest('hex');
 

@@ -31,8 +31,13 @@ export function computeViewport(cssW: number, cssH: number, dpr: number): Viewpo
   };
 }
 
+/**
+ * Whole device px covered by `cssPx` (floored; 1e-6 absorbs float noise such as 390 × 3.0000001). Rounding up a
+ * half px (915 × 3.5 = 3202.5) would make the canvas overhang the viewport, and the compositor would rescale it and
+ * drop one device row somewhere in the frame (breaks the pixel grid).
+ */
 function toDevicePx(cssPx: number, ratio: number): number {
-  const device = Math.round(cssPx * ratio);
+  const device = Math.floor(cssPx * ratio + 1e-6);
   return Number.isFinite(device) ? Math.max(1, device) : 1;
 }
 

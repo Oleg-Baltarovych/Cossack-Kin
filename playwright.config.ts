@@ -1,6 +1,6 @@
 // Playwright e2e (plan M0-07, SPEC §12.2). The web server serves a `--mode test` build (debug params,
 // `window.__CK__`) from its own outDir, so it never overwrites the production `dist/` checked by
-// `pnpm check:dist`; atlases are regenerated first (`pnpm sprites`). Viewports are the three M0 reference phones with real device pixel ratios.
+// `pnpm check:dist`; atlases and grading LUTs are regenerated first (`pnpm sprites`, `pnpm luts`). Viewports are the three M0 reference phones with real device pixel ratios.
 import { defineConfig, type Project } from '@playwright/test';
 
 const PORT = 4317;
@@ -38,7 +38,7 @@ export default defineConfig({
   },
   projects: [phone(390, 844, 3), phone(360, 800, 3), phone(412, 915, 3.5)],
   webServer: {
-    command: `node tools/build-sprites.ts && vite build --mode test --outDir ${TEST_OUT_DIR} --emptyOutDir && vite preview --outDir ${TEST_OUT_DIR} --host 127.0.0.1 --port ${String(PORT)} --strictPort`,
+    command: `node tools/build-sprites.ts && node tools/build-luts.ts && vite build --mode test --outDir ${TEST_OUT_DIR} --emptyOutDir && vite preview --outDir ${TEST_OUT_DIR} --host 127.0.0.1 --port ${String(PORT)} --strictPort`,
     url: BASE_URL,
     reuseExistingServer: !process.env['CI'],
     timeout: 120_000,

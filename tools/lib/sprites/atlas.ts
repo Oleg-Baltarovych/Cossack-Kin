@@ -149,61 +149,69 @@ export function composeAtlas(name: string, frames: readonly FrameImage[], palett
   };
 }
 
+/**
+ * Runs one generator: every variant × animation frame, plus its companion layers right after each base frame.
+ * Contract or generator failures are appended to `problems` (the frames that did render are still returned).
+ */
+export function renderGenerator(gen: SpriteGenerator, palette: Palette, problems: string[]): FrameImage[] {
+  const contract = contractProblems(gen);
+  if (contract.length > 0) {
+    problems.push(...contract);
+    return [];
+  }
+  const out: FrameImage[] = [];
+  const rampSize = (ramp: string): number => palette.ramps.get(ramp)?.length ?? 0;
+  const anchor = gen.anchor ?? { x: 0.5, y: 1 };
+  const layerNames = gen.layers ?? [];
+  for (const variant of gen.variants ?? [null]) {
+    const entity = variant === null ? gen.id : `${gen.id}.${variant}`;
+    for (const [anim, count] of Object.entries(gen.frames)) {
+      for (let frame = 0; frame < count; frame++) {
+        const nn = String(frame).padStart(2, '0');
+        const name = `${entity}/${anim}/${nn}`;
+        const buffer = createIndexBuffer(gen.size.w, gen.size.h, palette);
+        const layers: Partial<Record<CompanionLayer, IndexBuffer>> = {};
+        for (const layer of layerNames) layers[layer] = createIndexBuffer(gen.size.w, gen.size.h, palette);
+        try {
+          gen.generate(seededRng(`${gen.atlas}:${name}`), { variant, anim, frame, buffer, layers, rampSize });
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          problems.push(`${gen.atlas}:${name}: generator failed: ${reason}`);
+          continue;
+        }
+        out.push({ name, image: quantize(buffer, palette), declared: gen.size, anchor });
+        for (const layer of layerNames) {
+          const layerBuffer = layers[layer];
+          if (!layerBuffer) continue;
+          out.push({
+            name: `${entity}@${layer}/${anim}/${nn}`,
+            image: quantize(layerBuffer, palette),
+            declared: gen.size,
+            anchor,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 /** Runs every generator and builds one atlas per `generator.atlas`, sorted by atlas name. */
 export function buildAtlases(generators: readonly SpriteGenerator[], palette: Palette): AtlasOutput[] {
   const problems: string[] = [];
   const atlases = new Map<string, FrameImage[]>();
   const seen = new Set<string>();
-  const rampSize = (ramp: string): number => palette.ramps.get(ramp)?.length ?? 0;
-  const add = (atlas: string, frame: FrameImage): void => {
-    const key = `${atlas}:${frame.name}`;
-    if (seen.has(key)) {
-      problems.push(`duplicate frame ${key}`);
-      return;
-    }
-    seen.add(key);
-    const list = atlases.get(atlas) ?? [];
-    list.push(frame);
-    atlases.set(atlas, list);
-  };
-
   for (const gen of generators) {
-    const contract = contractProblems(gen);
-    if (contract.length > 0) {
-      problems.push(...contract);
-      continue;
-    }
-    const anchor = gen.anchor ?? { x: 0.5, y: 1 };
-    const layerNames = gen.layers ?? [];
-    for (const variant of gen.variants ?? [null]) {
-      const entity = variant === null ? gen.id : `${gen.id}.${variant}`;
-      for (const [anim, count] of Object.entries(gen.frames)) {
-        for (let frame = 0; frame < count; frame++) {
-          const nn = String(frame).padStart(2, '0');
-          const name = `${entity}/${anim}/${nn}`;
-          const buffer = createIndexBuffer(gen.size.w, gen.size.h, palette);
-          const layers: Partial<Record<CompanionLayer, IndexBuffer>> = {};
-          for (const layer of layerNames) layers[layer] = createIndexBuffer(gen.size.w, gen.size.h, palette);
-          try {
-            gen.generate(seededRng(`${gen.atlas}:${name}`), { variant, anim, frame, buffer, layers, rampSize });
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : String(error);
-            problems.push(`${gen.atlas}:${name}: generator failed: ${reason}`);
-            continue;
-          }
-          add(gen.atlas, { name, image: quantize(buffer, palette), declared: gen.size, anchor });
-          for (const layer of layerNames) {
-            const layerBuffer = layers[layer];
-            if (!layerBuffer) continue;
-            add(gen.atlas, {
-              name: `${entity}@${layer}/${anim}/${nn}`,
-              image: quantize(layerBuffer, palette),
-              declared: gen.size,
-              anchor,
-            });
-          }
-        }
+    for (const frame of renderGenerator(gen, palette, problems)) {
+      const key = `${gen.atlas}:${frame.name}`;
+      if (seen.has(key)) {
+        problems.push(`duplicate frame ${key}`);
+        continue;
       }
+      seen.add(key);
+      const list = atlases.get(gen.atlas) ?? [];
+      list.push(frame);
+      atlases.set(gen.atlas, list);
     }
   }
   if (problems.length > 0) throw new SpriteBuildError(problems);
