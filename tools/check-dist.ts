@@ -1,9 +1,9 @@
 // Production bundle guard (plan M0-05/06, security.md): debug params, the overlay, window.__CK__ and
-// source maps must not reach `dist/`. Run after `pnpm build`: `pnpm check:dist`.
+// source maps must not reach `dist/`, and dist/index.html must carry the strict CSP (M0-12). Run after `pnpm build`: `pnpm check:dist`.
 // Positive control: a `vite build --mode test` bundle must FAIL this check.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
-import { findLeaks, isForbiddenFile } from './lib/dist-leaks.ts';
+import { checkIndexHtml, findLeaks, isForbiddenFile } from './lib/dist-leaks.ts';
 
 const DIST = process.argv[2] ?? 'dist';
 const SCANNED = new Set(['.js', '.mjs', '.css', '.html']);
@@ -33,12 +33,23 @@ for (const file of files(DIST)) {
   }
 }
 
+const index = join(DIST, 'index.html');
+if (existsSync(index)) {
+  for (const problem of checkIndexHtml(readFileSync(index, 'utf8'))) {
+    problems += 1;
+    console.error(`${relative('.', index)}: ${problem}`);
+  }
+} else if (scanned > 0) {
+  problems += 1;
+  console.error(`${relative('.', index)}: missing`);
+}
+
 if (scanned === 0) {
   console.error(`check-dist: no files in ${DIST}/ — run \`pnpm build\` first`);
   process.exit(1);
 }
 if (problems > 0) {
-  console.error(`check-dist: ${String(problems)} debug leak(s) in ${DIST}/`);
+  console.error(`check-dist: ${String(problems)} problem(s) in ${DIST}/`);
   process.exit(1);
 }
 console.log(`check-dist: ${String(scanned)} file(s) clean`);

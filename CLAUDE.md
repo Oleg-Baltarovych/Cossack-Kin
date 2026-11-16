@@ -19,11 +19,13 @@ No backend in v1.
 - `pnpm dev` — Vite dev server (web build)
 - `pnpm typecheck && pnpm test && pnpm lint` — must be green before reporting a task done (typecheck covers app, tools and tests projects)
 - `pnpm format` / `pnpm format:check` — Prettier (code only; markdown/docs are not reformatted)
-- `pnpm build` — production build into `dist/`; then `pnpm check:dist` — fails if debug code (`freeze` param, `window.__CK__`, overlay) leaked into `dist/`
-- Dev/test URL params: `?seed=1&freeze[=sec]&time=HH:MM&weather=&season=&zone=&quality=&overlay&cam=<logical px>` (`render/debug/params.ts`); `document.body.dataset.ready === "1"` after the first frame
+- `pnpm sprites` — run every generator in `assets-src/gen/**/index.ts` → `public/atlases/<atlas>.png|json` (Pixi Spritesheet; palette/alpha/size checks; prints SHA-256 per file, two runs must match). `pnpm dev` and `pnpm build` run it first
+- `pnpm build` — production build into `dist/` (strict CSP meta injected); then `pnpm check:dist` — fails if debug code (`freeze` param, `window.__CK__`, overlay), `eval(`/`new Function(` or source maps leaked into `dist/`, or `dist/index.html` lacks the exact strict CSP
+- `pnpm security` — `pnpm audit --prod --audit-level high` + `pnpm check:dist` (run after `pnpm build`)
+- Dev/test URL params: `?seed=1&freeze[=sec]&time=HH:MM&weather=&season=&zone=&quality=&overlay&cam=<logical px>` (`render/debug/params.ts`); `document.body.dataset.ready === "1"` after atlases loaded and the first frame
 - `pnpm exec vitest run tests/unit/render` — run a subset of unit tests
 - `pnpm e2e` — Playwright (builds `--mode test` into `dist-test/`, serves it on :4317); `pnpm e2e --grep @screens` — M0 screenshot matrix (3 phones) → `reports/screens/<date>/`; first time: `pnpm exec playwright install chromium`
-- Planned, not yet wired: `pnpm sprites` (M0-08), `pnpm balance` (M1)
+- Planned, not yet wired: `pnpm balance` (M1)
 
 ## Non-negotiable rules
 - If a task conflicts with the SPEC — stop and ask. Behaviour/architecture changes go into `docs/SPEC.md` + an ADR (`/adr`).

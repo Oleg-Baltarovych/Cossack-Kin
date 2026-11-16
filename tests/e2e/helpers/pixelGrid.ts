@@ -4,7 +4,7 @@
 // between rows only at y ≡ phaseY (mod scale). Blur, fractional scaling or a wrong camera offset all
 // create edges inside blocks and fail. The upscale sprite is shifted left by `fracDevicePx`, so
 // column boundaries sit at x ≡ −fracDevicePx (mod scale).
-import type { RgbaImage } from './png.ts';
+import type { RgbaImage } from '../../../tools/lib/png.ts';
 
 export interface GridRegion {
   /** Device-px rectangle to check (default: whole image). */

@@ -8,10 +8,12 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "pnpm sprites && vite",
+    "sprites": "node tools/build-sprites.ts",
+    "build": "pnpm sprites && vite build",
     "preview": "vite preview",
     "check:dist": "node tools/check-dist.ts",
+    "security": "pnpm audit --prod --audit-level high && pnpm check:dist",
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.tools.json && tsc -p tsconfig.tests.json",
     "test": "vitest run",
     "e2e": "playwright test",

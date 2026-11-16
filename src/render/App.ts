@@ -1,7 +1,11 @@
 // Pixi world app (plan §0, ADR 001): the world renders into a low-res worldRT of (W+1)×(H+1) logical px
 // with nearest sampling, then one upscale sprite draws it ×scale to the canvas, shifted by
 // −fracDevicePx device px. The camera moves the world by whole logical px only.
+// CSP (M0-12): without this Pixi probes `new Function` (a CSP violation under `script-src 'self'`) and
+// generates uniform/UBO sync code with it; the module swaps in eval-free polyfills before any renderer exists.
+import 'pixi.js/unsafe-eval';
 import { Application, Container, RenderTexture, Sprite, TextureSource, UPDATE_PRIORITY } from 'pixi.js';
+import { frame, loadAtlases, type Atlases } from './atlases.ts';
 import { cameraBounds, layerOffset, split } from './camera.ts';
 import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } from './clock.ts';
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
@@ -18,6 +22,7 @@ export interface WorldApp {
   readonly app: Application;
   readonly world: Container;
   readonly layers: readonly WorldLayer[];
+  readonly atlases: Atlases;
   readonly clock: RenderClock;
   /** Cosmetic RNG (seeded by `?seed` in dev/test); never for game state. */
   readonly rng: () => number;
@@ -33,6 +38,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
   TextureSource.defaultOptions.scaleMode = 'nearest';
   host.style.background = rampCss('ink', 0);
 
+  // Atlases first: nothing to clean up if loading fails, and the first frame already has every texture.
+  const atlases = await loadAtlases();
   let vp = measure(host);
   const app = new Application();
   await app.init({
@@ -79,7 +86,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     disposers.push(() => {
       world.destroy();
     });
-    const layers = createWorldLayers();
+    const layers = createWorldLayers({ swatch: frame(atlases, 'debug', 'swatch/idle/00') });
     disposers.push(() => {
       for (const layer of layers) layer.destroy();
     });
@@ -127,8 +134,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       app.ticker.remove(renderWorld);
     });
 
-    // Readiness for screenshots (plan M0-05): after the first frame reached the canvas (UTILITY < LOW).
-    // Atlas loading joins this condition in M0-08.
+    // Readiness for screenshots (plan M0-05/08): atlases are loaded (awaited above) and the first frame
+    // reached the canvas (UTILITY runs after LOW).
     const readyToken = {};
     app.ticker.addOnce(
       () => {
@@ -154,6 +161,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       app,
       world,
       layers,
+      atlases,
       clock,
       rng,
       viewport: () => vp,

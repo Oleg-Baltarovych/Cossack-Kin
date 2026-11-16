@@ -1,0 +1,26 @@
+# Supply-chain policy (plan M0-12, .claude/rules/security.md). Single-project workspace: this file only
+# carries settings. pnpm 12 rejects unknown keys here (ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS), so a typo
+# cannot silently drop a policy. Check with `pnpm config get <key>`.
+
+# Dependency lifecycle (build) scripts are blocked unless a package is listed here as `name: true` with a
+# one-line reason comment. Empty on purpose: no dependency needs a build script (`pnpm ignored-builds`).
+allowBuilds: {}
+
+# An unapproved build script fails the install instead of being skipped silently.
+strictDepBuilds: true
+
+# Do not resolve versions published less than 3 days ago (in minutes): time for the registry and the
+# community to catch a compromised release. Explicit, so pnpm also enforces it strictly (no silent excludes).
+minimumReleaseAge: 4320
+
+# Exact versions already in the lockfile (resolved 2026-11-16, plan §1) that were 2-3 days old when the policy
+# was switched on. Exact `name@version` pins only: no newer release of these packages bypasses the cutoff.
+# Remove the list once every entry is older than 3 days (after 2026-11-17T15:00Z; the latest is colord).
+minimumReleaseAgeExclude:
+  - '@eslint/config-array@0.23.6'
+  - '@playwright/test@1.65.1'
+  - colord@2.13.0
+  - eslint@10.15.0
+  - playwright-core@1.65.1
+  - playwright@1.65.1
+  - postcss@8.5.33

@@ -1,11 +1,11 @@
 // M0 screenshot spec (plan M0-04/06/07). Writes artifacts to reports/screens/<date>/ on every platform;
 // baselines (`toHaveScreenshot`) are compared on Linux only — SwiftShader output differs per OS.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { split } from '../../../src/render/camera.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
-import { decodePng } from '../helpers/png.ts';
+import { decodePng } from '../../../tools/lib/png.ts';
 import { gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts';
 
 /** M0 frame budget for the sky + ground scene (plan M0-06). */
@@ -13,6 +13,10 @@ const MAX_DRAW_CALLS = 5;
 const SCENE = '/?seed=1&freeze&time=13:00';
 const CAM = 10.5;
 const COMPARE_BASELINES = process.platform === 'linux';
+/** Every master-palette color as 0xRRGGBB: the `debug/swatch` atlas frame (M0-08) shows all of them. */
+const PALETTE_COLORS: readonly number[] = Object.values(
+  (JSON.parse(readFileSync('assets-src/palettes/master.json', 'utf8')) as { ramps: Record<string, string[]> }).ramps,
+).flatMap((ramp) => ramp.map((hex) => Number.parseInt(hex.slice(1), 16)));
 
 const today = (): string => {
   const d = new Date();
@@ -64,12 +68,23 @@ function expectPixelGrid(png: Buffer, testInfo: TestInfo, scale: number, fracDev
   expect(report.rowEdges).toBeGreaterThan(0);
 }
 
+/** The swatch is on screen exactly when every palette color reaches the canvas unchanged (no blending). */
+function expectSwatch(png: Buffer): void {
+  const { data } = decodePng(png);
+  const seen = new Set<number>();
+  for (let i = 0; i < data.length; i += 4)
+    seen.add(((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0));
+  const missing = PALETTE_COLORS.filter((c) => !seen.has(c)).map((c) => `#${c.toString(16).padStart(6, '0')}`);
+  expect(missing, 'palette colors of the debug swatch missing from the frame').toEqual([]);
+}
+
 test.describe('M0 screens @screens', () => {
-  test('sky + ground: WebGL, budget, pixel grid, deterministic after reload', async ({ page }, testInfo) => {
+  test('sky + ground + swatch: WebGL, budget, pixel grid, deterministic after reload', async ({ page }, testInfo) => {
     await gotoReady(page, SCENE);
     const scale = await expectWebGlWithinBudget(page);
     const first = await shoot(page, testInfo, 'm0-sky-ground');
     expectPixelGrid(first, testInfo, scale, 0);
+    expectSwatch(first);
 
     await page.reload();
     await waitReady(page);
