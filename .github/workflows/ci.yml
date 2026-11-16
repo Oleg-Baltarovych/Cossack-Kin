@@ -24,7 +24,7 @@ concurrency:
 jobs:
   check:
     name: Check, build, e2e
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04 # pinned: screenshot baselines depend on the OS image (fonts, SwiftShader)
     timeout-minutes: 30
     env:
       UPDATE_SNAPSHOTS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_snapshots }}
@@ -101,7 +101,7 @@ jobs:
 
   secrets:
     name: Secret scan (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     # gitleaks CLI from a pinned release, verified by SHA-256, instead of gitleaks/gitleaks-action: the action
     # is free for personal accounts but needs a GITLEAKS_LICENSE secret for organizations and is not MIT since

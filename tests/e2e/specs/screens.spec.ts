@@ -34,7 +34,8 @@ async function shoot(page: Page, testInfo: TestInfo, name: string): Promise<Buff
 }
 
 async function expectBaseline(page: Page, name: string): Promise<void> {
-  if (COMPARE_BASELINES) await expect(page).toHaveScreenshot(`${name}.png`);
+  // SwiftShader on CI needs > 5 s to get two identical 3.5x-DPR shots for the stable-screenshot loop.
+  if (COMPARE_BASELINES) await expect(page).toHaveScreenshot(`${name}.png`, { timeout: 30_000 });
 }
 
 async function expectWebGlWithinBudget(page: Page): Promise<number> {
