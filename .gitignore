@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Generated assets (rebuilt by `pnpm sprites` from assets-src/)
+public/atlases/
+
+# Reports (balance-sim writes here; commit a report only when a PR asks for it)
+reports/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+tests/e2e/.auth/
+
+# Capacitor / Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/release/
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/public/
+*.apk
+*.aab
+
+# Capacitor / iOS
+ios/App/Pods/
+ios/App/App/public/
+ios/DerivedData/
+*.xcuserstate
+
+# Signing & secrets — never commit
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+key.properties
+keystore.properties
+
+# Aseprite / editor backups
+*.ase~
+*.aseprite~
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code (personal, not shared)
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/agent-memory-local/

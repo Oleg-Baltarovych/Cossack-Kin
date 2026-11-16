@@ -1,0 +1,30 @@
+name: Art asset
+description: A sprite, animation, tile set or effect to create or rework
+labels: ["art"]
+body:
+  - type: input
+    id: entity
+    attributes:
+      label: Entity
+      placeholder: "dnipro/mill — tiers 1–5 + sail animation"
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source
+      options: [aseprite (hand/commissioned), procedural generator, licensed pack, shader/effect]
+    validations:
+      required: true
+  - type: textarea
+    id: spec
+    attributes:
+      label: Spec
+      description: Size, frames @ fps, tiers, emissive mask, palette, pivot (see docs/art/ and SPEC §5–6).
+    validations:
+      required: true
+  - type: textarea
+    id: refs
+    attributes:
+      label: References
+      description: Links or files from docs/art/references (public, license-safe).

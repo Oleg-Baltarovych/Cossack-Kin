@@ -1,0 +1,76 @@
+# AI-assisted workflow
+
+Козацький хутір is built with Claude Code. The configuration is committed so the workflow is reproducible and reviewable.
+It is adapted from the Applyra setup (same layering and gates), re-targeted from a web CRM to a game: pure deterministic
+core, balance as data, art judged by eyes, and store-policy instead of web-security review.
+
+## Context layers (cheapest first)
+| Layer | Loaded | Purpose |
+|---|---|---|
+| `CLAUDE.md` | every session (~60 lines) | non-negotiable rules, commands, where to look |
+| `docs/CONTEXT.md` | on demand, read first | status, repo map, system status, decisions, gotchas, SPEC index |
+| `.claude/rules/*.md` | automatically when matching files are touched | core, content, render, ui, art, audio, platform, save, testing |
+| `docs/SPEC.md` | only the section needed | product/engineering spec (source of truth) + `docs/adr/` |
+| `docs/art/` | for visual work | art bible, palette, references, licenses |
+| `docs/plans/*.md` | per task | architect's implementation plan for one feature |
+| `.claude/skills/*` | body loads only when invoked | flow commands and procedures |
+
+Token budget rules: agent descriptions are always in context, so they stay one sentence; flow commands use
+`disable-model-invocation: true` (zero cost until typed) — except `/review`, `/verify`, `/art-review` and the procedures,
+which other flows call as steps; heavy work (`/release-check`) runs only on explicit trigger.
+
+## Team — who owns what
+| Agent | Model | Access | Owns | Never does |
+|---|---|---|---|---|
+| `architect` | opus | read + write `docs/` only | plans, ADRs, SPEC/CONTEXT consistency, state & save design, boundaries | application code |
+| `lead-developer` | inherit | full (no git commit/push) | implementing approved plans across core/content/render/ui/platform, screenshots | redesign without the architect, commits |
+| `test-writer` | sonnet | edits tests only, runs tests | test-first core logic, offline equivalence, migrations, e2e | production code |
+| `balance-designer` | sonnet | edits `src/content/` only, runs `pnpm balance` | pacing inside the SPEC corridor | formulas in core |
+| `code-reviewer` | sonnet | read-only | purity, determinism, data/logic split, events, save versioning, types, tests | edits |
+| `ui-reviewer` | sonnet | read-only | mobile UX, pixel-perfect DOM, i18n/plurals, a11y settings, states | edits |
+| `art-director` | opus | read-only (+ run screenshot spec) | atmosphere, pixel discipline, palette, readability, cultural authenticity | edits |
+| `platform-reviewer` | sonnet | read-only | rewarded-ads integrity, consent/privacy, Play policy, saves, clock cheats, secrets | edits |
+| `playwright-test-planner/generator/healer` | sonnet | browser via MCP | e2e plans, e2e tests, fixing flaky e2e | unit tests |
+| `qa-lead` | sonnet | read-only + runs checks | final acceptance: every AC has code + a test or a screenshot, findings resolved | fixes |
+
+The main session is the orchestrator (subagents cannot spawn subagents): it routes work, enforces the gates
+(`/balance` → `/review` → `/verify` → `qa-lead`) and stops for user approval at plan and ship.
+
+## Flow commands (`/name`)
+| Command | When | Agents involved |
+|---|---|---|
+| `/feature <task>` | any non-trivial feature | architect → **you approve** → (test-writer) → lead-developer → balance → reviewers → verify → qa-lead |
+| `/plan <task>` | design only | architect |
+| `/implement <plan>` | plan already approved | lead-developer → reviewers → verify → qa-lead |
+| `/review [base]` | before verify/ship | only the reviewers matching the touched paths, in parallel |
+| `/verify` | Definition-of-Done gate | none (typecheck/test/lint, balance, screenshots + DoD) |
+| `/ship [issue]` | commit + PR | verify → drafts → **you approve** → commit/push/PR |
+| `/bugfix <bug>` | bugs | failing test (or reproducible screenshot) first → fix → review |
+| `/e2e <flow>` | critical flows only (SPEC §12.2) | Playwright planner → generator → healer |
+| `/art-review [scene]` | after render/sprite changes | screenshots day/dusk/night → art-director |
+| `/release-check [target]` | before closed test / production / web demo | platform-reviewer + code-reviewer + all checks + store checklist |
+| `/sync-context` | after structural changes | none (refreshes `docs/CONTEXT.md`) |
+
+Procedures (model-invocable, used inside flows): `/sprite`, `/new-village`, `/balance`, `/save-migration`, `/adr`.
+
+## Guardrails (`.claude/settings.json`, `.claude/hooks/`)
+- `guard-paths.mjs`: blocks any access to `.env*`, keystores and signing properties; blocks edits to generated `public/atlases/` and to committed save fixtures.
+- `core-purity.mjs`: after each edit in `src/core/`, flags framework imports, clock reads, `Math.random`, browser globals and timers.
+- `format.mjs`: Prettier on the edited file (skips atlases, fixtures, `assets-src/`).
+- Permissions: checks, tests, balance, sprites and read-only git are allowed; dependency changes, Capacitor/Gradle/adb, commits, pushes and GitHub repo/PR creation ask; force-push, hard reset and `git clean` are denied.
+
+## Plugins & external tools
+Enabled at project scope (`enabledPlugins`, `extraKnownMarketplaces` in `.claude/settings.json`). On a fresh clone: trust the folder, then
+`claude plugin install <name>@<marketplace> --scope project` for each entry (enabling does not download).
+
+| Tool | Area |
+|---|---|
+| superpowers | planning, TDD, systematic debugging, verification |
+| pr-review-toolkit | silent-failure hunter, type-design and test-coverage analyzers |
+| typescript-lsp | type-aware navigation |
+| frontend-design | DOM UI quality |
+| context7 | current docs for Pixi v8, pixi-filters, Capacitor, break_eternity (hosted MCP; queries leave the machine) |
+| Playwright Test Agents | `.claude/agents/playwright-test-*`, `.mcp.json`; regenerate after a Playwright upgrade (see CONTEXT §6) |
+
+Not carried over from Applyra (no use in a backend-less game): shadcn skill, Trail of Bits security skills, security-guidance,
+`/new-endpoint`, `/prisma-migration`, `/ai-task`, `security-reviewer` (replaced by `platform-reviewer`).
