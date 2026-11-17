@@ -9,9 +9,9 @@ import { createRoot } from 'react-dom/client'; // expect: render-package
 import { Capacitor } from '@capacitor/core'; // expect: render-package
 import { Assets } from '@pixi/assets'; // expect: render-package
 import { Howl } from 'howler'; // expect: render-package
-import { camera } from '../render/camera'; // expect: outer-layer
-import { t } from '../../i18n/index'; // expect: outer-layer
-import { storage } from '../platform'; // expect: outer-layer
+import { camera } from '../render/camera.ts'; // expect: outer-layer
+import { t } from '../../i18n/index.ts'; // expect: outer-layer
+import { storage } from '../platform/index.ts'; // expect: outer-layer
 
 export const used = [Application, GodrayFilter, useState, createRoot, Capacitor, Assets, Howl, camera, t, storage];
 

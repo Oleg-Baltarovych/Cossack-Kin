@@ -25,6 +25,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "break_eternity.js": "2.2.2",
     "pixi-filters": "6.1.5",
     "pixi.js": "8.23.0",
     "react": "19.3.1",
