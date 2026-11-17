@@ -77,7 +77,7 @@ export function createSkyLayer({ weather }: { readonly weather: Weather }): Worl
         const { cycle } = frame;
         const key = `${String(lutBucket(frame.minutes))}:${cycle.keyA}:${cycle.keyB}`;
         const density = starDensity(cycle, weather);
-        const step = density > 0 ? Math.floor(frame.seconds * STARS.hz) : 0;
+        const step = density > 0 ? Math.floor(frame.ambient * STARS.hz) : 0;
         const baseChanged = key !== baseKey;
         if (baseChanged) {
           paintSkyBase(band.base, band.light, band.w, band.h, cycle, weather);
@@ -86,7 +86,7 @@ export function createSkyLayer({ weather }: { readonly weather: Weather }): Worl
         if (!baseChanged && step === starStep) return;
         starStep = step;
         band.pixels.set(band.base);
-        paintStars(band.pixels, band.light, band.w, band.h, band.stars, density, frame.seconds);
+        paintStars(band.pixels, band.light, band.w, band.h, band.stars, density, frame.ambient);
         band.source.update();
       },
       dispose: freeBand,

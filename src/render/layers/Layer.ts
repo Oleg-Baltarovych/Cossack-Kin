@@ -2,6 +2,7 @@
 import { Container } from 'pixi.js';
 import { KHORTYTSIA_FARM } from '../../content/villages/khortytsia.layout.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
+import type { Quality } from '../settings.ts';
 
 export type LayerId = 'sky' | 'clouds' | 'far' | 'mid' | 'ground' | 'foreground' | 'fx' | 'light';
 
@@ -16,8 +17,13 @@ export interface LayerSize {
 export interface LayerFrame {
   /** Time of day in minutes after midnight (fractional). */
   readonly minutes: number;
-  /** Animation time in seconds (pinned under `?freeze`). */
+  /** Animation time in seconds (pinned under `?freeze`): people walk on it. */
   readonly seconds: number;
+  /**
+   * Time for atmospheric motion — clouds, water, sails, sway, fire, rain, stars, particles (ART-18): `seconds`, or 0
+   * under «менше руху» (a still frame).
+   */
+  readonly ambient: number;
   readonly cycle: DayCycle;
   /** Camera position in world px (ground parallax); screen-fixed layers use it to place parallax content. */
   readonly camX: number;
@@ -30,12 +36,15 @@ export interface WorldLayer {
   readonly container: Container;
   resize(size: LayerSize): void;
   update(frame: LayerFrame): void;
+  /** Applies a quality tier (ART-18; also after the auto-detect picks one). */
+  setQuality(quality: Quality): void;
   destroy(): void;
 }
 
 export interface LayerHooks {
   readonly resize?: (size: LayerSize) => void;
   readonly update?: (frame: LayerFrame) => void;
+  readonly setQuality?: (quality: Quality) => void;
   /** Frees what the container does not own (textures created by the layer); runs before the container is destroyed. */
   readonly dispose?: () => void;
 }
@@ -64,6 +73,9 @@ export function createLayer(id: LayerId, parallax: number, build?: LayerBuild, o
     },
     update: (frame) => {
       hooks.update?.(frame);
+    },
+    setQuality: (quality) => {
+      hooks.setQuality?.(quality);
     },
     destroy: () => {
       hooks.dispose?.();

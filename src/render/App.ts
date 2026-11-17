@@ -31,7 +31,9 @@ import { horizonY } from './layers/Layer.ts';
 import { createWater } from './water.ts';
 import { createPostGrade } from './postGrade.ts';
 import { rampColor, rampCss } from './palette.ts';
-import type { RenderSettings } from './settings.ts';
+import type { Quality, RenderSettings } from './settings.ts';
+import { createFpsProbe } from './quality.ts';
+import { AUTO_QUALITY } from './atmosphere/config.ts';
 import { computeViewport, worldTargetSize, type Viewport } from './viewport.ts';
 
 /** Scene width in logical px (≈ 2 screens, plan Q3). */
@@ -52,6 +54,8 @@ export interface WorldApp {
   /** Cosmetic RNG (seeded by `?seed` in dev/test); never for game state. */
   readonly rng: () => number;
   viewport(): Viewport;
+  /** The quality tier in use (the auto-detect may change it once, ART-18). */
+  quality(): Quality;
   setCamX(camX: number): void;
   destroy(): void;
 }
@@ -132,6 +136,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     const post = createPostGrade({
       layout,
       frame: findFrame,
+      quality: settings.quality ?? AUTO_QUALITY.start,
+      lessMotion: settings.lessMotion,
       swatch: __CK_DEBUG__ ? frame(atlases, 'debug', 'swatch/idle/00') : undefined,
     });
     disposers.push(() => {
@@ -141,7 +147,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       layout,
       frame: sceneFrame,
       weather: settings.weather,
-      quality: settings.quality,
+      quality: settings.quality ?? AUTO_QUALITY.start,
       lessMotion: settings.lessMotion,
       findFrame,
     });
@@ -168,6 +174,15 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     app.stage.addChild(upscale);
 
     let camX = settings.camX ?? 0;
+    // Quality (ART-18): a fixed `?quality`, else auto — start at AUTO_QUALITY.start and let the fps probe pick once.
+    // No probe under `?freeze`: screenshots must not change tier mid-test.
+    let quality: Quality = settings.quality ?? AUTO_QUALITY.start;
+    const probe = settings.quality === null && settings.frozenAt === null ? createFpsProbe() : null;
+    const applyQuality = (q: Quality): void => {
+      quality = q;
+      for (const layer of layers) layer.setQuality(q);
+      post.setQuality(q);
+    };
     const clock = createClock({
       frozenAt: settings.frozenAt,
       fixedMinutes: settings.fixedMinutes,
@@ -201,10 +216,17 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
       const cam = split(camX, vp.scale, cameraBounds(WORLD_WIDTH, target.width - 1));
       const minutes = clock.minutesOfDay();
-      const frameInfo = { minutes, seconds: clock.seconds(), cycle: dayCycle(minutes), camX: cam.worldPx };
+      const seconds = clock.seconds();
+      const ambient = settings.lessMotion ? 0 : seconds;
+      const frameInfo = { minutes, seconds, ambient, cycle: dayCycle(minutes), camX: cam.worldPx };
+      if (probe && !probe.verdict()) {
+        probe.sample(performance.now());
+        const picked = probe.verdict();
+        if (picked && picked !== quality) applyQuality(picked);
+      }
       grading.update(gradeCycle(frameInfo.cycle, settings.weather), minutes);
       post.setEmissive(emissiveLevel(frameInfo.cycle));
-      post.update(frameInfo.seconds);
+      post.update(frameInfo.ambient);
       for (const layer of layers) {
         layer.update(frameInfo);
         layer.container.x = layerOffset(cam.worldPx, layer.parallax);
@@ -212,7 +234,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       post.container.x = layerOffset(cam.worldPx, post.parallax);
       upscale.x = -cam.fracDevicePx;
       app.renderer.render({ container: world, target: worldRT, clear: true });
-      water.render(app.renderer, frameInfo.seconds, frameInfo.cycle);
+      water.render(app.renderer, frameInfo.ambient, frameInfo.cycle);
       app.renderer.render({ container: worldTop, target: worldRT, clear: false });
     };
     app.ticker.maxFPS = TARGET_FPS;
@@ -253,6 +275,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       clock,
       rng,
       viewport: () => vp,
+      quality: () => quality,
       setCamX: (x) => {
         camX = x;
       },

@@ -3,7 +3,7 @@
 import { UPDATE_PRIORITY } from 'pixi.js';
 import type { WorldApp } from '../App.ts';
 import { particles } from '../fx/registry.ts';
-import type { Quality, RenderSettings } from '../settings.ts';
+import type { RenderSettings } from '../settings.ts';
 import { installDrawCounter } from './drawCounter.ts';
 import { createFrameStats } from './frameStats.ts';
 import { createOverlay } from './overlay.ts';
@@ -19,7 +19,8 @@ export interface DebugStats {
   scale: number;
   logicalW: number;
   logicalH: number;
-  quality: Quality | 'auto';
+  /** The tier in use: `low|med|high` when fixed by `?quality`, `auto:<tier>` while auto-detected (ART-18). */
+  quality: string;
   /** Frames rendered since start. */
   frames: number;
 }
@@ -52,7 +53,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     scale: vp.scale,
     logicalW: vp.logicalW,
     logicalH: vp.logicalH,
-    quality: settings.quality ?? 'auto',
+    quality: settings.quality ?? `auto:${world.quality()}`,
     frames: 0,
   };
   window.__CK__ = { stats, settings };
@@ -67,6 +68,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     const now = performance.now();
     const { scale, logicalW, logicalH } = world.viewport();
     Object.assign(stats, { scale, logicalW, logicalH, particles: particles.active });
+    stats.quality = settings.quality ?? `auto:${world.quality()}`;
     if (counter) stats.drawCalls = counter.count();
     stats.frames += 1;
     const published = frameStats.sample(now, now - frameStart);

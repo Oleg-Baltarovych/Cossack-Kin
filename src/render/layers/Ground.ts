@@ -6,9 +6,9 @@
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Sprite, type Texture } from 'pixi.js';
 import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
-import { CLOUD_SHADOW, sailFps, SWAY, WIND } from '../atmosphere/config.ts';
+import { CLOUD_SHADOW, QUALITY_TIERS, sailFps, SWAY, WIND } from '../atmosphere/config.ts';
 import { cloudShadowLevel } from '../atmosphere/emissive.ts';
-import type { Weather } from '../settings.ts';
+import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
 import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
@@ -27,6 +27,8 @@ export interface GroundLayerOptions {
   readonly lessMotion: boolean;
   /** Under rain or fog there is no direct sun, so no cloud shadows (ART-17). */
   readonly weather: Weather;
+  /** Cloud shadows by tier (ART-18); `null` = auto, starts at med. */
+  readonly quality: Quality | null;
 }
 
 /** `khata.t1` → base, shadow and emissive frame names (`<entity>[.<variant>][@layer]/idle/00`). */
@@ -56,7 +58,7 @@ export function tileFrame(tile: GroundTile, col: number, row: number): string {
   return `ground.${pick}/idle/00`;
 }
 
-export function createGroundLayer({ layout, frame, lessMotion, weather }: GroundLayerOptions): WorldLayer {
+export function createGroundLayer({ layout, frame, lessMotion, weather, quality }: GroundLayerOptions): WorldLayer {
   return createLayer('ground', PARALLAX, (container) => {
     const tiles = new Container({ label: 'ground-tiles' });
     const decals = new Container({ label: 'decals' });
@@ -111,6 +113,7 @@ export function createGroundLayer({ layout, frame, lessMotion, weather }: Ground
       return { walker: w, walk, idle, sprite, shadow };
     });
     let horizon = 0;
+    let shadowsOn: boolean = QUALITY_TIERS[quality ?? 'med'].cloudShadows;
 
     const resize = (size: LayerSize): void => {
       for (const child of tiles.removeChildren()) child.destroy();
@@ -164,21 +167,24 @@ export function createGroundLayer({ layout, frame, lessMotion, weather }: Ground
 
     return {
       resize,
-      update: ({ seconds, cycle }) => {
+      setQuality: (q) => {
+        shadowsOn = QUALITY_TIERS[q].cloudShadows;
+      },
+      update: ({ seconds, ambient, cycle }) => {
         for (const { prop, sprite, anim } of placed) {
           const a = prop.animate;
           if (!a || anim.length === 0) continue;
           const index =
             a.kind === 'sway'
-              ? swayFrame(seconds, a, WIND.strength, lessMotion)
-              : Math.floor(seconds * (a.fps === 'wind' ? sailFps(WIND.strength) : a.fps)) % anim.length;
+              ? swayFrame(ambient, a, WIND.strength, lessMotion)
+              : Math.floor(ambient * (a.fps === 'wind' ? sailFps(WIND.strength) : a.fps)) % anim.length;
           const texture = anim[index];
           if (texture) sprite.texture = texture;
         }
         const level = cloudShadowLevel(cycle);
-        cloudShadows.visible = level > 0.01 && weather === 'clear';
+        cloudShadows.visible = shadowsOn && level > 0.01 && weather === 'clear';
         cloudShadows.alpha = CLOUD_SHADOW.alpha * level;
-        const scroll = (speed: number, w: number): number => Math.round((((seconds * speed) % w) + w) % w);
+        const scroll = (speed: number, w: number): number => Math.round((((ambient * speed) % w) + w) % w);
         nearShadows.x = scroll(CLOUD_SHADOW.speed, nearTexture.width);
         farShadows.x = scroll(CLOUD_SHADOW.speed * CLOUD_SHADOW.farSpeed, farTexture.width);
         for (const { walker, walk, idle, sprite, shadow } of walkers) {

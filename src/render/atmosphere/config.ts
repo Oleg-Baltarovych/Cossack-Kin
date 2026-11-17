@@ -802,3 +802,21 @@ export const WET = { color: ['ink', 1] } as const;
  * the land keeps enough value separation that fences and trees read with no moon (art-director ART-17).
  */
 export const RAIN_NIGHT_GRADE = 0.7;
+
+// --- Quality tiers and auto-detect (ART-18) ---------------------------------------------------------------------
+/**
+ * Per-tier effect budgets. Light shafts have their own variants (RAYS, `rayVariant`); the rest scale here: dust
+ * motes in the shafts, campfire sparks, fireflies, rain splashes, the far rain layer, cloud shadows on the ground.
+ */
+export const QUALITY_TIERS = {
+  low: { dust: 0, sparks: 4, fireflies: 12, splashes: 24, rainFar: false, cloudShadows: false },
+  med: { dust: 20, sparks: 8, fireflies: 24, splashes: 40, rainFar: true, cloudShadows: true },
+  high: { dust: 40, sparks: 10, fireflies: 32, splashes: 64, rainFar: true, cloudShadows: true },
+} as const;
+export type QualityTier = (typeof QUALITY_TIERS)[keyof typeof QUALITY_TIERS];
+/**
+ * Auto quality (`?quality` absent, live time): start at `med`, skip `warmup` s of start-up, then the mean fps over
+ * `window` s picks the tier — ≥ `high` fps → high, < `low` → low, else med. Never under `?freeze` (screenshots). A gap
+ * over `maxGapMs` between frames (a hidden tab, a paused webview) restarts the measurement: no frames ≠ slow frames.
+ */
+export const AUTO_QUALITY = { start: 'med', warmup: 1, window: 3, high: 57, low: 45, maxGapMs: 250 } as const;
