@@ -34,7 +34,9 @@ export interface Prop {
     | 'church'
     | 'belfry'
     | 'windmill'
-    | 'windmill-sails';
+    | 'windmill-sails'
+    | 'oak'
+    | 'willow';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -43,8 +45,28 @@ export interface Prop {
   readonly lift?: number;
   /** `false`: the sprite has no `@shadow` frame (default true). */
   readonly shadow?: boolean;
-  /** Cycle `<sprite>/idle/NN` frames: count and rate (`wind` = from the wind strength). */
-  readonly animate?: { readonly frames: number; readonly fps: number | 'wind' };
+  /**
+   * `cycle`: loop `<sprite>/idle/NN` frames at a rate (`wind` = from the wind strength); `sway`: pick one of the
+   * baked lean frames from the wind (render/sway.ts) — `amp` the share of the full lean, `phase` 0..1.
+   */
+  readonly animate?: Animate;
+}
+
+export type Animate =
+  | { readonly kind: 'cycle'; readonly frames: number; readonly fps: number | 'wind' }
+  | { readonly kind: 'sway'; readonly amp: number; readonly phase: number };
+
+/**
+ * A near-camera plant clump on the foreground layer (ART-14, SPEC §6.2 layer 5, parallax 1.2): `plant.<variant>`
+ * frames swaying in the wind. `x` is in the foreground layer's own space (it scrolls 1.2× the ground), `ground` rows
+ * below the horizon like the props.
+ */
+export interface ForegroundPlant {
+  readonly sprite: 'plant.grass' | 'plant.reeds' | 'plant.sunflowers' | 'plant.mallows';
+  readonly x: number;
+  readonly ground: number;
+  readonly amp: number;
+  readonly phase: number;
 }
 
 /** Flat ground decal (no shadow, not Y-sorted): drawn over the tiles, under every shadow and prop. */
@@ -115,6 +137,8 @@ export interface SceneLayout {
   readonly decals: readonly Decal[];
   readonly props: readonly Prop[];
   readonly walkers: readonly Walker[];
+  /** Plant clumps on the foreground layer, back to front. */
+  readonly foreground: readonly ForegroundPlant[];
   /** Back to front. */
   readonly farPlanes: readonly FarPlane[];
   /** The river under the horizon (ART-09): rows of water from the horizon down; 0 = no water. */
@@ -150,19 +174,45 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'mallows', x: 88, ground: 102 },
     { sprite: 'tyn', x: 176, ground: 103 },
     { sprite: 'tyn', x: 216, ground: 103 },
+    // A willow over the end of the yard fence (верба біля хати, ART-14); low enough that its crown clears the river band.
+    { sprite: 'willow', x: 240, ground: 106, animate: { kind: 'sway', amp: 0.8, phase: 0.15 } },
     // The post mill by the road past the yard fence, its sails turning with the wind (hub 53 px above the trestle foot).
     // Low enough that the top sail (93 px above the foot) stays clear of the 26-row river band.
     { sprite: 'windmill', x: 312, ground: 124 },
-    { sprite: 'windmill-sails', x: 312, ground: 124, lift: 53, shadow: false, animate: { frames: 8, fps: 'wind' } },
+    {
+      sprite: 'windmill-sails',
+      x: 312,
+      ground: 124,
+      lift: 53,
+      shadow: false,
+      animate: { kind: 'cycle', frames: 8, fps: 'wind' },
+    },
     // Front row, below the path: khata III, nearer and to the right, its own fence and mallows.
     { sprite: 'khata.t3', x: 292, ground: 240 },
     { sprite: 'mallows', x: 266, ground: 243 },
     { sprite: 'tyn', x: 356, ground: 242 },
+    // An old oak in the near left corner framing the scene (a stiff tree: half the lean of the grass).
+    { sprite: 'oak', x: 44, ground: 282, animate: { kind: 'sway', amp: 0.5, phase: 0.6 } },
+  ],
+  // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
+  // mallows at the corners of the first screen, the rest spread for the pan.
+  foreground: [
+    { sprite: 'plant.sunflowers', x: 30, ground: 376, amp: 1, phase: 0 },
+    { sprite: 'plant.grass', x: 70, ground: 380, amp: 1, phase: 0.35 },
+    { sprite: 'plant.grass', x: 190, ground: 382, amp: 1, phase: 0.7 },
+    { sprite: 'plant.mallows', x: 330, ground: 377, amp: 1, phase: 0.2 },
+    { sprite: 'plant.grass', x: 372, ground: 381, amp: 1, phase: 0.5 },
+    { sprite: 'plant.grass', x: 470, ground: 380, amp: 1, phase: 0.9 },
+    { sprite: 'plant.sunflowers', x: 560, ground: 377, amp: 1, phase: 0.45 },
+    { sprite: 'plant.reeds', x: 660, ground: 381, amp: 1, phase: 0.1 },
+    { sprite: 'plant.grass', x: 750, ground: 379, amp: 1, phase: 0.8 },
   ],
   walkers: [
     // A Cossack walking the road; a woman between the two yards; a second Cossack resting by khata I.
     { sprite: 'kozak.a', x0: 40, x1: 340, ground: 146, speed: 22, rest: 3, phase: 0 },
     { sprite: 'selianka.a', x0: 230, x1: 150, ground: 198, speed: 20, rest: 4, phase: 0.4 },
+    // A woman tending the sunflowers at the near edge: she passes behind the foreground clumps (they thin out over her).
+    { sprite: 'selianka.b', x0: 24, x1: 110, ground: 300, speed: 14, rest: 5, phase: 0 },
     { sprite: 'kozak.b', x0: 158, x1: 158, ground: 108, speed: 0, rest: 0, phase: 0.2 },
   ],
   // The Dnipro between the far bank and the farm: it covers the far meadow row but the near bank below it.
@@ -260,6 +310,13 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     { sprite: 'kozak.a', x0: 150, x1: 250, ground: 226, speed: 22, rest: 3, phase: 0 },
     { sprite: 'kozak.b', x0: 222, x1: 222, ground: 96, speed: 0, rest: 0, phase: 0.3 },
     { sprite: 'kozak.a', x0: 330, x1: 30, ground: 150, speed: 20, rest: 5, phase: 1.1 },
+  ],
+  // Only grass at the Sich's trodden edge: no gardens inside the walls.
+  foreground: [
+    { sprite: 'plant.grass', x: 24, ground: 400, amp: 1, phase: 0.2 },
+    { sprite: 'plant.grass', x: 250, ground: 402, amp: 1, phase: 0.6 },
+    { sprite: 'plant.grass', x: 520, ground: 400, amp: 1, phase: 0.4 },
+    { sprite: 'plant.grass', x: 700, ground: 401, amp: 1, phase: 0.9 },
   ],
   farPlanes: KHORTYTSIA_FARM.farPlanes,
   // From inside the Sich the river is hidden behind the rampart (and a water band would cover the tower bases).

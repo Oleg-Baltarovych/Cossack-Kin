@@ -27,6 +27,8 @@ export interface RenderSettings {
   readonly showOverlay: boolean;
   /** Initial camera x in logical px; `null` = scene default. */
   readonly camX: number | null;
+  /** «Менше руху» (SPEC §6.3, §6.8): plants stand upright (ART-14). The settings screen drives it from M2. */
+  readonly lessMotion: boolean;
 }
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
@@ -39,4 +41,5 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   quality: null,
   showOverlay: false,
   camX: null,
+  lessMotion: false,
 };

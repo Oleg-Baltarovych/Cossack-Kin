@@ -342,3 +342,51 @@ test.describe('ART-13 windmill @screens', () => {
     });
   }
 });
+
+test.describe('ART-14 vegetation and wind @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // The default breeze swings the plants at ~0.42 Hz: 0.6 s steps are about a quarter swing each (upright, lean
+  // right, upright, lean left for a plant with phase 0). Named `sway-t*`: `clear-t*` are the ART-06 walk frames.
+  for (let step = 0; step <= 3; step++) {
+    test(`khortytsia farm 1300 clear sway t${String(step)}: whole-px sway, within budget`, async ({
+      page,
+    }, testInfo) => {
+      await gotoReady(page, `/?time=13:00&freeze=${(step * 0.6).toFixed(1)}&seed=1&zone=farm`);
+      const scale = await expectWebGlWithinBudget(page);
+      const png = await shoot(page, testInfo, `khortytsia-farm-1300-clear-sway-t${String(step)}`);
+      expectPixelGrid(png, testInfo, scale, 0);
+    });
+  }
+
+  // At t = 0 the woman tending the sunflowers stands behind the left clump: it must thin out over her.
+  test('khortytsia farm 1300 clear fade: a foreground clump over a person drops to half alpha', async ({
+    page,
+  }, testInfo) => {
+    await gotoReady(page, '/?time=13:00&freeze=0&seed=1&zone=farm');
+    const scale = await expectWebGlWithinBudget(page);
+    const png = await shoot(page, testInfo, 'khortytsia-farm-1300-clear-fade');
+    expectPixelGrid(png, testInfo, scale, 0);
+  });
+
+  test('«менше руху» (?still): the same moment with the plants upright differs only by the sway', async ({
+    page,
+  }, testInfo) => {
+    await gotoReady(page, '/?time=13:00&freeze=0.6&seed=1&zone=farm');
+    const swaying = decodePng(await page.screenshot({ scale: 'device' }));
+    await gotoReady(page, '/?time=13:00&freeze=0.6&seed=1&zone=farm&still');
+    const png = await shoot(page, testInfo, 'khortytsia-farm-1300-clear-sway-still');
+    const still = decodePng(png);
+    let changed = 0;
+    let topRow = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < still.data.length; i += 4) {
+      if (still.data[i] !== swaying.data[i] || still.data[i + 1] !== swaying.data[i + 1]) {
+        changed++;
+        topRow = Math.min(topRow, Math.floor(i / 4 / still.width));
+      }
+    }
+    // Leaning plants change some px; nothing above the land moves (sky, clouds and sails are the same frame).
+    expect(changed).toBeGreaterThan(0);
+    expect(topRow).toBeGreaterThan(still.height * 0.42);
+  });
+});

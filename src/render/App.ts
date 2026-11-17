@@ -141,6 +141,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       frame: sceneFrame,
       weather: settings.weather,
       quality: settings.quality,
+      lessMotion: settings.lessMotion,
     });
     const water = createWater(worldRT, layout.waterRows, settings.weather === 'fog');
     disposers.push(() => {

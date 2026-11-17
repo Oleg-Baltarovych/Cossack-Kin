@@ -24,7 +24,7 @@ export function createWorldLayers(options: WorldLayerOptions): WorldLayer[] {
     createFarLayer(options.layout.farPlanes, options.weather),
     createMidLayer(options.layout.farPlanes, options.weather),
     createGroundLayer(options),
-    createForegroundLayer(),
+    createForegroundLayer(options),
     createFxLayer(),
     createLightLayer({ weather: options.weather, quality: options.quality, layout: options.layout }),
   ];

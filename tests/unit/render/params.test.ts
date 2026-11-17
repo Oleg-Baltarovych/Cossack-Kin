@@ -19,7 +19,7 @@ describe('parseDebugParams — valid', () => {
 
   it('parses the full screenshot URL', () => {
     const params = parseDebugParams(
-      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5',
+      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5&still',
       'test',
     );
     expect(params).toEqual({
@@ -32,6 +32,7 @@ describe('parseDebugParams — valid', () => {
       quality: 'low',
       overlay: true,
       cam: 10.5,
+      still: true,
     });
     expect(warn).not.toHaveBeenCalled();
   });
@@ -169,7 +170,16 @@ describe('timeToMinutes / toRenderSettings', () => {
   });
 
   it('maps every param', () => {
-    const settings = toRenderSettings(parseDebugParams('?seed=2&freeze=12.5&time=13:00&overlay&cam=10.5', 'test'));
-    expect(settings).toMatchObject({ seed: 2, frozenAt: 12.5, fixedMinutes: 780, showOverlay: true, camX: 10.5 });
+    const settings = toRenderSettings(
+      parseDebugParams('?seed=2&freeze=12.5&time=13:00&overlay&cam=10.5&still', 'test'),
+    );
+    expect(settings).toMatchObject({
+      seed: 2,
+      frozenAt: 12.5,
+      fixedMinutes: 780,
+      showOverlay: true,
+      camX: 10.5,
+      lessMotion: true,
+    });
   });
 });

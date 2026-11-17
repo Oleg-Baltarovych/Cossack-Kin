@@ -73,3 +73,36 @@ describe('nothing tall stands in the river band', () => {
     }
   });
 });
+
+describe('vegetation (ART-14)', () => {
+  // Rows from the pivot to the top of the crown in the generated sprites (oak 88×96, willow 80×88).
+  const TREE_HEIGHT: Readonly<Record<string, number>> = { oak: 92, willow: 80 };
+
+  it('trees keep their crowns below the river band', () => {
+    const trees = KHORTYTSIA_FARM.props.filter((p) => p.sprite in TREE_HEIGHT);
+    expect(trees.length).toBeGreaterThanOrEqual(2);
+    for (const t of trees) {
+      expect(t.ground - (TREE_HEIGHT[t.sprite] ?? 0), t.sprite).toBeGreaterThanOrEqual(KHORTYTSIA_FARM.waterRows);
+    }
+  });
+
+  it('every sway has a lean share in (0, 1] and a phase in [0, 1)', () => {
+    for (const layout of [KHORTYTSIA_FARM, KHORTYTSIA_SICH]) {
+      const sways = [
+        ...layout.foreground,
+        ...layout.props.flatMap((p) => (p.animate?.kind === 'sway' ? [p.animate] : [])),
+      ];
+      expect(sways.length).toBeGreaterThan(0);
+      for (const s of sways) {
+        expect(s.amp).toBeGreaterThan(0);
+        expect(s.amp).toBeLessThanOrEqual(1);
+        expect(s.phase).toBeGreaterThanOrEqual(0);
+        expect(s.phase).toBeLessThan(1);
+      }
+    }
+  });
+
+  it('the Sich foreground is grass only (no gardens inside the walls)', () => {
+    for (const p of KHORTYTSIA_SICH.foreground) expect(p.sprite).toBe('plant.grass');
+  });
+});

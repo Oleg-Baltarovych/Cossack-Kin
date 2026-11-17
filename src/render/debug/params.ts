@@ -30,6 +30,8 @@ export interface DebugParams {
   readonly overlay: boolean;
   /** Initial camera x in logical px; `null` = scene default. */
   readonly cam: number | null;
+  /** «Менше руху»: still plants. */
+  readonly still: boolean;
 }
 
 export const DEBUG_DEFAULTS: DebugParams = {
@@ -42,6 +44,7 @@ export const DEBUG_DEFAULTS: DebugParams = {
   quality: null,
   overlay: false,
   cam: null,
+  still: false,
 };
 
 type Parser<T> = (raw: string) => T | undefined;
@@ -117,6 +120,7 @@ export function parseDebugParams(search: string, mode: string): DebugParams {
     quality: read('quality', oneOf(QUALITIES)),
     overlay: read('overlay', parseFlag),
     cam: read('cam', parseCam),
+    still: read('still', parseFlag),
   };
 }
 
@@ -137,5 +141,6 @@ export function toRenderSettings(params: DebugParams): RenderSettings {
     quality: params.quality,
     showOverlay: params.overlay,
     camX: params.cam,
+    lessMotion: params.still,
   };
 }
