@@ -25,4 +25,6 @@ export type GameEvent =
   | { readonly type: 'ReturnClaimed'; readonly ducats: Big; readonly glory: Big }
   /** The player came back: the absence was counted into `report` (waiting for claimReturn). */
   | { readonly type: 'OfflineApplied'; readonly report: ReturnReport }
-  | { readonly type: 'ActionRejected'; readonly action: string; readonly reason: RejectReason };
+  | { readonly type: 'ActionRejected'; readonly action: string; readonly reason: RejectReason }
+  /** The whole state was replaced (a loaded save or a reset): listeners re-read it from scratch. */
+  | { readonly type: 'StateReplaced' };
