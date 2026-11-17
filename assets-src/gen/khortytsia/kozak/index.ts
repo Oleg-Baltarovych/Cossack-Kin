@@ -8,8 +8,10 @@ import { checkMask, paintDoll, type Mask, type Outfit, type Stamp } from '../../
 import { Plot } from '../../lib/plot.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 
-const W = 18;
-const H = 28;
+export const MAN_W = 18;
+export const MAN_H = 28;
+const W = MAN_W;
+const H = MAN_H;
 /** Ground row (soles); the pivot is the bottom edge of this row. */
 export const KOZAK_GROUND = 27;
 
@@ -17,7 +19,7 @@ export const KOZAK_GROUND = 27;
 // Near-black sheepskin crown with a straight lit brim above the brows (reads as fur, not hair); a 1-px moustache
 // under the nose with drooping ends, skin chin between (art-director ART-06: a full grey block read as a beard).
 const HEAD: Mask = ['.CCCccg.', 'CcccCccg', 'gCCCCCcg', 'zSSsssz.', 'zsGssGs.', 'zssssSss', '.zsHhhh.', '.zHsssh.'];
-const HEAD_AT = { x: 6, y: 2 } as const;
+export const HEAD_AT = { x: 6, y: 2 } as const;
 
 /** Шлик: crimson only on the crown's top row and the tail hanging to the back (left); the fur shows below. 0 hang, 1 lifted (walk / idle drift). */
 const SHLYK: readonly Mask[] = [
@@ -26,9 +28,38 @@ const SHLYK: readonly Mask[] = [
 ];
 const SHLYK_AT = { x: 4, y: 1 } as const;
 
+/**
+ * Bare shaved head (ART-15, the young Cossack): a round skull lit top-left in place of the шапка, the same face and
+ * moustache rows. The оселедець is its own stamp, drawn over the crown.
+ */
+const HEAD_BARE: Mask = [
+  '..SSsz..',
+  '.SSsssz.',
+  'zSssssz.',
+  'zSSsssz.',
+  'zsGssGs.',
+  'zssssSs.',
+  '.zsHhhh.',
+  '.zHsssh.',
+];
+/**
+ * Оселедець (art-director ART-15): rooted on top of the crown, a 1-px lock laid across the scalp over the skin to
+ * above the left ear, only the last 2 px hanging free behind it, ending at eye level — bare skin stays between the
+ * lock and the nape (that gap is what reads as a forelock, not long hair). 0 hangs, 1 the free tail flicked back
+ * (walk); the root never moves.
+ */
+const OSELEDETS: readonly Mask[] = [
+  ['.....hH', '.....h.', '....h..', '...h...', '..h....', '.h.....', '.j.....'],
+  ['.....hH', '.....h.', '....h..', '...h...', '..h....', 'h......', 'j......'],
+];
+const OSELEDETS_AT = { x: 4, y: 1 } as const;
+
+/** Head style per variant: a/b шапка with шлик, c bare head with оселедець. */
+const HEADS: Readonly<Record<string, 'hat' | 'bare'>> = { a: 'hat', b: 'hat', c: 'bare' };
+
 /** Сорочка with wide shoulders (shaded toward the back-right) and the пояс (belt). */
 const TORSO: Mask = ['.WWwwwv..', 'WWwwwwwv.', 'Wwwwwwwvv', 'Wwwwwwwvv', 'Wwwwwwvvv', 'RRrrrrrtT', 'Rrrrrrrtt'];
-const TORSO_AT = { x: 4, y: 10 } as const;
+export const TORSO_AT = { x: 4, y: 10 } as const;
 
 /** Belt ends hanging behind the left hip. 0 hang, 1 trailing. */
 const BELT_ENDS: readonly Mask[] = [
@@ -38,7 +69,7 @@ const BELT_ENDS: readonly Mask[] = [
 const BELT_ENDS_AT = { x: 3, y: 16 } as const;
 
 /** Шаровари + чоботи from the hip row down to the soles (12 rows). 0 stand, 1 stride, 2 recoil, 3 passing. */
-const LEGS: readonly Mask[] = [
+export const LEGS: readonly Mask[] = [
   [
     '.PPppppqq.',
     'PPpppppqqq',
@@ -96,17 +127,17 @@ const LEGS: readonly Mask[] = [
     '....bbbD..',
   ],
 ];
-const LEGS_AT = { x: 4, y: KOZAK_GROUND - 11 } as const;
+export const LEGS_AT = { x: 4, y: KOZAK_GROUND - 11 } as const;
 
 /** Near (right) arm: wide sleeve, inner edge shaded, hand. 0 hang, 1 forward, 2 back. */
-const ARM: readonly Mask[] = [
+export const ARM: readonly Mask[] = [
   ['vw.', 'vww', 'vww', 'vww', '.vw', '.Sz'],
   ['vw..', '.vww', '.vww', '..vw', '..vw', '..Sz'],
   ['.vw', 'vww', 'vww', 'vw.', 'vw.', 'Sz.'],
 ];
-const ARM_AT = { x: 11, y: 11 } as const;
+export const ARM_AT = { x: 11, y: 11 } as const;
 
-interface Pose {
+export interface Pose {
   readonly bob: number;
   /** Extra lift of the shoulders and head only (idle breath). */
   readonly breath: number;
@@ -115,13 +146,13 @@ interface Pose {
   readonly shlyk: number;
   readonly belt: number;
 }
-const IDLE: readonly Pose[] = [
+export const IDLE: readonly Pose[] = [
   { bob: 0, breath: 0, legs: 0, arm: 0, shlyk: 0, belt: 0 },
   { bob: 0, breath: -1, legs: 0, arm: 0, shlyk: 0, belt: 0 },
   { bob: 0, breath: -1, legs: 0, arm: 0, shlyk: 1, belt: 0 },
   { bob: 0, breath: 0, legs: 0, arm: 0, shlyk: 1, belt: 0 },
 ];
-const WALK: readonly Pose[] = [
+export const WALK: readonly Pose[] = [
   { bob: 0, breath: 0, legs: 1, arm: 1, shlyk: 1, belt: 1 },
   { bob: 0, breath: 0, legs: 2, arm: 0, shlyk: 1, belt: 0 },
   { bob: -1, breath: 0, legs: 3, arm: 2, shlyk: 0, belt: 1 },
@@ -155,16 +186,25 @@ export const KOZAK_OUTFITS: Readonly<Record<string, Outfit>> = {
     // A blue belt: crimson on crimson sharovary loses the belt, a required Cossack mark.
     belt: { ramp: 'cloth', tones: [1, 2, 3, 3] },
   },
+  /** c: the young Cossack (ART-15) — bare head with оселедець, dark moustache, the third (light) skin tone, green
+   * sharovary under a crimson belt. */
+  c: {
+    ...BASE,
+    skin: { ramp: 'skin', tones: [2, 3, 4, 5] },
+    hair: { ramp: 'wood', tones: [0, 1, 1, 2] },
+    lower: { ramp: 'grass', tones: [1, 2, 3, 4] },
+    accent: { ramp: 'crimson', tones: [1, 2, 3, 4] },
+  },
 };
 
-for (const [name, m] of Object.entries({ HEAD, TORSO })) checkMask(m, `kozak ${name}`);
-for (const set of [SHLYK, BELT_ENDS, LEGS, ARM]) {
+for (const [name, m] of Object.entries({ HEAD, HEAD_BARE, TORSO })) checkMask(m, `kozak ${name}`);
+for (const set of [SHLYK, OSELEDETS, BELT_ENDS, LEGS, ARM]) {
   set.forEach((m, i) => {
     checkMask(m, `kozak #${String(i)}`);
   });
 }
 
-function stamps(pose: Pose): Stamp[] {
+function stamps(pose: Pose, head: 'hat' | 'bare'): Stamp[] {
   const pick = <T>(list: readonly T[], i: number): T => {
     const v = list[i] ?? list[0];
     if (v === undefined) throw new Error('empty pose table');
@@ -181,8 +221,19 @@ function stamps(pose: Pose): Stamp[] {
     // The shirt's last row stays over the belt while the chest lifts (idle breath): no gap above the belt.
     { mask: TORSO.slice(4, 5), x: TORSO_AT.x, y: TORSO_AT.y + 4 + b },
     { mask: TORSO.slice(0, 5), x: TORSO_AT.x, y: TORSO_AT.y + top },
-    { mask: pick(SHLYK, pose.shlyk), x: SHLYK_AT.x, y: SHLYK_AT.y + top },
-    { mask: HEAD, x: HEAD_AT.x, y: HEAD_AT.y + top },
+    ...(head === 'hat'
+      ? [
+          { mask: pick(SHLYK, pose.shlyk), x: SHLYK_AT.x, y: SHLYK_AT.y + top },
+          { mask: HEAD, x: HEAD_AT.x, y: HEAD_AT.y + top },
+        ]
+      : [
+          { mask: HEAD_BARE, x: HEAD_AT.x, y: HEAD_AT.y + top },
+          {
+            mask: pick(OSELEDETS, pose.shlyk),
+            x: OSELEDETS_AT.x,
+            y: OSELEDETS_AT.y + top,
+          },
+        ]),
     { mask: pick(ARM, pose.arm), x: ARM_AT.x, y: ARM_AT.y + top },
   ];
 }
@@ -200,7 +251,7 @@ const kozak: SpriteGenerator = {
     const pose = (anim === 'walk' ? WALK : IDLE)[frame];
     if (!outfit || !pose) throw new Error(`kozak: no outfit/pose for ${String(variant)} ${anim} ${String(frame)}`);
     const plot = new Plot();
-    paintDoll(plot, outfit, stamps(pose));
+    paintDoll(plot, outfit, stamps(pose, HEADS[variant ?? 'a'] ?? 'hat'));
     compose(buffer, [plot.part(1, 1)], rampSize, {
       light: false,
       occlusion: false,
