@@ -583,3 +583,34 @@ export const SWAY = {
  * Over a person behind it a clump drops to `fadeAlpha`, so no one is hidden behind the grass.
  */
 export const FOREGROUND = { parallax: 1.2, fadeAlpha: 0.5 } as const;
+
+// --- Night lights (ART-16; ART-BIBLE §8 night: blue, fire light warm and local) --------------------------------
+/**
+ * The campfire (flame frames cycle at the prop's `animate` rate, emissive, post-grade): its light pool on the ground
+ * flickers between 1 − `flicker.depth` and 1 in 1/8 steps, `flicker.hz` changes a second (seeded, so `?freeze` frames
+ * repeat); up to `sparks` 1-px sparks rise `sparkRise` px over `sparkLife` s.
+ */
+export const FIRE = {
+  flicker: { hz: 8, depth: 0.25 },
+  sparks: 10,
+  sparkRise: 30,
+  sparkLife: 1.4,
+  pool: { rx: 46, ry: 20, alpha: 0.6, color: ['gold', 2] },
+  spark: ['gold', 5],
+} as const;
+/**
+ * Window light spilling on the ground in front of every building with a night mask: a flat ellipse `rxShare` × the
+ * sprite width wide, `ry` rows tall, `below` rows under the pivot; a slow candle flicker.
+ */
+export const WINDOW_POOL = { rxShare: 0.45, ry: 5, below: 3, alpha: 0.4, color: ['gold', 2] } as const;
+/**
+ * Light pools are alpha-blended (not additive: orange added to the blue night ground lands on grey-pink), so the
+ * middle step reads amber (gold 2 at 0.6 over the night ground ≈ #916037, art-director ART-16). They show only once
+ * the emissive level is past `from` (no grey smudge on sunlit ground at golden hour).
+ */
+export const POOLS = { from: 0.5 } as const;
+/**
+ * Summer fireflies over the meadow (≤ 40, SPEC §6.3): each blinks on for `blinkOn` of its 3–5 s cycle, the first
+ * `peak` of it with a dim + of 4 neighbours (so the blink registers among the 1-px grass highlights); yellow-green.
+ */
+export const FIREFLIES = { count: 32, blinkOn: 0.4, peak: 0.3, color: ['grass', 6] } as const;

@@ -6,11 +6,29 @@
 //   occlusion at ½ resolution, 4/s — a polar shadow map from the sun through the clouds, bluffs and groves, the light
 //   reaching the meadow through the gaps; `low` = a fan of 5 static beams clipped by the bluffs and the horizon, faded
 //   out while the sun is behind a cloud. The GodrayFilter variant was dropped (blur over the pixel grid, no occlusion,
-//   the slowest). Additive, plus ≤ 40 dust motes in the brighter light.
+//   the slowest). Additive, plus ≤ 40 dust motes in the brighter light;
+// - night lights (ART-16): warm pools on the ground under the campfire (flickering) and in front of every building
+//   with a night mask (alpha-blended right after the haze band, so they batch with it), and summer fireflies (≤ 40,
+//   additive, with the dust) — sprites in world positions, by the emissive level.
 import { BufferImageSource, Container, Sprite, Texture, type BLEND_MODES } from 'pixi.js';
 import type { SceneLayout } from '../../content/villages/khortytsia.layout.ts';
 import { layerOffset } from '../camera.ts';
-import { CLOUD_FOOTPRINTS, CLOUDS, FOG, HAZE_BAND, LOW_CLOUD, RAY_LOOKS, RAYS } from '../atmosphere/config.ts';
+import {
+  CLOUD_FOOTPRINTS,
+  CLOUDS,
+  FIRE,
+  FIREFLIES,
+  FOG,
+  HAZE_BAND,
+  LOW_CLOUD,
+  RAY_LOOKS,
+  RAYS,
+  POOLS,
+  WINDOW_POOL,
+} from '../atmosphere/config.ts';
+import { emissiveLevel } from '../atmosphere/emissive.ts';
+import { fireflies, flicker, paintPool } from '../atmosphere/nightLights.ts';
+import { particles } from '../fx/registry.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { lutBucket } from '../atmosphere/grading.ts';
 import { paintHazeBand, planeProfile, type Profile } from '../atmosphere/landscapePaint.ts';
@@ -30,6 +48,7 @@ import { skyPixel } from '../atmosphere/skyPaint.ts';
 import { rampColor } from '../palette.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { cloudX } from './Clouds.ts';
+import { propFrames } from './Ground.ts';
 import { airHaze, PLANE_ROWS } from './landscape.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
@@ -77,16 +96,69 @@ export interface LightLayerOptions {
   readonly weather: Weather;
   readonly quality: Quality | null;
   readonly layout: SceneLayout;
+  /** Scene atlas lookup, `null` for a missing frame (which props have a night mask, and their width). */
+  readonly findFrame: (name: string) => Texture | null;
 }
 
-export function createLightLayer({ weather, quality, layout }: LightLayerOptions): WorldLayer {
+export function createLightLayer({ weather, quality, layout, findFrame }: LightLayerOptions): WorldLayer {
   const variant = rayVariant(quality);
   const tier = variant === 'occlusion-full' ? RAYS.high : RAYS.med;
   return createLayer('light', 0, (container) => {
     const haze = new Sprite({ roundPixels: true, label: 'haze-band' });
     const rays = new Container({ label: `rays-${variant}` });
     const dust = new Container({ label: 'dust' });
-    container.addChild(haze, rays, dust);
+    const night = new Container({ label: 'light-pools' });
+    const flyLayer = new Container({ label: 'fireflies' });
+    container.addChild(haze, night, rays, dust, flyLayer);
+    // Light pools: one texture per size, shared by the sprites (fire: round; windows: flat, by the building's width).
+    const poolTextures = new Map<string, CpuTexture>();
+    const poolTexture = (rx: number, ry: number, color: number): Texture => {
+      const key = `${String(rx)}:${String(ry)}:${String(color)}`;
+      let tex = poolTextures.get(key);
+      if (!tex) {
+        const img = paintPool(rx, ry, color);
+        tex = cpuTexture(img.w, img.h, img.pixels);
+        poolTextures.set(key, tex);
+      }
+      return tex.texture;
+    };
+    const pools = layout.props.flatMap((prop, i) => {
+      const fire = prop.sprite === 'campfire';
+      const mask = findFrame(propFrames(prop.sprite).emissive);
+      if (!fire && !mask) return [];
+      const look = fire ? FIRE.pool : WINDOW_POOL;
+      const rx = fire ? FIRE.pool.rx : Math.max(4, Math.round((mask?.width ?? 0) * WINDOW_POOL.rxShare));
+      const ry = fire ? FIRE.pool.ry : WINDOW_POOL.ry;
+      const sprite = new Sprite({
+        texture: poolTexture(rx, ry, rampColor(look.color[0], look.color[1])),
+        roundPixels: true,
+      });
+      sprite.anchor.set(0.5);
+      night.addChild(sprite);
+      // The fire's pool centres on the flames; a window pool lies on the ground in front of the wall.
+      return [{ prop, sprite, fire, seed: i, below: fire ? -4 : WINDOW_POOL.below, alpha: look.alpha }];
+    });
+    // A firefly at its blink peak: the lit px with a dim + of 4 neighbours (1/4), white so the tint colours it.
+    const flyPeakBuf = cpuTexture(
+      3,
+      3,
+      new Uint8Array([
+        0, 0, 0, 0, 64, 64, 64, 64, 0, 0, 0, 0, 64, 64, 64, 64, 255, 255, 255, 255, 64, 64, 64, 64, 0, 0, 0, 0, 64, 64,
+        64, 64, 0, 0, 0, 0,
+      ]),
+    );
+    const flyPeak = flyPeakBuf.texture;
+    const flies = layout.fireflies
+      ? Array.from({ length: FIREFLIES.count }, () => {
+          const m = new Sprite({ texture: Texture.WHITE, roundPixels: true });
+          m.blendMode = ADD;
+          m.tint = rampColor(...FIREFLIES.color);
+          m.visible = false;
+          flyLayer.addChild(m);
+          return m;
+        })
+      : [];
+    particles.acquire(flies.length);
     let hazeBuf: CpuTexture | null = null;
     let shaftBuf: CpuTexture | null = null;
     let beams: { tex: CpuTexture; sprite: Sprite }[] = [];
@@ -124,6 +196,13 @@ export function createLightLayer({ weather, quality, layout }: LightLayerOptions
       for (const child of rays.removeChildren()) child.destroy();
       shaftBuf?.texture.destroy(true);
       shaftBuf = null;
+    };
+    const dispose = (): void => {
+      free();
+      particles.release(flies.length);
+      for (const tex of poolTextures.values()) tex.texture.destroy(true);
+      flyPeak.destroy(true);
+      poolTextures.clear();
     };
 
     /** Clouds on screen this frame as ellipses (footprints of the generated sprites). */
@@ -194,6 +273,36 @@ export function createLightLayer({ weather, quality, layout }: LightLayerOptions
           const cover = layout.groundHaze === false ? 0 : fog ? FOG.bandCover : HAZE_BAND.cover * h;
           paintHazeBand(hazeBuf.pixels, hazeBuf.w, Math.min(rows, MAX_ROWS - lead), cycle, cover, lead);
           hazeBuf.source.update();
+        }
+
+        // Night lights: pools and fireflies follow the emissive level (off by day), in world positions.
+        const level = emissiveLevel(cycle);
+        const poolLevel = Math.max(0, (level - POOLS.from) / (1 - POOLS.from));
+        night.visible = poolLevel > 0;
+        flyLayer.visible = level > 0.5;
+        if (level > 0.01) {
+          const offset = layerOffset(camX, 1);
+          for (const p of pools) {
+            p.sprite.position.set(p.prop.x + offset, horizon + p.prop.ground + p.below);
+            const f = p.fire ? flicker(seconds, p.seed) : flicker(seconds * 0.25, p.seed, 0.125);
+            p.sprite.alpha = Math.round(p.alpha * poolLevel * f * 8) / 8;
+          }
+          const area = layout.fireflies;
+          if (area && flies.length > 0) {
+            const list = fireflies(seconds, {
+              x0: 0,
+              x1: contentWidth(1, size),
+              y0: horizon + area.top,
+              y1: horizon + area.bottom,
+            });
+            flies.forEach((m, i) => {
+              const fly = list[i];
+              m.visible = fly !== undefined && fly.on;
+              m.texture = fly?.peak ? flyPeak : Texture.WHITE;
+              // Whole px, top-left anchored: the 3×3 peak sits one px up-left so its centre stays on the firefly.
+              if (fly) m.position.set(fly.x + offset - (fly.peak ? 1 : 0), fly.y - (fly.peak ? 1 : 0));
+            });
+          }
         }
 
         // Shafts: only with a low sun on screen, never in fog (ART-17 decides fog light).
@@ -288,7 +397,7 @@ export function createLightLayer({ weather, quality, layout }: LightLayerOptions
           m.tint = look.dust;
         });
       },
-      dispose: free,
+      dispose,
     };
   });
 }
