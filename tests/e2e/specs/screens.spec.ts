@@ -326,3 +326,19 @@ test.describe('ART-11 the Sich @screens', () => {
     });
   }
 });
+
+test.describe('ART-13 windmill @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // At the default breeze (WIND.strength 0.55 → 6.4 fps) 0.16 s steps advance the sails one frame each.
+  for (let step = 0; step <= 3; step++) {
+    test(`khortytsia farm 1300 clear sails t${String(step)}: whole-px sails, within budget`, async ({
+      page,
+    }, testInfo) => {
+      await gotoReady(page, `/?time=13:00&freeze=${(step * 0.16).toFixed(2)}&seed=1&zone=farm`);
+      const scale = await expectWebGlWithinBudget(page);
+      const png = await shoot(page, testInfo, `khortytsia-farm-1300-clear-sails-t${String(step)}`);
+      expectPixelGrid(png, testInfo, scale, 0);
+    });
+  }
+});

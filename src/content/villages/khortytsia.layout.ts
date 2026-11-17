@@ -32,11 +32,19 @@ export interface Prop {
     | 'cannon'
     | 'logpile'
     | 'church'
-    | 'belfry';
+    | 'belfry'
+    | 'windmill'
+    | 'windmill-sails';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
   readonly ground: number;
+  /** Draw the pivot this many px above `ground` (sails hung on a hub); sorts just in front of its ground row. */
+  readonly lift?: number;
+  /** `false`: the sprite has no `@shadow` frame (default true). */
+  readonly shadow?: boolean;
+  /** Cycle `<sprite>/idle/NN` frames: count and rate (`wind` = from the wind strength). */
+  readonly animate?: { readonly frames: number; readonly fps: number | 'wind' };
 }
 
 /** Flat ground decal (no shadow, not Y-sorted): drawn over the tiles, under every shadow and prop. */
@@ -142,6 +150,10 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'mallows', x: 88, ground: 102 },
     { sprite: 'tyn', x: 176, ground: 103 },
     { sprite: 'tyn', x: 216, ground: 103 },
+    // The post mill by the road past the yard fence, its sails turning with the wind (hub 53 px above the trestle foot).
+    // Low enough that the top sail (93 px above the foot) stays clear of the 26-row river band.
+    { sprite: 'windmill', x: 312, ground: 124 },
+    { sprite: 'windmill-sails', x: 312, ground: 124, lift: 53, shadow: false, animate: { frames: 8, fps: 'wind' } },
     // Front row, below the path: khata III, nearer and to the right, its own fence and mallows.
     { sprite: 'khata.t3', x: 292, ground: 240 },
     { sprite: 'mallows', x: 266, ground: 243 },

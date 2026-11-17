@@ -6,7 +6,7 @@
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Sprite, type Texture } from 'pixi.js';
 import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
-import { CLOUD_SHADOW } from '../atmosphere/config.ts';
+import { CLOUD_SHADOW, sailFps, WIND } from '../atmosphere/config.ts';
 import { cloudShadowLevel } from '../atmosphere/emissive.ts';
 import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
@@ -72,20 +72,25 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
       return { decal: d, sprite };
     });
 
-    const placed = layout.props.map((p) => {
-      const names = propFrames(p.sprite);
-      const sprite = new Sprite({ texture: frame(names.base), roundPixels: true });
-      const shadow = new Sprite({ texture: frame(names.shadow), roundPixels: true });
-      // Atlas anchors put the pivot at the bottom-centre of the ground row.
-      sprite.anchor.copyFrom(sprite.texture.defaultAnchor ?? { x: 0.5, y: 1 });
-      shadow.anchor.copyFrom(shadow.texture.defaultAnchor ?? { x: 0.5, y: 1 });
-      shadows.addChild(shadow);
-      props.addChild(sprite);
-      return { prop: p, sprite, shadow };
-    });
-
     const frameList = (stem: string, anim: string, count: number): Texture[] =>
       Array.from({ length: count }, (_, i) => frame(`${stem}/${anim}/${String(i).padStart(2, '0')}`));
+    const placed = layout.props.map((p) => {
+      const names = propFrames(p.sprite);
+      // Animated props (windmill sails) cycle `<sprite>/idle/NN` frames; others show frame 00.
+      const anim = p.animate ? frameList(p.sprite, 'idle', p.animate.frames) : [];
+      const sprite = new Sprite({ texture: frame(names.base), roundPixels: true });
+      // Atlas anchors put the pivot at the bottom-centre of the ground row (or the hub, for lifted props).
+      sprite.anchor.copyFrom(sprite.texture.defaultAnchor ?? { x: 0.5, y: 1 });
+      let shadow: Sprite | null = null;
+      if (p.shadow !== false) {
+        shadow = new Sprite({ texture: frame(names.shadow), roundPixels: true });
+        shadow.anchor.copyFrom(shadow.texture.defaultAnchor ?? { x: 0.5, y: 1 });
+        shadows.addChild(shadow);
+      }
+      props.addChild(sprite);
+      return { prop: p, sprite, shadow, anim };
+    });
+
     const walkers = layout.walkers.map((w) => {
       const [entity = w.sprite, variant = ''] = w.sprite.split('.');
       const walk = frameList(w.sprite, 'walk', WALK_FRAMES);
@@ -130,9 +135,10 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
       for (const { decal, sprite } of placedDecals) sprite.position.set(decal.x, horizon + decal.ground);
       for (const { prop, sprite, shadow } of placed) {
         const y = horizon + prop.ground;
-        sprite.position.set(prop.x, y);
-        shadow.position.set(prop.x, y);
-        sprite.zIndex = y;
+        // A lifted prop (sails on a hub) hangs `lift` px above its ground row but sorts just in front of it.
+        sprite.position.set(prop.x, y - (prop.lift ?? 0));
+        shadow?.position.set(prop.x, y);
+        sprite.zIndex = y + (prop.lift ? 0.5 : 0);
       }
       // Cloud shadows: whole tiles, one spare column for the scroll; the far strip right under the horizon.
       const lay = (into: Container, texture: Texture, top: number, bottom: number): void => {
@@ -152,6 +158,12 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
     return {
       resize,
       update: ({ seconds, cycle }) => {
+        for (const { prop, sprite, anim } of placed) {
+          if (!prop.animate || anim.length === 0) continue;
+          const fps = prop.animate.fps === 'wind' ? sailFps(WIND.strength) : prop.animate.fps;
+          const texture = anim[Math.floor(seconds * fps) % anim.length];
+          if (texture) sprite.texture = texture;
+        }
         const level = cloudShadowLevel(cycle);
         cloudShadows.visible = level > 0.01;
         cloudShadows.alpha = CLOUD_SHADOW.alpha * level;

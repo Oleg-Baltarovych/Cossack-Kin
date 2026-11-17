@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLOUD_SHADOW_LEVELS, CLOUDS, EMISSIVE_LEVELS } from '../../../src/render/atmosphere/config.ts';
+import { CLOUD_SHADOW_LEVELS, CLOUDS, EMISSIVE_LEVELS, sailFps } from '../../../src/render/atmosphere/config.ts';
 import { dayCycle } from '../../../src/render/atmosphere/dayCycle.ts';
 import { cloudShadowLevel, emissiveLevel, keyLevel } from '../../../src/render/atmosphere/emissive.ts';
 import { cloudLook, cloudX } from '../../../src/render/layers/Clouds.ts';
@@ -65,5 +65,15 @@ describe('cloudLook (per-key cloud tint and rim)', () => {
     // Golden-hour rim is warm: red over blue.
     const rim = cloudLook(dayCycle(19 * 60 + 30)).rimTint;
     expect((rim >> 16) & 0xff).toBeGreaterThan(rim & 0xff);
+  });
+});
+
+describe('sailFps (ART-13 wind)', () => {
+  it('turns lazily in light air and fast in a gale, clamped to 0..1 strength', () => {
+    expect(sailFps(0)).toBe(2);
+    expect(sailFps(1)).toBe(10);
+    expect(sailFps(0.5)).toBeGreaterThan(sailFps(0.2));
+    expect(sailFps(5)).toBe(10);
+    expect(sailFps(-1)).toBe(2);
   });
 });

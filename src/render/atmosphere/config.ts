@@ -552,3 +552,15 @@ export const CLOUD_FOOTPRINTS: Readonly<Record<CloudVariant, { readonly w: numbe
   c4: { w: 50, h: 18 },
   c5: { w: 100, h: 30 },
 };
+
+// --- Wind (ART-13; ART-14 sway and the land-1 wind mechanic build on it) ------------------------------------
+/** Wind strength 0..1 (calm … gale). M6 weather makes it deterministic per time; for now a fixed breeze. */
+export const WIND = { strength: 0.55 } as const;
+/**
+ * Sail frames per second for a wind strength: 8 frames make a quarter turn, so 2 fps (a lazy turn in light air) to
+ * 10 fps (a full turn in 3.2 s in a gale). Whole frames only: the sails never sit at a sub-px angle.
+ */
+export function sailFps(strength: number): number {
+  const s = Math.min(1, Math.max(0, strength));
+  return 2 + 8 * s;
+}

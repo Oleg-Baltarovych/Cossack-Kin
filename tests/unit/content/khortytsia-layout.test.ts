@@ -64,3 +64,12 @@ describe('khortytsia sich layout (ART-11)', () => {
     }
   });
 });
+
+describe('nothing tall stands in the river band', () => {
+  it('every farm prop with a lift (windmill sails) keeps its top below the water rows', () => {
+    for (const p of KHORTYTSIA_FARM.props.filter((q) => q.lift !== undefined)) {
+      // Sails reach 36 px above the hub.
+      expect(p.ground - (p.lift ?? 0) - 36).toBeGreaterThanOrEqual(KHORTYTSIA_FARM.waterRows);
+    }
+  });
+});
