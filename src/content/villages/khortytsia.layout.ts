@@ -329,7 +329,8 @@ export const KHORTYTSIA_SICH: SceneLayout = {
   ],
   props: [
     // The palisade runs on behind the towers and the gate (no gaps where the footprints end).
-    ...palisadeLine(0, 720, 35, []),
+    // No stakes behind the gate's passage: the view through it is open (the pylons hide the cut ends).
+    ...palisadeLine(0, 720, 35, [[185, 211]]),
     { sprite: 'tower', x: 62, ground: 37 },
     { sprite: 'gate', x: 198, ground: 39 },
     { sprite: 'tower', x: 340, ground: 37 },

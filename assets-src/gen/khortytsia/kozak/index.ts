@@ -170,7 +170,7 @@ const BASE: Omit<Outfit, 'lower' | 'accent'> = {
   // Near-black sheepskin шапка (earth 0–2): one step above its outline, darker than any skin or hair tone.
   hat: { ramp: 'earth', tones: [0, 0, 1, 2] },
 };
-/** a: blue sharovary, crimson шлик; b: crimson sharovary, blue шлик, darker skin (sun-burnt). */
+/** a: blue sharovary, crimson шлик; b: crimson sharovary with an ochre sash, blue шлик, darker skin (sun-burnt). */
 export const KOZAK_OUTFITS: Readonly<Record<string, Outfit>> = {
   a: {
     ...BASE,
@@ -183,8 +183,9 @@ export const KOZAK_OUTFITS: Readonly<Record<string, Outfit>> = {
     lower: { ramp: 'crimson', tones: [1, 2, 3, 4] },
     accent: { ramp: 'cloth', tones: [0, 1, 2, 3] },
     boots: { ramp: 'earth', tones: [1, 2, 3, 4] },
-    // A blue belt: crimson on crimson sharovary loses the belt, a required Cossack mark.
-    belt: { ramp: 'cloth', tones: [1, 2, 3, 3] },
+    // An ochre sash: crimson on crimson sharovary loses the belt (a required Cossack mark), and a blue one over the
+    // white shirt and red sharovary stacked into the Russian tricolour at phone size (art-director ART-19).
+    belt: { ramp: 'gold', tones: [1, 2, 3, 3] },
   },
   /** c: the young Cossack (ART-15) — bare head with оселедець, dark moustache, the third (light) skin tone, green
    * sharovary under a crimson belt. */

@@ -2,10 +2,10 @@
 // walk frames differ from each other (it is an animation, not one pose), palette swaps change only colours.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import kozak, { KOZAK_GROUND } from '../../../assets-src/gen/khortytsia/kozak/index.ts';
-import divchyna from '../../../assets-src/gen/khortytsia/divchyna/index.ts';
-import selianka, { SELIANKA_GROUND } from '../../../assets-src/gen/khortytsia/selianka/index.ts';
-import selianyn from '../../../assets-src/gen/khortytsia/selianyn/index.ts';
+import kozak, { KOZAK_GROUND, KOZAK_OUTFITS } from '../../../assets-src/gen/khortytsia/kozak/index.ts';
+import divchyna, { DIVCHYNA_OUTFITS } from '../../../assets-src/gen/khortytsia/divchyna/index.ts';
+import selianka, { SELIANKA_GROUND, SELIANKA_OUTFITS } from '../../../assets-src/gen/khortytsia/selianka/index.ts';
+import selianyn, { SELIANYN_OUTFITS } from '../../../assets-src/gen/khortytsia/selianyn/index.ts';
 import { checkMask, paintDoll, type Outfit } from '../../../assets-src/gen/lib/doll.ts';
 import { loadPalette, type Palette } from '../../../assets-src/gen/lib/palette.ts';
 import { Plot } from '../../../assets-src/gen/lib/plot.ts';
@@ -116,5 +116,20 @@ describe('the five villagers (ART-15) differ in silhouette, not only in clothes'
       idle(kozak, 'a'),
     ].map(alphaKey);
     expect(new Set(shapes).size).toBe(5);
+  });
+});
+
+describe('no state symbols in costumes (SPEC §16, art-director ART-19)', () => {
+  it('no outfit stacks white shirt / blue belt / red trousers (reads as the Russian tricolour at phone size)', () => {
+    const all = {
+      ...Object.fromEntries(Object.entries(KOZAK_OUTFITS).map(([k, v]) => [`kozak.${k}`, v])),
+      ...Object.fromEntries(Object.entries(SELIANKA_OUTFITS).map(([k, v]) => [`selianka.${k}`, v])),
+      ...Object.fromEntries(Object.entries(DIVCHYNA_OUTFITS).map(([k, v]) => [`divchyna.${k}`, v])),
+      ...Object.fromEntries(Object.entries(SELIANYN_OUTFITS).map(([k, v]) => [`selianyn.${k}`, v])),
+    };
+    for (const [name, o] of Object.entries(all)) {
+      const tricolour = o.shirt.ramp === 'plaster' && o.belt.ramp === 'cloth' && o.lower.ramp === 'crimson';
+      expect(tricolour, name).toBe(false);
+    }
   });
 });
