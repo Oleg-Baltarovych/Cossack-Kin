@@ -4,7 +4,7 @@
 // when the game-time LUT bucket or the key pair changes, or on resize.
 import { BufferImageSource, Sprite, Texture } from 'pixi.js';
 import type { FarPlane } from '../../content/villages/khortytsia.layout.ts';
-import { FOG, HAZE_DEPTH_K, HAZE_LEVELS } from '../atmosphere/config.ts';
+import { FOG, HAZE_DEPTH_K, HAZE_LEVELS, RAIN_HAZE } from '../atmosphere/config.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { keyLevel } from '../atmosphere/emissive.ts';
 import { lutBucket } from '../atmosphere/grading.ts';
@@ -19,9 +19,11 @@ export const PLANE_ROWS = 60;
 export function airHaze(cycle: DayCycle, weather: Weather): PaintPlaneOptions {
   const clear = keyLevel(HAZE_LEVELS, cycle);
   if (weather === 'fog') {
-    return { haze: Math.max(clear, FOG.haze), depthScale: FOG.depthScale, fog: true, maxDepth: FOG.maxDepth };
+    return { haze: Math.max(clear, FOG.haze), depthScale: FOG.depthScale, fog: true, maxDepth: FOG.maxDepth, weather };
   }
-  return { haze: clear, depthScale: 1 - HAZE_DEPTH_K * clear, fog: false, maxDepth: Number.POSITIVE_INFINITY };
+  // Rain thickens the air: the far planes sink toward the grey horizon (RAIN_HAZE).
+  const haze = weather === 'rain' ? Math.max(clear, RAIN_HAZE) : clear;
+  return { haze, depthScale: 1 - HAZE_DEPTH_K * haze, fog: false, maxDepth: Number.POSITIVE_INFINITY, weather };
 }
 
 export interface LandscapeLayerOptions {

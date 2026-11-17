@@ -8,6 +8,7 @@
 // Haze (time of day, fog) pulls every plane toward the horizon colour. Also the haze band over the ground.
 // Pure: no Pixi, no DOM.
 import type { FarPlane } from '../../content/villages/khortytsia.layout.ts';
+import type { Weather } from '../settings.ts';
 import { rampColor } from '../palette.ts';
 import { FOLIAGE_LEVELS } from './config.ts';
 import type { DayCycle } from './dayCycle.ts';
@@ -140,22 +141,22 @@ function put(out: Uint8Array, w: number, x: number, y: number, color: number): v
 }
 
 /** Sky-chain colour at `steps` relative to the horizon position (≤ 0 = darker), cross-faded between the two keys. */
-function aerial(cycle: DayCycle, steps: number, x: number, y: number): number {
-  const a = prepared(cycle.keyA);
-  const b = prepared(cycle.keyB);
+function aerial(cycle: DayCycle, steps: number, x: number, y: number, weather: Weather): number {
+  const a = prepared(cycle.keyA, weather);
+  const b = prepared(cycle.keyB, weather);
   const threshold = bayer(x, y);
   const clamp = (p: number, chain: readonly number[]): number => Math.min(Math.max(0, p), chain.length - 2);
   if (cycle.t > 0 && cycle.t > bayer(x + 2, y + 1)) {
-    return pick(b, clamp(horizonPos(cycle.keyB) + steps, b.chain), threshold);
+    return pick(b, clamp(horizonPos(cycle.keyB, weather) + steps, b.chain), threshold);
   }
-  return pick(a, clamp(horizonPos(cycle.keyA) + steps, a.chain), threshold);
+  return pick(a, clamp(horizonPos(cycle.keyA, weather) + steps, a.chain), threshold);
 }
 
 /** One solid sky-chain colour (no dither) of the dominant key, `steps` from the horizon position. */
-function aerialSolid(cycle: DayCycle, steps: number): number {
+function aerialSolid(cycle: DayCycle, steps: number, weather: Weather): number {
   const id = cycle.t < 0.5 ? cycle.keyA : cycle.keyB;
-  const p = prepared(id);
-  return pick(p, Math.min(Math.max(0, horizonPos(id) + steps), p.chain.length - 2), 0.5);
+  const p = prepared(id, weather);
+  return pick(p, Math.min(Math.max(0, horizonPos(id, weather) + steps), p.chain.length - 2), 0.5);
 }
 
 export interface PaintPlaneOptions {
@@ -166,6 +167,8 @@ export interface PaintPlaneOptions {
   /** Fog: the misty foot rises to 60 % of the plane, local colour is lost, depth is capped at `maxDepth`. */
   readonly fog: boolean;
   readonly maxDepth: number;
+  /** The sky the planes take their colours from (ART-17: grey under rain, flattened in fog). */
+  readonly weather: Weather;
 }
 
 /**
@@ -179,7 +182,7 @@ export function paintPlane(
   plane: FarPlane,
   profile: Profile,
   cycle: DayCycle,
-  { haze, depthScale, fog, maxDepth }: PaintPlaneOptions,
+  { haze, depthScale, fog, maxDepth, weather }: PaintPlaneOptions,
 ): void {
   const depth = Math.min(plane.depth * depthScale, fog ? maxDepth : Number.POSITIVE_INFINITY);
   // One step lighter than the key's foliage level: the rim must read as light on the crowns, never as a dark trim.
@@ -218,11 +221,11 @@ export function paintPlane(
       // horizon colour so it never melts into the sky behind.
       const sunFacing = fromTop === 0 && left <= top;
       if (sunFacing) steps += 1;
-      let color = aerial(cycle, Math.min(sunFacing ? -0.25 : 0, steps), x, y);
+      let color = aerial(cycle, Math.min(sunFacing ? -0.25 : 0, steps), x, y, weather);
       // Groves: solid lumps; a 1–2 px lit rim on each crown's top-left, 0.8 step above the body (light, not a dark
       // hedge trim), 30 % of it in the local foliage colour when the air is clear; 25 % of the row under it likewise.
       if (plane.kind === 'grove' && x <= crownX && (fromTop <= 1 ? left <= top : fromTop === 2 && bayer(x, y) < 0.25)) {
-        color = aerial(cycle, Math.min(-0.25, steps + 0.8), x, y);
+        color = aerial(cycle, Math.min(-0.25, steps + 0.8), x, y, weather);
         if (showFoliage && bayer(x + 3, y + 1) < 0.3) color = foliage;
       }
       put(out, w, x, y, color);
@@ -245,22 +248,36 @@ export function paintHazeBand(
   cycle: DayCycle,
   cover: number,
   lead = 0,
+  weather: Weather = 'clear',
 ): void {
   out.fill(0);
-  const color = aerialSolid(cycle, -0.2);
-  const band = Math.max(2, Math.ceil(rows / HAZE_ALPHA_STEPS));
-  const stepOf = (r: number): number => Math.min(HAZE_ALPHA_STEPS - 1, Math.floor(Math.max(0, r - lead) / band));
+  const color = aerialSolid(cycle, -0.2, weather);
   const alphaOf = (step: number): number => cover * (1 - step / HAZE_ALPHA_STEPS);
   for (let r = 0; r < lead + rows; r++) {
-    // The lead rows above the horizon share the top band's opacity. At each band boundary a 2-row 50 % ordered
-    // dither borrows the neighbour band's opacity, so no straight step line cuts across sprites (fog review).
-    const step = stepOf(r);
-    const first = r > lead && stepOf(r - 1) !== step;
-    const end = r === lead + rows - 1; // the bank's lower edge dithers out to nothing as well
-    const last = end || stepOf(r + 1) !== step;
+    // The lead rows above the horizon fade in from the top (ordered dither), so the bank has no hard upper edge
+    // across what stands on the horizon (the Sich towers, ART-17).
+    if (r < lead) {
+      const f = (r + 1) / (lead + 1);
+      for (let x = 0; x < w; x++) {
+        if (bayer(x, r) >= f) continue;
+        const alpha = alphaOf(0);
+        const i = (r * w + x) * 4;
+        out[i] = Math.round(((color >> 16) & 0xff) * alpha);
+        out[i + 1] = Math.round(((color >> 8) & 0xff) * alpha);
+        out[i + 2] = Math.round((color & 0xff) * alpha);
+        out[i + 3] = Math.round(alpha * 255);
+      }
+      continue;
+    }
+    // Below the horizon the opacity falls linearly to nothing over `rows`, quantized to HAZE_ALPHA_STEPS levels with
+    // an ordered dither between the two neighbouring levels on every row — no straight step line anywhere across
+    // the sprites (art-director ART-17: the 2-row borrow at band boundaries still read as stacked rectangles).
+    const level = (1 - (r - lead) / rows) * HAZE_ALPHA_STEPS;
+    const lo = Math.floor(level);
+    const frac = level - lo;
     for (let x = 0; x < w; x++) {
-      const borrow = (first || last) && bayer(x, r) < 0.5;
-      const alpha = borrow && end ? 0 : alphaOf(borrow ? (first ? step - 1 : step + 1) : step);
+      const step = bayer(x, r) < frac ? lo + 1 : lo;
+      const alpha = (cover * Math.min(HAZE_ALPHA_STEPS, step)) / HAZE_ALPHA_STEPS;
       if (alpha <= 0) continue;
       const i = (r * w + x) * 4;
       out[i] = Math.round(((color >> 16) & 0xff) * alpha);

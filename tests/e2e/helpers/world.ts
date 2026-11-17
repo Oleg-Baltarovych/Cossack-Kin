@@ -8,6 +8,8 @@ export interface WorldStats {
   readonly logicalW: number;
   readonly logicalH: number;
   readonly frames: number;
+  /** Live particles from the registry (SPEC §12.4 budget ≤ 300). */
+  readonly particles: number;
 }
 
 /**
@@ -34,7 +36,14 @@ export async function readStats(page: Page): Promise<WorldStats> {
   const stats = await page.evaluate(() => {
     const s = window.__CK__?.stats;
     return s
-      ? { drawCalls: s.drawCalls, scale: s.scale, logicalW: s.logicalW, logicalH: s.logicalH, frames: s.frames }
+      ? {
+          drawCalls: s.drawCalls,
+          scale: s.scale,
+          logicalW: s.logicalW,
+          logicalH: s.logicalH,
+          frames: s.frames,
+          particles: s.particles,
+        }
       : null;
   });
   if (!stats) throw new Error('window.__CK__.stats is missing — is this a --mode test build?');

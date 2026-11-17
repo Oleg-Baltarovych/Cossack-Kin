@@ -90,23 +90,31 @@ describe('paintPlane: aerial perspective in the sky colours', () => {
 });
 
 describe('paintHazeBand', () => {
-  it('is most opaque right under the horizon, in stepped layers, and empty at its bottom', () => {
+  it('is most opaque right under the horizon, falls off in dithered steps (no flat seams), empty at its bottom', () => {
     const w = 64;
     const rows = 20;
     const out = new Uint8Array(w * 40 * 4);
     paintHazeBand(out, w, rows, dayCycle(330), 0.6);
-    const alpha = (r: number): number => out[(r * w + 5) * 4 + 3] ?? 0;
-    expect(alpha(0)).toBeGreaterThan(alpha(rows - 5));
-    expect(alpha(rows)).toBe(0);
-    const levels = new Set(Array.from({ length: rows }, (_, r) => alpha(r)));
-    // The bands plus 0 where the lower edge dithers out.
+    const alphaAt = (x: number, r: number): number => out[(r * w + x) * 4 + 3] ?? 0;
+    const mean = (r: number): number =>
+      Array.from({ length: w }, (_, x) => alphaAt(x, r)).reduce((a, b) => a + b, 0) / w;
+    expect(mean(0)).toBeGreaterThan(mean(rows - 5));
+    // Averaged over a Bayer cell (4 rows) the opacity never rises going down.
+    const cell = (r: number): number => (mean(r) + mean(r + 1) + mean(r + 2) + mean(r + 3)) / 4;
+    for (let r = 4; r + 3 < rows; r += 4) expect(cell(r)).toBeLessThanOrEqual(cell(r - 4) + 1e-9);
+    expect(mean(rows)).toBe(0);
+    const levels = new Set<number>();
+    for (let r = 0; r < rows; r++) for (let x = 0; x < w; x++) levels.add(alphaAt(x, r));
     expect(levels.size).toBeLessThanOrEqual(HAZE_ALPHA_STEPS + 1);
-    // One solid colour (premultiplied by a uniform alpha per row): no dotted chain dither.
-    const rgbs = new Set(Array.from({ length: w }, (_, x) => out[(1 * w + x) * 4] ?? 0));
-    expect(rgbs.size).toBe(1);
-    // Inside a band the opacity is uniform across the row; band seams dither between two neighbouring levels.
-    for (let x = 0; x < w; x++) expect(out[(1 * w + x) * 4 + 3]).toBe(alpha(1));
-    const seam = new Set(Array.from({ length: w }, (_, x) => out[(4 * w + x) * 4 + 3] ?? 0));
-    expect(seam.size).toBe(2);
+    for (let r = 0; r < rows; r++) {
+      // Each row dithers between at most two neighbouring levels, so no row is a flat step edge across the band.
+      const row = new Set(Array.from({ length: w }, (_, x) => alphaAt(x, r)));
+      expect(row.size).toBeLessThanOrEqual(2);
+    }
+    // One solid colour (premultiplied by alpha): no dotted chain dither inside the haze.
+    const full = Array.from({ length: w }, (_, x) => x).filter(
+      (x) => alphaAt(x, 0) === Math.max(...Array.from({ length: w }, (_, k) => alphaAt(k, 0))),
+    );
+    expect(new Set(full.map((x) => out[x * 4] ?? 0)).size).toBe(1);
   });
 });

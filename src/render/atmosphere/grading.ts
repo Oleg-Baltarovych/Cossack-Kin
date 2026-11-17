@@ -4,8 +4,9 @@
 // pixi-filters `ColorMapFilter` on the graded world container.
 import { BufferImageSource, Texture } from 'pixi.js';
 import { ColorMapFilter } from 'pixi-filters';
-import { LUT_SIZE, LUT_UPDATE_MINUTES, SKY_KEYS, type SkyKeyId } from './config.ts';
+import { LUT_SIZE, LUT_UPDATE_MINUTES, RAIN_NIGHT_GRADE, SKY_KEYS, type SkyKeyId } from './config.ts';
 import type { DayCycle } from './dayCycle.ts';
+import type { Weather } from '../settings.ts';
 
 export const LUT_WIDTH = LUT_SIZE * LUT_SIZE;
 export const LUT_HEIGHT = LUT_SIZE;
@@ -61,6 +62,18 @@ export interface Grading {
   /** Rebuilds the blended LUT when the time bucket or the key pair changed. */
   update(cycle: DayCycle, minutes: number): void;
   destroy(): void;
+}
+
+/**
+ * The day cycle the world grade uses under `weather`: under rain the night key weighs at most RAIN_NIGHT_GRADE (the
+ * rest from the other key of the blend, dusk when both are night). Otherwise the cycle itself.
+ */
+export function gradeCycle(cycle: DayCycle, weather: Weather): DayCycle {
+  if (weather !== 'rain') return cycle;
+  const night = (cycle.keyA === 'night' ? 1 - cycle.t : 0) + (cycle.keyB === 'night' ? cycle.t : 0);
+  if (night <= RAIN_NIGHT_GRADE) return cycle;
+  const other = cycle.keyA !== 'night' ? cycle.keyA : cycle.keyB !== 'night' ? cycle.keyB : 'dusk';
+  return { ...cycle, keyA: other, keyB: 'night', t: RAIN_NIGHT_GRADE };
 }
 
 export function createGrading(luts: LutSet): Grading {

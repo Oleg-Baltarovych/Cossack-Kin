@@ -8,6 +8,7 @@ import { createCosmeticRng } from '../clock.ts';
 import { lutBucket } from '../atmosphere/grading.ts';
 import { makeStars, paintSkyBase, paintStars, starDensity, type Star } from '../atmosphere/skyPaint.ts';
 import { STARS } from '../atmosphere/config.ts';
+import type { Weather } from '../settings.ts';
 import { contentWidth, createLayer, horizonY, type LayerFrame, type WorldLayer } from './Layer.ts';
 
 const PARALLAX = 0;
@@ -25,7 +26,7 @@ interface Band {
   readonly texture: Texture;
 }
 
-export function createSkyLayer(): WorldLayer {
+export function createSkyLayer({ weather }: { readonly weather: Weather }): WorldLayer {
   return createLayer('sky', PARALLAX, (container) => {
     const sprite = new Sprite({ roundPixels: true, label: 'sky' });
     container.addChild(sprite);
@@ -75,11 +76,11 @@ export function createSkyLayer(): WorldLayer {
         if (!band) return;
         const { cycle } = frame;
         const key = `${String(lutBucket(frame.minutes))}:${cycle.keyA}:${cycle.keyB}`;
-        const density = starDensity(cycle);
+        const density = starDensity(cycle, weather);
         const step = density > 0 ? Math.floor(frame.seconds * STARS.hz) : 0;
         const baseChanged = key !== baseKey;
         if (baseChanged) {
-          paintSkyBase(band.base, band.light, band.w, band.h, cycle);
+          paintSkyBase(band.base, band.light, band.w, band.h, cycle, weather);
           baseKey = key;
         }
         if (!baseChanged && step === starStep) return;

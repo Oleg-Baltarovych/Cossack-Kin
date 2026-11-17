@@ -8,6 +8,7 @@ import { Container, Sprite, type Texture } from 'pixi.js';
 import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
 import { CLOUD_SHADOW, sailFps, SWAY, WIND } from '../atmosphere/config.ts';
 import { cloudShadowLevel } from '../atmosphere/emissive.ts';
+import type { Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
 import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
@@ -24,6 +25,8 @@ export interface GroundLayerOptions {
   readonly frame: FrameLookup;
   /** «Менше руху»: swaying props stand upright. */
   readonly lessMotion: boolean;
+  /** Under rain or fog there is no direct sun, so no cloud shadows (ART-17). */
+  readonly weather: Weather;
 }
 
 /** `khata.t1` → base, shadow and emissive frame names (`<entity>[.<variant>][@layer]/idle/00`). */
@@ -53,7 +56,7 @@ export function tileFrame(tile: GroundTile, col: number, row: number): string {
   return `ground.${pick}/idle/00`;
 }
 
-export function createGroundLayer({ layout, frame, lessMotion }: GroundLayerOptions): WorldLayer {
+export function createGroundLayer({ layout, frame, lessMotion, weather }: GroundLayerOptions): WorldLayer {
   return createLayer('ground', PARALLAX, (container) => {
     const tiles = new Container({ label: 'ground-tiles' });
     const decals = new Container({ label: 'decals' });
@@ -173,7 +176,7 @@ export function createGroundLayer({ layout, frame, lessMotion }: GroundLayerOpti
           if (texture) sprite.texture = texture;
         }
         const level = cloudShadowLevel(cycle);
-        cloudShadows.visible = level > 0.01;
+        cloudShadows.visible = level > 0.01 && weather === 'clear';
         cloudShadows.alpha = CLOUD_SHADOW.alpha * level;
         const scroll = (speed: number, w: number): number => Math.round((((seconds * speed) % w) + w) % w);
         nearShadows.x = scroll(CLOUD_SHADOW.speed, nearTexture.width);

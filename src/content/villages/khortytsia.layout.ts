@@ -149,6 +149,8 @@ export interface SceneLayout {
   readonly walkers: readonly Walker[];
   /** Plant clumps on the foreground layer, back to front. */
   readonly foreground: readonly ForegroundPlant[];
+  /** Puddles shown in the rain (ART-17): centre x (world px), rows below the horizon, width. */
+  readonly puddles?: readonly { readonly x: number; readonly ground: number; readonly w: number }[];
   /** Summer fireflies at night (ART-16): rows below the horizon they wander in; absent = none. */
   readonly fireflies?: { readonly top: number; readonly bottom: number };
   /** Back to front. */
@@ -229,6 +231,25 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'selianka.b', x0: 24, x1: 110, ground: 300, speed: 14, rest: 5, phase: 0 },
     { sprite: 'selianyn.a', x0: 160, x1: 160, ground: 128, speed: 0, rest: 0, phase: 0.2 },
     { sprite: 'divchyna.a', x0: 110, x1: 236, ground: 232, speed: 18, rest: 3, phase: 1.2 },
+  ],
+  // Puddles in the ruts of the path and the trodden yards (rain only).
+  puddles: [
+    // Along the path ruts (the wettest ground), then the two trodden yards.
+    { x: 28, ground: 140, w: 8 },
+    { x: 70, ground: 146, w: 14 },
+    { x: 118, ground: 136, w: 7 },
+    { x: 160, ground: 152, w: 10 },
+    { x: 198, ground: 142, w: 12 },
+    { x: 246, ground: 148, w: 8 },
+    { x: 296, ground: 138, w: 11 },
+    { x: 344, ground: 150, w: 9 },
+    { x: 410, ground: 144, w: 12 },
+    { x: 476, ground: 138, w: 8 },
+    { x: 540, ground: 150, w: 10 },
+    { x: 612, ground: 142, w: 13 },
+    { x: 680, ground: 148, w: 8 },
+    { x: 122, ground: 110, w: 8 },
+    { x: 300, ground: 250, w: 10 },
   ],
   // Fireflies over the meadow and the front field at night, above the foreground clumps.
   fireflies: { top: 40, bottom: 300 },
@@ -330,6 +351,13 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     { sprite: 'kozak.b', x0: 222, x1: 222, ground: 96, speed: 0, rest: 0, phase: 0.3 },
     // The young Cossack (bare head, оселедець) crossing the maidan (ART-15).
     { sprite: 'kozak.c', x0: 330, x1: 30, ground: 150, speed: 20, rest: 5, phase: 1.1 },
+  ],
+  // Puddles on the trodden maidan (rain only).
+  puddles: [
+    { x: 150, ground: 122, w: 14 },
+    { x: 262, ground: 196, w: 12 },
+    { x: 96, ground: 236, w: 10 },
+    { x: 224, ground: 60, w: 8 },
   ],
   // Only grass at the Sich's trodden edge: no gardens inside the walls.
   foreground: [

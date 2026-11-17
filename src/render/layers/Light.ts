@@ -49,6 +49,7 @@ import { rampColor } from '../palette.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { cloudX } from './Clouds.ts';
 import { propFrames } from './Ground.ts';
+import { createRain } from './rainLayer.ts';
 import { airHaze, PLANE_ROWS } from './landscape.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
@@ -109,7 +110,9 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
     const dust = new Container({ label: 'dust' });
     const night = new Container({ label: 'light-pools' });
     const flyLayer = new Container({ label: 'fireflies' });
-    container.addChild(haze, night, rays, dust, flyLayer);
+    // Rain (ART-17) after the pools: normal blend, so haze, pools and rain are one batch.
+    const rain = weather === 'rain' ? createRain(layout) : null;
+    container.addChild(haze, night, ...(rain ? [rain.container] : []), rays, dust, flyLayer);
     // Light pools: one texture per size, shared by the sprites (fire: round; windows: flat, by the building's width).
     const poolTextures = new Map<string, CpuTexture>();
     const poolTexture = (rx: number, ry: number, color: number): Texture => {
@@ -200,6 +203,7 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
     const dispose = (): void => {
       free();
       particles.release(flies.length);
+      rain?.dispose();
       for (const tex of poolTextures.values()) tex.texture.destroy(true);
       flyPeak.destroy(true);
       poolTextures.clear();
@@ -243,6 +247,7 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
         size = s;
         horizon = horizonY(s.viewH);
         haze.y = horizon - lead;
+        rain?.resize(s, horizon);
         hazeBuf = cpuTexture(s.viewW, MAX_ROWS);
         haze.texture = hazeBuf.texture;
         hazeKey = '';
@@ -270,8 +275,9 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
           const { haze: h } = airHaze(cycle, weather);
           const fog = weather === 'fog';
           const rows = fog ? FOG.bandRows : Math.round(HAZE_BAND.rows[0] + (HAZE_BAND.rows[1] - HAZE_BAND.rows[0]) * h);
-          const cover = layout.groundHaze === false ? 0 : fog ? FOG.bandCover : HAZE_BAND.cover * h;
-          paintHazeBand(hazeBuf.pixels, hazeBuf.w, Math.min(rows, MAX_ROWS - lead), cycle, cover, lead);
+          // Fog covers the near ground too, even where the clear-air band is off (the Sich rampart, ART-17).
+          const cover = fog ? FOG.bandCover : layout.groundHaze === false ? 0 : HAZE_BAND.cover * h;
+          paintHazeBand(hazeBuf.pixels, hazeBuf.w, Math.min(rows, MAX_ROWS - lead), cycle, cover, lead, weather);
           hazeBuf.source.update();
         }
 
@@ -279,7 +285,8 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
         const level = emissiveLevel(cycle);
         const poolLevel = Math.max(0, (level - POOLS.from) / (1 - POOLS.from));
         night.visible = poolLevel > 0;
-        flyLayer.visible = level > 0.5;
+        flyLayer.visible = level > 0.5 && weather === 'clear';
+        rain?.update(seconds, cycle, camX);
         if (level > 0.01) {
           const offset = layerOffset(camX, 1);
           for (const p of pools) {
@@ -309,7 +316,7 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
         const look = rayLook(cycle);
         const sunPx = skyPixel(cycle.sun, size.viewW, horizon);
         const sun: Point = { x: sunPx.x, y: sunPx.y };
-        const on = look.level > 0.01 && weather !== 'fog' && cycle.sun.y > -0.02 && sun.y < horizon + 4;
+        const on = look.level > 0.01 && weather === 'clear' && cycle.sun.y > -0.02 && sun.y < horizon + 4;
         rays.visible = on;
         dust.visible = on;
         const dt = Number.isNaN(lastSeconds) ? 0 : Math.max(0, seconds - lastSeconds);
