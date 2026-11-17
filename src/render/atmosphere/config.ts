@@ -763,8 +763,6 @@ export const FOG_LOOKS: Readonly<Record<SkyKeyId, ReturnType<typeof overcast>>> 
  * Fog sky extras (the ART-08 deferral): soft streaks and a small pale sun disc; the chain is FOG_LOOKS.
  */
 export const FOG_SKY = { streaks: 0.3, sunRadius: 3 } as const;
-/** Rain clouds: the per-key cloud brightness × this (darker masses under an overcast sky). */
-export const RAIN_CLOUD_BRIGHTNESS = 0.5;
 /** Air haze under rain (at least this much): the far planes fade toward the grey horizon. */
 export const RAIN_HAZE = 0.6;
 

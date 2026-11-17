@@ -6,14 +6,7 @@
 // for light shafts comes with ART-10.
 import type { Weather } from '../settings.ts';
 import { Container, Sprite, type Texture } from 'pixi.js';
-import {
-  CLOUD_LOOKS,
-  CLOUD_WRAP_MARGIN,
-  CLOUDS,
-  LOW_CLOUD,
-  RAIN_CLOUD_BRIGHTNESS,
-  type CloudPlacement,
-} from '../atmosphere/config.ts';
+import { CLOUD_LOOKS, CLOUD_WRAP_MARGIN, CLOUDS, LOW_CLOUD, type CloudPlacement } from '../atmosphere/config.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { rampColor } from '../palette.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
@@ -40,14 +33,10 @@ const mix = (a: number, b: number, t: number): number => {
 };
 
 /** Cloud tint (grey brightness), rim tint and rim alpha for the blend of two keys. */
-export function cloudLook(
-  cycle: DayCycle,
-  weather: Weather = 'clear',
-): { tint: number; rimTint: number; rimAlpha: number } {
+export function cloudLook(cycle: DayCycle): { tint: number; rimTint: number; rimAlpha: number } {
   const a = CLOUD_LOOKS[cycle.keyA];
   const b = CLOUD_LOOKS[cycle.keyB];
-  const rain = weather === 'rain' ? RAIN_CLOUD_BRIGHTNESS : 1;
-  const brightness = (a.brightness + (b.brightness - a.brightness) * cycle.t) * rain;
+  const brightness = a.brightness + (b.brightness - a.brightness) * cycle.t;
   const grey = Math.round(Math.min(1, Math.max(0, brightness)) * 255);
   return {
     tint: (grey << 16) | (grey << 8) | grey,
@@ -93,7 +82,7 @@ export function createCloudsLayer({ frame, weather }: CloudsLayerOptions): World
     return {
       resize,
       update: ({ ambient: seconds, cycle }) => {
-        const look = cloudLook(cycle, weather);
+        const look = cloudLook(cycle);
         for (const { cloud, body, rim, alpha } of sprites) {
           const x = cloudX(cloud, seconds, span);
           body.x = x;
