@@ -316,8 +316,8 @@ test.describe('ART-10 light shafts @screens', () => {
 test.describe('ART-11 the Sich @screens', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
 
-  // 2100 (ART-16 AC): the dusk-to-night step of the campfire and the light pools.
-  for (const hhmm of ['0700', '1300', '1930', '2100', '2300'] as const) {
+  // All 6 keys (ART-19 matrix); 2100 (ART-16 AC) is the dusk-to-night step of the campfire and the light pools.
+  for (const hhmm of ['0530', '0700', '1300', '1930', '2100', '2300'] as const) {
     test(`khortytsia sich ${hhmm} clear: budget, pixel grid`, async ({ page }, testInfo) => {
       const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
       await gotoReady(page, `/?time=${time}&freeze&seed=1&zone=sich`);
@@ -455,4 +455,62 @@ test.describe('ART-18 «менше руху» @screens', () => {
     await gotoReady(page, '/?time=23:00&freeze=2&seed=1&zone=farm&weather=rain&still');
     expect((await readStats(page)).particles).toBe(0);
   });
+});
+
+test.describe('ART-19 reference boards @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // Each board: an ART-01 reference (public domain, docs/art/references) beside the scene at the matching key, for
+  // the final art review. Built in the browser (it decodes the JPEG references; no image dependency in tools/).
+  const BOARDS = [
+    [
+      'golden',
+      'kuindzhi-1878-evening-in-ukraine.jpg',
+      'Kuindzhi, Evening in Ukraine (1878)',
+      '/?time=19:30&freeze&seed=1&zone=farm',
+    ],
+    [
+      'night',
+      'kuindzhi-1876-ukrainian-night.jpg',
+      'Kuindzhi, Ukrainian Night (1876)',
+      '/?time=23:00&freeze&seed=1&zone=farm',
+    ],
+    [
+      'cossacks',
+      'repin-1880-1891-zaporozhian-cossacks.jpg',
+      'Repin, Zaporozhian Cossacks (1880–91)',
+      '/?time=13:00&freeze&seed=1&zone=sich',
+    ],
+    [
+      'steppe',
+      'vasylkivsky-cossack-in-the-steppe.jpg',
+      'Vasylkivsky, Cossack in the Steppe',
+      '/?time=13:00&freeze&seed=1&zone=farm',
+    ],
+  ] as const;
+
+  for (const [name, file, title, url] of BOARDS) {
+    test(`compare-${name}: reference beside the scene`, async ({ page }, testInfo) => {
+      await gotoReady(page, url);
+      const scene = (await page.screenshot({ scale: 'device' })).toString('base64');
+      const reference = readFileSync(join('docs', 'art', 'references', file)).toString('base64');
+      // A clean document (the game page's styles and canvas must not leak into the board).
+      await page.goto('about:blank');
+      await page.setViewportSize({ width: 1500, height: 920 });
+      await page.setContent(
+        `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#1b1a22;color:#e5ddd3;font:14px sans-serif;display:flex;gap:16px;padding:12px">
+          <figure style="margin:0"><figcaption>${title}</figcaption>
+            <img src="data:image/jpeg;base64,${reference}" style="max-height:860px;max-width:1000px;display:block"></figure>
+          <figure style="margin:0"><figcaption>${url.slice(2)}</figcaption>
+            <img src="data:image/png;base64,${scene}" style="height:860px;image-rendering:pixelated;display:block"></figure>
+        </body></html>`,
+      );
+      await page.waitForFunction(() => [...document.images].every((i) => i.complete && i.naturalWidth > 0));
+      mkdirSync(SCREENS_DIR, { recursive: true });
+      const out = join(SCREENS_DIR, `compare-${name}.png`);
+      const png = await page.screenshot({ path: out, scale: 'css' });
+      await testInfo.attach(`compare-${name}.png`, { body: png, contentType: 'image/png' });
+      expect(png.length).toBeGreaterThan(0);
+    });
+  }
 });
