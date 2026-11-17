@@ -86,10 +86,20 @@ export function buyCount(
   return bulkCost(b, level, n, scale, mult).lte(money) ? n : 0;
 }
 
+/**
+ * Ducats per second of one building at `level`, as a plain number. A rate is a product of content constants and small
+ * integers (≤ base 4e5 × scale ×1000 per land × level 100 × milestones 48 × modifiers), far inside a double even in the
+ * last land; only accumulated totals need `Big`. Computing rates in `number` keeps a 0.1 s tick cheap (M1-09: Big
+ * multiplications were 85 % of a tick).
+ */
+export function prodRate(b: Producing, level: number, scale: number, mult = 1): number {
+  if (level <= 0) return 0;
+  return b.baseProd * scale * level * milestoneMult(level) * mult;
+}
+
 /** Ducats per second of one building at `level`. */
 export function prod(b: Producing, level: number, scale: number, mult = 1): Big {
-  if (level <= 0) return Big.ZERO;
-  return Big.from(b.baseProd).mul(scale).mul(level).mul(milestoneMult(level)).mul(mult);
+  return Big.from(prodRate(b, level, scale, mult));
 }
 
 /** Ducats per second of the whole farm and suburb; `buildingMult` carries per-building modifiers (M1-06). */
@@ -98,7 +108,7 @@ export function incomeRate(
   village: Village,
   buildingMult: (id: FarmBuildingId) => number = () => 1,
 ): Big {
-  let total = Big.ZERO;
-  for (const b of village.buildings) total = total.add(prod(b, levels[b.id], village.scale, buildingMult(b.id)));
-  return total;
+  let total = 0;
+  for (const b of village.buildings) total += prodRate(b, levels[b.id], village.scale, buildingMult(b.id));
+  return Big.from(total);
 }

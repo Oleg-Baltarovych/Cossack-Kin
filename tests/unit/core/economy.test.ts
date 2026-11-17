@@ -119,3 +119,18 @@ describe('MAX and bulk buying (M1-05)', () => {
     expect(buyCount(field, 0, Big.from(5), 1, FARM_MAX, 1)).toBe(0);
   });
 });
+
+describe('income-rate bound (M1-09: rates are computed in number, only totals in Big)', () => {
+  it('the largest income rate any land can reach stays far below Number.MAX_VALUE', () => {
+    // SPEC §3.7: village.scale ×~1000 per land; land 8 = 1000^7. Revisit if the land scales change (M5 content).
+    const lastLandScale = 1000 ** 7;
+    const generousMods = 1e6; // far above any modifier stack the game has
+    const levels = Object.fromEntries(KHORTYTSIA.buildings.map((b) => [b.id, FARM.levelMax])) as Record<
+      (typeof KHORTYTSIA.buildings)[number]['id'],
+      number
+    >;
+    const rate = incomeRate(levels, { ...KHORTYTSIA, scale: lastLandScale }, () => generousMods).toNumber();
+    expect(Number.isFinite(rate)).toBe(true);
+    expect(Math.log10(rate)).toBeLessThan(100); // ≪ 308: rates never need Big
+  });
+});

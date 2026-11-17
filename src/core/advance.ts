@@ -1,0 +1,67 @@
+// advance(state, now) — the one way time moves in the core (SPEC §3.8, §12.1; plan §0, M1-09). It integrates from
+// `state.time.lastSeen` to `now` analytically and piecewise: between two actions the levels do not change, so the only
+// breakpoints are the wind's (`windBreakpoints`); inside a segment every rate is constant and
+//   ducats += farmIncomeRate × duration,  glory += gloryRate × duration,  stormsSurvived += storms begun in it.
+// No step loop and no cap here: a 0.1 s tick and an 8 h absence take the same path, which is what makes the offline
+// equivalence test hold. The offline cap, the glory store and the clock-cheat guard are `applyOffline`'s (M1-11).
+import { Big } from './big.ts';
+import type { GameEvent } from './events.ts';
+import { collectModifiers, farmIncomeRate, villageOf } from './modifiers.ts';
+import type { GameState } from './state.ts';
+import { gloryRate } from './systems/army.ts';
+import { stormsSurvivedDuring, windAt, windBreakpoints } from './systems/village-mechanics/wind.ts';
+
+const MS_PER_SEC = 1000;
+
+export interface AdvanceResult {
+  readonly state: GameState;
+  readonly events: readonly GameEvent[];
+}
+
+/** Moves `state` forward to `now` (ms). `now ≤ lastSeen` or a non-finite `now` changes nothing (a clock going back is applyOffline's case). */
+export function advance(state: GameState, now: number): AdvanceResult {
+  const from = state.time.lastSeen;
+  // A non-finite clock is invalid input: Infinity would never end the wind scan, NaN would poison lastSeen.
+  if (!Number.isFinite(now) || now <= from) return { state, events: [] };
+  const village = villageOf(state);
+  const windmill = state.village.levels.windmill;
+  const cuts = windBreakpoints(state.seed, from, now, village);
+  const events: GameEvent[] = cuts.map((at) => ({
+    type: 'WindChanged',
+    at,
+    from: windAt(state.seed, at - 1, village),
+    to: windAt(state.seed, at, village),
+  }));
+  let ducats = Big.ZERO;
+  let glory = Big.ZERO;
+  let storms = 0;
+  let t0 = from;
+  for (const t1 of [...cuts, now]) {
+    if (t1 > t0) {
+      // The wind is constant on (t0, t1]: the modifiers at the segment's start hold for all of it.
+      const mods = collectModifiers(state, t0);
+      const sec = (t1 - t0) / MS_PER_SEC;
+      ducats = ducats.add(farmIncomeRate(state, mods).mul(sec));
+      glory = glory.add(gloryRate(state, mods).mul(sec));
+      storms += stormsSurvivedDuring(state.seed, t0, t1, windmill, village);
+    }
+    t0 = t1;
+  }
+  return {
+    state: {
+      ...state,
+      time: { ...state.time, lastSeen: now, maxSeen: Math.max(state.time.maxSeen, now) },
+      currencies: {
+        ...state.currencies,
+        ducats: state.currencies.ducats.add(ducats),
+        glory: state.currencies.glory.add(glory),
+      },
+      village: {
+        ...state.village,
+        lifetimeDucats: state.village.lifetimeDucats.add(ducats),
+        mechanic: { ...state.village.mechanic, stormsSurvived: state.village.mechanic.stormsSurvived + storms },
+      },
+    },
+    events,
+  };
+}
