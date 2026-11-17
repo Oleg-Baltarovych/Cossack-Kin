@@ -3,6 +3,7 @@
 import type { SichBuildingId } from '../content/sich.ts';
 import type { FarmBuildingId, WindLevel } from '../content/villages/khortytsia.ts';
 import type { Big } from './big.ts';
+import type { ReturnReport } from './state.ts';
 
 /** Why an action did nothing (the UI explains it; the state is unchanged). */
 export type RejectReason = 'ducats' | 'glory' | 'locked' | 'max' | 'kharch' | 'count' | 'noReport';
@@ -22,4 +23,6 @@ export type GameEvent =
   | { readonly type: 'CossackHired'; readonly n: number; readonly total: number }
   | { readonly type: 'Tapped'; readonly amount: Big }
   | { readonly type: 'ReturnClaimed'; readonly ducats: Big; readonly glory: Big }
+  /** The player came back: the absence was counted into `report` (waiting for claimReturn). */
+  | { readonly type: 'OfflineApplied'; readonly report: ReturnReport }
   | { readonly type: 'ActionRejected'; readonly action: string; readonly reason: RejectReason };
