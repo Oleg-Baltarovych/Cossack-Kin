@@ -22,7 +22,7 @@ import { KHORTYTSIA_ZONES } from '../content/villages/khortytsia.layout.ts';
 import { WORLD_WIDTH_PX } from '../content/world.ts';
 import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
-import { createGrading, loadLuts } from './atmosphere/grading.ts';
+import { createGrading, gradeCycle, loadLuts } from './atmosphere/grading.ts';
 import { frame, loadAtlases, type Atlases } from './atlases.ts';
 import { cameraBounds, layerOffset, split } from './camera.ts';
 import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } from './clock.ts';
@@ -145,7 +145,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       lessMotion: settings.lessMotion,
       findFrame,
     });
-    const water = createWater(worldRT, layout.waterRows, settings.weather === 'fog');
+    const water = createWater(worldRT, layout.waterRows, settings.weather);
     disposers.push(() => {
       water.destroy();
     });
@@ -202,7 +202,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const cam = split(camX, vp.scale, cameraBounds(WORLD_WIDTH, target.width - 1));
       const minutes = clock.minutesOfDay();
       const frameInfo = { minutes, seconds: clock.seconds(), cycle: dayCycle(minutes), camX: cam.worldPx };
-      grading.update(frameInfo.cycle, minutes);
+      grading.update(gradeCycle(frameInfo.cycle, settings.weather), minutes);
       post.setEmissive(emissiveLevel(frameInfo.cycle));
       post.update(frameInfo.seconds);
       for (const layer of layers) {

@@ -614,3 +614,191 @@ export const POOLS = { from: 0.5 } as const;
  * `peak` of it with a dim + of 4 neighbours (so the blink registers among the 1-px grass highlights); yellow-green.
  */
 export const FIREFLIES = { count: 32, blinkOn: 0.4, peak: 0.3, color: ['grass', 6] } as const;
+
+// --- Weather: rain and fog (ART-17) ------------------------------------------------------------------------------
+/** An overcast rain sky per key: a grey chain (dark → light, last step unused: no sun disc), flat with a lighter horizon. */
+const overcast = (chain: readonly ColorRef[]): Omit<SkyLook, 'sunHalo' | 'moonHalo' | 'sun'> => ({
+  chain,
+  top: 0.4,
+  horizon: chain.length - 2.2,
+  curve: 1.3,
+  baseMax: chain.length - 2,
+  glow: 0.4,
+  glowHeight: 0.3,
+  streaks: 0.6,
+  stars: 0,
+  moon: 0,
+});
+export const OVERCAST_CHAINS: Readonly<Record<SkyKeyId, readonly ColorRef[]>> = {
+  dawn: [
+    ['stone', 1],
+    ['stone', 2],
+    ['stone', 3],
+    ['plaster', 1],
+    ['plaster', 2],
+    ['plaster', 3],
+  ],
+  morning: [
+    ['stone', 2],
+    ['stone', 3],
+    ['stone', 4],
+    ['plaster', 2],
+    ['plaster', 3],
+    ['plaster', 4],
+  ],
+  day: [
+    ['stone', 2],
+    ['stone', 3],
+    ['stone', 4],
+    ['plaster', 2],
+    ['plaster', 3],
+    ['plaster', 4],
+  ],
+  golden: [
+    ['stone', 1],
+    ['stone', 2],
+    ['plaster', 0],
+    ['sky', 3],
+    ['sky', 4],
+    ['sky', 5],
+  ],
+  // One hue family per chain: alternating blue and grey steps band into stripes (night, first try).
+  dusk: [
+    ['stone', 0],
+    ['stone', 1],
+    ['stone', 2],
+    ['sky', 2],
+    ['sky', 3],
+    ['sky', 4],
+  ],
+  // Night: one neutral grey from top to horizon (art-director ART-17: blue cloth stops over grey ones read as two
+  // temperatures in one sky).
+  night: [
+    ['stone', 0],
+    ['stone', 1],
+    ['stone', 2],
+    ['stone', 3],
+    ['stone', 4],
+    ['stone', 5],
+  ],
+};
+export const OVERCAST_LOOKS: Readonly<Record<SkyKeyId, ReturnType<typeof overcast>>> = {
+  dawn: overcast(OVERCAST_CHAINS.dawn),
+  morning: overcast(OVERCAST_CHAINS.morning),
+  day: overcast(OVERCAST_CHAINS.day),
+  golden: overcast(OVERCAST_CHAINS.golden),
+  dusk: overcast(OVERCAST_CHAINS.dusk),
+  night: overcast(OVERCAST_CHAINS.night),
+};
+/** Fog: a light, nearly flat grey sky (dark → light per key; the ART-08 deferral: no blue left in the murk). */
+export const FOG_LOOKS: Readonly<Record<SkyKeyId, ReturnType<typeof overcast>>> = {
+  dawn: {
+    ...overcast([
+      ['stone', 2],
+      ['stone', 3],
+      ['plaster', 1],
+      ['plaster', 2],
+      ['plaster', 3],
+      ['plaster', 4],
+    ]),
+    top: 3,
+  },
+  morning: {
+    ...overcast([
+      ['stone', 3],
+      ['stone', 4],
+      ['plaster', 2],
+      ['plaster', 3],
+      ['plaster', 4],
+      ['plaster', 5],
+    ]),
+    top: 3,
+  },
+  day: {
+    ...overcast([
+      ['stone', 3],
+      ['stone', 4],
+      ['plaster', 2],
+      ['plaster', 3],
+      ['plaster', 4],
+      ['plaster', 5],
+    ]),
+    top: 3,
+  },
+  golden: {
+    ...overcast([
+      ['stone', 2],
+      ['stone', 3],
+      ['plaster', 1],
+      ['sky', 4],
+      ['sky', 5],
+      ['sky', 6],
+    ]),
+    top: 3,
+  },
+  dusk: {
+    ...overcast([
+      ['stone', 0],
+      ['stone', 1],
+      ['stone', 2],
+      ['sky', 2],
+      ['sky', 3],
+      ['sky', 4],
+    ]),
+    top: 2.9,
+  },
+  night: {
+    ...overcast([
+      ['cloth', 0],
+      ['stone', 0],
+      ['stone', 1],
+      ['stone', 2],
+      ['stone', 3],
+      ['stone', 4],
+    ]),
+    top: 2.9,
+  },
+};
+/**
+ * Fog sky extras (the ART-08 deferral): soft streaks and a small pale sun disc; the chain is FOG_LOOKS.
+ */
+export const FOG_SKY = { streaks: 0.3, sunRadius: 3 } as const;
+/** Rain clouds: the per-key cloud brightness × this (darker masses under an overcast sky). */
+export const RAIN_CLOUD_BRIGHTNESS = 0.5;
+/** Air haze under rain (at least this much): the far planes fade toward the grey horizon. */
+export const RAIN_HAZE = 0.6;
+
+/**
+ * Rain (ART-17): two tiled streak textures `tile` px square (far: short, sparse, slow; near: longer, faster),
+ * slanted `slant` px across per px down by the wind, scrolled in whole px; colour and alpha per key (the light layer
+ * is not graded). `splashes` ≤ 80 short-lived specks on the ground, ripples in the river band.
+ */
+export const RAIN = {
+  tile: 64,
+  slant: 0.25,
+  far: { count: 20, len: 3, speed: 150, alpha: 0.3 },
+  near: { count: 9, len: 5, speed: 280, alpha: 0.45 },
+  splashes: 64,
+  splashLife: 0.3,
+} as const;
+export const RAIN_LOOKS: Readonly<
+  Record<
+    SkyKeyId,
+    { readonly streak: ColorRef; readonly wet: number; readonly puddle: ColorRef; readonly ripple: ColorRef }
+  >
+> = {
+  // Night: a light film only — on top of the night grade a strong one sinks fences and trees into one field.
+  dawn: { streak: ['stone', 4], wet: 0.25, puddle: ['stone', 4], ripple: ['water', 6] },
+  morning: { streak: ['stone', 4], wet: 0.25, puddle: ['stone', 4], ripple: ['water', 6] },
+  day: { streak: ['stone', 5], wet: 0.25, puddle: ['stone', 5], ripple: ['water', 7] },
+  golden: { streak: ['sky', 4], wet: 0.25, puddle: ['sky', 5], ripple: ['sky', 6] },
+  dusk: { streak: ['stone', 3], wet: 0.18, puddle: ['sky', 3], ripple: ['water', 5] },
+  night: { streak: ['stone', 2], wet: 0.12, puddle: ['stone', 3], ripple: ['water', 4] },
+};
+/** Wet ground: a dark film (ink 1) over the land below the river band, alpha per key (RAIN_LOOKS.wet). */
+export const WET = { color: ['ink', 1] } as const;
+/**
+ * Rain at night: the night key's share of the world grade is capped here, the rest from its neighbour key (dusk), so
+ * the land keeps enough value separation that fences and trees read with no moon (art-director ART-17).
+ */
+export const RAIN_NIGHT_GRADE = 0.7;

@@ -4,7 +4,19 @@
 // neighbouring colors. Two keys cross-fade by a second, offset Bayer threshold. Every output pixel is a
 // palette color. Pure (no Pixi, no DOM): App/Sky.ts own the texture.
 import { rampColor } from '../palette.ts';
-import { MOON, SKY_LOOKS, STARS, type ColorRef, type HaloLook, type SkyKeyId, type SkyLook } from './config.ts';
+import type { Weather } from '../settings.ts';
+import {
+  FOG_LOOKS,
+  FOG_SKY,
+  MOON,
+  OVERCAST_LOOKS,
+  SKY_LOOKS,
+  STARS,
+  type ColorRef,
+  type HaloLook,
+  type SkyKeyId,
+  type SkyLook,
+} from './config.ts';
 import type { DayCycle } from './dayCycle.ts';
 
 const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
@@ -20,20 +32,44 @@ export interface Prepared {
   readonly chain: readonly number[];
 }
 
-const PREPARED = new Map<SkyKeyId, Prepared>();
-export function prepared(id: SkyKeyId): Prepared {
-  let p = PREPARED.get(id);
+const NO_HALO: HaloLook = { strength: 0, radius: 1, spread: 1 };
+
+/**
+ * The sky look of a key under a weather (ART-17): clear = SKY_LOOKS; rain = the overcast grey chain, no sun, moon,
+ * halos or stars; fog = a light, nearly flat grey chain (FOG_LOOKS), no halos, stars or moon, a pale sun.
+ */
+export function weatherLook(id: SkyKeyId, weather: Weather): SkyLook {
+  const clear = SKY_LOOKS[id];
+  if (weather === 'rain') {
+    return { ...OVERCAST_LOOKS[id], sunHalo: NO_HALO, moonHalo: NO_HALO, sun: { ...clear.sun, radius: 0 } };
+  }
+  if (weather === 'fog') {
+    return {
+      ...FOG_LOOKS[id],
+      streaks: FOG_SKY.streaks,
+      sunHalo: NO_HALO,
+      moonHalo: NO_HALO,
+      sun: { core: clear.sun.rim, rim: clear.sun.rim, radius: Math.min(clear.sun.radius, FOG_SKY.sunRadius) },
+    };
+  }
+  return clear;
+}
+
+const PREPARED = new Map<string, Prepared>();
+export function prepared(id: SkyKeyId, weather: Weather = 'clear'): Prepared {
+  const key = `${id}:${weather}`;
+  let p = PREPARED.get(key);
   if (!p) {
-    const look = SKY_LOOKS[id];
+    const look = weatherLook(id, weather);
     p = { look, chain: look.chain.map(rgb) };
-    PREPARED.set(id, p);
+    PREPARED.set(key, p);
   }
   return p;
 }
 
 /** Chain position of the sky's bottom row (gradient + horizon glow, capped like the painter; no halos). */
-export function horizonPos(id: SkyKeyId): number {
-  const look = SKY_LOOKS[id];
+export function horizonPos(id: SkyKeyId, weather: Weather = 'clear'): number {
+  const look = weatherLook(id, weather);
   return Math.min(look.baseMax, look.horizon + look.glow);
 }
 
@@ -127,9 +163,9 @@ function put(out: Uint8Array, w: number, x: number, y: number, color: number): v
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 /** Whether the moon is drawn for this blend (and lights its halo). */
-export function moonShown(cycle: DayCycle): boolean {
-  const a = SKY_LOOKS[cycle.keyA].moon;
-  const b = SKY_LOOKS[cycle.keyB].moon;
+export function moonShown(cycle: DayCycle, weather: Weather = 'clear'): boolean {
+  const a = weatherLook(cycle.keyA, weather).moon;
+  const b = weatherLook(cycle.keyB, weather).moon;
   return lerp(a, b, cycle.t) > 0.5 && cycle.moon.y > -0.02;
 }
 
@@ -137,12 +173,19 @@ export function moonShown(cycle: DayCycle): boolean {
  * Paints gradient, halos, sun and moon (everything but the stars) into `out` (w·h·4 bytes) and writes the
  * chain share (0..1, dominant key) per pixel into `light`, which the star pass uses to fade stars out of light sky.
  */
-export function paintSkyBase(out: Uint8Array, light: Float32Array, w: number, h: number, cycle: DayCycle): void {
-  const a = prepared(cycle.keyA);
-  const b = prepared(cycle.keyB);
+export function paintSkyBase(
+  out: Uint8Array,
+  light: Float32Array,
+  w: number,
+  h: number,
+  cycle: DayCycle,
+  weather: Weather = 'clear',
+): void {
+  const a = prepared(cycle.keyA, weather);
+  const b = prepared(cycle.keyB, weather);
   const { t } = cycle;
   const sun = skyPixel(cycle.sun, w, h);
-  const moon = moonShown(cycle) ? skyPixel(cycle.moon, w, h) : null;
+  const moon = moonShown(cycle, weather) ? skyPixel(cycle.moon, w, h) : null;
   const dominant = t < 0.5 ? a : b;
   const domMax = dominant.chain.length - 1 || 1;
 
@@ -167,17 +210,18 @@ export function paintSkyBase(out: Uint8Array, light: Float32Array, w: number, h:
   const sunRadius = lerp(a.look.sun.radius, b.look.sun.radius, t);
   const core = rgb(look.sun.core);
   const rim = rgb(look.sun.rim);
-  // Filled disc; the rim shows only on the lower edge (the side away from the light).
-  disc(
-    out,
-    w,
-    h,
-    sun.x,
-    sun.y,
-    sunRadius,
-    () => core,
-    (_dx, dy) => (dy > 0 ? rim : core),
-  );
+  // Filled disc; the rim shows only on the lower edge (the side away from the light). No disc under rain clouds.
+  if (sunRadius > 0)
+    disc(
+      out,
+      w,
+      h,
+      sun.x,
+      sun.y,
+      sunRadius,
+      () => core,
+      (_dx, dy) => (dy > 0 ? rim : core),
+    );
   if (moon) paintMoon(out, w, h, moon.x, moon.y);
 }
 
@@ -267,8 +311,8 @@ export function makeStars(w: number, h: number, rng: () => number): Star[] {
 }
 
 /** Star density for the blend (0..1). */
-export function starDensity(cycle: DayCycle): number {
-  return lerp(SKY_LOOKS[cycle.keyA].stars, SKY_LOOKS[cycle.keyB].stars, cycle.t);
+export function starDensity(cycle: DayCycle, weather: Weather = 'clear'): number {
+  return lerp(weatherLook(cycle.keyA, weather).stars, weatherLook(cycle.keyB, weather).stars, cycle.t);
 }
 
 /** Draws twinkling stars over a painted base. `seconds` is quantized to STARS.hz steps. */

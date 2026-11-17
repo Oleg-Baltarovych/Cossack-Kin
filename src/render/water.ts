@@ -7,6 +7,7 @@
 //          darker); the 1-px waterline sheen at the far bank; the moon/sun column. Pixi batches the waterRT frames and
 //          the white-texture strokes together (multi-texture batch).
 // Whole-px shifts only: the pixel grid never blurs. Deterministic under `?freeze` (step clock from animation time).
+import type { Weather } from './settings.ts';
 import { Container, Rectangle, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import { WATER, WATER_LOOKS, type ColorRef } from './atmosphere/config.ts';
 import type { DayCycle } from './atmosphere/dayCycle.ts';
@@ -153,7 +154,8 @@ const PAD = WATER.maxShift;
 const BANK_ROWS = 2;
 const BANK_SHADE = 0.85;
 
-export function createWater(worldRT: RenderTexture, rows: number, fog: boolean): Water {
+export function createWater(worldRT: RenderTexture, rows: number, weather: Weather): Water {
+  const fog = weather === 'fog';
   const mirrorScene = new Container({ label: 'water-mirror' });
   const band = new Container({ label: 'water' });
   let waterRT: RenderTexture | null = null;
@@ -258,8 +260,9 @@ export function createWater(worldRT: RenderTexture, rows: number, fog: boolean):
       const depth = a.depth + (b.depth - a.depth) * cycle.t;
       const wave = a.wave + (b.wave - a.wave) * cycle.t;
 
-      // The disc the path follows: the sun while it is up, else the moon while it is shown.
-      const disc = cycle.sun.y > 0.02 ? cycle.sun : moonShown(cycle) ? cycle.moon : null;
+      // The disc the path follows: the sun while it is up, else the moon while it is shown; none under rain clouds.
+      const disc =
+        weather === 'rain' ? null : cycle.sun.y > 0.02 ? cycle.sun : moonShown(cycle, weather) ? cycle.moon : null;
       const centre = disc ? skyPixel(disc, width, horizon) : null;
       const onSky =
         centre !== null && centre.y >= 0 && centre.y < horizon && centre.x >= 0 && centre.x < width ? centre : null;

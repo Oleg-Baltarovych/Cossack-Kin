@@ -4,8 +4,16 @@
 // Per key (CLOUD_LOOKS): a brightness multiply before the LUT (dark masses at dusk and night) and a tinted rim frame
 // along the underside and sun side (glow of a low sun). The ground's cloud shadows live in Ground.ts. A `cloudMask`
 // for light shafts comes with ART-10.
+import type { Weather } from '../settings.ts';
 import { Container, Sprite, type Texture } from 'pixi.js';
-import { CLOUD_LOOKS, CLOUD_WRAP_MARGIN, CLOUDS, LOW_CLOUD, type CloudPlacement } from '../atmosphere/config.ts';
+import {
+  CLOUD_LOOKS,
+  CLOUD_WRAP_MARGIN,
+  CLOUDS,
+  LOW_CLOUD,
+  RAIN_CLOUD_BRIGHTNESS,
+  type CloudPlacement,
+} from '../atmosphere/config.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { rampColor } from '../palette.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
@@ -32,10 +40,14 @@ const mix = (a: number, b: number, t: number): number => {
 };
 
 /** Cloud tint (grey brightness), rim tint and rim alpha for the blend of two keys. */
-export function cloudLook(cycle: DayCycle): { tint: number; rimTint: number; rimAlpha: number } {
+export function cloudLook(
+  cycle: DayCycle,
+  weather: Weather = 'clear',
+): { tint: number; rimTint: number; rimAlpha: number } {
   const a = CLOUD_LOOKS[cycle.keyA];
   const b = CLOUD_LOOKS[cycle.keyB];
-  const brightness = a.brightness + (b.brightness - a.brightness) * cycle.t;
+  const rain = weather === 'rain' ? RAIN_CLOUD_BRIGHTNESS : 1;
+  const brightness = (a.brightness + (b.brightness - a.brightness) * cycle.t) * rain;
   const grey = Math.round(Math.min(1, Math.max(0, brightness)) * 255);
   return {
     tint: (grey << 16) | (grey << 8) | grey,
@@ -46,11 +58,15 @@ export function cloudLook(cycle: DayCycle): { tint: number; rimTint: number; rim
 
 export interface CloudsLayerOptions {
   readonly frame: (name: string) => Texture;
+  readonly weather: Weather;
 }
 
-export function createCloudsLayer({ frame }: CloudsLayerOptions): WorldLayer {
+export function createCloudsLayer({ frame, weather }: CloudsLayerOptions): WorldLayer {
   return createLayer('clouds', PARALLAX, (container) => {
     const group = new Container({ label: 'clouds' });
+    // No discrete clouds in fog or rain (ART-17): the overcast / murky sky carries itself — fair-weather cumulus
+    // on a rain sky read as pasted on, and half-alpha clouds came out brighter than the ungraded fog sky.
+    group.visible = weather === 'clear';
     container.addChild(group);
     const sprites = CLOUDS.map((cloud) => {
       const make = (anim: string): Sprite => {
@@ -77,7 +93,7 @@ export function createCloudsLayer({ frame }: CloudsLayerOptions): WorldLayer {
     return {
       resize,
       update: ({ seconds, cycle }) => {
-        const look = cloudLook(cycle);
+        const look = cloudLook(cycle, weather);
         for (const { cloud, body, rim, alpha } of sprites) {
           const x = cloudX(cloud, seconds, span);
           body.x = x;

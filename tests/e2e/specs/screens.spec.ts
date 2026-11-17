@@ -407,3 +407,23 @@ test.describe('ART-15 villagers @screens', () => {
     });
   }
 });
+
+test.describe('ART-17 rain and fog @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  for (const [zone, hhmm, weather] of [
+    ['farm', '1300', 'rain'],
+    ['farm', '2300', 'rain'],
+    ['sich', '0700', 'fog'],
+  ] as const) {
+    test(`khortytsia ${zone} ${hhmm} ${weather}: budget, particles ≤ 300, pixel grid`, async ({ page }, testInfo) => {
+      const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+      await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&zone=${zone}&weather=${weather}`);
+      const scale = await expectWebGlWithinBudget(page);
+      const stats = await readStats(page);
+      expect(stats.particles).toBeLessThanOrEqual(300);
+      const png = await shoot(page, testInfo, `khortytsia-${zone}-${hhmm}-${weather}`);
+      expectPixelGrid(png, testInfo, scale, 0);
+    });
+  }
+});
