@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Big } from '../../../src/core/big.ts';
 import { formatBig, t } from '../../../src/i18n/index.ts';
+import enTable from '../../../src/i18n/locales/en.json';
+import ukTable from '../../../src/i18n/locales/uk.json';
+import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
+import { KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
+import { LANGS } from '../../../src/core/state.ts';
 
 const big = (s: string): Big => Big.fromString(s) ?? Big.ZERO;
 
@@ -70,5 +75,35 @@ describe('formatBig (M1-16, SPEC §11)', () => {
     expect(formatBig(big('2.5e308'), 'uk', 'words')).toBe('2,5e308');
     expect(formatBig(big('1e1000'), 'en', 'words')).toBe('1e1000');
     expect(formatBig(big('4.567e1000'), 'en', 'short')).toBe('4.57e1000');
+  });
+});
+
+describe('keys built at run time exist in both languages (M1-17 review)', () => {
+  const tables = { uk: ukTable, en: enTable } as const;
+  const dynamic = [
+    ...(['ducats', 'glory', 'max', 'kharch'] as const).map((r) => `ui.block.${r}`),
+    ...KHORTYTSIA.wind.levels.map((l) => l.nameKey),
+    ...LANGS.map((l) => `lang.${l}`),
+    ...['farm', 'sich', 'more'].map((tab) => `ui.tab.${tab}`),
+    'ui.unlock.farmAll',
+    'ui.unlock.land',
+    'ui.price.none',
+    ...KHORTYTSIA.buildings.flatMap((b) => [b.nameKey, b.descKey]),
+    ...SICH_BUILDINGS.flatMap((b) => [b.nameKey, b.descKey]),
+    KHORTYTSIA.sichSpecial.nameKey,
+    KHORTYTSIA.sichSpecial.descKey,
+  ];
+
+  it('every dynamic key is present in uk and en', () => {
+    for (const [lang, table] of Object.entries(tables)) {
+      expect(
+        dynamic.filter((k) => !(k in table)),
+        lang,
+      ).toEqual([]);
+    }
+  });
+
+  it('uk and en have the same key set', () => {
+    expect(Object.keys(enTable).sort()).toEqual(Object.keys(ukTable).sort());
   });
 });

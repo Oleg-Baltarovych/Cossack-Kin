@@ -1,5 +1,13 @@
-/* Global layout. Kept out of index.html so the M0-12 CSP can use style-src 'self'.
-   No colors here: the world host background comes from the master palette (render/App.ts). */
+/* Global layout and the UI font. Kept out of index.html so the M0-12 CSP can use style-src 'self'.
+   No colours here: the world host background comes from the master palette (render/App.ts), UI colours from
+   ui/theme.ts. */
+@font-face {
+  /* Press Start 2P (SIL OFL 1.1, src/ui/fonts/OFL.txt): the one checked pixel font with all Ukrainian letters (M1-17). */
+  font-family: 'Press Start 2P';
+  src: url('./fonts/PressStart2P-Regular.ttf') format('truetype');
+  font-display: block;
+}
+
 html,
 body,
 #root,
@@ -8,4 +16,23 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+#root {
+  position: relative;
+  font-family: 'Press Start 2P', monospace;
+  font-size: var(--font-s);
+  line-height: 1.25;
+  /* The font's space is a full 8-px cell: words read as separate blocks. Half a cell keeps them one phrase. */
+  word-spacing: -0.5em;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+#root button {
+  /* Buttons do not inherit word-spacing (it is not part of the font shorthand). */
+  word-spacing: inherit;
+  touch-action: manipulation;
 }
