@@ -12,6 +12,7 @@ import {
   sichUnlocked,
 } from '../../../src/core/modifiers.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
+import { windLookAt } from '../../../src/core/systems/village-mechanics/wind.ts';
 
 const close = (a: number, b: number, rel = 1e-9): boolean => Math.abs(a - b) <= rel * Math.max(1, Math.abs(b));
 const base = createInitialState({ seed: 1, now: 0 });
@@ -70,8 +71,8 @@ describe('defence (M1-06)', () => {
   it('multiplies only the farm/suburb income, not glory', () => {
     const calm = at({ field: 20, potter: 5 });
     const guarded = at({ field: 20, potter: 5 }, { walls: 10 });
-    const m0 = collectModifiers(calm);
-    const m1 = collectModifiers(guarded);
+    const m0 = collectModifiers(calm, 0);
+    const m1 = collectModifiers(guarded, 0);
     expect(close(m1.incomeMult, 1 + 10 * sichDef('walls') * DEFENCE.incomePerPoint)).toBe(true);
     expect(farmIncomeRate(guarded, m1).toNumber()).toBeGreaterThan(farmIncomeRate(calm, m0).toNumber());
     expect(m1.gloryMult).toBe(m0.gloryMult);
@@ -80,7 +81,7 @@ describe('defence (M1-06)', () => {
 
 describe('collectModifiers: the one source of multipliers (M1-06)', () => {
   it('a new game: neutral multipliers, the land passive on the windmill, base caps', () => {
-    const m = collectModifiers(base);
+    const m = collectModifiers(base, 0);
     expect(m.incomeMult).toBe(1);
     expect(m.costMult).toBe(1);
     expect(m.gloryMult).toBe(1);
@@ -88,12 +89,15 @@ describe('collectModifiers: the one source of multipliers (M1-06)', () => {
     expect(m.offlineMult).toBe(OFFLINE.mult);
     expect(m.offlineCapSec).toBe(OFFLINE.capSec);
     expect(m.gloryCapSec).toBe(ARMY.gloryCapSec);
-    expect(m.buildingMult.windmill).toBe(KHORTYTSIA.passive.mult);
+    expect(m.buildingMult.windmill).toBe(KHORTYTSIA.passive.mult * windLookAt(base.seed, 0).windmillMult);
     expect(m.buildingMult.field).toBe(1);
   });
 
   it('the smithy and the maidan raise army power; the tavern and the church raise glory; the treasury the glory cap', () => {
-    const m = collectModifiers(at({ ...allFarm(25), smithy: 30, tavern: 40 }, { maidan: 10, church: 5, treasury: 3 }));
+    const m = collectModifiers(
+      at({ ...allFarm(25), smithy: 30, tavern: 40 }, { maidan: 10, church: 5, treasury: 3 }),
+      0,
+    );
     const smithy = 30 * 0.03;
     const maidan = 10 * (SICH_BUILDINGS.find((b) => b.id === 'maidan')?.effects.powerPerLevel ?? 0);
     expect(close(m.powerMult, 1 + smithy + maidan)).toBe(true);
@@ -105,7 +109,7 @@ describe('collectModifiers: the one source of multipliers (M1-06)', () => {
 
   it('farmIncomeRate = incomeRate with the per-building multipliers × incomeMult', () => {
     const s = at({ field: 10, windmill: 25 }, { walls: 4 });
-    const m = collectModifiers(s);
+    const m = collectModifiers(s, 0);
     const expected = incomeRate(s.village.levels, KHORTYTSIA, (id) => m.buildingMult[id]).mul(m.incomeMult);
     expect(farmIncomeRate(s, m).eq(expected)).toBe(true);
   });

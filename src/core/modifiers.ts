@@ -8,11 +8,12 @@ import { FARM_BUILDING_IDS, KHORTYTSIA, type FarmBuildingId, type Village } from
 import type { Big } from './big.ts';
 import { incomeRate } from './economy.ts';
 import type { GameState } from './state.ts';
+import { windLookAt } from './systems/village-mechanics/wind.ts';
 
 export interface Modifiers {
   /** Farm and suburb income (defence: «спокій на хуторах»). */
   readonly incomeMult: number;
-  /** Per-building income multiplier (the land passive and, from M1-07, the wind on the windmill). */
+  /** Per-building income multiplier (the land passive and the wind on the windmill). */
   readonly buildingMult: Readonly<Record<FarmBuildingId, number>>;
   readonly costMult: number;
   readonly gloryMult: number;
@@ -82,11 +83,11 @@ function farmEffect(state: GameState, kind: 'armyPower' | 'glory'): number {
   return sum;
 }
 
-/** All multipliers in force (SPEC §9.6). M1-07 adds `now` for the wind on the windmill. */
-export function collectModifiers(state: GameState): Modifiers {
+/** All multipliers in force at `now` (ms) (SPEC §9.6): the wind on the windmill depends on the time. */
+export function collectModifiers(state: GameState, now: number): Modifiers {
   const village = villageOf(state);
   const buildingMult = Object.fromEntries(FARM_BUILDING_IDS.map((id) => [id, 1])) as Record<FarmBuildingId, number>;
-  buildingMult.windmill *= village.passive.mult;
+  buildingMult.windmill *= village.passive.mult * windLookAt(state.seed, now, village).windmillMult;
   return {
     incomeMult: 1 + defence(state) * DEFENCE.incomePerPoint,
     buildingMult,
