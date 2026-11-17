@@ -12,15 +12,3 @@ strictDepBuilds: true
 # Do not resolve versions published less than 3 days ago (in minutes): time for the registry and the
 # community to catch a compromised release. Explicit, so pnpm also enforces it strictly (no silent excludes).
 minimumReleaseAge: 4320
-
-# Exact versions already in the lockfile (resolved 2026-11-16, plan §1) that were 2-3 days old when the policy
-# was switched on. Exact `name@version` pins only: no newer release of these packages bypasses the cutoff.
-# Remove the list once every entry is older than 3 days (after 2026-11-17T15:00Z; the latest is colord).
-minimumReleaseAgeExclude:
-  - '@eslint/config-array@0.23.6'
-  - '@playwright/test@1.65.1'
-  - colord@2.13.0
-  - eslint@10.15.0
-  - playwright-core@1.65.1
-  - playwright@1.65.1
-  - postcss@8.5.33
