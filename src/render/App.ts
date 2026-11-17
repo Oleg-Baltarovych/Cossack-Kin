@@ -18,7 +18,7 @@ import {
   UPDATE_PRIORITY,
   type Texture,
 } from 'pixi.js';
-import { KHORTYTSIA_FARM } from '../content/villages/khortytsia.layout.ts';
+import { KHORTYTSIA_ZONES } from '../content/villages/khortytsia.layout.ts';
 import { WORLD_WIDTH_PX } from '../content/world.ts';
 import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
@@ -126,7 +126,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       graded.destroy();
     });
     // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
-    const layout = KHORTYTSIA_FARM;
+    const layout = KHORTYTSIA_ZONES[settings.zone];
     const sceneFrame = (name: string): Texture => frame(atlases, SCENE_ATLAS, name);
     const post = createPostGrade({
       layout,

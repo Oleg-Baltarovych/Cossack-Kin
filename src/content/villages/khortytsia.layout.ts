@@ -6,7 +6,7 @@
  * Ground tile kinds of the `khortytsia` atlas (`ground.<tile>/idle/00`, 64×32). `grass` has seeded variants
  * (`grass`, `grass-b`, `grass-c`) that the ground layer picks per tile.
  */
-export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth';
+export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan';
 
 export interface GroundRow {
   readonly tile: GroundTile;
@@ -17,7 +17,20 @@ export interface GroundRow {
 
 export interface Prop {
   /** Atlas frame stem in `khortytsia` (`<stem>/idle/00`, companions `<entity>@shadow…`). */
-  readonly sprite: 'khata.t1' | 'khata.t3' | 'tyn' | 'mallows';
+  readonly sprite:
+    | 'khata.t1'
+    | 'khata.t3'
+    | 'tyn'
+    | 'mallows'
+    | 'palisade.h0'
+    | 'palisade.h1'
+    | 'palisade.h2'
+    | 'palisade.h3'
+    | 'tower'
+    | 'gate'
+    | 'kurin'
+    | 'cannon'
+    | 'logpile';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -26,7 +39,7 @@ export interface Prop {
 
 /** Flat ground decal (no shadow, not Y-sorted): drawn over the tiles, under every shadow and prop. */
 export interface Decal {
-  readonly sprite: 'yard';
+  readonly sprite: 'yard' | 'trail.l' | 'trail.r';
   /** Centre of the decal, world x / rows below the horizon. */
   readonly x: number;
   readonly ground: number;
@@ -96,6 +109,11 @@ export interface SceneLayout {
   readonly farPlanes: readonly FarPlane[];
   /** The river under the horizon (ART-09): rows of water from the horizon down; 0 = no water. */
   readonly waterRows: number;
+  /**
+   * Haze band over the ground under the horizon (ART-08), default on. Off where the near scene stands right at the
+   * horizon (the Sich's rampart is near, not far meadow).
+   */
+  readonly groundHaze?: boolean;
 }
 
 export const KHORTYTSIA_FARM: SceneLayout = {
@@ -175,3 +193,60 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     },
   ],
 };
+
+/** Palisade sections along the rampart: 16-px tiles, heights mixed by a fixed pattern (never a comb). */
+const PALISADE_PATTERN = ['h1', 'h0', 'h2', 'h1', 'h3', 'h0', 'h2', 'h1', 'h0', 'h3', 'h2', 'h1'] as const;
+const palisadeLine = (x0: number, x1: number, ground: number, skip: readonly (readonly [number, number])[]): Prop[] => {
+  const out: Prop[] = [];
+  for (let x = x0, i = 0; x < x1; x += 16, i++) {
+    if (skip.some(([a, b]) => x + 16 > a && x < b)) continue;
+    const h = PALISADE_PATTERN[i % PALISADE_PATTERN.length] ?? 'h1';
+    out.push({ sprite: `palisade.${h}`, x, ground });
+  }
+  return out;
+};
+
+/**
+ * Khortytsia, the Sich zone (plan ART-11, ART-BIBLE §6): seen from inside, back to front — the river, the rampart
+ * with the palisade along its crest, two watchtowers and the gate with the корогва, the maidan, two курені. No women
+ * on the Sich (historical): only Cossacks walk here.
+ */
+export const KHORTYTSIA_SICH: SceneLayout = {
+  horizonRatio: KHORTYTSIA_FARM.horizonRatio,
+  rows: [
+    { tile: 'meadow', top: 0, h: 32 },
+    { tile: 'val', top: 32, h: 32 }, // the rampart's inner slope
+    { tile: 'maidan', top: 64, h: 224 }, // the maidan, down to ~75 % of the screen
+  ],
+  fill: 'grass',
+  // Worn paths from the gate to the two курінь doors (they lead the eye to the gate).
+  decals: [
+    { sprite: 'trail.l', x: 90, ground: 42 },
+    { sprite: 'trail.r', x: 196, ground: 42 },
+  ],
+  props: [
+    // The palisade runs on behind the towers and the gate (no gaps where the footprints end).
+    ...palisadeLine(0, 720, 35, []),
+    { sprite: 'tower', x: 62, ground: 37 },
+    { sprite: 'gate', x: 198, ground: 39 },
+    { sprite: 'tower', x: 340, ground: 37 },
+    { sprite: 'kurin', x: 92, ground: 210 },
+    { sprite: 'kurin', x: 300, ground: 268 },
+    { sprite: 'cannon', x: 128, ground: 100 },
+    { sprite: 'cannon', x: 276, ground: 112 },
+    { sprite: 'logpile', x: 178, ground: 252 },
+    { sprite: 'logpile', x: 36, ground: 280 },
+  ],
+  walkers: [
+    { sprite: 'kozak.a', x0: 150, x1: 250, ground: 226, speed: 22, rest: 3, phase: 0 },
+    { sprite: 'kozak.b', x0: 222, x1: 222, ground: 96, speed: 0, rest: 0, phase: 0.3 },
+    { sprite: 'kozak.a', x0: 330, x1: 30, ground: 150, speed: 20, rest: 5, phase: 1.1 },
+  ],
+  farPlanes: KHORTYTSIA_FARM.farPlanes,
+  // From inside the Sich the river is hidden behind the rampart (and a water band would cover the tower bases).
+  waterRows: 0,
+  groundHaze: false,
+};
+
+/** Scene layout per zone of Khortytsia (the suburb comes with M2). */
+export const KHORTYTSIA_ZONES = { farm: KHORTYTSIA_FARM, suburb: KHORTYTSIA_FARM, sich: KHORTYTSIA_SICH } as const;

@@ -191,7 +191,7 @@ export function createLightLayer({ weather, quality, layout }: LightLayerOptions
           const { haze: h } = airHaze(cycle, weather);
           const fog = weather === 'fog';
           const rows = fog ? FOG.bandRows : Math.round(HAZE_BAND.rows[0] + (HAZE_BAND.rows[1] - HAZE_BAND.rows[0]) * h);
-          const cover = fog ? FOG.bandCover : HAZE_BAND.cover * h;
+          const cover = layout.groundHaze === false ? 0 : fog ? FOG.bandCover : HAZE_BAND.cover * h;
           paintHazeBand(hazeBuf.pixels, hazeBuf.w, Math.min(rows, MAX_ROWS - lead), cycle, cover, lead);
           hazeBuf.source.update();
         }

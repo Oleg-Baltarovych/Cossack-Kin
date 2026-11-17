@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KHORTYTSIA_FARM } from '../../../src/content/villages/khortytsia.layout.ts';
+import { KHORTYTSIA_FARM, KHORTYTSIA_SICH } from '../../../src/content/villages/khortytsia.layout.ts';
 import { WORLD_WIDTH_PX } from '../../../src/content/world.ts';
 
 describe('khortytsia farm layout', () => {
@@ -35,6 +35,32 @@ describe('khortytsia farm layout', () => {
     for (const k of khatas) {
       const yard = KHORTYTSIA_FARM.decals.find((d) => Math.abs(d.x - k.x) <= 8 && Math.abs(d.ground - k.ground) <= 8);
       expect(yard, `yard under ${k.sprite} at ${String(k.x)}`).toBeDefined();
+    }
+  });
+});
+
+describe('khortytsia sich layout (ART-11)', () => {
+  it('is all Cossacks (no women on the Sich), stays inside the world and has the gate and towers on the rampart', () => {
+    const s = KHORTYTSIA_SICH;
+    for (const w of s.walkers) expect(w.sprite.startsWith('kozak')).toBe(true);
+    for (const p of s.props) {
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.x).toBeLessThanOrEqual(WORLD_WIDTH_PX);
+    }
+    expect(s.props.filter((p) => p.sprite === 'gate')).toHaveLength(1);
+    expect(s.props.filter((p) => p.sprite === 'tower').length).toBeGreaterThanOrEqual(2);
+    const val = s.rows.find((r) => r.tile === 'val');
+    expect(val).toBeDefined();
+    for (const p of s.props.filter((q) => q.sprite.startsWith('palisade'))) {
+      expect(p.ground).toBeGreaterThanOrEqual(val?.top ?? 0);
+      expect(p.ground).toBeLessThan((val?.top ?? 0) + (val?.h ?? 0));
+    }
+  });
+
+  it('the palisade never repeats one height on more than two neighbouring sections (not a comb)', () => {
+    const line = KHORTYTSIA_SICH.props.filter((p) => p.sprite.startsWith('palisade')).map((p) => p.sprite);
+    for (let i = 2; i < line.length; i++) {
+      expect(line[i] === line[i - 1] && line[i] === line[i - 2]).toBe(false);
     }
   });
 });

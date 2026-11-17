@@ -312,3 +312,17 @@ test.describe('ART-10 light shafts @screens', () => {
     }
   }
 });
+
+test.describe('ART-11 the Sich @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  for (const hhmm of ['0700', '1300', '1930', '2300'] as const) {
+    test(`khortytsia sich ${hhmm} clear: budget, pixel grid`, async ({ page }, testInfo) => {
+      const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+      await gotoReady(page, `/?time=${time}&freeze&seed=1&zone=sich`);
+      const scale = await expectWebGlWithinBudget(page);
+      const png = await shoot(page, testInfo, `khortytsia-sich-${hhmm}-clear`);
+      expectPixelGrid(png, testInfo, scale, 0);
+    });
+  }
+});
