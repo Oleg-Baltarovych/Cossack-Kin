@@ -38,6 +38,7 @@ const TILE_VARIANTS: Readonly<Record<GroundTile, readonly string[]>> = {
   earth: ['earth', 'earth-b', 'earth-c'],
   val: ['val'],
   maidan: ['maidan', 'maidan-b', 'maidan-c'],
+  'maidan-end': ['maidan-end'],
 };
 
 /** Deterministic variant pick for the tile at column `col`, world row `row` (no RNG: same scene, same tiles). */

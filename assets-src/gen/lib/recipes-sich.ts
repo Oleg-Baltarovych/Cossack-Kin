@@ -89,9 +89,11 @@ export function palisadeStake(plot: Plot, x: number, top: number, ground: number
  */
 export function lashing(plot: Plot, x0: number, x1: number, y: number, stakeAt: (x: number) => boolean): void {
   for (let c = x0; c < x1; c++) {
-    plot.set(c, y, 'wood', 0);
-    plot.set(c, y + 1, 'wood', 0);
-    if (stakeAt(c) && !stakeAt(c - 1)) plot.set(c + 1, y, 'wood', 4);
+    // ±1 row per stake: the binding sags and climbs from stake to stake instead of lining up into a rail.
+    const off = ((Math.floor(c / 4) * 7) % 3) - 1;
+    plot.set(c, y + off, 'wood', 0);
+    plot.set(c, y + off + 1, 'wood', 0);
+    if (stakeAt(c) && !stakeAt(c - 1)) plot.set(c + 1, y + off, 'wood', 4);
   }
 }
 

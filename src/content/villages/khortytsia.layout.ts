@@ -6,7 +6,7 @@
  * Ground tile kinds of the `khortytsia` atlas (`ground.<tile>/idle/00`, 64×32). `grass` has seeded variants
  * (`grass`, `grass-b`, `grass-c`) that the ground layer picks per tile.
  */
-export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan';
+export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan' | 'maidan-end';
 
 export interface GroundRow {
   readonly tile: GroundTile;
@@ -30,7 +30,9 @@ export interface Prop {
     | 'gate'
     | 'kurin'
     | 'cannon'
-    | 'logpile';
+    | 'logpile'
+    | 'church'
+    | 'belfry';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -217,6 +219,7 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     { tile: 'meadow', top: 0, h: 32 },
     { tile: 'val', top: 32, h: 32 }, // the rampart's inner slope
     { tile: 'maidan', top: 64, h: 224 }, // the maidan, down to ~75 % of the screen
+    { tile: 'maidan-end', top: 288, h: 32 }, // a ragged edge into the grass
   ],
   fill: 'grass',
   // Worn paths from the gate to the two курінь doors (they lead the eye to the gate).
@@ -230,6 +233,10 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     { sprite: 'tower', x: 62, ground: 37 },
     { sprite: 'gate', x: 198, ground: 39 },
     { sprite: 'tower', x: 340, ground: 37 },
+    // The Pokrova church at the back of the maidan right at the rampart's foot (inside the walls), tall enough that its
+    // centre cross clears the gate's roof against open sky; its belfry beside it with some air.
+    { sprite: 'church', x: 280, ground: 63 },
+    { sprite: 'belfry', x: 358, ground: 72 },
     { sprite: 'kurin', x: 92, ground: 210 },
     { sprite: 'kurin', x: 300, ground: 268 },
     { sprite: 'cannon', x: 128, ground: 100 },

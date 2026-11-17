@@ -56,6 +56,7 @@ const ground: SpriteGenerator = {
     'maidan',
     'maidan-b',
     'maidan-c',
+    'maidan-end',
   ],
   anchor: { x: 0, y: 0 },
   generate(_rng, { variant, buffer, rampSize }) {
@@ -125,6 +126,24 @@ const ground: SpriteGenerator = {
           if (rng() < 0.5) plot.set(x, H - 3, 'grass', 3);
         }
         pebbles(plot, { x: 2, y: 8, w: W - 4, h: H - 14 }, seed, 2);
+        break;
+      }
+      case 'maidan-end': {
+        // Where the maidan meets the grass (art-director ART-11 note): earth 3 giving way to grass over a ragged edge
+        // — tongues of grass reaching up every 6–10 px, earth crumbs below the line — never a ruler line.
+        grassField(plot, { x: 0, y: 0, w: HALF, h: H }, `${seed}:a`, { tufts: 5, flecks: 1 });
+        grassField(plot, { x: HALF, y: 0, w: HALF, h: H }, `${seed}:b`, { tufts: 4, flecks: 1 });
+        const rng = seededRng(`${seed}:edge`);
+        let edge = 8;
+        let next = 0;
+        for (let x = 0; x < W; x++) {
+          if (x >= next) {
+            edge = 6 + Math.floor(rng() * 6);
+            next = x + 6 + Math.floor(rng() * 5);
+          }
+          for (let y = 0; y < edge; y++) plot.set(x, y, 'earth', y === edge - 1 ? 2 : 3);
+          if (rng() < 0.2) plot.set(x, edge + 1 + Math.floor(rng() * 3), 'earth', 3);
+        }
         break;
       }
       case 'maidan':

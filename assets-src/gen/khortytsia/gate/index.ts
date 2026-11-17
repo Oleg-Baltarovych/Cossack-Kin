@@ -43,8 +43,9 @@ const gate: SpriteGenerator = {
       for (let x = PASSAGE.x; x < rx; x++) {
         const edge = x === PASSAGE.x || x === rx - 1;
         if (y < STOREY.bottom + 4 || edge) body.set(x, y, 'ink', 2);
-        else if (y < horizonRow - 4) body.set(x, y, 'water', 6);
-        else if (y < horizonRow) body.set(x, y, 'water', 5);
+        // Sky strip a step down from the open sky (water 4/3), so at night the lantern stays the brightest point.
+        else if (y < horizonRow - 4) body.set(x, y, 'water', 4);
+        else if (y < horizonRow) body.set(x, y, 'water', 3);
         else {
           const road = Math.abs(x - (PASSAGE.x + PASSAGE.w / 2)) < 3 + (y - horizonRow) / 4;
           body.set(x, y, road ? 'earth' : 'grass', road ? 4 : y < horizonRow + 4 ? 3 : 2);
