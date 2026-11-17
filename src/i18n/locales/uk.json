@@ -34,5 +34,12 @@
   "sich.special.khortytsia.desc": "Дозорці бачать ворога здалеку: більша оборона.",
   "wind.calm": "Штиль",
   "wind.breeze": "Бриз",
-  "wind.storm": "Буря"
+  "wind.storm": "Буря",
+  "time.hours": {
+    "one": "{count} година",
+    "few": "{count} години",
+    "many": "{count} годин",
+    "other": "{count} години"
+  },
+  "return.away": "Тебе не було {time}"
 }

@@ -5,8 +5,12 @@ import { PACING } from '../../../src/content/pacing.ts';
 import { SICH_BUILDING_IDS, SICH_BUILDINGS } from '../../../src/content/sich.ts';
 import { FARM_BUILDING_IDS, KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
 
-const locale = (lang: 'uk' | 'en'): Record<string, string> =>
-  JSON.parse(readFileSync(`src/i18n/locales/${lang}.json`, 'utf8')) as Record<string, string>;
+/** A locale entry: a string, or CLDR plural forms (M1-16). */
+type Entry = string | Readonly<Record<string, string>>;
+const locale = (lang: 'uk' | 'en'): Record<string, Entry> =>
+  JSON.parse(readFileSync(`src/i18n/locales/${lang}.json`, 'utf8')) as Record<string, Entry>;
+/** Every text of an entry (all plural forms). */
+const texts = (e: Entry): string[] => (typeof e === 'string' ? [e] : Object.values(e));
 const UK = locale('uk');
 const EN = locale('en');
 
@@ -104,8 +108,10 @@ describe('land 1 content (M1-03)', () => {
   });
 
   it('no Ukrainian word mixes Cyrillic and Latin letters (a Latin "e"/"i"/"o" hidden in a word)', () => {
-    for (const [key, text] of Object.entries(UK)) {
-      for (const word of text.split(/[^\p{L}]+/u)) {
+    for (const [key, entry] of Object.entries(UK)) {
+      for (const word of texts(entry)
+        .join(' ')
+        .split(/[^\p{L}]+/u)) {
         const mixed = /\p{Script=Cyrillic}/u.test(word) && /\p{Script=Latin}/u.test(word);
         expect(mixed, `${key}: "${word}"`).toBe(false);
       }
