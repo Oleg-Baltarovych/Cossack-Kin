@@ -136,7 +136,12 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     disposers.push(() => {
       post.container.destroy({ children: true });
     });
-    const layers = createWorldLayers({ layout, frame: sceneFrame, weather: settings.weather });
+    const layers = createWorldLayers({
+      layout,
+      frame: sceneFrame,
+      weather: settings.weather,
+      quality: settings.quality,
+    });
     const water = createWater(worldRT, layout.waterRows, settings.weather === 'fog');
     disposers.push(() => {
       water.destroy();
@@ -193,7 +198,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
       const cam = split(camX, vp.scale, cameraBounds(WORLD_WIDTH, target.width - 1));
       const minutes = clock.minutesOfDay();
-      const frameInfo = { minutes, seconds: clock.seconds(), cycle: dayCycle(minutes) };
+      const frameInfo = { minutes, seconds: clock.seconds(), cycle: dayCycle(minutes), camX: cam.worldPx };
       grading.update(frameInfo.cycle, minutes);
       post.setEmissive(emissiveLevel(frameInfo.cycle));
       for (const layer of layers) {

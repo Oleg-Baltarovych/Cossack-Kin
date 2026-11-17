@@ -510,3 +510,45 @@ export const WATER_LOOKS: Readonly<Record<SkyKeyId, WaterLook>> = {
     path: { kind: 'column', core: ['water', 7], edge: ['water', 5], width: 5 },
   },
 };
+
+// --- Light shafts (ART-10 spike) -----------------------------------------------------------------------
+/**
+ * Per-key light shafts: strength 0..1, light colour and dust colour. Only a low sun (dawn, golden hour) casts them
+ * (ART-BIBLE §8).
+ */
+export const RAY_LOOKS: Readonly<
+  Record<SkyKeyId, { readonly level: number; readonly color: ColorRef; readonly dust: ColorRef }>
+> = {
+  dawn: { level: 0.9, color: ['sky', 6], dust: ['plaster', 6] },
+  morning: { level: 0.3, color: ['gold', 5], dust: ['plaster', 6] },
+  day: { level: 0, color: ['plaster', 6], dust: ['plaster', 6] },
+  golden: { level: 1, color: ['gold', 4], dust: ['gold', 5] },
+  dusk: { level: 0.15, color: ['sky', 4], dust: ['gold', 5] },
+  night: { level: 0, color: ['water', 6], dust: ['water', 7] },
+};
+/**
+ * Shaft geometry: reach from the sun (logical px), the densest dither share at the sun, the polar shadow map's
+ * angle bins, dust motes (≤ 40, ART-10), and for the beam variant the fan of beam angles (degrees from +x, screen y
+ * down) with their end widths.
+ */
+export const RAYS = {
+  reach: 300,
+  cover: 0.3,
+  bins: 720,
+  dust: 40,
+  beams: [-18, -6, 8, 22, 40],
+  beamWidth: 20,
+  /** Occlusion variant per tier: buffer resolution (logical px per buffer px) and repaints per second. */
+  high: { scale: 1, repaintHz: 8 },
+  med: { scale: 2, repaintHz: 4 },
+  /** Beam variant: seconds to fade out when the sun goes behind a cloud (and back in). */
+  beamFade: 1,
+} as const;
+/** Cloud footprints for the shadow map (logical px, approximate the generated sprites: width, height above base). */
+export const CLOUD_FOOTPRINTS: Readonly<Record<CloudVariant, { readonly w: number; readonly h: number }>> = {
+  c1: { w: 116, h: 30 },
+  c2: { w: 88, h: 30 },
+  c3: { w: 66, h: 26 },
+  c4: { w: 50, h: 18 },
+  c5: { w: 100, h: 30 },
+};

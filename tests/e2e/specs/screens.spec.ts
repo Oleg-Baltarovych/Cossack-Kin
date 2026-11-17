@@ -12,9 +12,10 @@ import { gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts'
 
 /**
  * Frame budget (SPEC §12.4 caps the game at 30): the scene measured 5 before ART-09; the water adds 2 passes (ART-09:
- * mirror into waterRT, row strips back onto worldRT). Raise only with the reason here.
+ * mirror into waterRT, row strips back onto worldRT); light shafts with their dust add 2 while a low sun shines
+ * (ART-10, additive). Per-tier budgets are set in ART-18. Raise only with the reason here.
  */
-const MAX_DRAW_CALLS = 7;
+const MAX_DRAW_CALLS = 9;
 const SCENE = '/?seed=1&freeze&time=13:00';
 const CAM = 10.5;
 const COMPARE_BASELINES = process.platform === 'linux';
@@ -289,4 +290,25 @@ test.describe('ART-08 far plane and fog @screens', () => {
     const png = await shoot(page, testInfo, 'khortytsia-farm-0700-fog');
     expectPixelGrid(png, testInfo, scale, 0);
   });
+});
+
+/** ART-10: quality tier → light-shaft variant (render/layers/Light.ts `rayVariant`). */
+const RAY_TIERS = ['high', 'med', 'low'] as const;
+
+test.describe('ART-10 light shafts @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  for (const hhmm of ['0700', '1930'] as const) {
+    for (const quality of RAY_TIERS) {
+      test(`khortytsia farm ${hhmm} clear, shafts ${quality}: pixel grid, within budget`, async ({
+        page,
+      }, testInfo) => {
+        const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+        await gotoReady(page, `/?time=${time}&freeze=2&seed=1&zone=farm&quality=${quality}`);
+        const scale = await expectWebGlWithinBudget(page);
+        const png = await shoot(page, testInfo, `khortytsia-farm-${hhmm}-clear-rays-${quality}`);
+        expectPixelGrid(png, testInfo, scale, 0);
+      });
+    }
+  }
 });

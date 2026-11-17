@@ -19,6 +19,8 @@ export interface LayerFrame {
   /** Animation time in seconds (pinned under `?freeze`). */
   readonly seconds: number;
   readonly cycle: DayCycle;
+  /** Camera position in world px (ground parallax); screen-fixed layers use it to place parallax content. */
+  readonly camX: number;
 }
 
 export interface WorldLayer {
