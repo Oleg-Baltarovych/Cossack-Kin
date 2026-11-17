@@ -6,3 +6,10 @@
  * economy never comes near it (late-game sums are ~1e300); going past it is a bug and throws.
  */
 export const BIG_MAX_EXPONENT = 1e15;
+
+/**
+ * Largest |exponent| a save may hold (security review M1-04): far below BIG_MAX_EXPONENT, so a value that passes the
+ * gate survives any arithmetic the game does on it — a crafted save near the Big limit would otherwise validate and
+ * then throw on every load. The economy stays below ~1e300.
+ */
+export const SAVE_MAX_EXPONENT = 1e12;

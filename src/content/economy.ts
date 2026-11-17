@@ -73,6 +73,13 @@ export const ARMY = {
   gloryCapSec: 4 * 3600, // гіпотеза
 } as const;
 
+/** A new game (plan M1-04): enough ducats for the first field at once — the first purchase well inside 15 s. Гіпотеза. */
+export const START = {
+  ducats: 10,
+  lang: 'uk',
+  numberFormat: 'words',
+} as const;
+
 /** Bloom of a land (SPEC §3.6; plan Q6: M1 checks conditions 1–2 plus the land's goal, no resettling yet). */
 export const BLOOM = {
   farmLevel: 50,
