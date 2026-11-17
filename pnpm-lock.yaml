@@ -175,6 +175,9 @@ importers:
 
   .:
     dependencies:
+      break_eternity.js:
+        specifier: 2.2.2
+        version: 2.2.2
       pixi-filters:
         specifier: 6.1.5
         version: 6.1.5(pixi.js@8.23.0)
@@ -585,6 +588,9 @@ packages:
   brace-expansion@5.0.13:
     resolution: {integrity: sha512-Vh3dmFbc4wZeox7M9I/0L9GfFd83Su4+yCck/OF9Gi/P/dAHn0RT7X4K9R7gMNMhDck3DvhR6QXsnQdjjgwNvQ==}
     engines: {node: 20 || >=22}
+
+  break_eternity.js@2.2.2:
+    resolution: {integrity: sha512-QAOyM7ZLau6KPxZu18zSQs96kOxMHLWU6hTbTl+eH6dAeqMv0bAar1rDmwCwfCgCU41/ZdoTUE9vHuY4ZjQTeQ==}
 
   cacheable@2.5.0:
     resolution: {integrity: sha512-60cyAOytib/OzBw1JNSoSV/boK1AtHryDIjvVBk7XbN4ugfkM3+Sry7fEjNgPMGgOjuaZPAp8ruZ0Cxafwyq9g==}
@@ -1462,6 +1468,8 @@ snapshots:
   brace-expansion@5.0.13:
     dependencies:
       balanced-match: 4.0.4
+
+  break_eternity.js@2.2.2: {}
 
   cacheable@2.5.0:
     dependencies:

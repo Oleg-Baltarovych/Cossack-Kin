@@ -12,6 +12,23 @@ const RANDOM = msg('random', 'src/core must not use Math.random — use the seed
 const BROWSER_GLOBAL = msg('browser-global', 'src/core must not touch browser globals.');
 const TIMER = msg('timer', 'src/core must not schedule timers — the loop driver lives outside core.');
 
+// Import rules of M1-01 (tagged `imports[<rule>]`, checked by tests/unit/lint/imports.test.ts).
+/** break_eternity.js only through `Big` (SPEC §3.1): src/core/big.ts is its one importer. */
+const BIG_LIB = {
+  regex: '^break_eternity\\.js(/.*)?$',
+  message: 'imports[big-only]: break_eternity.js is imported only by src/core/big.ts — use `Big`.',
+};
+/** Relative imports in core/content end in `.ts`: Node runs them without a bundler (balance-sim). */
+const NO_TS_EXT = {
+  regex: '^\\.{1,2}/(?!.*\\.ts$)',
+  message: 'imports[ts-ext]: relative imports in src/core and src/content end in `.ts` (Node runs them directly).',
+};
+const CORE_PATTERNS = [
+  { regex: '^(pixi\\.js|pixi-filters|react|react-dom|howler)(/.*)?$', message: RENDER_PACKAGE },
+  { regex: '^@(pixi|capacitor)/', message: RENDER_PACKAGE },
+  { regex: '^(\\.\\./)+(render|ui|platform|audio|i18n)(/|$)', message: OUTER_LAYER },
+];
+
 /** @type {import('eslint').Rule.RuleModule} */
 const requireDisableReason = {
   meta: {
@@ -77,18 +94,18 @@ export default defineConfig(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    files: ['**/*.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [BIG_LIB] }] },
+  },
+  {
+    // Content is data: the same purity boundary as core (no render/UI/platform), plus the import rules.
+    files: ['src/content/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [...CORE_PATTERNS, BIG_LIB, NO_TS_EXT] }] },
+  },
+  {
     files: ['src/core/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            { regex: '^(pixi\\.js|pixi-filters|react|react-dom|howler)(/.*)?$', message: RENDER_PACKAGE },
-            { regex: '^@(pixi|capacitor)/', message: RENDER_PACKAGE },
-            { regex: '^(\\.\\./)+(render|ui|platform|audio|i18n)(/|$)', message: OUTER_LAYER },
-          ],
-        },
-      ],
+      'no-restricted-imports': ['error', { patterns: [...CORE_PATTERNS, BIG_LIB, NO_TS_EXT] }],
       'no-restricted-globals': [
         'error',
         ...['window', 'document', 'navigator', 'localStorage', 'sessionStorage', 'indexedDB'].map((name) => ({
@@ -105,5 +122,10 @@ export default defineConfig(
         { selector: "MemberExpression[object.name='Math'][property.name='random']", message: RANDOM },
       ],
     },
+  },
+  {
+    // The one door to break_eternity.js (keeps the core boundary and the .ts rule).
+    files: ['src/core/big.ts'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [...CORE_PATTERNS, NO_TS_EXT] }] },
   },
 );
