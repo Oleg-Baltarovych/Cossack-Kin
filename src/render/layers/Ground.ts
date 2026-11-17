@@ -6,8 +6,9 @@
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Sprite, type Texture } from 'pixi.js';
 import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
-import { CLOUD_SHADOW, sailFps, WIND } from '../atmosphere/config.ts';
+import { CLOUD_SHADOW, sailFps, SWAY, WIND } from '../atmosphere/config.ts';
 import { cloudShadowLevel } from '../atmosphere/emissive.ts';
+import { swayFrame } from '../sway.ts';
 import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
@@ -21,6 +22,8 @@ export type FrameLookup = (name: string) => Texture;
 export interface GroundLayerOptions {
   readonly layout: SceneLayout;
   readonly frame: FrameLookup;
+  /** «Менше руху»: swaying props stand upright. */
+  readonly lessMotion: boolean;
 }
 
 /** `khata.t1` → base, shadow and emissive frame names (`<entity>[.<variant>][@layer]/idle/00`). */
@@ -50,7 +53,7 @@ export function tileFrame(tile: GroundTile, col: number, row: number): string {
   return `ground.${pick}/idle/00`;
 }
 
-export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldLayer {
+export function createGroundLayer({ layout, frame, lessMotion }: GroundLayerOptions): WorldLayer {
   return createLayer('ground', PARALLAX, (container) => {
     const tiles = new Container({ label: 'ground-tiles' });
     const decals = new Container({ label: 'decals' });
@@ -76,8 +79,9 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
       Array.from({ length: count }, (_, i) => frame(`${stem}/${anim}/${String(i).padStart(2, '0')}`));
     const placed = layout.props.map((p) => {
       const names = propFrames(p.sprite);
-      // Animated props (windmill sails) cycle `<sprite>/idle/NN` frames; others show frame 00.
-      const anim = p.animate ? frameList(p.sprite, 'idle', p.animate.frames) : [];
+      // Animated props cycle (windmill sails) or sway (trees) over `<sprite>/idle/NN` frames; others show frame 00.
+      const count = p.animate ? (p.animate.kind === 'cycle' ? p.animate.frames : SWAY.frames) : 0;
+      const anim = frameList(p.sprite, 'idle', count);
       const sprite = new Sprite({ texture: frame(names.base), roundPixels: true });
       // Atlas anchors put the pivot at the bottom-centre of the ground row (or the hub, for lifted props).
       sprite.anchor.copyFrom(sprite.texture.defaultAnchor ?? { x: 0.5, y: 1 });
@@ -159,9 +163,13 @@ export function createGroundLayer({ layout, frame }: GroundLayerOptions): WorldL
       resize,
       update: ({ seconds, cycle }) => {
         for (const { prop, sprite, anim } of placed) {
-          if (!prop.animate || anim.length === 0) continue;
-          const fps = prop.animate.fps === 'wind' ? sailFps(WIND.strength) : prop.animate.fps;
-          const texture = anim[Math.floor(seconds * fps) % anim.length];
+          const a = prop.animate;
+          if (!a || anim.length === 0) continue;
+          const index =
+            a.kind === 'sway'
+              ? swayFrame(seconds, a, WIND.strength, lessMotion)
+              : Math.floor(seconds * (a.fps === 'wind' ? sailFps(WIND.strength) : a.fps)) % anim.length;
+          const texture = anim[index];
           if (texture) sprite.texture = texture;
         }
         const level = cloudShadowLevel(cycle);

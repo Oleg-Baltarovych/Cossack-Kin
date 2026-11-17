@@ -564,3 +564,22 @@ export function sailFps(strength: number): number {
   const s = Math.min(1, Math.max(0, strength));
   return 2 + 8 * s;
 }
+
+// --- Plant sway and the foreground (ART-14) -------------------------------------------------------------------
+/**
+ * Sway of trees and plants: the generator bakes `frames` sprites leaning −2…+2 px at the top (whole-px row offsets,
+ * ART-BIBLE §5), render only picks one. The top swings a·sin(2π·f·t) with f from `hz` (calm … gale), a = `maxShift`
+ * × the plant's own `amp` × wind strength, breathed by a slow gust (± `gustDepth`).
+ */
+export const SWAY = {
+  frames: 5,
+  maxShift: 2,
+  hz: { calm: 0.25, gale: 0.55 },
+  gustHz: 0.045,
+  gustDepth: 0.35,
+} as const;
+/**
+ * Foreground layer (SPEC §6.2 layer 5): plant clumps nearer than the farm, moving faster than the ground (parallax).
+ * Over a person behind it a clump drops to `fadeAlpha`, so no one is hidden behind the grass.
+ */
+export const FOREGROUND = { parallax: 1.2, fadeAlpha: 0.5 } as const;
