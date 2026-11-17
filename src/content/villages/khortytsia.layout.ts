@@ -36,7 +36,8 @@ export interface Prop {
     | 'windmill'
     | 'windmill-sails'
     | 'oak'
-    | 'willow';
+    | 'willow'
+    | 'campfire';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -148,6 +149,8 @@ export interface SceneLayout {
   readonly walkers: readonly Walker[];
   /** Plant clumps on the foreground layer, back to front. */
   readonly foreground: readonly ForegroundPlant[];
+  /** Summer fireflies at night (ART-16): rows below the horizon they wander in; absent = none. */
+  readonly fireflies?: { readonly top: number; readonly bottom: number };
   /** Back to front. */
   readonly farPlanes: readonly FarPlane[];
   /** The river under the horizon (ART-09): rows of water from the horizon down; 0 = no water. */
@@ -227,6 +230,8 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'selianyn.a', x0: 160, x1: 160, ground: 128, speed: 0, rest: 0, phase: 0.2 },
     { sprite: 'divchyna.a', x0: 110, x1: 236, ground: 232, speed: 18, rest: 3, phase: 1.2 },
   ],
+  // Fireflies over the meadow and the front field at night, above the foreground clumps.
+  fireflies: { top: 40, bottom: 300 },
   // The Dnipro between the far bank and the farm: it covers the far meadow row but the near bank below it.
   waterRows: 26,
   // Far plane layer (parallax 0.2) is ~460 px wide on a 390 px phone, the mid layer (0.5) ~555 px.
@@ -316,6 +321,8 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     { sprite: 'cannon', x: 128, ground: 100 },
     { sprite: 'cannon', x: 276, ground: 112 },
     { sprite: 'logpile', x: 178, ground: 252 },
+    // The campfire in the middle of the maidan (ART-16): the night's warm, local light; flames 6 frames @10 fps.
+    { sprite: 'campfire', x: 196, ground: 176, animate: { kind: 'cycle', frames: 6, fps: 10 } },
     { sprite: 'logpile', x: 36, ground: 280 },
   ],
   walkers: [

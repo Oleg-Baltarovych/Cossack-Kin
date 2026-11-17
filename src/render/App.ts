@@ -128,13 +128,14 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
     const layout = KHORTYTSIA_ZONES[settings.zone];
     const sceneFrame = (name: string): Texture => frame(atlases, SCENE_ATLAS, name);
+    const findFrame = (name: string): Texture | null => atlases.get(SCENE_ATLAS)?.textures[name] ?? null;
     const post = createPostGrade({
       layout,
-      frame: (name) => atlases.get(SCENE_ATLAS)?.textures[name] ?? null,
+      frame: findFrame,
       swatch: __CK_DEBUG__ ? frame(atlases, 'debug', 'swatch/idle/00') : undefined,
     });
     disposers.push(() => {
-      post.container.destroy({ children: true });
+      post.destroy();
     });
     const layers = createWorldLayers({
       layout,
@@ -142,6 +143,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       weather: settings.weather,
       quality: settings.quality,
       lessMotion: settings.lessMotion,
+      findFrame,
     });
     const water = createWater(worldRT, layout.waterRows, settings.weather === 'fog');
     disposers.push(() => {
@@ -202,6 +204,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const frameInfo = { minutes, seconds: clock.seconds(), cycle: dayCycle(minutes), camX: cam.worldPx };
       grading.update(frameInfo.cycle, minutes);
       post.setEmissive(emissiveLevel(frameInfo.cycle));
+      post.update(frameInfo.seconds);
       for (const layer of layers) {
         layer.update(frameInfo);
         layer.container.x = layerOffset(cam.worldPx, layer.parallax);

@@ -1,5 +1,5 @@
 // `pnpm sprites:strip <id>…` (plan ART-06): animation strips for judging motion — one row per
-// `<variant>/<anim>`, frames left to right, each frame composited with its `@shadow` over a flat grass ground
+// `<variant>/<anim>`, frames left to right, each frame composited with its `@shadow` (and `@emissive` on top, ART-16) over a flat grass ground
 // (grass 2, the scene's base) and scaled ×8 with 1-logical-px gaps. Writes reports/sprites/<id>-anim.png.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -41,11 +41,13 @@ function blit(out: RgbaImage, src: RgbaImage, ox: number, oy: number): void {
 }
 
 function strip(frames: readonly FrameImage[]): RgbaImage {
-  const rows = new Map<string, { base: FrameImage[]; shadow: FrameImage[] }>();
+  const rows = new Map<string, { base: FrameImage[]; shadow: FrameImage[]; emissive: FrameImage[] }>();
   for (const f of frames) {
     const p = parse(f.name);
-    const row = rows.get(p.row) ?? { base: [], shadow: [] };
-    (p.layer === 'shadow' ? row.shadow : p.layer === null ? row.base : []).push(f);
+    const row = rows.get(p.row) ?? { base: [], shadow: [], emissive: [] };
+    (p.layer === 'shadow' ? row.shadow : p.layer === 'emissive' ? row.emissive : p.layer === null ? row.base : []).push(
+      f,
+    );
     rows.set(p.row, row);
   }
   const first = frames[0];
@@ -72,6 +74,8 @@ function strip(frames: readonly FrameImage[]): RgbaImage {
       const shadow = row.shadow[c];
       if (shadow) blit(img, shadow.image, ox, oy);
       blit(img, f.image, ox, oy);
+      const glow = row.emissive[c];
+      if (glow) blit(img, glow.image, ox, oy);
     });
   });
   return img;
