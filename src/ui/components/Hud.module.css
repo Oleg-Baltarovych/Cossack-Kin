@@ -1,0 +1,55 @@
+/* Top HUD (SPEC §6.1): a dark wood strip under the status bar. Colours: master palette vars (ui/theme.ts). */
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: calc(env(safe-area-inset-top) + 4 * var(--px)) calc(env(safe-area-inset-right) + 6 * var(--px))
+    calc(4 * var(--px)) calc(env(safe-area-inset-left) + 6 * var(--px));
+  background: var(--c-wood-0);
+  border-bottom: var(--px) solid var(--c-ink-0);
+  box-shadow: inset 0 calc(-1 * var(--px)) 0 var(--c-wood-2);
+  color: var(--c-plaster-5);
+}
+
+.currencies {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(6 * var(--px));
+}
+
+.currency {
+  margin: 0;
+  display: grid;
+  gap: calc(2 * var(--px));
+}
+
+.currency:last-child {
+  text-align: right;
+}
+
+.label {
+  font-size: var(--font-s);
+  color: var(--c-thatch-5);
+}
+
+.amount {
+  font-size: var(--font-m);
+  line-height: 1;
+}
+
+.rate {
+  font-size: var(--font-s);
+  color: var(--c-grass-6);
+}
+
+.stats {
+  margin: calc(4 * var(--px)) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(2 * var(--px)) calc(8 * var(--px));
+  font-size: var(--font-s);
+  color: var(--c-plaster-3);
+}

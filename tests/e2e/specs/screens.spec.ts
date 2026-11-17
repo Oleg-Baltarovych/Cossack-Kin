@@ -514,3 +514,28 @@ test.describe('ART-19 reference boards @screens', () => {
     });
   }
 });
+
+test.describe('M1-17 UI list @screens', () => {
+  // All three phones: the HUD and the rows must fit 360 px as well as 412 px.
+  for (const preset of ['fresh', 'mid'] as const) {
+    for (const hhmm of ['1300', '2300'] as const) {
+      test(`ui ${preset} ${hhmm}: HUD, tabs and rows over the world`, async ({ page }, testInfo) => {
+        const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+        await gotoReady(page, `/?time=${time}&freeze&seed=1&state=${preset}&ui=1`);
+        await page.evaluate(() => document.fonts.ready);
+        await expect(page.getByRole('tab', { name: 'Хутір' })).toHaveAttribute('aria-selected', 'true');
+        await shoot(page, testInfo, `ui-${preset}-farm-${hhmm}`);
+        await page.getByRole('tab', { name: 'Січ' }).click();
+        await expect(page.getByText('Найняти козака')).toBeVisible();
+        await shoot(page, testInfo, `ui-${preset}-sich-${hhmm}`);
+      });
+    }
+  }
+
+  test('ui buy: a click raises the level and the HUD follows', async ({ page }) => {
+    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=fresh&ui=1');
+    await page.getByRole('button', { name: /Пшеничне поле/ }).click();
+    await expect(page.getByText('Рів. 1', { exact: true })).toBeVisible();
+    await expect(page.getByText('+0,5/с', { exact: true })).toBeVisible();
+  });
+});

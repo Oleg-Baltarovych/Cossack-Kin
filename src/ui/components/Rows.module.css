@@ -1,0 +1,98 @@
+/* Building rows: text on the left, the buy button on the right (≥ 44 pt tap target). */
+.row {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--px));
+  padding: calc(5 * var(--px)) calc(6 * var(--px));
+  border-bottom: var(--px) solid var(--c-wood-1);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: calc(3 * var(--px));
+}
+
+.head,
+.note {
+  margin: 0;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(4 * var(--px));
+}
+
+.name {
+  color: var(--c-plaster-5);
+}
+
+.level {
+  flex: none;
+  color: var(--c-thatch-5);
+}
+
+.info {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: calc(2 * var(--px)) calc(6 * var(--px));
+}
+
+.income {
+  color: var(--c-grass-6);
+}
+
+.milestone {
+  color: var(--c-gold-4);
+}
+
+.desc {
+  color: var(--c-plaster-3);
+  line-height: 1.4;
+}
+
+.note {
+  color: var(--c-sky-6);
+}
+
+/* An unlock condition: cool and quiet, unlike the warm «not enough». The text itself says which it is. */
+.locked {
+  margin: 0;
+  color: var(--c-stone-5);
+}
+
+.buy {
+  flex: none;
+  width: calc(112 * var(--px));
+  min-height: 44px;
+  padding: calc(3 * var(--px));
+  font: inherit;
+  line-height: 1.4;
+  color: var(--c-ink-0);
+  background: var(--c-gold-4);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
+    inset 0 var(--px) 0 var(--c-gold-5);
+  cursor: pointer;
+}
+
+.buy:active:not(:disabled) {
+  transform: translateY(calc(2 * var(--px)));
+  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+}
+
+.buy:disabled {
+  color: var(--c-stone-6);
+  background: var(--c-stone-2);
+  box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1);
+  cursor: default;
+}
+
+.buy:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
+}
