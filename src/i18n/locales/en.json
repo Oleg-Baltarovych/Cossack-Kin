@@ -34,5 +34,10 @@
   "sich.special.khortytsia.desc": "Lookouts see the enemy from afar: more defence.",
   "wind.calm": "Calm",
   "wind.breeze": "Breeze",
-  "wind.storm": "Storm"
+  "wind.storm": "Storm",
+  "time.hours": {
+    "one": "{count} hour",
+    "other": "{count} hours"
+  },
+  "return.away": "You were away {time}"
 }
