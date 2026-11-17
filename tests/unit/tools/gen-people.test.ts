@@ -3,7 +3,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import kozak, { KOZAK_GROUND } from '../../../assets-src/gen/khortytsia/kozak/index.ts';
+import divchyna from '../../../assets-src/gen/khortytsia/divchyna/index.ts';
 import selianka, { SELIANKA_GROUND } from '../../../assets-src/gen/khortytsia/selianka/index.ts';
+import selianyn from '../../../assets-src/gen/khortytsia/selianyn/index.ts';
 import { checkMask, paintDoll, type Outfit } from '../../../assets-src/gen/lib/doll.ts';
 import { loadPalette, type Palette } from '../../../assets-src/gen/lib/palette.ts';
 import { Plot } from '../../../assets-src/gen/lib/plot.ts';
@@ -72,7 +74,9 @@ const alphaKey = (f: FrameImage): string =>
 describe.each([
   { gen: selianka, ground: SELIANKA_GROUND },
   { gen: kozak, ground: KOZAK_GROUND },
-])('$gen.id (ART-06)', ({ gen, ground }) => {
+  { gen: divchyna, ground: SELIANKA_GROUND },
+  { gen: selianyn, ground: KOZAK_GROUND },
+])('$gen.id (ART-06, ART-15)', ({ gen, ground }) => {
   const frames = render(gen);
   const base = frames.filter((f) => !f.name.includes('@'));
 
@@ -94,5 +98,23 @@ describe.each([
     if (!a || !b) throw new Error('missing variant frames');
     expect(alphaKey(a)).toBe(alphaKey(b));
     expect(key(a)).not.toBe(key(b));
+  });
+});
+
+describe('the five villagers (ART-15) differ in silhouette, not only in clothes', () => {
+  const idle = (gen: SpriteGenerator, variant: string): FrameImage => {
+    const f = render(gen).find((x) => x.name === `${gen.id}.${variant}/idle/00`);
+    if (!f) throw new Error(`no ${gen.id}.${variant}/idle/00`);
+    return f;
+  };
+  it('woman in a kerchief, girl with a wreath, farmer in a свита, Cossack with оселедець, Cossack in a шапка', () => {
+    const shapes = [
+      idle(selianka, 'a'),
+      idle(divchyna, 'a'),
+      idle(selianyn, 'a'),
+      idle(kozak, 'c'),
+      idle(kozak, 'a'),
+    ].map(alphaKey);
+    expect(new Set(shapes).size).toBe(5);
   });
 });

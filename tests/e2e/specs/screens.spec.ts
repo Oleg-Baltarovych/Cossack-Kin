@@ -390,3 +390,19 @@ test.describe('ART-14 vegetation and wind @screens', () => {
     expect(topRow).toBeGreaterThan(still.height * 0.42);
   });
 });
+
+test.describe('ART-15 villagers @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // The farm's t0..t5 are the ART-06 walk frames (now with the five types); the Sich gets its own six steps.
+  for (let step = 0; step <= 5; step++) {
+    test(`khortytsia sich 1300 clear t${String(step)}: Cossacks on the pixel grid, within budget`, async ({
+      page,
+    }, testInfo) => {
+      await gotoReady(page, `/?time=13:00&freeze=${(step / 10).toFixed(1)}&seed=1&zone=sich`);
+      const scale = await expectWebGlWithinBudget(page);
+      const png = await shoot(page, testInfo, `khortytsia-sich-1300-clear-t${String(step)}`);
+      expectPixelGrid(png, testInfo, scale, 0);
+    });
+  }
+});

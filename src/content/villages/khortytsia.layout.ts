@@ -80,7 +80,16 @@ export interface Decal {
 /** A person on a scripted route (ART-06 spike; villager FSM and path graph come in M2). */
 export interface Walker {
   /** Atlas frame stem `<entity>.<variant>` (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/…`). */
-  readonly sprite: 'kozak.a' | 'kozak.b' | 'selianka.a' | 'selianka.b';
+  readonly sprite:
+    | 'kozak.a'
+    | 'kozak.b'
+    | 'kozak.c'
+    | 'selianka.a'
+    | 'selianka.b'
+    | 'divchyna.a'
+    | 'divchyna.b'
+    | 'selianyn.a'
+    | 'selianyn.b';
   /** Route ends (world x of the pivot); equal ends = stands in idle. */
   readonly x0: number;
   readonly x1: number;
@@ -208,12 +217,15 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'plant.grass', x: 750, ground: 379, amp: 1, phase: 0.8 },
   ],
   walkers: [
-    // A Cossack walking the road; a woman between the two yards; a second Cossack resting by khata I.
+    // A Cossack walking the road; a woman between the two yards; the farmer (селянин, бриль and свита) resting on
+    // the grass in front of khata I's fence (not over the wattle: brown on brown); a girl with a вінок crossing the
+    // front field (ART-15).
     { sprite: 'kozak.a', x0: 40, x1: 340, ground: 146, speed: 22, rest: 3, phase: 0 },
     { sprite: 'selianka.a', x0: 230, x1: 150, ground: 198, speed: 20, rest: 4, phase: 0.4 },
     // A woman tending the sunflowers at the near edge: she passes behind the foreground clumps (they thin out over her).
     { sprite: 'selianka.b', x0: 24, x1: 110, ground: 300, speed: 14, rest: 5, phase: 0 },
-    { sprite: 'kozak.b', x0: 158, x1: 158, ground: 108, speed: 0, rest: 0, phase: 0.2 },
+    { sprite: 'selianyn.a', x0: 160, x1: 160, ground: 128, speed: 0, rest: 0, phase: 0.2 },
+    { sprite: 'divchyna.a', x0: 110, x1: 236, ground: 232, speed: 18, rest: 3, phase: 1.2 },
   ],
   // The Dnipro between the far bank and the farm: it covers the far meadow row but the near bank below it.
   waterRows: 26,
@@ -309,7 +321,8 @@ export const KHORTYTSIA_SICH: SceneLayout = {
   walkers: [
     { sprite: 'kozak.a', x0: 150, x1: 250, ground: 226, speed: 22, rest: 3, phase: 0 },
     { sprite: 'kozak.b', x0: 222, x1: 222, ground: 96, speed: 0, rest: 0, phase: 0.3 },
-    { sprite: 'kozak.a', x0: 330, x1: 30, ground: 150, speed: 20, rest: 5, phase: 1.1 },
+    // The young Cossack (bare head, оселедець) crossing the maidan (ART-15).
+    { sprite: 'kozak.c', x0: 330, x1: 30, ground: 150, speed: 20, rest: 5, phase: 1.1 },
   ],
   // Only grass at the Sich's trodden edge: no gardens inside the walls.
   foreground: [
