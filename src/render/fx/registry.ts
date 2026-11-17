@@ -21,3 +21,25 @@ export class ParticleRegistry {
 
 /** The one registry all emitters report to. */
 export const particles = new ParticleRegistry();
+
+/** A share of the registry held by one emitter: `set(n)` claims n live particles (adjusting by the difference). */
+export interface ParticleClaim {
+  set(count: number): void;
+  release(): void;
+}
+
+export function claimParticles(registry: ParticleRegistry = particles): ParticleClaim {
+  let held = 0;
+  return {
+    set(count) {
+      const n = Math.max(0, Math.floor(count));
+      if (n > held) registry.acquire(n - held);
+      else if (n < held) registry.release(held - n);
+      held = n;
+    },
+    release() {
+      registry.release(held);
+      held = 0;
+    },
+  };
+}

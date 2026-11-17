@@ -8,9 +8,10 @@
 //   scene. Ungraded, so every palette color reaches the canvas unchanged (the @screens swatch check).
 import { Container, Sprite, Texture } from 'pixi.js';
 import type { SceneLayout } from '../content/villages/khortytsia.layout.ts';
-import { FIRE } from './atmosphere/config.ts';
+import { FIRE, QUALITY_TIERS } from './atmosphere/config.ts';
 import { sparks } from './atmosphere/nightLights.ts';
-import { particles } from './fx/registry.ts';
+import { claimParticles } from './fx/registry.ts';
+import type { Quality } from './settings.ts';
 import { propFrames } from './layers/Ground.ts';
 import { horizonY, type LayerSize } from './layers/Layer.ts';
 import { rampColor } from './palette.ts';
@@ -27,6 +28,9 @@ export interface PostGradeOptions {
   /** Frame lookup in the scene atlas; `null` when the frame does not exist (props without a night mask). */
   readonly frame: (name: string) => Texture | null;
   readonly swatch?: Texture | undefined;
+  readonly quality: Quality;
+  /** «Менше руху»: no sparks (the flame holds one frame through the still `ambient` time). */
+  readonly lessMotion: boolean;
 }
 
 export interface PostGrade {
@@ -36,12 +40,14 @@ export interface PostGrade {
   resize(size: LayerSize): void;
   /** 0..1 emissive opacity. */
   setEmissive(level: number): void;
-  /** Cycles animated emissive frames and moves the sparks (animation seconds). */
+  /** Cycles animated emissive frames and moves the sparks (ambient seconds, 0 under «менше руху»). */
   update(seconds: number): void;
+  /** Sparks per fire by tier (ART-18). */
+  setQuality(quality: Quality): void;
   destroy(): void;
 }
 
-export function createPostGrade({ layout, frame, swatch }: PostGradeOptions): PostGrade {
+export function createPostGrade({ layout, frame, swatch, quality, lessMotion }: PostGradeOptions): PostGrade {
   const container = new Container({ label: 'post-grade' });
   const emissive = new Container({ label: 'emissive' });
   container.addChild(emissive);
@@ -69,8 +75,13 @@ export function createPostGrade({ layout, frame, swatch }: PostGradeOptions): Po
       return s;
     }),
   );
-  const sparkCount = fires.length * FIRE.sparks;
-  particles.acquire(sparkCount);
+  const claim = claimParticles();
+  let sparkLimit = 0;
+  const setQuality = (q: Quality): void => {
+    sparkLimit = lessMotion ? 0 : Math.min(FIRE.sparks, QUALITY_TIERS[q].sparks);
+    claim.set(fires.length * sparkLimit);
+  };
+  setQuality(quality);
   let horizon = 0;
   const debugSwatch = swatch ? new Sprite({ texture: swatch, roundPixels: true }) : null;
   if (debugSwatch) container.addChild(debugSwatch);
@@ -102,13 +113,14 @@ export function createPostGrade({ layout, frame, swatch }: PostGradeOptions): Po
         const list = sparks(seconds, { x: fire.x, y: horizon + fire.ground - FIRE_TOP });
         sparkSprites[f]?.forEach((s, i) => {
           const spark = list[i];
-          s.visible = spark !== undefined;
+          s.visible = spark !== undefined && i < sparkLimit;
           if (spark) s.position.set(spark.x, spark.y);
         });
       });
     },
+    setQuality,
     destroy: () => {
-      particles.release(sparkCount);
+      claim.release();
       container.destroy({ children: true });
     },
   };

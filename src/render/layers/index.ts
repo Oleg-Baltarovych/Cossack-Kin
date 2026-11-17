@@ -9,12 +9,10 @@ import { createLightLayer } from './Light.ts';
 import { createMidLayer } from './Mid.ts';
 import { createSkyLayer } from './Sky.ts';
 import type { Texture } from 'pixi.js';
-import type { Quality } from '../settings.ts';
 
 export type { LayerFrame, LayerId, LayerSize, WorldLayer } from './Layer.ts';
 
 export interface WorldLayerOptions extends GroundLayerOptions {
-  readonly quality: Quality | null;
   /** Scene atlas lookup that returns `null` for a missing frame. */
   readonly findFrame: (name: string) => Texture | null;
 }
@@ -33,6 +31,7 @@ export function createWorldLayers(options: WorldLayerOptions): WorldLayer[] {
       quality: options.quality,
       layout: options.layout,
       findFrame: options.findFrame,
+      lessMotion: options.lessMotion,
     }),
   ];
 }

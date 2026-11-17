@@ -373,9 +373,11 @@ test.describe('ART-14 vegetation and wind @screens', () => {
   test('«менше руху» (?still): the same moment with the plants upright differs only by the sway', async ({
     page,
   }, testInfo) => {
-    await gotoReady(page, '/?time=13:00&freeze=0.6&seed=1&zone=farm');
+    // At t = 0 the ambient time is 0 with or without ?still (ART-18 freezes clouds, water, stars too), so the two
+    // frames differ only where plants lean (phases ≠ 0 lean at t = 0) — never above the land.
+    await gotoReady(page, '/?time=13:00&freeze=0&seed=1&zone=farm');
     const swaying = decodePng(await page.screenshot({ scale: 'device' }));
-    await gotoReady(page, '/?time=13:00&freeze=0.6&seed=1&zone=farm&still');
+    await gotoReady(page, '/?time=13:00&freeze=0&seed=1&zone=farm&still');
     const png = await shoot(page, testInfo, 'khortytsia-farm-1300-clear-sway-still');
     const still = decodePng(png);
     let changed = 0;
@@ -426,4 +428,31 @@ test.describe('ART-17 rain and fog @screens', () => {
       expectPixelGrid(png, testInfo, scale, 0);
     });
   }
+});
+
+test.describe('ART-18 «менше руху» @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  /** Device rows above the horizon (sky, clouds, far planes): no people there, only atmosphere. */
+  const skyRows = async (page: Page, url: string): Promise<Buffer> => {
+    await gotoReady(page, url);
+    const png = decodePng(await page.screenshot({ scale: 'device' }));
+    const rows = Math.floor(png.height * KHORTYTSIA_FARM.horizonRatio) - 4;
+    return Buffer.from(png.data.subarray(0, rows * png.width * 4));
+  };
+
+  test('?still: the atmosphere holds one frame (clouds do not drift), and no particles live', async ({ page }) => {
+    const moving = [
+      await skyRows(page, '/?time=13:00&freeze=1&seed=1&zone=farm'),
+      await skyRows(page, '/?time=13:00&freeze=9&seed=1&zone=farm'),
+    ];
+    expect(moving[0]?.equals(moving[1] ?? Buffer.alloc(0)), 'clouds should drift without ?still').toBe(false);
+    const still = [
+      await skyRows(page, '/?time=13:00&freeze=1&seed=1&zone=farm&still'),
+      await skyRows(page, '/?time=13:00&freeze=9&seed=1&zone=farm&still'),
+    ];
+    expect(still[0]?.equals(still[1] ?? Buffer.alloc(0)), 'the sky moved under ?still').toBe(true);
+    await gotoReady(page, '/?time=23:00&freeze=2&seed=1&zone=farm&weather=rain&still');
+    expect((await readStats(page)).particles).toBe(0);
+  });
 });

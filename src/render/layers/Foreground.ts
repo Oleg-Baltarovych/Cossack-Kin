@@ -47,7 +47,7 @@ export function createForegroundLayer({ layout, frame, lessMotion }: ForegroundL
         horizon = horizonY(size.viewH);
         for (const { plant, sprite } of plants) sprite.position.set(plant.x, horizon + plant.ground);
       },
-      update: ({ seconds, camX }) => {
+      update: ({ seconds, ambient, camX }) => {
         // Walkers in this layer's space: the ground scrolls by camX, this layer by camX × parallax.
         const shift = camX * (FOREGROUND.parallax - 1);
         const people = layout.walkers.flatMap((w, i) => {
@@ -55,7 +55,7 @@ export function createForegroundLayer({ layout, frame, lessMotion }: ForegroundL
           return texture ? [box(texture, walkerPose(w, seconds).x + shift, horizon + w.ground)] : [];
         });
         for (const { plant, frames, sprite } of plants) {
-          const texture = frames[swayFrame(seconds, plant, WIND.strength, lessMotion)];
+          const texture = frames[swayFrame(ambient, plant, WIND.strength, lessMotion)];
           if (texture) sprite.texture = texture;
           sprite.alpha = foregroundAlpha(box(sprite.texture, sprite.x, sprite.y), people);
         }

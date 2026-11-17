@@ -24,11 +24,12 @@ import {
   RAY_LOOKS,
   RAYS,
   POOLS,
+  QUALITY_TIERS,
   WINDOW_POOL,
 } from '../atmosphere/config.ts';
 import { emissiveLevel } from '../atmosphere/emissive.ts';
 import { fireflies, flicker, paintPool } from '../atmosphere/nightLights.ts';
-import { particles } from '../fx/registry.ts';
+import { claimParticles } from '../fx/registry.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { lutBucket } from '../atmosphere/grading.ts';
 import { paintHazeBand, planeProfile, type Profile } from '../atmosphere/landscapePaint.ts';
@@ -99,19 +100,24 @@ export interface LightLayerOptions {
   readonly layout: SceneLayout;
   /** Scene atlas lookup, `null` for a missing frame (which props have a night mask, and their width). */
   readonly findFrame: (name: string) => Texture | null;
+  /** «Менше руху»: no dust, fireflies or splashes; everything else holds a still frame (ART-18). */
+  readonly lessMotion: boolean;
 }
 
-export function createLightLayer({ weather, quality, layout, findFrame }: LightLayerOptions): WorldLayer {
-  const variant = rayVariant(quality);
-  const tier = variant === 'occlusion-full' ? RAYS.high : RAYS.med;
+export function createLightLayer({ weather, quality, layout, findFrame, lessMotion }: LightLayerOptions): WorldLayer {
+  // Mutable: the auto-detect may switch the tier once (ART-18); the shafts are rebuilt on the next resize.
+  let variant = rayVariant(quality);
+  let tier: typeof RAYS.high | typeof RAYS.med = variant === 'occlusion-full' ? RAYS.high : RAYS.med;
+  let budget = QUALITY_TIERS[quality ?? 'med'];
   return createLayer('light', 0, (container) => {
     const haze = new Sprite({ roundPixels: true, label: 'haze-band' });
-    const rays = new Container({ label: `rays-${variant}` });
+    const rays = new Container({ label: 'rays' });
     const dust = new Container({ label: 'dust' });
     const night = new Container({ label: 'light-pools' });
     const flyLayer = new Container({ label: 'fireflies' });
     // Rain (ART-17) after the pools: normal blend, so haze, pools and rain are one batch.
     const rain = weather === 'rain' ? createRain(layout) : null;
+    rain?.setBudget(lessMotion ? 0 : budget.splashes, budget.rainFar);
     container.addChild(haze, night, ...(rain ? [rain.container] : []), rays, dust, flyLayer);
     // Light pools: one texture per size, shared by the sprites (fire: round; windows: flat, by the building's width).
     const poolTextures = new Map<string, CpuTexture>();
@@ -161,7 +167,17 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
           return m;
         })
       : [];
-    particles.acquire(flies.length);
+    // Particle limits by tier (0 under «менше руху»), computed once per tier change. The claim is the tier's ceiling
+    // (dust only shows in shafts, fireflies only at night): the budget check is against the worst case.
+    const claim = claimParticles();
+    let dustLimit = 0;
+    let flyLimit = 0;
+    const applyBudget = (): void => {
+      dustLimit = lessMotion ? 0 : Math.min(RAYS.dust, budget.dust);
+      flyLimit = lessMotion ? 0 : Math.min(flies.length, budget.fireflies);
+      claim.set(dustLimit + flyLimit);
+    };
+    applyBudget();
     let hazeBuf: CpuTexture | null = null;
     let shaftBuf: CpuTexture | null = null;
     let beams: { tex: CpuTexture; sprite: Sprite }[] = [];
@@ -202,7 +218,7 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
     };
     const dispose = (): void => {
       free();
-      particles.release(flies.length);
+      claim.release();
       rain?.dispose();
       for (const tex of poolTextures.values()) tex.texture.destroy(true);
       flyPeak.destroy(true);
@@ -241,33 +257,43 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
       };
     };
 
+    const rebuild = (s: LayerSize): void => {
+      free();
+      size = s;
+      horizon = horizonY(s.viewH);
+      haze.y = horizon - lead;
+      rain?.resize(s, horizon);
+      hazeBuf = cpuTexture(s.viewW, MAX_ROWS);
+      haze.texture = hazeBuf.texture;
+      hazeKey = '';
+      beamKey = '';
+      shaftKey = '';
+      shaftMap = null;
+      grid = null;
+      profiles = layout.farPlanes.map((plane) => {
+        const parallax = plane.layer === 'far' ? 0.2 : 0.5;
+        return { plane, parallax, profile: planeProfile(plane, contentWidth(parallax, s)) };
+      });
+      if (variant !== 'beams') {
+        shaftBuf = cpuTexture(Math.ceil(s.viewW / tier.scale), Math.ceil(s.viewH / tier.scale));
+        const sprite = new Sprite({ texture: shaftBuf.texture, roundPixels: true });
+        sprite.scale.set(tier.scale);
+        sprite.blendMode = ADD;
+        rays.addChild(sprite);
+      }
+    };
+
     return {
-      resize: (s) => {
-        free();
-        size = s;
-        horizon = horizonY(s.viewH);
-        haze.y = horizon - lead;
-        rain?.resize(s, horizon);
-        hazeBuf = cpuTexture(s.viewW, MAX_ROWS);
-        haze.texture = hazeBuf.texture;
-        hazeKey = '';
-        beamKey = '';
-        shaftKey = '';
-        shaftMap = null;
-        grid = null;
-        profiles = layout.farPlanes.map((plane) => {
-          const parallax = plane.layer === 'far' ? 0.2 : 0.5;
-          return { plane, parallax, profile: planeProfile(plane, contentWidth(parallax, s)) };
-        });
-        if (variant !== 'beams') {
-          shaftBuf = cpuTexture(Math.ceil(s.viewW / tier.scale), Math.ceil(s.viewH / tier.scale));
-          const sprite = new Sprite({ texture: shaftBuf.texture, roundPixels: true });
-          sprite.scale.set(tier.scale);
-          sprite.blendMode = ADD;
-          rays.addChild(sprite);
-        }
+      resize: rebuild,
+      setQuality: (q) => {
+        variant = rayVariant(q);
+        tier = variant === 'occlusion-full' ? RAYS.high : RAYS.med;
+        budget = QUALITY_TIERS[q];
+        rain?.setBudget(lessMotion ? 0 : budget.splashes, budget.rainFar);
+        applyBudget();
+        if (size) rebuild(size);
       },
-      update: ({ minutes, seconds, cycle, camX }) => {
+      update: ({ minutes, ambient: seconds, cycle, camX }) => {
         if (!size || !hazeBuf) return;
         const bucket = `${String(lutBucket(minutes))}:${cycle.keyA}:${cycle.keyB}`;
         if (bucket !== hazeKey) {
@@ -304,7 +330,7 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
             });
             flies.forEach((m, i) => {
               const fly = list[i];
-              m.visible = fly !== undefined && fly.on;
+              m.visible = fly !== undefined && fly.on && i < flyLimit;
               m.texture = fly?.peak ? flyPeak : Texture.WHITE;
               // Whole px, top-left anchored: the 3×3 peak sits one px up-left so its centre stays on the firefly.
               if (fly) m.position.set(fly.x + offset - (fly.peak ? 1 : 0), fly.y - (fly.peak ? 1 : 0));
@@ -398,7 +424,7 @@ export function createLightLayer({ weather, quality, layout, findFrame }: LightL
         const list = dustMotes(sun, RAYS.reach, RAYS.dust, seconds, lit);
         motes.forEach((m, i) => {
           const mote = list[i];
-          m.visible = mote !== undefined && mote.glow > 0;
+          m.visible = mote !== undefined && mote.glow > 0 && i < dustLimit;
           if (!mote || !m.visible) return;
           m.position.set(mote.x, mote.y);
           m.tint = look.dust;

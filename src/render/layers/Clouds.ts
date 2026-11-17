@@ -92,7 +92,7 @@ export function createCloudsLayer({ frame, weather }: CloudsLayerOptions): World
     };
     return {
       resize,
-      update: ({ seconds, cycle }) => {
+      update: ({ ambient: seconds, cycle }) => {
         const look = cloudLook(cycle, weather);
         for (const { cloud, body, rim, alpha } of sprites) {
           const x = cloudX(cloud, seconds, span);

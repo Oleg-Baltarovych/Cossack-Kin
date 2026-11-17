@@ -9,7 +9,7 @@ import { layerOffset } from '../camera.ts';
 import { RAIN, RAIN_LOOKS, WET, type SkyKeyId } from '../atmosphere/config.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { paintStreakTile, splashes, streakOffset } from '../atmosphere/rain.ts';
-import { particles } from '../fx/registry.ts';
+import { claimParticles } from '../fx/registry.ts';
 import { rampColor } from '../palette.ts';
 import type { LayerSize } from './Layer.ts';
 
@@ -59,6 +59,8 @@ export interface Rain {
   readonly container: Container;
   resize(size: LayerSize, horizon: number): void;
   update(seconds: number, cycle: DayCycle, camX: number): void;
+  /** Tier budget (ART-18): splashes shown (0 under «менше руху») and whether the far streak layer draws. */
+  setBudget(splashes: number, far: boolean): void;
   dispose(): void;
 }
 
@@ -102,7 +104,9 @@ export function createRain(layout: SceneLayout): Rain {
     splashLayer.addChild(s);
     return s;
   });
-  particles.acquire(drops.length);
+  const claim = claimParticles();
+  let splashLimit = drops.length;
+  claim.set(splashLimit);
   let size: LayerSize | null = null;
   let horizon = 0;
 
@@ -154,7 +158,7 @@ export function createRain(layout: SceneLayout): Rain {
       const list = splashes(seconds, { x0: 0, x1: size.viewW, y0: horizon, y1: size.viewH, water: layout.waterRows });
       drops.forEach((d, i) => {
         const s = list[i];
-        d.visible = s !== undefined;
+        d.visible = s !== undefined && i < splashLimit;
         if (!s) return;
         d.tint = s.kind === 'ripple' ? ripple : streak;
         if (s.stage === 0) {
@@ -169,8 +173,13 @@ export function createRain(layout: SceneLayout): Rain {
         }
       });
     },
+    setBudget: (splashes, showFar) => {
+      splashLimit = Math.min(drops.length, splashes);
+      claim.set(splashLimit);
+      far.visible = showFar;
+    },
     dispose: () => {
-      particles.release(drops.length);
+      claim.release();
       container.destroy({ children: true });
       for (const t of owned) t.destroy(true);
     },
