@@ -10,6 +10,7 @@ import { bulkCost, buyCount, tier, type BuyMode } from './economy.ts';
 import type { GameEvent, RejectReason } from './events.ts';
 import { collectModifiers, farmIncomeRate, sichUnlocked, villageOf } from './modifiers.ts';
 import type { GameState, Lang, NumberFormat } from './state.ts';
+import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
 
 export type Action =
@@ -123,21 +124,7 @@ function tap(s: GameState, now: number): ActionResult | null {
 }
 
 function claimReturn(s: GameState): ActionResult | RejectReason {
-  const r = s.returnReport;
-  if (!r) return 'noReport';
-  return {
-    state: {
-      ...s,
-      currencies: {
-        ...s.currencies,
-        ducats: s.currencies.ducats.add(r.ducats),
-        glory: s.currencies.glory.add(r.glory),
-      },
-      village: { ...s.village, lifetimeDucats: s.village.lifetimeDucats.add(r.ducats) },
-      returnReport: null,
-    },
-    events: [{ type: 'ReturnClaimed', ducats: r.ducats, glory: r.glory }],
-  };
+  return s.returnReport ? creditReport(s) : 'noReport';
 }
 
 /** Advances to `now`, then applies `action`; refusals come back as `ActionRejected` with the state unchanged. */
