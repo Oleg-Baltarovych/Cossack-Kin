@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
 import { advance } from '../../../src/core/advance.ts';
 import { Big } from '../../../src/core/big.ts';
+import type { GameEvent } from '../../../src/core/events.ts';
 import { createRng, next } from '../../../src/core/rng.ts';
 import { collectModifiers, farmIncomeRate } from '../../../src/core/modifiers.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { stormStarts, windBreakpoints } from '../../../src/core/systems/village-mechanics/wind.ts';
 
+type WindChanged = Extract<GameEvent, { type: 'WindChanged' }>;
 const T0 = 1_763_400_000_000;
 const HOUR = 3600 * 1000;
 const relDiff = (a: Big, b: Big): number => {
@@ -83,8 +85,9 @@ describe('advance(state, now) (M1-09)', () => {
   it('emits WindChanged at every wind breakpoint, in order', () => {
     const s = midGame(4);
     const end = T0 + 12 * HOUR;
-    // advance emits only WindChanged in M1-09 (the union grows with M1-10…12); filter by type once it has more members.
-    const changes = advance(s, end).events;
+    const events = advance(s, end).events;
+    const changes = events.filter((e): e is WindChanged => e.type === 'WindChanged');
+    expect(changes).toHaveLength(events.length); // advance itself emits nothing else
     expect(changes.map((e) => e.at)).toEqual(windBreakpoints(s.seed, T0, end));
     for (const e of changes) expect(e.from).not.toBe(e.to);
   });

@@ -2,7 +2,7 @@
 // migration. Derived values (kharch, defence, tier, wind, «unlocked») are computed, never stored.
 // `validateState` is the gate a save passes through: it takes the JSON form (Big values as strings), rejects anything
 // it does not know, and returns a typed error instead of throwing (rules: save.md, security.md).
-import { FARM, OFFLINE, SICH, START } from '../content/economy.ts';
+import { FARM, OFFLINE, SICH, START, TAP } from '../content/economy.ts';
 import { SAVE_MAX_EXPONENT } from '../content/numbers.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../content/sich.ts';
 import { FARM_BUILDING_IDS, type FarmBuildingId } from '../content/villages/khortytsia.ts';
@@ -52,6 +52,8 @@ export interface GameState {
   readonly army: { readonly infantry: number };
   readonly returnReport: ReturnReport | null;
   readonly stats: { readonly taps: number; readonly purchases: number };
+  /** Taps counted in the current second (TAP.maxPerSec, plan Q8): the second's start (ms) and the count so far. */
+  readonly tapWindow: { readonly start: number; readonly count: number };
   readonly settings: { readonly lang: Lang; readonly numberFormat: NumberFormat };
 }
 
@@ -80,6 +82,7 @@ export function createInitialState({ seed, now }: { seed: number; now: number })
     army: { infantry: 0 },
     returnReport: null,
     stats: { taps: 0, purchases: 0 },
+    tapWindow: { start: now, count: 0 },
     settings: { lang: START.lang, numberFormat: START.numberFormat },
   };
 }
@@ -190,6 +193,7 @@ const ROOT_KEYS = [
   'army',
   'returnReport',
   'stats',
+  'tapWindow',
   'settings',
 ] as const;
 
@@ -209,6 +213,7 @@ function parse(raw: unknown): GameState {
   const army = object(root['army'], '$.army', ['infantry']);
   const stats = object(root['stats'], '$.stats', ['taps', 'purchases']);
   const settings = object(root['settings'], '$.settings', ['lang', 'numberFormat']);
+  const tw = object(root['tapWindow'], '$.tapWindow', ['start', 'count']);
   return {
     version: STATE_VERSION,
     seed: int(root['seed'], '$.seed', 0, UINT32_MAX),
@@ -235,6 +240,10 @@ function parse(raw: unknown): GameState {
     stats: {
       taps: int(stats['taps'], '$.stats.taps', 0, MAX_INT),
       purchases: int(stats['purchases'], '$.stats.purchases', 0, MAX_INT),
+    },
+    tapWindow: {
+      start: int(tw['start'], '$.tapWindow.start', 0, MAX_DATE_MS),
+      count: int(tw['count'], '$.tapWindow.count', 0, TAP.maxPerSec),
     },
     settings: {
       lang: oneOf(settings['lang'], '$.settings.lang', LANGS),
