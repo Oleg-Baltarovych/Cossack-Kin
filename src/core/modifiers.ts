@@ -102,5 +102,6 @@ export function collectModifiers(state: GameState, now: number): Modifiers {
 
 /** Ducats per second of the farm and suburb under `mods`. */
 export function farmIncomeRate(state: GameState, mods: Modifiers): Big {
-  return incomeRate(state.village.levels, villageOf(state), (id) => mods.buildingMult[id]).mul(mods.incomeMult);
+  // incomeMult folded into the per-building number product: one Big conversion per call (M1-09 review).
+  return incomeRate(state.village.levels, villageOf(state), (id) => mods.buildingMult[id] * mods.incomeMult);
 }
