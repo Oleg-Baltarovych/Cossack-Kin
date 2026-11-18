@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cameraBounds, clampCamX, layerOffset, split } from '../../../src/render/camera.ts';
+import { cameraBounds, clampCamX, layerOffset, levelView, skyShift, split } from '../../../src/render/camera.ts';
+import { computeViewport, worldTargetSize } from '../../../src/render/viewport.ts';
 
 // Plan §0 / M0-04: the world moves by whole logical px inside worldRT; the remainder becomes a
 // whole number of device px applied to the upscale sprite.
@@ -72,5 +73,61 @@ describe('layerOffset', () => {
     expect(layerOffset(11, 0.5)).toBe(-6);
     expect(layerOffset(10, 1.2)).toBe(-12);
     expect(Object.is(layerOffset(10, 0), 0)).toBe(true);
+  });
+});
+
+// Plan M2-03: both zoom levels show a window of the same worldRT (laid out at the normal level). The closer level
+// scales it by s+1 and may move vertically (camera y) inside the normal frame.
+describe('levelView', () => {
+  const PHONES = [
+    [1170, 2532],
+    [1080, 2400],
+    [1442, 3202],
+  ] as const;
+
+  it('normal level: the whole frame, no vertical room', () => {
+    const vp = computeViewport(1170, 2532, 1);
+    expect(levelView(vp, 0, 1920)).toEqual({ scale: 3, viewW: 390, maxY: 0, bounds: { minX: 0, maxX: 1530 } });
+  });
+
+  it('closer level on 390×844 @3: ×4, 293 visible columns, 211 rows of vertical room', () => {
+    const vp = computeViewport(1170, 2532, 1);
+    // visible: ceil(1170 / 4) = 293 columns, ceil(2532 / 4) = 633 rows of the 844-row frame.
+    expect(levelView(vp, 1, 1920)).toEqual({ scale: 4, viewW: 293, maxY: 211, bounds: { minX: 0, maxX: 1627 } });
+  });
+
+  it.each(PHONES)('%i×%i: worldRT covers the closer window at every camera x/y in bounds', (deviceW, deviceH) => {
+    const vp = computeViewport(deviceW, deviceH, 1);
+    const rt = worldTargetSize(vp);
+    const { scale, maxY } = levelView(vp, 1, 1920);
+    for (let frac = 0; frac < scale; frac++) expect(rt.width * scale - frac).toBeGreaterThanOrEqual(deviceW);
+    // The lowest window still reaches the bottom of the screen inside worldRT.
+    expect((rt.height - maxY) * scale).toBeGreaterThanOrEqual(deviceH);
+    expect(maxY).toBeGreaterThan(0);
+  });
+});
+
+// Review (art-director, M2-03): at the closer level the sky band moves down by just enough whole rows to keep the
+// sun/moon disc in the window (translation only), never more than camera y, never below the horizon.
+describe('skyShift', () => {
+  const HORIZON = 355;
+  const MARGIN = 12;
+
+  it('nothing at the normal level or with the disc already in the window', () => {
+    expect(skyShift({ camY: 0, discRow: 32, horizon: HORIZON, margin: MARGIN })).toBe(0);
+    expect(skyShift({ camY: 106, discRow: 305, horizon: HORIZON, margin: MARGIN })).toBe(0);
+    expect(skyShift({ camY: 106, discRow: null, horizon: HORIZON, margin: MARGIN })).toBe(0);
+  });
+
+  it('a high noon sun is brought down into the window with a margin', () => {
+    const k = skyShift({ camY: 106, discRow: 32, horizon: HORIZON, margin: MARGIN });
+    expect(k).toBe(106 + MARGIN - 32);
+    expect(Number.isInteger(k)).toBe(true);
+  });
+
+  it('never more than camera y, never pushes the disc under the horizon', () => {
+    expect(skyShift({ camY: 20, discRow: 0, horizon: HORIZON, margin: MARGIN })).toBe(20);
+    expect(skyShift({ camY: 211, discRow: 200, horizon: 230, margin: MARGIN })).toBe(230 - MARGIN - 200);
+    expect(skyShift({ camY: 211, discRow: 300, horizon: 230, margin: MARGIN })).toBe(0);
   });
 });

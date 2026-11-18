@@ -2,6 +2,8 @@
 // The world moves inside worldRT by whole logical px only; the sub-pixel remainder is applied as a
 // whole number of device px to the upscale sprite, so every logical px stays a `scale × scale` block.
 
+import type { Viewport, ZoomLevel } from './viewport.ts';
+
 export interface CameraSplit {
   /** Whole logical px the world is shifted by inside worldRT. */
   readonly worldPx: number;
@@ -22,6 +24,47 @@ export function cameraBounds(worldW: number, viewW: number): CameraBounds {
 export function clampCamX(camX: number, bounds: CameraBounds): number {
   if (!Number.isFinite(camX)) return bounds.minX;
   return Math.min(bounds.maxX, Math.max(bounds.minX, camX));
+}
+
+/**
+ * What the camera may show at one zoom level (plan M2-03). worldRT is always laid out for the normal level; a level
+ * shows a window of it at its own integer scale: `viewW` visible columns (ceil, as the bounds), and camera y in
+ * [0, maxY] logical px from the top of the normal frame (0 at the normal level, which shows the whole frame).
+ */
+export interface LevelView {
+  readonly scale: number;
+  readonly bounds: CameraBounds;
+  readonly viewW: number;
+  readonly maxY: number;
+}
+
+/** The view of zoom level `zoom` for the normal viewport `normal` (device size + normal scale). */
+export function levelView(
+  normal: Pick<Viewport, 'deviceW' | 'deviceH' | 'scale'>,
+  zoom: ZoomLevel,
+  worldW: number,
+): LevelView {
+  const scale = normal.scale + zoom;
+  const viewW = Math.ceil(normal.deviceW / scale);
+  const maxY = Math.max(0, Math.ceil(normal.deviceH / normal.scale) - Math.ceil(normal.deviceH / scale));
+  return { scale, bounds: cameraBounds(worldW, viewW), viewW, maxY };
+}
+
+/**
+ * Closer level (M2-03 review, art-director): rows to move the sky band down so the shown disc (sun, else moon; centre
+ * row `discRow` of the band, `null` = none) stays in the window that starts at row `camY` — translation only, whole
+ * rows, at most `camY` (the normal frame's sky never moves), never pushing the disc closer than `margin` to `horizon`.
+ */
+export function skyShift(o: {
+  readonly camY: number;
+  readonly discRow: number | null;
+  readonly horizon: number;
+  readonly margin: number;
+}): number {
+  if (o.discRow === null || o.camY <= 0) return 0;
+  const needed = Math.round(o.camY) + o.margin - o.discRow;
+  const room = o.horizon - o.margin - o.discRow;
+  return Math.max(0, Math.min(Math.round(o.camY), needed, room));
 }
 
 /** Splits a (possibly fractional) camera x in logical px into a world shift and a device-px remainder. */

@@ -19,7 +19,7 @@ describe('parseDebugParams — valid', () => {
 
   it('parses the full screenshot URL', () => {
     const params = parseDebugParams(
-      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5&still',
+      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5&zoom=1&still',
       'test',
     );
     expect(params).toEqual({
@@ -32,6 +32,7 @@ describe('parseDebugParams — valid', () => {
       quality: 'low',
       overlay: true,
       cam: 10.5,
+      zoom: 1,
       still: true,
     });
     expect(warn).not.toHaveBeenCalled();
@@ -80,6 +81,8 @@ describe('parseDebugParams — invalid → default + console.warn', () => {
     ['overlay=maybe', 'overlay'],
     ['cam=left', 'cam'],
     ['cam=Infinity', 'cam'],
+    ['zoom=2', 'zoom'],
+    ['zoom=-1', 'zoom'],
   ] as const)('%s', (query, key) => {
     const params = parseDebugParams(`?${query}`, 'development');
     expect(params[key]).toEqual(DEBUG_DEFAULTS[key]);
@@ -171,7 +174,7 @@ describe('timeToMinutes / toRenderSettings', () => {
 
   it('maps every param', () => {
     const settings = toRenderSettings(
-      parseDebugParams('?seed=2&freeze=12.5&time=13:00&overlay&cam=10.5&still', 'test'),
+      parseDebugParams('?seed=2&freeze=12.5&time=13:00&overlay&cam=10.5&zoom=1&still', 'test'),
     );
     expect(settings).toMatchObject({
       seed: 2,
@@ -179,6 +182,7 @@ describe('timeToMinutes / toRenderSettings', () => {
       fixedMinutes: 780,
       showOverlay: true,
       camX: 10.5,
+      zoom: 1,
       lessMotion: true,
     });
   });

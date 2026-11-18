@@ -14,13 +14,20 @@ export interface Viewport {
   readonly deviceH: number;
 }
 
-export function computeViewport(cssW: number, cssH: number, dpr: number): Viewport {
+/**
+ * Zoom level (plan M2-03, Q4): 0 = normal, 1 = closer — the next integer scale (s + 1). Never a fractional scale and
+ * never farther than normal: art and sky are tuned for 320–400 logical px.
+ */
+export type ZoomLevel = 0 | 1;
+
+export function computeViewport(cssW: number, cssH: number, dpr: number, zoom: ZoomLevel = 0): Viewport {
   const ratio = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
   const deviceW = toDevicePx(cssW, ratio);
   const deviceH = toDevicePx(cssH, ratio);
 
   let scale = Math.max(1, Math.floor(deviceW / MIN_LOGICAL_WIDTH));
   if (deviceW / scale > MAX_LOGICAL_WIDTH) scale += 1;
+  scale += zoom;
 
   return {
     scale,

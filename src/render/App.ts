@@ -23,10 +23,12 @@ import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
 import { createGrading, gradeCycle, loadLuts } from './atmosphere/grading.ts';
 import { frame, loadAtlases, type Atlases } from './atlases.ts';
-import { cameraBounds, layerOffset, split } from './camera.ts';
+import { layerOffset, levelView, skyShift, split } from './camera.ts';
+import { skyPixel } from './atmosphere/skyPaint.ts';
 import {
   cancel,
   createMotion,
+  lose,
   glideTo,
   isSettled,
   jumpTo,
@@ -34,6 +36,7 @@ import {
   press,
   release,
   step,
+  zoomTo,
   type CameraView,
   type PointerSample,
 } from './camera/motion.ts';
@@ -49,7 +52,7 @@ import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
 import { AUTO_QUALITY, CAMERA } from './atmosphere/config.ts';
 import { createCoinFx } from './fx/coins.ts';
-import { computeViewport, worldTargetSize, type Viewport } from './viewport.ts';
+import { computeViewport, worldTargetSize, type Viewport, type ZoomLevel } from './viewport.ts';
 
 /** The continuous world of land 1 (plan M2-01): farm → suburb → Sich; `?zone=` only places the camera. */
 const WORLD = KHORTYTSIA_WORLD;
@@ -76,6 +79,7 @@ export interface WorldApp {
   readonly clock: RenderClock;
   /** Cosmetic RNG (seeded by `?seed` in dev/test); never for game state. */
   readonly rng: () => number;
+  /** The viewport on screen: the normal one, or the closer zoom level's (scale + 1, M2-03). */
   viewport(): Viewport;
   /** The quality tier in use (the auto-detect may change it once, ART-18). */
   quality(): Quality;
@@ -85,6 +89,10 @@ export interface WorldApp {
   focusZone(zone: ZoneId): void;
   /** The camera x on screen in the last frame (logical px, a multiple of 1/scale). */
   camX(): number;
+  /** Rows of the normal frame above the screen in the last frame (whole logical px; 0 at the normal level). */
+  camY(): number;
+  /** The zoom level on screen in the last frame (0 normal, 1 closer; pinch / ctrl+wheel, M2-03). */
+  zoom(): ZoomLevel;
   /**
    * Calls `listener` with the zone under the view's centre now and whenever the camera settles in another one
    * (with hysteresis, M2-02: the panel tab follows the camera); returns the unsubscribe function.
@@ -114,6 +122,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
   // Atlases and LUTs first: nothing to clean up if loading fails, and the first frame already has everything.
   const [atlases, luts] = await Promise.all([loadAtlases(), loadLuts()]);
   let vp = measure(host);
+  let closerVp = measure(host, 1);
   const app = new Application();
   await app.init({
     preference: 'webgl',
@@ -235,7 +244,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     let settled = true;
     let scene: SceneState = DEFAULT_SCENE;
     // The camera of the last frame: a tap is read in the frame the player saw.
-    let lastCam = split(motion.x, 1);
+    let lastCam = { ...split(motion.x, vp.scale), scale: vp.scale, y: 0, level: motion.level };
     // Quality (ART-18): a fixed `?quality`, else auto — start at AUTO_QUALITY.start and let the fps probe pick once.
     // No probe under `?freeze`: screenshots must not change tier mid-test.
     let quality: Quality = settings.quality ?? AUTO_QUALITY.start;
@@ -255,13 +264,13 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
 
     const applyViewport = (): void => {
       vp = measure(host);
+      closerVp = measure(host, 1);
       target = worldTargetSize(vp);
       app.renderer.resize(vp.deviceW, vp.deviceH, 1);
       const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
       canvas.style.width = `${String(vp.deviceW / dpr)}px`;
       canvas.style.height = `${String(vp.deviceH / dpr)}px`;
       worldRT.resize(target.width, target.height, 1);
-      upscale.scale.set(vp.scale);
       const size = { viewW: target.width, viewH: target.height, worldW: WORLD.width };
       for (const layer of layers) layer.resize(size);
       post.resize(size);
@@ -270,26 +279,37 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       graded.filterArea = new Rectangle(0, 0, target.width, target.height);
     };
     applyViewport();
-    // Bounds use the visible width ceil(deviceW/scale) = target.width − 1, not logicalW (floor): with
-    // floor, the camera could stop up to one partial column past the world's right edge. The spare
-    // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
+    // Bounds use the visible width ceil(deviceW/scale) (= target.width − 1 at the normal level), not logicalW (floor):
+    // with floor, the camera could stop up to one partial column past the world's right edge. The spare RT column is
+    // only on screen while frac > 0, i.e. strictly inside the bounds. Zoom (M2-03): worldRT and every layer stay laid
+    // out for the normal level; the closer level only shows a window of worldRT at scale + 1 (upscale sprite), so
+    // culling, water, light shafts and the draw-call count are those of the normal level.
     const cameraView = (): CameraView => ({
-      bounds: cameraBounds(WORLD.width, target.width - 1),
-      viewW: target.width - 1,
+      levels: [levelView(vp, 0, WORLD.width), levelView(vp, 1, WORLD.width)],
       lessMotion,
     });
-    zone = zoneAt(WORLD.zones, motion.x + cameraView().viewW / 2, null, CAMERA.zoneHysteresisPx);
+    if (settings.zoom === 1) {
+      // About the screen centre of the `cam`/`zone` framing.
+      motion = zoomTo(motion, 1, { x: vp.deviceW / 2 / vp.scale, y: vp.deviceH / 2 / vp.scale }, cameraView());
+      // Before the first frame (stats, a tap): the camera as it will be drawn.
+      const s = vp.scale + motion.level;
+      lastCam = { ...split(motion.x, s), scale: s, y: Math.round(motion.y), level: motion.level };
+    }
+    zone = zoneAt(WORLD.zones, motion.x + cameraView().levels[motion.level].viewW / 2, null, CAMERA.zoneHysteresisPx);
 
     // Runs at NORMAL priority, i.e. before Application's own stage render (LOW).
     const renderWorld = (): void => {
       const view = cameraView();
       motion = step(motion, performance.now(), view);
-      const cam = split(motion.x, vp.scale, view.bounds);
-      lastCam = cam;
-      // The tab follows the camera once it has settled (not during a drag, coast or glide).
+      const lv = view.levels[motion.level];
+      const cam = split(motion.x, lv.scale, lv.bounds);
+      // Vertical camera in whole logical px: rows stay on the scale×scale grid (row phase 0).
+      const camY = Math.round(motion.y);
+      lastCam = { ...cam, scale: lv.scale, y: camY, level: motion.level };
+      // The tab follows the camera once it has settled (not during a drag, coast, glide or pinch).
       const nowSettled = isSettled(motion);
       if (nowSettled && !settled) {
-        const next = zoneAt(WORLD.zones, motion.x + view.viewW / 2, zone, CAMERA.zoneHysteresisPx);
+        const next = zoneAt(WORLD.zones, motion.x + lv.viewW / 2, zone, CAMERA.zoneHysteresisPx);
         if (next && next !== zone) {
           zone = next;
           for (const l of [...zoneListeners]) l(next);
@@ -299,15 +319,26 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const minutes = clock.minutesOfDay();
       const seconds = clock.seconds();
       const ambient = lessMotion ? 0 : seconds;
+      const cycle = dayCycle(minutes);
+      // Closer level: the sky band moves down just enough to keep the shown disc in the window (art-director, M2-03).
+      const skyH = horizonY(target.height);
+      const disc = cycle.sun.y > 0 ? cycle.sun : cycle.moon.y > 0 ? cycle.moon : null;
+      const skyY = skyShift({
+        camY,
+        discRow: disc ? skyPixel(disc, target.width, skyH).y : null,
+        horizon: skyH,
+        margin: CAMERA.skyDiscMarginPx,
+      });
       const frameInfo = {
         minutes,
         seconds,
         ambient,
-        cycle: dayCycle(minutes),
+        cycle,
         camX: cam.worldPx,
         cameraMoving: !nowSettled,
         nowMs: performance.now(),
         scene,
+        skyY,
       };
       if (probe && !probe.verdict()) {
         probe.sample(performance.now());
@@ -320,13 +351,16 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       for (const layer of layers) {
         layer.update(frameInfo);
         layer.container.x = layerOffset(cam.worldPx, layer.parallax);
+        if (layer.id === 'sky') layer.container.y = skyY;
       }
       post.container.x = layerOffset(cam.worldPx, post.parallax);
       coins.container.x = layerOffset(cam.worldPx, 1);
       coins.update(performance.now() / 1000);
+      upscale.scale.set(lv.scale);
       upscale.x = -cam.fracDevicePx;
+      upscale.y = -camY * lv.scale;
       app.renderer.render({ container: world, target: worldRT, clear: true });
-      water.render(app.renderer, frameInfo.ambient, frameInfo.cycle, cam.worldPx);
+      water.render(app.renderer, frameInfo.ambient, frameInfo.cycle, cam.worldPx, skyY);
       app.renderer.render({ container: worldTop, target: worldRT, clear: false });
     };
     app.ticker.maxFPS = TARGET_FPS;
@@ -354,31 +388,39 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
 
     // Pointer (M1-19, M2-02): one finger drags the camera (with inertia); a press that stays within the slop is a tap at
     // the ground-space logical px of the frame on screen; a double tap also centres the tapped point (motion.ts).
-    // `touch-action: none` keeps the browser from taking the horizontal pan (pinch is M2-03); no long-press callout,
+    // A second finger pinches between the two zoom levels (M2-03); lifting one hands back to a one-finger drag.
+    // `touch-action: none` keeps the browser from taking the pan and the pinch; no long-press callout,
     // selection or context menu on the world. Times are `performance.now()`, not `e.timeStamp`: the frame clock uses
     // it too (and Playwright's fake clock moves it, but not event timestamps).
     canvas.style.touchAction = 'none';
     canvas.style.userSelect = 'none';
     canvas.style.setProperty('-webkit-touch-callout', 'none');
     const tapListeners = new Set<(tap: WorldTap) => void>();
-    /** Screen logical px of a pointer (the frame's sub-px shift not included: drags work in screen space). */
-    const pointer = (e: PointerEvent): PointerSample => {
+    /**
+     * Screen logical px of a client point at the zoom level on screen (the frame's sub-px shift not included: drags
+     * work in screen space).
+     */
+    const screenAt = (clientX: number, clientY: number): { x: number; y: number } => {
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
-      return {
-        id: e.pointerId,
-        x: ((e.clientX - rect.left) * dpr) / vp.scale,
-        y: ((e.clientY - rect.top) * dpr) / vp.scale,
-        t: performance.now(),
-        primary: e.isPrimary,
-      };
+      const scale = vp.scale + motion.level;
+      return { x: ((clientX - rect.left) * dpr) / scale, y: ((clientY - rect.top) * dpr) / scale };
     };
-    const holds = (id: number): boolean =>
-      (motion.mode.kind === 'press' || motion.mode.kind === 'drag') && motion.mode.id === id;
+    const pointer = (e: PointerEvent): PointerSample => ({
+      id: e.pointerId,
+      ...screenAt(e.clientX, e.clientY),
+      t: performance.now(),
+      primary: e.isPrimary,
+    });
+    const holds = (id: number): boolean => {
+      const { mode } = motion;
+      if (mode.kind === 'pinch') return mode.a.id === id || mode.b.id === id;
+      return (mode.kind === 'press' || mode.kind === 'drag') && mode.id === id;
+    };
     const onDown = (e: PointerEvent): void => {
       if (e.button !== 0) return; // mouse: left button only
       motion = press(motion, pointer(e), cameraView());
-      if (!holds(e.pointerId)) return; // an ignored second finger
+      if (!holds(e.pointerId)) return; // an ignored third finger
       // Keep the moves and the release coming when the finger leaves the canvas (e.g. over the HUD).
       try {
         canvas.setPointerCapture(e.pointerId);
@@ -398,14 +440,15 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const tap: WorldTap = {
         clientX: e.clientX,
         clientY: e.clientY,
-        x: Math.floor(p.x + lastCam.fracDevicePx / vp.scale + lastCam.worldPx),
-        y: Math.floor(p.y),
+        x: Math.floor(p.x + lastCam.fracDevicePx / lastCam.scale + lastCam.worldPx),
+        y: Math.floor(p.y + lastCam.y),
       };
       for (const l of [...tapListeners]) l(tap);
     };
     // The OS took the pointer (scroll, system gesture) or the capture was lost: no tap, no inertia.
+    // One finger of a pinch: the other one drags on.
     const onLost = (e: PointerEvent): void => {
-      if (holds(e.pointerId)) motion = cancel(motion, performance.now(), cameraView());
+      motion = lose(motion, e.pointerId, performance.now(), cameraView());
     };
     // Focus or the page went away mid-gesture: the up will never come.
     const onAway = (): void => {
@@ -415,12 +458,40 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     const onContextMenu = (e: Event): void => {
       e.preventDefault();
     };
+    // Desktop equivalent of the pinch: ctrl+wheel (also what a trackpad pinch sends) about the cursor; |deltaY| adds up
+    // to `CAMERA.wheelZoomPx` per switch, so trackpad jitter cannot flip levels. The page itself never zooms over the
+    // world. A plain sideways wheel (deltaX, or shift+wheel) pans the camera.
+    let wheelZoom = 0;
+    const onWheel = (e: WheelEvent): void => {
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1; // lines / pages → css px
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const dy = e.deltaY * unit;
+        if (dy === 0) return;
+        wheelZoom = Math.sign(dy) === Math.sign(wheelZoom) ? wheelZoom + dy : dy;
+        if (Math.abs(wheelZoom) < CAMERA.wheelZoomPx) return;
+        const level: ZoomLevel = wheelZoom < 0 ? 1 : 0;
+        wheelZoom = 0;
+        const next = zoomTo(motion, level, screenAt(e.clientX, e.clientY), cameraView());
+        if (next !== motion) settled = false; // the tab may follow the new view centre
+        motion = next;
+        return;
+      }
+      const dx = (e.deltaX !== 0 ? e.deltaX : e.shiftKey ? e.deltaY : 0) * unit;
+      const k = motion.mode.kind;
+      if (dx === 0 || k === 'press' || k === 'drag' || k === 'pinch') return;
+      e.preventDefault();
+      const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+      motion = jumpTo(motion, motion.x + (dx * dpr) / (vp.scale + motion.level), cameraView());
+      settled = false;
+    };
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
     canvas.addEventListener('pointercancel', onLost);
     canvas.addEventListener('lostpointercapture', onLost);
     canvas.addEventListener('contextmenu', onContextMenu);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('blur', onAway);
     document.addEventListener('visibilitychange', onAway);
     disposers.push(() => {
@@ -430,6 +501,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       canvas.removeEventListener('pointercancel', onLost);
       canvas.removeEventListener('lostpointercapture', onLost);
       canvas.removeEventListener('contextmenu', onContextMenu);
+      canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('blur', onAway);
       document.removeEventListener('visibilitychange', onAway);
       tapListeners.clear();
@@ -450,15 +522,20 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       atlases,
       clock,
       rng,
-      viewport: () => vp,
+      viewport: () => (lastCam.level === 0 ? vp : closerVp),
       quality: () => quality,
       setCamX: (x) => {
         motion = jumpTo(motion, x, cameraView());
       },
       focusZone: (zone) => {
-        motion = glideTo(motion, anchorX(zone), performance.now(), cameraView());
+        // The anchor frames the zone at the normal level; the closer view keeps the same centre.
+        const view = cameraView();
+        const centring = (view.levels[0].viewW - view.levels[motion.level].viewW) / 2;
+        motion = glideTo(motion, anchorX(zone) + centring, performance.now(), view);
       },
-      camX: () => lastCam.worldPx + lastCam.fracDevicePx / vp.scale,
+      camX: () => lastCam.worldPx + lastCam.fracDevicePx / lastCam.scale,
+      camY: () => lastCam.y,
+      zoom: () => lastCam.level,
       onZoneChange: (listener) => {
         zoneListeners.add(listener);
         if (zone) listener(zone);
@@ -489,6 +566,6 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
   }
 }
 
-function measure(host: HTMLElement): Viewport {
-  return computeViewport(host.clientWidth, host.clientHeight, window.devicePixelRatio);
+function measure(host: HTMLElement, zoom: ZoomLevel = 0): Viewport {
+  return computeViewport(host.clientWidth, host.clientHeight, window.devicePixelRatio, zoom);
 }

@@ -312,7 +312,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         applyBudget();
         if (size) rebuild(size);
       },
-      update: ({ minutes, ambient: seconds, cycle, camX, scene, cameraMoving, nowMs }) => {
+      update: ({ minutes, ambient: seconds, cycle, camX, scene, cameraMoving, nowMs, skyY }) => {
         if (!size || !hazeBuf) return;
         const bucket = `${String(lutBucket(minutes))}:${cycle.keyA}:${cycle.keyB}`;
         if (bucket !== hazeKey) {
@@ -370,7 +370,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         // Shafts: only with a low sun on screen, never in fog (ART-17 decides fog light).
         const look = rayLook(cycle);
         const sunPx = skyPixel(cycle.sun, size.viewW, horizon);
-        const sun: Point = { x: sunPx.x, y: sunPx.y };
+        const sun: Point = { x: sunPx.x, y: sunPx.y + skyY };
         const on = look.level > 0.01 && weather === 'clear' && cycle.sun.y > -0.02 && sun.y < horizon + 4;
         rays.visible = on;
         dust.visible = on;

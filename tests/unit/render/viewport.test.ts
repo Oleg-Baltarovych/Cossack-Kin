@@ -88,3 +88,27 @@ describe('worldTargetSize', () => {
     expect(worldTargetSize({ deviceW: 1001, deviceH: 800, scale: 3 }).width).toBe(335);
   });
 });
+
+// Plan M2-03 / Q4: the second zoom level is the closer one — the next integer scale (never a fractional one).
+describe('computeViewport: the closer zoom level', () => {
+  it.each([
+    // The three @screens phones: css w, h, dpr → normal ×s, w×h · closer ×(s+1), w×h
+    [390, 844, 3, 3, 390, 844, 4, 292, 633],
+    [360, 800, 3, 3, 360, 800, 4, 270, 600],
+    [412, 915, 3.5, 4, 360, 800, 5, 288, 640],
+  ])('%i×%i @%f → ×%i %i×%i, closer ×%i %i×%i', (w, h, dpr, s0, w0, h0, s1, w1, h1) => {
+    const normal = computeViewport(w, h, dpr);
+    const closer = computeViewport(w, h, dpr, 1);
+    expect(normal).toMatchObject({ scale: s0, logicalW: w0, logicalH: h0 });
+    expect(closer).toEqual({ scale: s1, logicalW: w1, logicalH: h1, deviceW: normal.deviceW, deviceH: normal.deviceH });
+  });
+
+  it('is always exactly one integer step closer than the normal level', () => {
+    for (let deviceW = 200; deviceW <= 3000; deviceW += 7) {
+      const normal = computeViewport(deviceW, 2 * deviceW, 1);
+      const closer = computeViewport(deviceW, 2 * deviceW, 1, 1);
+      expect(closer.scale).toBe(normal.scale + 1);
+      expect(closer.logicalW * closer.scale).toBeLessThanOrEqual(deviceW);
+    }
+  });
+});

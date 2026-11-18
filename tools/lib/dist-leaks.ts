@@ -33,6 +33,8 @@ const PIXI_ARGS = PIXI_FUNCTION_SIGNATURES.map(
 export const FORBIDDEN: readonly (readonly [string, RegExp])[] = [
   // The URL key as parseDebugParams reads it: read("freeze", …). Pixi's own Object.freeze is not a string.
   ['debug param key "freeze"', /(["'`])freeze\1/g],
+  // read("zoom", …) (M2-03). React's unitless-CSS list has `zoom` only inside one longer string, never quoted alone.
+  ['debug param key "zoom"', /(["'`])zoom\1/g],
   ['URL query parsing (debug params)', /location\.search|URLSearchParams/g],
   ['debug param warning', /debug param/g],
   // window.__CK__ (render stats) and window.__CK_GAME__ (game state for e2e, M1-18).

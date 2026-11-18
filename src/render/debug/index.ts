@@ -25,6 +25,9 @@ export interface DebugStats {
   frames: number;
   /** Camera x on screen in the last frame, logical px (a multiple of 1/scale; M2-02). */
   cam: number;
+  /** Camera y (rows of the normal frame above the screen, whole logical px) and zoom level (M2-03). */
+  camY: number;
+  zoom: number;
 }
 
 export interface DebugHandle {
@@ -58,6 +61,8 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     quality: settings.quality ?? `auto:${world.quality()}`,
     frames: 0,
     cam: world.camX(),
+    camY: world.camY(),
+    zoom: world.zoom(),
   };
   window.__CK__ = { stats, settings };
 
@@ -71,6 +76,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     const now = performance.now();
     const { scale, logicalW, logicalH } = world.viewport();
     Object.assign(stats, { scale, logicalW, logicalH, particles: particles.active, cam: world.camX() });
+    Object.assign(stats, { camY: world.camY(), zoom: world.zoom() });
     stats.quality = settings.quality ?? `auto:${world.quality()}`;
     if (counter) stats.drawCalls = counter.count();
     stats.frames += 1;

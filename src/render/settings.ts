@@ -3,6 +3,7 @@
 // bundle carries no debug vocabulary (plan M0-05: no `freeze` string in dist/).
 
 import type { ZoneId } from '../content/villages/khortytsia.layout.ts';
+import type { ZoomLevel } from './viewport.ts';
 
 export const WEATHERS = ['clear', 'rain', 'fog'] as const;
 export const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
@@ -30,6 +31,8 @@ export interface RenderSettings {
   readonly showOverlay: boolean;
   /** Initial camera x in logical px; `null` = scene default. */
   readonly camX: number | null;
+  /** Initial zoom level (M2-03): 1 = closer, about the screen centre of the initial framing. */
+  readonly zoom: ZoomLevel;
   /** «Менше руху» (SPEC §6.3, §6.8): plants stand upright (ART-14). The settings screen drives it from M2. */
   readonly lessMotion: boolean;
 }
@@ -44,5 +47,6 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   quality: null,
   showOverlay: false,
   camX: null,
+  zoom: 0,
   lessMotion: false,
 };
