@@ -8,6 +8,7 @@
 //   scene. Ungraded, so every palette color reaches the canvas unchanged (the @screens swatch check).
 import { Container, Sprite, Texture } from 'pixi.js';
 import type { SceneLayout } from '../content/villages/khortytsia.layout.ts';
+import { plotShown, type SceneState } from './scene.ts';
 import { FIRE, QUALITY_TIERS } from './atmosphere/config.ts';
 import { sparks } from './atmosphere/nightLights.ts';
 import { claimParticles } from './fx/registry.ts';
@@ -40,8 +41,9 @@ export interface PostGrade {
   resize(size: LayerSize): void;
   /** 0..1 emissive opacity. */
   setEmissive(level: number): void;
-  /** Cycles animated emissive frames and moves the sparks (ambient seconds, 0 under «менше руху»). */
-  update(seconds: number): void;
+  /** Cycles animated emissive frames and moves the sparks (ambient seconds, 0 under «менше руху»); hides the night
+   * masks of props whose plot is empty (M1-19). */
+  update(seconds: number, scene: SceneState): void;
   /** Sparks per fire by tier (ART-18). */
   setQuality(quality: Quality): void;
   destroy(): void;
@@ -102,9 +104,10 @@ export function createPostGrade({ layout, frame, swatch, quality, lessMotion }: 
       emissive.visible = level > 0.01;
       emissive.alpha = Math.min(1, Math.max(0, level));
     },
-    update: (seconds) => {
+    update: (seconds, scene) => {
       if (!emissive.visible) return;
-      for (const { sprite, frames, fps } of masks) {
+      for (const { prop, sprite, frames, fps } of masks) {
+        sprite.visible = plotShown(prop.plot, scene.tiers);
         if (frames.length < 2 || fps <= 0) continue;
         const texture = frames[Math.floor(seconds * fps) % frames.length];
         if (texture) sprite.texture = texture;

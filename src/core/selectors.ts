@@ -191,3 +191,19 @@ export function hireView(state: GameState): HireView {
     blocked: check.ok ? null : check.reason === 'kharch' ? 'kharch' : 'ducats',
   };
 }
+
+/** Visual tier per building (SPEC §6.5; plan M1-19): 0 = empty plot, then 1 + milestones reached (I at level 1). */
+export type VisualTiers = Readonly<Record<FarmBuildingId | SichBuildingId, number>>;
+
+export function visualTiers(state: GameState): VisualTiers {
+  const out: Partial<Record<FarmBuildingId | SichBuildingId, number>> = {};
+  const visual = (level: number, milestones: readonly number[]): number =>
+    level > 0 ? 1 + tier(level, milestones) : 0;
+  for (const b of villageOf(state).buildings) out[b.id] = visual(state.village.levels[b.id], FARM_MILESTONES);
+  for (const b of SICH_BUILDINGS) {
+    // Like collectModifiers: a locked building's level (only a crafted save can hold one) counts for nothing.
+    out[b.id] = sichUnlocked(b, state) ? visual(state.village.sichLevels[b.id], SICH.milestones) : 0;
+  }
+  // Every farm id of the land and every Sich id was written above.
+  return out as VisualTiers;
+}

@@ -1,13 +1,9 @@
-/* The DOM layer over the world canvas: it passes taps through to the world except where the HUD and panel are. */
+/* The DOM layer over the world canvas: taps pass through to the world except on the HUD, the panel and an open
+   window (each child that takes taps says so; the tap numbers never do). */
 .ui {
   position: absolute;
   inset: 0;
   pointer-events: none;
-}
-
-.ui > *,
-.layer > * {
-  pointer-events: auto;
 }
 
 /* HUD + panel: a full-size box that itself lets taps through to the world. */
@@ -15,4 +11,8 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.layer > * {
+  pointer-events: auto;
 }

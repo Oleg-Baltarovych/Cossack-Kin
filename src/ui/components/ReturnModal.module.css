@@ -7,6 +7,8 @@
   padding: calc(env(safe-area-inset-top) + 12 * var(--px)) calc(env(safe-area-inset-right) + 12 * var(--px))
     calc(env(safe-area-inset-bottom) + 12 * var(--px)) calc(env(safe-area-inset-left) + 12 * var(--px));
   z-index: 10;
+  /* Takes every tap until claimed (the .ui overlay lets taps through by default). */
+  pointer-events: auto;
   background: color-mix(in srgb, var(--c-ink-0) 80%, transparent);
 }
 

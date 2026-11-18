@@ -1,0 +1,48 @@
+/* Numbers that float up from a tap (SPEC §6.7). Decorative: the HUD already shows the ducats (aria-hidden). */
+.layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.floater {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-size: var(--font-s);
+  color: var(--c-gold-5);
+  /* A 1-px dark rim in the four directions keeps the number readable over sky and grass (no blur). */
+  text-shadow:
+    var(--px) 0 0 var(--c-ink-0),
+    calc(-1 * var(--px)) 0 0 var(--c-ink-0),
+    0 var(--px) 0 var(--c-ink-0),
+    0 calc(-1 * var(--px)) 0 var(--c-ink-0);
+  white-space: nowrap;
+  animation: float 700ms steps(7, end) forwards;
+}
+
+@keyframes float {
+  from {
+    margin-top: calc(-8 * var(--px));
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    margin-top: calc(-30 * var(--px));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floater {
+    animation: fade 400ms steps(2, end) forwards;
+  }
+
+  @keyframes fade {
+    to {
+      opacity: 0;
+    }
+  }
+}

@@ -31,6 +31,20 @@ describe('M1-01 import rules', () => {
     expect(await tags(outer, 'src/content/__c__.ts')).toEqual(['other:no-restricted-imports']);
   });
 
+  it('render reads the game, never acts on it (M1-19): no actions/advance/offline/store values; types are fine', async () => {
+    for (const mod of ['actions', 'advance', 'offline', 'store']) {
+      const value = `import { x } from '../core/${mod}.ts';\nexport const y = x;\n`;
+      expect(await tags(value, 'src/render/__r__.ts'), mod).toEqual(['render-actions']);
+      expect(await tags(value.replace('../core', '../../core'), 'src/render/layers/__r__.ts'), mod).toEqual([
+        'render-actions',
+      ]);
+    }
+    const typeOnly = "import type { GameStore } from '../core/store.ts';\nexport type S = GameStore;\n";
+    expect(await tags(typeOnly, 'src/render/__r__.ts')).toEqual([]);
+    const selectors = "import { visualTiers } from '../core/selectors.ts';\nexport const v = visualTiers;\n";
+    expect(await tags(selectors, 'src/render/__r__.ts')).toEqual([]);
+  });
+
   it('core and content: relative imports must end in .ts', async () => {
     const bare = "import { x } from './y';\nexport const z = x;\n";
     const withExt = "import { x } from './y.ts';\nexport const z = x;\n";

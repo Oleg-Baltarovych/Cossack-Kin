@@ -89,5 +89,6 @@
   "return.clockBack": "The device clock was set back, so nothing was earned for that time.",
   "return.nothing": "Nothing was earned meanwhile: build something on the farm first.",
   "return.gain": "+{value}",
-  "return.claim": "Collect"
+  "return.claim": "Collect",
+  "ui.tap.gain": "+{value}"
 }

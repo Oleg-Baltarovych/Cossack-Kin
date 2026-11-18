@@ -6,6 +6,23 @@
  * Ground tile kinds of the `khortytsia` atlas (`ground.<tile>/idle/00`, 64×32). `grass` has seeded variants
  * (`grass`, `grass-b`, `grass-c`) that the ground layer picks per tile.
  */
+import type { SichBuildingId } from '../sich.ts';
+import type { FarmBuildingId } from './khortytsia.ts';
+
+/** A building whose level drives what stands on its plot (farm and Sich ids do not overlap). */
+export type PlotBuilding = FarmBuildingId | SichBuildingId;
+
+/**
+ * Ties a prop or decal to a building's plot (plan M1-19, SPEC §6.5): shown while the building's visual tier is in
+ * [from, until). Visual tier = 0 at level 0 (empty plot), then 1 + the milestones reached (I at level 1, III at 25 …).
+ * The highest sprite tier that exists is shown: khata I covers tiers I–II until khata III. No plot = always there.
+ */
+export interface Plot {
+  readonly building: PlotBuilding;
+  readonly from: number;
+  readonly until?: number;
+}
+
 export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan' | 'maidan-end';
 
 export interface GroundRow {
@@ -51,6 +68,7 @@ export interface Prop {
    * baked lean frames from the wind (render/sway.ts) — `amp` the share of the full lean, `phase` 0..1.
    */
   readonly animate?: Animate;
+  readonly plot?: Plot;
 }
 
 export type Animate =
@@ -76,6 +94,7 @@ export interface Decal {
   /** Centre of the decal, world x / rows below the horizon. */
   readonly x: number;
   readonly ground: number;
+  readonly plot?: Plot;
 }
 
 /** A person on a scripted route (ART-06 spike; villager FSM and path graph come in M2). */
@@ -177,7 +196,7 @@ export const KHORTYTSIA_FARM: SceneLayout = {
   // Trodden yards, centred a little in front of each house base (art-director ART-05 review).
   decals: [
     { sprite: 'yard', x: 116, ground: 104 },
-    { sprite: 'yard', x: 296, ground: 244 },
+    { sprite: 'yard', x: 296, ground: 244, plot: { building: 'potter', from: 1 } },
   ],
   // Depth spread over the rows (art-director ART-05 review): the back row sits higher, the front row lower, so the
   // path is the middle ground and less plain lawn is left above and below the houses.
@@ -192,7 +211,7 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'willow', x: 240, ground: 106, animate: { kind: 'sway', amp: 0.8, phase: 0.15 } },
     // The post mill by the road past the yard fence, its sails turning with the wind (hub 53 px above the trestle foot).
     // Low enough that the top sail (93 px above the foot) stays clear of the 26-row river band.
-    { sprite: 'windmill', x: 312, ground: 124 },
+    { sprite: 'windmill', x: 312, ground: 124, plot: { building: 'windmill', from: 1 } },
     {
       sprite: 'windmill-sails',
       x: 312,
@@ -200,11 +219,14 @@ export const KHORTYTSIA_FARM: SceneLayout = {
       lift: 53,
       shadow: false,
       animate: { kind: 'cycle', frames: 8, fps: 'wind' },
+      plot: { building: 'windmill', from: 1 },
     },
-    // Front row, below the path: khata III, nearer and to the right, its own fence and mallows.
-    { sprite: 'khata.t3', x: 292, ground: 240 },
-    { sprite: 'mallows', x: 266, ground: 243 },
-    { sprite: 'tyn', x: 356, ground: 242 },
+    // Front row, below the path: the potter's khata (Хата гончаря), nearer and to the right, its own fence and mallows.
+    // Tier I–II shows khata I, tier III+ khata III (the highest tier sprite that exists, M1-19).
+    { sprite: 'khata.t1', x: 292, ground: 240, plot: { building: 'potter', from: 1, until: 3 } },
+    { sprite: 'khata.t3', x: 292, ground: 240, plot: { building: 'potter', from: 3 } },
+    { sprite: 'mallows', x: 266, ground: 243, plot: { building: 'potter', from: 1 } },
+    { sprite: 'tyn', x: 356, ground: 242, plot: { building: 'potter', from: 1 } },
     // An old oak in the near left corner framing the scene (a stiff tree: half the lean of the grass).
     { sprite: 'oak', x: 44, ground: 282, animate: { kind: 'sway', amp: 0.5, phase: 0.6 } },
   ],
@@ -298,12 +320,18 @@ export const KHORTYTSIA_FARM: SceneLayout = {
 
 /** Palisade sections along the rampart: 16-px tiles, heights mixed by a fixed pattern (never a comb). */
 const PALISADE_PATTERN = ['h1', 'h0', 'h2', 'h1', 'h3', 'h0', 'h2', 'h1', 'h0', 'h3', 'h2', 'h1'] as const;
-const palisadeLine = (x0: number, x1: number, ground: number, skip: readonly (readonly [number, number])[]): Prop[] => {
+const palisadeLine = (
+  x0: number,
+  x1: number,
+  ground: number,
+  skip: readonly (readonly [number, number])[],
+  plot: Plot,
+): Prop[] => {
   const out: Prop[] = [];
   for (let x = x0, i = 0; x < x1; x += 16, i++) {
     if (skip.some(([a, b]) => x + 16 > a && x < b)) continue;
     const h = PALISADE_PATTERN[i % PALISADE_PATTERN.length] ?? 'h1';
-    out.push({ sprite: `palisade.${h}`, x, ground });
+    out.push({ sprite: `palisade.${h}`, x, ground, plot });
   }
   return out;
 };
@@ -324,24 +352,27 @@ export const KHORTYTSIA_SICH: SceneLayout = {
   fill: 'grass',
   // Worn paths from the gate to the two курінь doors (they lead the eye to the gate).
   decals: [
-    { sprite: 'trail.l', x: 90, ground: 42 },
-    { sprite: 'trail.r', x: 196, ground: 42 },
+    { sprite: 'trail.l', x: 90, ground: 42, plot: { building: 'kurins', from: 1 } },
+    { sprite: 'trail.r', x: 196, ground: 42, plot: { building: 'kurins', from: 2 } },
   ],
   props: [
     // The palisade runs on behind the towers and the gate (no gaps where the footprints end).
     // No stakes behind the gate's passage: the view through it is open (the pylons hide the cut ends).
-    ...palisadeLine(0, 720, 35, [[185, 211]]),
-    { sprite: 'tower', x: 62, ground: 37 },
-    { sprite: 'gate', x: 198, ground: 39 },
-    { sprite: 'tower', x: 340, ground: 37 },
+    // Plots (M1-19): the walls (Вали, частокіл і брама) raise the palisade and the gate; the watchtower (the land's own
+    // Sich building) one tower at tier I and the second at II.
+    ...palisadeLine(0, 720, 35, [[185, 211]], { building: 'walls', from: 1 }),
+    { sprite: 'tower', x: 62, ground: 37, plot: { building: 'special', from: 1 } },
+    { sprite: 'gate', x: 198, ground: 39, plot: { building: 'walls', from: 1 } },
+    { sprite: 'tower', x: 340, ground: 37, plot: { building: 'special', from: 2 } },
     // The Pokrova church at the back of the maidan right at the rampart's foot (inside the walls), tall enough that its
     // centre cross clears the gate's roof against open sky; its belfry beside it with some air.
-    { sprite: 'church', x: 280, ground: 63 },
-    { sprite: 'belfry', x: 358, ground: 72 },
-    { sprite: 'kurin', x: 92, ground: 210 },
-    { sprite: 'kurin', x: 300, ground: 268 },
-    { sprite: 'cannon', x: 128, ground: 100 },
-    { sprite: 'cannon', x: 276, ground: 112 },
+    { sprite: 'church', x: 280, ground: 63, plot: { building: 'church', from: 1 } },
+    { sprite: 'belfry', x: 358, ground: 72, plot: { building: 'church', from: 2 } },
+    // Курені: one at tier I, the second at II. The maidan (drill: the army's power) brings out the cannons.
+    { sprite: 'kurin', x: 92, ground: 210, plot: { building: 'kurins', from: 1 } },
+    { sprite: 'kurin', x: 300, ground: 268, plot: { building: 'kurins', from: 2 } },
+    { sprite: 'cannon', x: 128, ground: 100, plot: { building: 'maidan', from: 1 } },
+    { sprite: 'cannon', x: 276, ground: 112, plot: { building: 'maidan', from: 2 } },
     { sprite: 'logpile', x: 178, ground: 252 },
     // The campfire in the middle of the maidan (ART-16): the night's warm, local light; flames 6 frames @10 fps.
     { sprite: 'campfire', x: 196, ground: 176, animate: { kind: 'cycle', frames: 6, fps: 10 } },

@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { Action } from '../../core/actions.ts';
+import type { GameEvent } from '../../core/events.ts';
 import { Big } from '../../core/big.ts';
 import type { GameState } from '../../core/state.ts';
 import type { GameStore } from '../../core/store.ts';
@@ -82,13 +83,8 @@ export function useGame<T>(selector: (state: GameState) => T, isEqual: (a: T, b:
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
-/** Dispatches a player action at the provider's `now`. */
-export function useAct(): (action: Action) => void {
+/** Dispatches a player action at the provider's `now`; returns its events (a tap shows its number from `Tapped`). */
+export function useAct(): (action: Action) => readonly GameEvent[] {
   const { store, now } = useGameContext();
-  return useCallback(
-    (action: Action) => {
-      store.dispatch(action, now());
-    },
-    [store, now],
-  );
+  return useCallback((action: Action) => store.dispatch(action, now()), [store, now]);
 }

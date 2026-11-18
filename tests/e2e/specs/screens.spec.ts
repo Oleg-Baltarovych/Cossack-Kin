@@ -6,9 +6,12 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { KHORTYTSIA_FARM } from '../../../src/content/villages/khortytsia.layout.ts';
 import { CLOUDS } from '../../../src/render/atmosphere/config.ts';
 import { split } from '../../../src/render/camera.ts';
+import { validateState } from '../../../src/core/state.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts';
+// Type-only: the window.__CK_GAME__ declaration.
+import type {} from '../../../src/ui/debug/gameDebug.ts';
 
 /**
  * Frame budget (SPEC §12.4 caps the game at 30): the scene measured 5 before ART-09; the water adds 2 passes (ART-09:
@@ -537,5 +540,51 @@ test.describe('M1-17 UI list @screens', () => {
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     await expect(page.getByText('Рів. 1', { exact: true })).toBeVisible();
     await expect(page.getByText('+0,5/с', { exact: true })).toBeVisible();
+  });
+});
+
+test.describe('M1-19 the scene follows the game @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  for (const state of ['fresh', 'mid', 'showcase'] as const) {
+    for (const zone of ['farm', 'sich'] as const) {
+      for (const hhmm of ['1300', '2300'] as const) {
+        test(`scene ${state} ${zone} ${hhmm}: plots by tier, budget, pixel grid`, async ({ page }, testInfo) => {
+          const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+          await gotoReady(page, `/?time=${time}&freeze&seed=1&zone=${zone}&state=${state}`);
+          const scale = await expectWebGlWithinBudget(page);
+          const png = await shoot(page, testInfo, `scene-${state}-${zone}-${hhmm}`);
+          expectPixelGrid(png, testInfo, scale, 0);
+        });
+      }
+    }
+  }
+
+  test('buying the potter puts a khata on its empty plot, without a reload', async ({ page }) => {
+    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=rich&ui=1');
+    // A marker that a reload would wipe.
+    await page.evaluate(() => {
+      document.documentElement.dataset.marker = 'same-page';
+    });
+    const canvas = page.locator('#world canvas');
+    const before = await canvas.screenshot();
+    await page.getByRole('button', { name: /Хата гончаря/ }).click();
+    await expect(page.getByText('Рів. 1', { exact: true })).toBeVisible();
+    // The plot appears on the next frame; poll until the canvas changed.
+    await expect.poll(async () => (await canvas.screenshot()).equals(before), { timeout: 5000 }).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.dataset.marker)).toBe('same-page');
+    const stats = await readStats(page);
+    expect(stats.drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+  });
+
+  test('a tap on the world earns ducats: a coin pops in the scene and the number floats up', async ({ page }) => {
+    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=rich&ui=1');
+    await page.mouse.click(200, 320);
+    // A tap gives max(1 × scale, 30 % of the income): nothing is built yet, so 1 ducat.
+    await expect(page.getByText('+1', { exact: true })).toBeVisible();
+    await expect.poll(async () => (await readStats(page)).particles).toBeGreaterThan(0);
+    const json = await page.evaluate(() => window.__CK_GAME__?.state() ?? 'null');
+    const game = validateState(JSON.parse(json));
+    expect(game.ok && game.state.stats.taps).toBe(1);
   });
 });

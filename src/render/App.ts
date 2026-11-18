@@ -31,9 +31,11 @@ import { horizonY } from './layers/Layer.ts';
 import { createWater } from './water.ts';
 import { createPostGrade } from './postGrade.ts';
 import { rampColor, rampCss } from './palette.ts';
+import { DEFAULT_SCENE, type SceneState } from './scene.ts';
 import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
-import { AUTO_QUALITY } from './atmosphere/config.ts';
+import { AUTO_QUALITY, TAP_SLOP_PX } from './atmosphere/config.ts';
+import { createCoinFx } from './fx/coins.ts';
 import { computeViewport, worldTargetSize, type Viewport } from './viewport.ts';
 
 /** Scene width in logical px (≈ 2 screens, plan Q3). */
@@ -42,6 +44,14 @@ export const WORLD_WIDTH = WORLD_WIDTH_PX;
 const SCENE_ATLAS = 'khortytsia';
 /** SPEC §9.2: 30 fps idle / 60 interactive — fixed at 60 until the interaction-driven switch (M2). */
 export const TARGET_FPS = 60;
+
+/** A tap on the world: client (CSS) px for DOM feedback, ground-space logical px for the scene. */
+export interface WorldTap {
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly x: number;
+  readonly y: number;
+}
 
 export interface WorldApp {
   readonly app: Application;
@@ -57,6 +67,12 @@ export interface WorldApp {
   /** The quality tier in use (the auto-detect may change it once, ART-18). */
   quality(): Quality;
   setCamX(camX: number): void;
+  /** What the game shows (plots by tier, wind); render/bridge.ts sets it from store events (M1-19). */
+  setScene(scene: SceneState): void;
+  /** Calls `listener` for every tap on the world (not a drag); returns the unsubscribe function. */
+  onTap(listener: (tap: WorldTap) => void): () => void;
+  /** A tap coin at ground-space px (render/bridge.ts on the core's `Tapped`). */
+  spawnCoin(x: number, y: number): void;
   destroy(): void;
 }
 
@@ -168,12 +184,24 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       (ungraded ? world : graded).addChild(layer.container);
     }
+    // Tap coins over everything in the graded world (graded with it: gold at noon, dimmer at night).
+    const coins = createCoinFx(
+      Array.from({ length: 4 }, (_, i) => sceneFrame(`coin/idle/${String(i).padStart(2, '0')}`)),
+      settings.lessMotion,
+    );
+    graded.addChild(coins.container);
+    disposers.push(() => {
+      coins.destroy();
+    });
     worldTop.addChild(post.container);
 
     const upscale = new Sprite({ texture: worldRT, label: 'upscale', roundPixels: true });
     app.stage.addChild(upscale);
 
     let camX = settings.camX ?? 0;
+    let scene: SceneState = DEFAULT_SCENE;
+    // The camera of the last frame: a tap is read in the frame the player saw.
+    let lastCam = split(camX, 1);
     // Quality (ART-18): a fixed `?quality`, else auto — start at AUTO_QUALITY.start and let the fps probe pick once.
     // No probe under `?freeze`: screenshots must not change tier mid-test.
     let quality: Quality = settings.quality ?? AUTO_QUALITY.start;
@@ -215,10 +243,11 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       // floor, the camera could stop up to one partial column past the world's right edge. The spare
       // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
       const cam = split(camX, vp.scale, cameraBounds(WORLD_WIDTH, target.width - 1));
+      lastCam = cam;
       const minutes = clock.minutesOfDay();
       const seconds = clock.seconds();
       const ambient = settings.lessMotion ? 0 : seconds;
-      const frameInfo = { minutes, seconds, ambient, cycle: dayCycle(minutes), camX: cam.worldPx };
+      const frameInfo = { minutes, seconds, ambient, cycle: dayCycle(minutes), camX: cam.worldPx, scene };
       if (probe && !probe.verdict()) {
         probe.sample(performance.now());
         const picked = probe.verdict();
@@ -226,12 +255,14 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       grading.update(gradeCycle(frameInfo.cycle, settings.weather), minutes);
       post.setEmissive(emissiveLevel(frameInfo.cycle));
-      post.update(frameInfo.ambient);
+      post.update(frameInfo.ambient, scene);
       for (const layer of layers) {
         layer.update(frameInfo);
         layer.container.x = layerOffset(cam.worldPx, layer.parallax);
       }
       post.container.x = layerOffset(cam.worldPx, post.parallax);
+      coins.container.x = layerOffset(cam.worldPx, 1);
+      coins.update(performance.now() / 1000);
       upscale.x = -cam.fracDevicePx;
       app.renderer.render({ container: world, target: worldRT, clear: true });
       water.render(app.renderer, frameInfo.ambient, frameInfo.cycle);
@@ -260,6 +291,37 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       readyOwner = null;
     });
 
+    // Taps (M1-19): pointer down and up close together; the point in ground-space logical px of the frame on screen.
+    const tapListeners = new Set<(tap: WorldTap) => void>();
+    let down: { id: number; x: number; y: number } | null = null;
+    const onDown = (e: PointerEvent): void => {
+      down = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    };
+    const onUp = (e: PointerEvent): void => {
+      const start = down;
+      down = null;
+      if (start?.id !== e.pointerId) return;
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > TAP_SLOP_PX) return;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+      const lx = ((e.clientX - rect.left) * dpr + lastCam.fracDevicePx) / vp.scale;
+      const ly = ((e.clientY - rect.top) * dpr) / vp.scale;
+      const tap: WorldTap = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        x: Math.floor(lx - layerOffset(lastCam.worldPx, 1)),
+        y: Math.floor(ly),
+      };
+      for (const l of [...tapListeners]) l(tap);
+    };
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointerup', onUp);
+    disposers.push(() => {
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointerup', onUp);
+      tapListeners.clear();
+    });
+
     const observer = new ResizeObserver(applyViewport);
     observer.observe(host);
     disposers.push(() => {
@@ -278,6 +340,18 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       quality: () => quality,
       setCamX: (x) => {
         camX = x;
+      },
+      setScene: (next) => {
+        scene = next;
+      },
+      onTap: (listener) => {
+        tapListeners.add(listener);
+        return () => {
+          tapListeners.delete(listener);
+        };
+      },
+      spawnCoin: (x, y) => {
+        coins.spawn(x, y, performance.now() / 1000);
       },
       destroy: disposeAll,
     };
