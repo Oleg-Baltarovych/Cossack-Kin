@@ -9,7 +9,13 @@ import type { WorldTap } from '../../../src/render/App.ts';
 import { WIND_STRENGTH } from '../../../src/render/atmosphere/config.ts';
 import { connectWorld, sceneOf } from '../../../src/render/bridge.ts';
 import { plotShown, type SceneState } from '../../../src/render/scene.ts';
-import { FROZEN_NOW, parseGameDebug, presetState, tiersIgnoringUnlocks } from '../../../src/ui/debug/gameDebug.ts';
+import {
+  FROZEN_NOW,
+  parseGameDebug,
+  presetState,
+  showcaseTiers,
+  tiersIgnoringUnlocks,
+} from '../../../src/ui/debug/gameDebug.ts';
 
 const T0 = 1_763_400_000_000;
 
@@ -111,6 +117,12 @@ describe('debug presets (M1-19)', () => {
     const show = visualTiers(presetState('showcase', 1, FROZEN_NOW));
     expect(show).toMatchObject({ potter: 3, windmill: 3, walls: 2, kurins: 2, maidan: 2, special: 2, church: 2 });
     expect(visualTiers(presetState('fresh', 1, FROZEN_NOW))).toMatchObject({ potter: 0, windmill: 0, walls: 0 });
+  });
+
+  it('showcase draws the windmill at tier I (its M-ART sprite) while the game has it at III', () => {
+    const state = presetState('showcase', 1, FROZEN_NOW);
+    expect(showcaseTiers(state)).toEqual({ ...visualTiers(state), windmill: 1 });
+    expect(visualTiers(state).windmill).toBe(3);
   });
 
   it('?state=tiers&tier=N shows every building at visual tier N (the Sich capped at IV, the cannonry hidden)', () => {

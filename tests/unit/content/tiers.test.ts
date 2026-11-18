@@ -196,6 +196,12 @@ describe('tier sprites become plot props (render reads visual tiers only)', () =
     const potter = KHORTYTSIA_WORLD.tierSprites.find((t) => t.building === 'potter');
     expect(potter?.x).toBe(292);
     const i = KHORTYTSIA_WORLD.props.findIndex((p) => p.plot?.building === 'potter' && p.sprite === 'khata.t1');
-    expect(KHORTYTSIA_WORLD.props.slice(i, i + 2).map((p) => p.sprite)).toEqual(['khata.t1', 'khata.t3']);
+    expect(KHORTYTSIA_WORLD.props.slice(i, i + 5).map((p) => p.sprite)).toEqual([
+      'khata.t1',
+      'potter.t2',
+      'jugs',
+      'khata.t3',
+      'potter.t4',
+    ]);
   });
 });

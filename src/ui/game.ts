@@ -7,7 +7,7 @@ import { createStore, type GameStore } from '../core/store.ts';
 import { newSeed } from '../platform/loop.ts';
 import { bootGame, createSaver, type BootNotice, type Saver } from '../platform/saves.ts';
 import { memoryStorage, webStorage } from '../platform/storage.ts';
-import { FROZEN_NOW, parseGameDebug, presetState, tiersIgnoringUnlocks } from './debug/gameDebug.ts';
+import { FROZEN_NOW, parseGameDebug, presetState, showcaseTiers, tiersIgnoringUnlocks } from './debug/gameDebug.ts';
 
 export interface Game {
   readonly store: GameStore;
@@ -32,7 +32,12 @@ export async function initGame(): Promise<Game> {
       const base = d.preset ? presetState(d.preset, seed, now(), d.tier) : createInitialState({ seed, now: now() });
       const state = d.lang ? { ...base, settings: { ...base.settings, lang: d.lang } } : base;
       const saver = createSaver(memoryStorage(), null);
-      const sceneTiers = d.preset === 'tiers' ? { sceneTiers: tiersIgnoringUnlocks } : {};
+      const sceneTiers =
+        d.preset === 'tiers'
+          ? { sceneTiers: tiersIgnoringUnlocks }
+          : d.preset === 'showcase'
+            ? { sceneTiers: showcaseTiers }
+            : {};
       return { store: createStore(state), now, live: !d.frozen, ui: d.ui, saver, notice: 'none', ...sceneTiers };
     }
   }

@@ -667,31 +667,37 @@ test.describe('M2-05 every building at tier N @screens', () => {
     }
   }
 
-  // M2-06: the farm's second screen (field, apiary, garden) at every tier — day, golden hour, night and rain.
+  // M2-06: the farm's second screen (field, apiary, garden) and M2-07: the windmill and the potter's khata (with the
+  // kiln, the jugs and tier VI's gilt) at every tier — day, golden hour, night and rain.
   const FARM_PLOTS_CAM = 380;
-  for (const tier of [1, 2, 3, 4, 5, 6] as const) {
-    for (const [hhmm, weather] of [
-      ['1300', 'clear'],
-      ['1930', 'clear'],
-      ['2300', 'clear'],
-      ['1300', 'rain'],
-    ] as const) {
-      test(`tiers ${String(tier)} farm plots ${hhmm} ${weather}: budget, particles ≤ 300, pixel grid`, async ({
-        page,
-      }, testInfo) => {
-        const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
-        await gotoReady(
+  const MILL_POTTER_CAM = 140;
+  for (const [view, cam] of [
+    ['farm-plots', FARM_PLOTS_CAM],
+    ['mill-potter', MILL_POTTER_CAM],
+  ] as const)
+    for (const tier of [1, 2, 3, 4, 5, 6] as const) {
+      for (const [hhmm, weather] of [
+        ['1300', 'clear'],
+        ['1930', 'clear'],
+        ['2300', 'clear'],
+        ['1300', 'rain'],
+      ] as const) {
+        test(`tiers ${String(tier)} ${view} ${hhmm} ${weather}: budget, particles ≤ 300, pixel grid`, async ({
           page,
-          `/?time=${time}&freeze&seed=1&cam=${String(FARM_PLOTS_CAM)}&weather=${weather}&state=tiers&tier=${String(tier)}`,
-        );
-        const scale = await expectWebGlWithinBudget(page);
-        expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
-        const png = await shoot(page, testInfo, `tiers-${String(tier)}-farm-plots-${hhmm}-${weather}`);
-        expectPixelGrid(png, testInfo, scale, 0);
-        if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
-      });
+        }, testInfo) => {
+          const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+          await gotoReady(
+            page,
+            `/?time=${time}&freeze&seed=1&cam=${String(cam)}&weather=${weather}&state=tiers&tier=${String(tier)}`,
+          );
+          const scale = await expectWebGlWithinBudget(page);
+          expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+          const png = await shoot(page, testInfo, `tiers-${String(tier)}-${view}-${hhmm}-${weather}`);
+          expectPixelGrid(png, testInfo, scale, 0);
+          if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
+        });
+      }
     }
-  }
 });
 
 test.describe('M1-19 the scene follows the game @screens', () => {

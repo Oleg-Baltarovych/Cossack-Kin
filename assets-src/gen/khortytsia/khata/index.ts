@@ -3,7 +3,8 @@
 // hip — pryzba, window(s) with an emissive night mask, contact line + cast shadow. Modular: tier III adds a mirrored
 // window, a рушник and a chimney on the same base; mallows are a separate prop (`mallows`), so the body keeps to
 // plaster, thatch, wood and earth (art-director ART-05 review: colour budget). Pivot at the base.
-import { castShadow, compose } from '../../lib/passes.ts';
+import type { IndexBuffer } from '../../lib/buffer.ts';
+import { castShadow, compose, type Part, type RampSize } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import {
   chimney,
@@ -17,7 +18,7 @@ import {
   windowRecipe,
   type Rect,
 } from '../../lib/recipes.ts';
-import type { SpriteGenerator } from '../../lib/types.ts';
+import type { CompanionLayer, SpriteGenerator } from '../../lib/types.ts';
 
 /** Wider than the house: the cast shadow runs ~12 px right of the wall. */
 const W = 76;
@@ -41,6 +42,105 @@ const WINDOW_X2 = WALL.x + WALL.x + FRONT_W - 1 - (WINDOW_X + WINDOW.w - 1);
 const ROOF_PART = 1;
 const BODY_PART = 2;
 
+/** The plots a khata is painted into, for tier extras (offsets already applied by the caller). */
+export interface KhataPlots {
+  readonly body: Plot;
+  readonly roof: Plot;
+  readonly glow: Plot;
+  /** Right end of the roof ridge (exclusive); the tier-III chimney stands at `ridgeX1 − 9`. */
+  readonly ridgeX1: number;
+}
+
+export interface KhataSpec {
+  readonly seed: string;
+  /** Offset of the khata in a larger canvas (the potter's tiers, M2-07); 0 for the M-ART frames. */
+  readonly ox: number;
+  readonly oy: number;
+  /** Tier III: the mirrored window, a рушник over the first one and the whitewashed chimney. */
+  readonly tier3: boolean;
+  /** Extra px over the body (after the рушник) and over the roof (after the chimney). */
+  readonly extras?: (plots: KhataPlots) => void;
+  /** Extra parts composed after the body and the roof (porch, lean-to). */
+  readonly parts?: readonly Part[];
+  /** Ground row of the canvas (the cast shadow's base). */
+  readonly ground: number;
+}
+
+/** Window rect of the khata's front face: 0 = the first window, 1 = the mirrored one (tier III). */
+export function khataWindow(i: 0 | 1, ox = 0, oy = 0): Rect {
+  return { x: (i === 0 ? WINDOW_X : WINDOW_X2) + ox, y: WINDOW_Y + oy, w: WINDOW.w, h: WINDOW.h + 1 };
+}
+
+/** Khata geometry in its own canvas (x, y before the offset). */
+export const KHATA_GEOMETRY = { WALL, SIDE, FRONT_W, ROOF, WALL_TOP, PRYZBA_Y } as const;
+
+/**
+ * Paints the khata (tier I, or III with `tier3`) into `buffer` at an offset; the M-ART frames are `ox = oy = 0`.
+ * Write order is the M-ART one, so those frames stay pixel-identical.
+ */
+export function paintKhata(
+  buffer: IndexBuffer,
+  layers: Readonly<Partial<Record<CompanionLayer, IndexBuffer>>>,
+  rampSize: RampSize,
+  spec: KhataSpec,
+): void {
+  const { seed, ox, oy, tier3 } = spec;
+  const body = new Plot();
+  const glow = new Plot();
+  const windows: Rect[] = [khataWindow(0, ox, oy)];
+  if (tier3) windows.push(khataWindow(1, ox, oy));
+
+  whitewashWall(body, {
+    seed,
+    x: WALL.x + ox,
+    y: WALL_TOP + oy,
+    w: FRONT_W,
+    h: PRYZBA_Y - WALL_TOP,
+    avoid: windows,
+    aoRows: 2,
+    shadeEdge: false,
+  });
+  eaveAO(body, WALL.x + ox, WALL.x + FRONT_W + ox, WALL_TOP + oy);
+  sideWall(body, { x: WALL.x + FRONT_W + ox, y: WALL_TOP + oy, w: SIDE, h: PRYZBA_Y - WALL_TOP });
+  for (const win of windows) windowRecipe(body, glow, win.x, win.y);
+  pryzbaBand(body, { seed, x: WALL.x - 1 + ox, y: PRYZBA_Y + oy, w: WALL.w + 2 });
+  if (tier3) {
+    const first = windows[0];
+    if (first) rushnyk(body, first);
+  }
+
+  const roof = new Plot();
+  // The right hip foot spans the side wall plus the overhang.
+  const info = thatchRoof(roof, {
+    seed,
+    ...ROOF,
+    x: ROOF.x + ox,
+    top: ROOF.top + oy,
+    lip: ROOF.lip + oy,
+    hipFoot: { left: 0.45, right: 0.9 },
+  });
+  if (tier3) chimney(roof, info.ridgeX1 - 9, ROOF.top - 1 + oy, 7);
+  spec.extras?.({ body, roof, glow, ridgeX1: info.ridgeX1 });
+
+  compose(buffer, [body.part(2, BODY_PART, glow), roof.part(1, ROOF_PART), ...(spec.parts ?? [])], rampSize, {
+    light: false,
+    occlusion: false,
+    // Heavy soft roof edge: a darker rim only on the shaded right/bottom side of the thatch silhouette.
+    outline: { mode: 'outer', parts: [ROOF_PART] },
+    selective: { lit: 'vanish' },
+    ...(layers.emissive ? { emissive: layers.emissive } : {}),
+  });
+
+  const shadow = layers.shadow;
+  if (shadow) {
+    castShadow(shadow, {
+      x0: WALL.x + Math.floor(WALL.w / 2) + ox,
+      x1: WALL.x + WALL.w + 1 + ox,
+      groundY: spec.ground,
+    });
+  }
+}
+
 const khata: SpriteGenerator = {
   atlas: 'khortytsia',
   id: 'khata',
@@ -50,54 +150,13 @@ const khata: SpriteGenerator = {
   layers: ['emissive', 'shadow'],
   anchor: { x: KHATA_PIVOT_X / W, y: (KHATA_GROUND + 1) / H },
   generate(_rng, { variant, buffer, layers, rampSize }) {
-    const tier3 = variant === 't3';
-    const seed = `khata.${variant ?? 't1'}`;
-    const body = new Plot();
-    const glow = new Plot();
-    const windows: Rect[] = [{ x: WINDOW_X, y: WINDOW_Y, w: WINDOW.w, h: WINDOW.h + 1 }];
-    if (tier3) windows.push({ x: WINDOW_X2, y: WINDOW_Y, w: WINDOW.w, h: WINDOW.h + 1 });
-
-    whitewashWall(body, {
-      seed,
-      x: WALL.x,
-      y: WALL_TOP,
-      w: FRONT_W,
-      h: PRYZBA_Y - WALL_TOP,
-      avoid: windows,
-      aoRows: 2,
-      shadeEdge: false,
+    paintKhata(buffer, layers, rampSize, {
+      seed: `khata.${variant ?? 't1'}`,
+      ox: 0,
+      oy: 0,
+      tier3: variant === 't3',
+      ground: KHATA_GROUND,
     });
-    eaveAO(body, WALL.x, WALL.x + FRONT_W, WALL_TOP);
-    sideWall(body, { x: WALL.x + FRONT_W, y: WALL_TOP, w: SIDE, h: PRYZBA_Y - WALL_TOP });
-    for (const win of windows) windowRecipe(body, glow, win.x, win.y);
-    pryzbaBand(body, { seed, x: WALL.x - 1, y: PRYZBA_Y, w: WALL.w + 2 });
-    if (tier3) {
-      const first = windows[0];
-      if (first) rushnyk(body, first);
-    }
-
-    const roof = new Plot();
-    // The right hip foot spans the side wall plus the overhang.
-    const info = thatchRoof(roof, { seed, ...ROOF, hipFoot: { left: 0.45, right: 0.9 } });
-    if (tier3) chimney(roof, info.ridgeX1 - 9, ROOF.top - 1, 7);
-
-    compose(buffer, [body.part(2, BODY_PART, glow), roof.part(1, ROOF_PART)], rampSize, {
-      light: false,
-      occlusion: false,
-      // Heavy soft roof edge: a darker rim only on the shaded right/bottom side of the thatch silhouette.
-      outline: { mode: 'outer', parts: [ROOF_PART] },
-      selective: { lit: 'vanish' },
-      ...(layers.emissive ? { emissive: layers.emissive } : {}),
-    });
-
-    const shadow = layers.shadow;
-    if (shadow) {
-      castShadow(shadow, {
-        x0: WALL.x + Math.floor(WALL.w / 2),
-        x1: WALL.x + WALL.w + 1,
-        groundY: KHATA_GROUND,
-      });
-    }
   },
 };
 

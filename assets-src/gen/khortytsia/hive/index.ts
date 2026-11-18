@@ -19,7 +19,9 @@ const hive: SpriteGenerator = {
   frames: { idle: 1 },
   variants: ['log', 'stump'],
   layers: ['shadow'],
-  anchor: { x: (CX + 0.5) / W, y: (HIVE_GROUND + 1) / H },
+  // Pivot on a whole px (the left edge of column CX): a half-px anchor lands sprites on a texel tie that
+  // the atlas packing decides (M2-07: a 1-px hive shift when the atlas grew).
+  anchor: { x: CX / W, y: (HIVE_GROUND + 1) / H },
   generate(_rng, { variant, buffer, layers, rampSize }) {
     const p = new Plot();
     if (variant === 'stump') stumpHive(p, CX + 1, HIVE_GROUND);
