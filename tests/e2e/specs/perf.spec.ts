@@ -66,6 +66,78 @@ test.describe('ART-10 shaft variants @perf', () => {
   }
 });
 
+// M2-02: the same while a finger pans the camera back and forth over the farm (light shafts repaint as the far planes
+// move: rate-limited to the tier's repaintHz while moving, exact once settled). Writes reports/perf/<date>/camera.md.
+const CFILE = join(DIR, 'camera.md');
+
+test.describe('M2-02 camera pan @perf', () => {
+  test.skip(process.env['PERF'] !== '1', 'opt-in: PERF=1');
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+  test.describe.configure({ mode: 'serial' });
+
+  const header = (): void => {
+    if (existsSync(CFILE)) return;
+    mkdirSync(DIR, { recursive: true });
+    writeFileSync(
+      CFILE,
+      `# M2-02 camera pan — ${day}
+
+390×844 @3, headless Chromium (SwiftShader), CPU ×4 throttle, live animation, 19:30 (shafts on), a touch drag of
+6 CSS px per frame back and forth over the farm (cam 0–600). Means of the stats windows published while panning.
+
+| Tier | fps | CPU ms/frame | draw calls |
+|---|---|---|---|
+`,
+    );
+  };
+
+  for (const tier of ['low', 'med', 'high'] as const) {
+    test(`pan 19:30 ${tier}`, async ({ page }) => {
+      test.setTimeout(240_000); // ~240 frames at ~10 fps under SwiftShader + CPU ×4
+      header();
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+      await gotoReady(page, `/?time=19:30&seed=1&zone=farm&quality=${tier}`);
+      const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number): Promise<void> => {
+        await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: x === undefined ? [] : [{ x, y: 300 }] });
+      };
+      // One frame per move: wait for the next rAF, then read the stats it may have published.
+      const nextFrame = (): Promise<{ fps: number; frameMs: number; drawCalls: number }> =>
+        page.evaluate(
+          () =>
+            new Promise((resolve) => {
+              requestAnimationFrame(() => {
+                const s = window.__CK__?.stats;
+                resolve({ fps: s?.fps ?? 0, frameMs: s?.frameMs ?? 0, drawCalls: s?.drawCalls ?? 0 });
+              });
+            }),
+        );
+      const samples: { fps: number; frameMs: number; drawCalls: number }[] = [];
+      let last = await nextFrame();
+      // 4 strokes of 60 moves (360 CSS px): right-to-left, then back; a sample whenever the stats window turns over.
+      for (let stroke = 0; stroke < 4; stroke++) {
+        const from = stroke % 2 === 0 ? 380 : 20;
+        const dir = stroke % 2 === 0 ? -6 : 6;
+        await touch('touchStart', from);
+        for (let i = 1; i <= 60; i++) {
+          await touch('touchMove', from + dir * i);
+          const now = await nextFrame();
+          if (now.fps !== last.fps || now.frameMs !== last.frameMs) samples.push(now);
+          last = now;
+        }
+        await touch('touchEnd');
+      }
+      const used = samples.slice(1); // the first window includes the still frames before the first stroke
+      expect(used.length).toBeGreaterThan(0);
+      const fps = used.reduce((a, s) => a + s.fps, 0) / used.length;
+      const frameMs = used.reduce((a, s) => a + s.frameMs, 0) / used.length;
+      const drawCalls = Math.max(...used.map((s) => s.drawCalls));
+      appendFileSync(CFILE, `| ${tier} | ${fps.toFixed(1)} | ${frameMs.toFixed(2)} | ${String(drawCalls)} |\n`);
+      expect(drawCalls).toBeLessThanOrEqual(30);
+    });
+  }
+});
+
 // ART-18: fps / draw calls / particles per tier for the four reference scenes (opt-in, PERF=1).
 const SCENES = [
   ['0700 clear', '07:00', 'clear'],

@@ -28,6 +28,13 @@ export interface LayerFrame {
   readonly cycle: DayCycle;
   /** Camera position in world px (ground parallax); screen-fixed layers use it to place parallax content. */
   readonly camX: number;
+  /**
+   * The camera is being dragged, coasting or gliding (M2-02): costly camera-dependent repaints may run at their own
+   * rate and catch up once it settles.
+   */
+  readonly cameraMoving: boolean;
+  /** Real frame time in ms (`performance.now()`), for rate limits that must also tick under `?freeze`. */
+  readonly nowMs: number;
   /** What the game puts in the scene (render/scene.ts): plots by building tier, the wind. */
   readonly scene: SceneState;
 }

@@ -79,7 +79,7 @@ function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notic
       <TapFeedback world={world} />
       <div className={styles.layer} inert={away || noticeOpen}>
         <Hud />
-        <Panel />
+        <Panel onZone={(zone) => world?.focusZone(zone)} zoneSource={world?.onZoneChange} />
       </div>
       {/* The save notice first: the return window waits under it. */}
       {noticeOpen ? (
