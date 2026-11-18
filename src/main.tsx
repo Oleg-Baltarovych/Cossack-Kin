@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { installChunkReload } from './platform/chunkReload.ts';
 import { claimTab } from './platform/singleTab.ts';
 import { App } from './ui/App.tsx';
 import { OtherTab, StartError } from './ui/components/OtherTab.tsx';
@@ -18,6 +19,9 @@ trackScale(document.documentElement);
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) window.location.reload();
 });
+
+// A stale deploy (old entry, missing lazy chunk) reloads once (M2-04).
+installChunkReload();
 
 const root = createRoot(container);
 

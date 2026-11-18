@@ -83,6 +83,51 @@ export function findLeaks(text: string): Leak[] {
   return leaks;
 }
 
+/**
+ * Start chunk budget (M2-04): the SUM of the raw (uncompressed) bytes of every script index.html loads up front, at
+ * most Vite's 500 kB warning limit (1 kB = 1000 bytes, as `vite build` prints it). The e2e (startup.spec.ts) checks
+ * the same sum over HTTP.
+ */
+export const START_CHUNK_BUDGET_BYTES = 500_000;
+
+const attr = (tag: string, name: string): string | undefined =>
+  new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, 'i').exec(tag)?.[2];
+
+/**
+ * Scripts that load before the first paint: every `<script src>` and `<link rel="modulepreload">` in index.html, as
+ * dist-relative paths (leading `./` or `/` dropped). Lazy chunks (the Pixi world, ui/App.tsx) are not listed there.
+ */
+export function entryScripts(html: string): string[] {
+  const paths: string[] = [];
+  for (const [tag] of html.matchAll(/<(?:script|link)\b[^>]*>/gi)) {
+    const url = /^<script/i.test(tag)
+      ? attr(tag, 'src')
+      : attr(tag, 'rel') === 'modulepreload'
+        ? attr(tag, 'href')
+        : undefined;
+    if (url) paths.push(url.replace(/^(?:\.?\/)+/, ''));
+  }
+  return paths;
+}
+
+/** Start scripts missing from dist/ or over the budget together; `sizeOf(path)` = raw bytes, undefined if absent. */
+export function checkEntryChunks(html: string, sizeOf: (path: string) => number | undefined): string[] {
+  const paths = entryScripts(html);
+  if (paths.length === 0) return ['index.html has no entry <script src>'];
+  const problems: string[] = [];
+  let total = 0;
+  for (const path of paths) {
+    const size = sizeOf(path);
+    if (size === undefined) problems.push(`start chunk ${path} is missing`);
+    else total += size;
+  }
+  if (total > START_CHUNK_BUDGET_BYTES)
+    problems.push(
+      `start chunks (${paths.join(', ')}) are ${String(total)} bytes > ${String(START_CHUNK_BUDGET_BYTES)} (lazy-load the rest, M2-04)`,
+    );
+  return problems;
+}
+
 const CSP_META = /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"\s*\/?>/gi;
 
 /** Problems with the CSP of the built index.html: exactly one meta policy, equal to PROD_CSP, nothing unsafe. */
