@@ -64,6 +64,7 @@ Legend: — not started · 🚧 in progress · ✅ done (link key files when don
 ## 6. Gotchas / learned the hard way
 _(append one line per non-obvious discovery: what, where, why)_
 - Balance: with SPEC §3.2 numbers and no modifiers a greedy bot reaches bloom of village 1 in ~2.8 days (target 4–6) — see `SPEC-REVIEW.md` B-01. Do not trust the table until `balance-sim` exists.
+- 2026-11-19: the machine moved to Node 26.13.1 (no corepack): pnpm 12.21.0 is now a plain `npm i -g pnpm@12.21.0` install (its postinstall is skipped by npm's allow-scripts; not needed). CI stays on Node 24 — `engines` is `>=24`.
 - pnpm 12.21.0 is on PATH; `corepack enable` fails with EPERM (Program Files) — don't retry. `packageManager` is pinned in package.json. pnpm 12 prints "Agent skills awaiting approval: pixi.js" on install — harmless, `pnpm approve` is optional.
 - Node 24 runs `tools/*.ts` directly (built-in type stripping, no warning) — no `tsx`. Tools code must stay erasable-only (`erasableSyntaxOnly`: no enums/namespaces/param properties) and import with `.ts` extensions.
 - TypeScript pinned `~6.0.3`: typescript-eslint 8.72 needs `<6.1.0`; TS 7 has no JS API until 7.1 (plan R5).

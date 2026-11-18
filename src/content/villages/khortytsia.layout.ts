@@ -21,6 +21,8 @@ export interface Plot {
   readonly building: PlotBuilding;
   readonly from: number;
   readonly until?: number;
+  /** Other buildings that must stand too (a trail from the gate to a kurin needs both). */
+  readonly requires?: readonly { readonly building: PlotBuilding; readonly from: number }[];
 }
 
 export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan' | 'maidan-end';
@@ -30,6 +32,9 @@ export interface GroundRow {
   /** Rows below the horizon where this band starts; bands are whole tiles (multiples of 32) tall. */
   readonly top: number;
   readonly h: number;
+  /** A band that belongs to a plot (the maidan, the rampart): `alt` (default: the layout's `fill`) while it is empty. */
+  readonly plot?: Plot;
+  readonly alt?: GroundTile;
 }
 
 export interface Prop {
@@ -345,15 +350,30 @@ export const KHORTYTSIA_SICH: SceneLayout = {
   horizonRatio: KHORTYTSIA_FARM.horizonRatio,
   rows: [
     { tile: 'meadow', top: 0, h: 32 },
-    { tile: 'val', top: 32, h: 32 }, // the rampart's inner slope
-    { tile: 'maidan', top: 64, h: 224 }, // the maidan, down to ~75 % of the screen
-    { tile: 'maidan-end', top: 288, h: 32 }, // a ragged edge into the grass
+    // Until the walls stand the rampart is steppe; until the first kurin the maidan is grass with a trodden patch by
+    // the fire (art-director M1-19: an empty dirt maidan read as an abandoned building site).
+    { tile: 'val', top: 32, h: 32, plot: { building: 'walls', from: 1 } }, // the rampart's inner slope
+    { tile: 'maidan', top: 64, h: 224, plot: { building: 'kurins', from: 1 } }, // the maidan, down to ~75 %
+    { tile: 'maidan-end', top: 288, h: 32, plot: { building: 'kurins', from: 1 } }, // a ragged edge into the grass
   ],
   fill: 'grass',
   // Worn paths from the gate to the two курінь doors (they lead the eye to the gate).
   decals: [
-    { sprite: 'trail.l', x: 90, ground: 42, plot: { building: 'kurins', from: 1 } },
-    { sprite: 'trail.r', x: 196, ground: 42, plot: { building: 'kurins', from: 2 } },
+    // The trails run from the gate to the kurin doors: they need both.
+    {
+      sprite: 'trail.l',
+      x: 90,
+      ground: 42,
+      plot: { building: 'kurins', from: 1, requires: [{ building: 'walls', from: 1 }] },
+    },
+    {
+      sprite: 'trail.r',
+      x: 196,
+      ground: 42,
+      plot: { building: 'kurins', from: 2, requires: [{ building: 'walls', from: 1 }] },
+    },
+    // Before the first kurin: a trodden patch round the fire on the grass.
+    { sprite: 'yard', x: 200, ground: 180, plot: { building: 'kurins', from: 0, until: 1 } },
   ],
   props: [
     // The palisade runs on behind the towers and the gate (no gaps where the footprints end).
@@ -376,7 +396,8 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     { sprite: 'logpile', x: 178, ground: 252 },
     // The campfire in the middle of the maidan (ART-16): the night's warm, local light; flames 6 frames @10 fps.
     { sprite: 'campfire', x: 196, ground: 176, animate: { kind: 'cycle', frames: 6, fps: 10 } },
-    { sprite: 'logpile', x: 36, ground: 280 },
+    // Gathered for building, by the fire: the first Sich is a camp (art-director M1-19).
+    { sprite: 'logpile', x: 226, ground: 186 },
   ],
   walkers: [
     { sprite: 'kozak.a', x0: 150, x1: 250, ground: 226, speed: 22, rest: 3, phase: 0 },
