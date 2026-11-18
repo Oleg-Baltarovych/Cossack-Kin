@@ -11,6 +11,7 @@ describe('findLeaks', () => {
     ['URLSearchParams', 'new URLSearchParams(e)', 'URL query parsing (debug params)'],
     ['warn format', 'console.warn("debug param %s=%o is invalid; using default %o",e,t,n)', 'debug param warning'],
     ['debug handle', 'window.__CK__={stats:e,settings:t}', 'window.__CK__ debug handle'],
+    ['game debug handle', 'window.__CK_GAME__={state:()=>e}', 'window.__CK__ debug handle'],
     ['overlay testid', 'e.dataset.testid="debug-overlay"', 'debug overlay'],
     ['source map', '//# sourceMappingURL=index-abc.js.map', 'source map reference'],
     ['eval call', 'x=eval(s)', 'eval call'],

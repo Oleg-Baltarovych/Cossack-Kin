@@ -1,14 +1,17 @@
 // Root DOM UI: the Pixi world canvas with the HUD and the bottom panel over it (SPEC §6.1). Owns the one game store
-// and the loop that ticks it (until saves land in M1-13 a reload starts a new game).
+// and the loop that ticks it while the page is visible (until saves land in M1-13 a reload starts a new game).
 import { useEffect, useRef, useState } from 'react';
 import { createInitialState } from '../core/state.ts';
 import { createStore, type GameStore } from '../core/store.ts';
-import { newSeed, startLoop } from '../platform/loop.ts';
+import { driveGame } from '../platform/lifecycle.ts';
+import { newSeed } from '../platform/loop.ts';
 import { startWorld, type WorldApp } from '../render/index.ts';
+import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel } from './components/Panel.tsx';
-import { FROZEN_NOW, parseGameDebug, presetState } from './debug/gameDebug.ts';
-import { GameProvider } from './hooks/useGame.ts';
+import { ReturnModal } from './components/ReturnModal.tsx';
+import { FROZEN_NOW, installGameDebug, parseGameDebug, presetState } from './debug/gameDebug.ts';
+import { GameProvider, useGame } from './hooks/useGame.ts';
 import styles from './App.module.css';
 
 interface Game {
@@ -25,7 +28,8 @@ function createGame(): Game {
     const d = parseGameDebug(window.location.search, import.meta.env.MODE);
     const seed = d.seed ?? newSeed();
     const now = d.frozen ? () => FROZEN_NOW : Date.now;
-    const state = d.preset ? presetState(d.preset, seed, now()) : createInitialState({ seed, now: now() });
+    const base = d.preset ? presetState(d.preset, seed, now()) : createInitialState({ seed, now: now() });
+    const state = d.lang ? { ...base, settings: { ...base.settings, lang: d.lang } } : base;
     return { store: createStore(state), now, live: !d.frozen, ui: d.ui };
   }
   const now = Date.now;
@@ -36,7 +40,10 @@ export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const [game] = useState(createGame);
 
-  useEffect(() => (game.live ? startLoop(game.store, { now: game.now }) : undefined), [game]);
+  // M1-13 adds the save as driveGame's onPause.
+  useEffect(() => (game.live ? driveGame(game.store, { now: game.now }) : undefined), [game]);
+
+  useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store) : undefined), [game]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -60,13 +67,23 @@ export function App() {
 
   return (
     <GameProvider store={game.store} now={game.now}>
+      <DocumentLang />
       <div ref={hostRef} id="world" />
-      {game.ui && (
-        <div className={styles.ui}>
-          <Hud />
-          <Panel />
-        </div>
-      )}
+      {game.ui && <GameUi />}
     </GameProvider>
+  );
+}
+
+/** HUD and panel, made inert (no focus, no screen reader) while the return window is open — aria-modal alone is not. */
+function GameUi() {
+  const away = useGame((s) => s.returnReport !== null);
+  return (
+    <div className={styles.ui}>
+      <div className={styles.layer} inert={away}>
+        <Hud />
+        <Panel />
+      </div>
+      <ReturnModal />
+    </div>
   );
 }

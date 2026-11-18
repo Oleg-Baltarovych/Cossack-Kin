@@ -41,7 +41,7 @@
     "many": "{count} годин",
     "other": "{count} години"
   },
-  "return.away": "Тебе не було {time}",
+  "return.away": "Час відсутності: {time}",
   "ui.hud.ducats": "Дукати",
   "ui.hud.glory": "Слава",
   "ui.hud.perSec": "+{value}/с",
@@ -76,5 +76,24 @@
   "ui.settings.lang": "Мова",
   "lang.uk": "Українська",
   "lang.en": "English",
-  "ui.price.none": "—"
+  "ui.price.none": "—",
+  "time.minutes": {
+    "one": "{count} хвилина",
+    "few": "{count} хвилини",
+    "many": "{count} хвилин",
+    "other": "{count} хвилини"
+  },
+  "time.days": {
+    "one": "{count} день",
+    "few": "{count} дні",
+    "many": "{count} днів",
+    "other": "{count} дня"
+  },
+  "time.pair": "{big} {small}",
+  "return.title": "З поверненням!",
+  "return.capped": "Зараховано: {counted} (ліміт досягнуто).",
+  "return.clockBack": "Годинник пристрою перевели назад, тож за цей час нічого не нараховано.",
+  "return.nothing": "За цей час нічого не нажито: спершу збудуй щось на хуторі.",
+  "return.gain": "+{value}",
+  "return.claim": "Забрати"
 }

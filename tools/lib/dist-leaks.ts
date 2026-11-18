@@ -35,7 +35,8 @@ export const FORBIDDEN: readonly (readonly [string, RegExp])[] = [
   ['debug param key "freeze"', /(["'`])freeze\1/g],
   ['URL query parsing (debug params)', /location\.search|URLSearchParams/g],
   ['debug param warning', /debug param/g],
-  ['window.__CK__ debug handle', /__CK__/g],
+  // window.__CK__ (render stats) and window.__CK_GAME__ (game state for e2e, M1-18).
+  ['window.__CK__ debug handle', /__CK(?:_GAME)?__/g],
   ['debug overlay', /debug-overlay/g],
   ['source map reference', /sourceMappingURL/g],
   // Tripwires (M0-12; the CSP blocks these at runtime, ESLint no-eval/no-new-func at source level).

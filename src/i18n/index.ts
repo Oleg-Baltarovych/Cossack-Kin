@@ -42,6 +42,29 @@ export function t(lang: Lang, key: string, params: Params = {}): string {
   return fill(entry[pluralRules(lang).select(count)] ?? entry.other, params);
 }
 
+// --- durations -------------------------------------------------------------------------------------------------
+
+const SEC_PER_MIN = 60;
+const SEC_PER_HOUR = 3600;
+const SEC_PER_DAY = 86_400;
+
+/**
+ * An absence for people (SPEC §3.8): the two largest units, each with its own plural — «3 години 21 хвилина»,
+ * «2 дні 5 годин», «8 годин»; under an hour minutes only. Seconds are dropped.
+ */
+export function formatDuration(lang: Lang, seconds: number): string {
+  const s = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  const days = Math.floor(s / SEC_PER_DAY);
+  const hours = Math.floor((s % SEC_PER_DAY) / SEC_PER_HOUR);
+  const minutes = Math.floor((s % SEC_PER_HOUR) / SEC_PER_MIN);
+  const unit = (key: string, count: number): string => t(lang, key, { count });
+  const pair = (big: string, small: string): string => t(lang, 'time.pair', { big, small });
+  if (days > 0) return hours > 0 ? pair(unit('time.days', days), unit('time.hours', hours)) : unit('time.days', days);
+  if (hours > 0)
+    return minutes > 0 ? pair(unit('time.hours', hours), unit('time.minutes', minutes)) : unit('time.hours', hours);
+  return unit('time.minutes', minutes);
+}
+
 // --- numbers ---------------------------------------------------------------------------------------------------
 
 /** Suffixes per power of 1000 (1e3, 1e6, …). `words` in uk: Ukrainian short-scale abbreviations; otherwise K/M/B… */
