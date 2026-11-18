@@ -1,0 +1,97 @@
+/* Return window (SPEC §3.8): a wood panel over a dimmed world; it takes every tap until claimed. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: calc(env(safe-area-inset-top) + 12 * var(--px)) calc(env(safe-area-inset-right) + 12 * var(--px))
+    calc(env(safe-area-inset-bottom) + 12 * var(--px)) calc(env(safe-area-inset-left) + 12 * var(--px));
+  z-index: 10;
+  background: color-mix(in srgb, var(--c-ink-0) 80%, transparent);
+}
+
+.dialog {
+  width: 100%;
+  max-width: calc(300 * var(--px));
+  display: grid;
+  gap: calc(8 * var(--px));
+  padding: calc(10 * var(--px));
+  color: var(--c-plaster-5);
+  background: var(--c-wood-0);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 0 0 var(--px) var(--c-wood-2),
+    inset 0 calc(3 * var(--px)) 0 calc(var(--px)) var(--c-gold-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-m);
+  font-weight: normal;
+  line-height: 1.2;
+  color: var(--c-thatch-6);
+  text-align: center;
+}
+
+.body {
+  display: grid;
+  gap: calc(6 * var(--px));
+  line-height: 1.5;
+}
+
+.body p {
+  margin: 0;
+}
+
+.capped {
+  color: var(--c-sky-6);
+}
+
+.gains {
+  margin: 0;
+  display: grid;
+  gap: calc(4 * var(--px));
+  padding: calc(6 * var(--px));
+  background: var(--c-wood-1);
+  border: var(--px) solid var(--c-ink-0);
+}
+
+.gain {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(6 * var(--px));
+}
+
+.gain dt {
+  color: var(--c-thatch-5);
+}
+
+.gain dd {
+  margin: 0;
+  font-size: var(--font-m);
+  color: var(--c-grass-6);
+}
+
+.claim {
+  min-height: 44px;
+  padding: calc(4 * var(--px));
+  font: inherit;
+  word-spacing: inherit;
+  color: var(--c-ink-0);
+  background: var(--c-gold-4);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
+    inset 0 var(--px) 0 var(--c-gold-5);
+  cursor: pointer;
+}
+
+.claim:active {
+  transform: translateY(calc(2 * var(--px)));
+  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+}
+
+.claim:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
+}

@@ -1,6 +1,7 @@
-// The game loop driver (SPEC §9.2; plan M1-17, extended in M1-18 with autosave and lifecycle). The core never reads
-// the clock: this is where wall time enters. 10 Hz ticks, plus one immediately when the page becomes visible again,
-// so a return is counted at once rather than on the next interval.
+// The game loop driver (SPEC §9.2; plan M1-17/M1-18). The core never reads the clock: this is where wall time enters.
+// While running it ticks at 10 Hz; `start` and `stop` each tick once, so the state is current the moment the page
+// hides or comes back. When the loop is stopped, time is not lost — the next tick counts the gap through `applyOffline`
+// (with its caps), which is how a hidden page becomes an absence. lifecycle.ts decides when to start and stop.
 import type { GameStore } from '../core/store.ts';
 
 /** Ticks per second (SPEC §9.2). */
@@ -12,22 +13,30 @@ export interface LoopOptions {
   readonly hz?: number;
 }
 
-/** Starts ticking `store`; returns the stop function. */
-export function startLoop(store: GameStore, { now = Date.now, hz = LOOP_HZ }: LoopOptions = {}): () => void {
+export interface Loop {
+  readonly running: () => boolean;
+  start(): void;
+  stop(): void;
+}
+
+export function createLoop(store: GameStore, { now = Date.now, hz = LOOP_HZ }: LoopOptions = {}): Loop {
+  let id: ReturnType<typeof setInterval> | null = null;
   const step = (): void => {
     store.tick(now());
-    // TODO(M1-18): the return window replaces this. Until then the offline income is claimed at once, so it is never
-    // left pending (tests/unit/platform/loop.test.ts pins it).
-    if (store.getState().returnReport) store.dispatch({ type: 'claimReturn' }, now());
   };
-  const onVisible = (): void => {
-    if (document.visibilityState === 'visible') step();
-  };
-  const id = setInterval(step, MS_PER_SEC / hz);
-  document.addEventListener('visibilitychange', onVisible);
-  return () => {
-    clearInterval(id);
-    document.removeEventListener('visibilitychange', onVisible);
+  return {
+    running: () => id !== null,
+    start() {
+      if (id !== null) return;
+      step();
+      id = setInterval(step, MS_PER_SEC / hz);
+    },
+    stop() {
+      if (id === null) return;
+      clearInterval(id);
+      id = null;
+      step();
+    },
   };
 }
 

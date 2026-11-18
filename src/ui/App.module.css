@@ -5,6 +5,14 @@
   pointer-events: none;
 }
 
-.ui > * {
+.ui > *,
+.layer > * {
   pointer-events: auto;
+}
+
+/* HUD + panel: a full-size box that itself lets taps through to the world. */
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Big } from '../../../src/core/big.ts';
-import { formatBig, t } from '../../../src/i18n/index.ts';
+import { formatBig, formatDuration, t } from '../../../src/i18n/index.ts';
 import enTable from '../../../src/i18n/locales/en.json';
 import ukTable from '../../../src/i18n/locales/uk.json';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
@@ -39,7 +39,7 @@ describe('t(): keys, params, plurals (M1-16, SPEC §11)', () => {
 
   it('fills {params} and leaves unknown placeholders visible', () => {
     expect(t('en', 'time.hours', { count: 3 })).toBe('3 hours');
-    expect(t('uk', 'return.away', { time: '2 години' })).toBe('Тебе не було 2 години');
+    expect(t('uk', 'return.away', { time: '2 години' })).toBe('Час відсутності: 2 години');
   });
 });
 
@@ -105,5 +105,32 @@ describe('keys built at run time exist in both languages (M1-17 review)', () => 
 
   it('uk and en have the same key set', () => {
     expect(Object.keys(enTable).sort()).toEqual(Object.keys(ukTable).sort());
+  });
+});
+
+describe('formatDuration (M1-18)', () => {
+  it('minutes under an hour, with plurals', () => {
+    expect(formatDuration('uk', 60)).toBe('1 хвилина');
+    expect(formatDuration('uk', 120)).toBe('2 хвилини');
+    expect(formatDuration('uk', 5 * 60 + 59)).toBe('5 хвилин');
+    expect(formatDuration('en', 60)).toBe('1 minute');
+  });
+
+  it('hours and minutes; whole hours alone', () => {
+    expect(formatDuration('uk', 3 * 3600 + 21 * 60)).toBe('3 години 21 хвилина');
+    expect(formatDuration('uk', 8 * 3600)).toBe('8 годин');
+    expect(formatDuration('en', 2 * 3600 + 60)).toBe('2 hours 1 minute');
+  });
+
+  it('days and hours past a day (minutes dropped)', () => {
+    expect(formatDuration('uk', 86400 * 2 + 3600 * 5 + 59 * 60)).toBe('2 дні 5 годин');
+    expect(formatDuration('uk', 86400 * 11)).toBe('11 днів');
+    expect(formatDuration('en', 86400)).toBe('1 day');
+  });
+
+  it('under a minute and nonsense input read as 0 minutes', () => {
+    expect(formatDuration('uk', 0)).toBe('0 хвилин');
+    expect(formatDuration('uk', 59)).toBe('0 хвилин');
+    expect(formatDuration('en', Number.NaN)).toBe('0 minutes');
   });
 });

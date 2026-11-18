@@ -39,7 +39,7 @@
     "one": "{count} hour",
     "other": "{count} hours"
   },
-  "return.away": "You were away {time}",
+  "return.away": "Time away: {time}",
   "ui.hud.ducats": "Ducats",
   "ui.hud.glory": "Glory",
   "ui.hud.perSec": "+{value}/s",
@@ -74,5 +74,20 @@
   "ui.settings.lang": "Language",
   "lang.uk": "Українська",
   "lang.en": "English",
-  "ui.price.none": "—"
+  "ui.price.none": "—",
+  "time.minutes": {
+    "one": "{count} minute",
+    "other": "{count} minutes"
+  },
+  "time.days": {
+    "one": "{count} day",
+    "other": "{count} days"
+  },
+  "time.pair": "{big} {small}",
+  "return.title": "Welcome back!",
+  "return.capped": "Counted: {counted} (the limit was reached).",
+  "return.clockBack": "The device clock was set back, so nothing was earned for that time.",
+  "return.nothing": "Nothing was earned meanwhile: build something on the farm first.",
+  "return.gain": "+{value}",
+  "return.claim": "Collect"
 }

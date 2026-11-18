@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { Big } from '../../core/big.ts';
 import type { Lang } from '../../core/state.ts';
-import { formatBig, t, type Params } from '../../i18n/index.ts';
+import { formatBig, formatDuration, t, type Params } from '../../i18n/index.ts';
 import { useGame } from './useGame.ts';
 
 export interface Text {
@@ -11,6 +11,8 @@ export interface Text {
   readonly t: (key: string, params?: Params) => string;
   /** Any amount for display: a Big, or a plain count/percent (wrapped in Big here so formatting stays one path). */
   readonly num: (value: Big | number) => string;
+  /** A span of seconds for people («3 години 21 хвилина»). */
+  readonly dur: (seconds: number) => string;
 }
 
 export function useText(): Text {
@@ -21,6 +23,7 @@ export function useText(): Text {
       lang,
       t: (key: string, params?: Params) => t(lang, key, params),
       num: (value: Big | number) => formatBig(typeof value === 'number' ? Big.from(value) : value, lang, format),
+      dur: (seconds: number) => formatDuration(lang, seconds),
     }),
     [lang, format],
   );
