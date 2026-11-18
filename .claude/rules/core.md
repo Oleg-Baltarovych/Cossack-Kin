@@ -6,7 +6,7 @@ paths:
 
 - Pure TypeScript. No imports from `render/`, `ui/`, `platform/`, `audio/`, `i18n/`, Pixi, React, Capacitor (hook `core-purity.mjs` warns; ESLint enforces after M0).
 - Deterministic: time enters only as a `now: number` (ms) argument; randomness only from `core/rng.ts` (mulberry32) with the seed/cursor stored in `GameState`. Same state + same inputs → same output.
-- One way to advance time: `advance(state, dtSec, now)` is analytic and valid for any `dt` (0.1 s tick or 8 h offline). `tick` and `applyOffline` are thin callers of it — this is what makes the offline-equivalence test hold (SPEC §12.1).
+- One way to advance time: `advance(state, now)` is analytic and valid for any gap (0.1 s tick or 8 h offline). `tick`, `applyOffline` and `resume` (first tick after a return or a load) are thin callers of it — this is what makes the offline-equivalence test hold (SPEC §12.1, ADR 002 am. 3–4). `lastSeen` never moves back.
 - Time-varying mechanics (wind, weather, salt price, pasture, events) are pure functions of `(seed, absoluteTime)`, so offline integrates them piecewise without step simulation.
 - Random outcomes the player could re-roll by reloading (raid success, loot, stork reward) are rolled **once at start** and stored in state.
 - Actions are pure `(state, payload, now) => state'` reducers in `actions.ts`; invalid preconditions return the unchanged state plus a rejected event — never throw for player errors.

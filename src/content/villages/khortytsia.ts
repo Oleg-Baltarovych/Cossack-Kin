@@ -1,5 +1,5 @@
-// Land 1 — Хортиця (SPEC §3.2, §3.7; plan M1-03). The 8 farm/suburb buildings (table §3.2 as is: a starting
-// hypothesis, tuned in M1-15), the land's passive bonus, its wind mechanic and its Bloom goal. Data only.
+// Land 1 — Хортиця (SPEC §3.2, §3.7; plan M1-03). The 8 farm/suburb buildings (tuned in M1-15: `pnpm balance --check`
+// holds land 1 in the pacing corridor), the land's passive bonus, its wind mechanic and its Bloom goal. Data only.
 
 export const FARM_BUILDING_IDS = [
   'field',
