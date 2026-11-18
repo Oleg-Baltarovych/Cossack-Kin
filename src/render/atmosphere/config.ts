@@ -357,6 +357,12 @@ export const EMISSIVE_LEVELS: Readonly<Record<SkyKeyId, number>> = {
   night: 1,
 };
 
+/**
+ * Day-only props (M2-06 bees, art-director): shown while the emissive level (EMISSIVE_LEVELS) is below `maxEmissive` —
+ * morning, day, golden hour (0.4) and dawn (0.35); gone at dusk and night (1). Never shown under «менше руху».
+ */
+export const DAYTIME_PROPS = { maxEmissive: 0.5 } as const;
+
 // --- Clouds (ART-07) ---------------------------------------------------------------------------------
 export type CloudVariant = 'c1' | 'c2' | 'c3' | 'c4' | 'c5';
 
