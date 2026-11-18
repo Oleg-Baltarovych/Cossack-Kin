@@ -1,6 +1,6 @@
 # 006. Monetization: player-initiated rewarded ads only
 
-- Status: Accepted
+- Status: Superseded in part by [010](010-shop-premium-currency-and-ad-free.md) (2026-11-19: an in-game shop, premium currency and an ad-free purchase are added; the rewarded-only ad rules below stay)
 - Date: 2026-11-16
 
 ## Context

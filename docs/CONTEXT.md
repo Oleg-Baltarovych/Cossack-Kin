@@ -45,15 +45,17 @@ Commands: `pnpm dev` · `pnpm sprites` · `pnpm sprites:sheet [id…]` · `pnpm 
 | bloom/prestige, legacy tree, land 2 (Velykyi Luh) | M5 | — |
 | meta: daily, quests, stork, notifications, weather/seasons | M6 | — |
 | audio | M7 | — |
-| ads (AdMob rewarded, UMP) | M8 | — |
+| ads (AdMob rewarded, UMP) M8a · shop + Play Billing + pysanky sinks M8b | M8 | — |
+| quests: chain + chores (M2), daily/weekly (M6); story beats (M2) | M2/M6 | — |
 | polish, en, a11y, Android release | M9 | — |
 Legend: — not started · 🚧 in progress · ✅ done (link key files when done).
 
 ## 4. Key decisions (details in `docs/adr/README.md`)
 - Pixi v8 world in a low-res target (320–400 px) + React DOM UI (001); pure core, one analytic `advance()` (002); Capacitor web-first, no backend (003).
 - All pixel art by code: material generators + palette quantization + art-director gate (004); music/ambience synthesized, physical modelling (005).
-- Rewarded ads only, UMP, caps in core (006). Settlement = farm + suburb + Sich, kharch/defence links; lands = Host's path Khortytsia → Nova Sich (007).
+- Rewarded ads only, UMP, caps in core (006, superseded in part by 010). Shop (010, SPEC v1.3 §4): pysanky = the one premium currency (earned ≈ 20/day + sold), ad-free = instant rewards under the same caps, capped convenience + cosmetics, never regalia/power; bounds ads ≤ 1.5×, payer ≤ 1.75× (`pnpm balance --profile`); Play Billing via `StoreService` (cdv-purchase recommended), on-device verification v1, entitlements re-queried from Play, never trusted from saves. Quests SPEC §3.10: chain «Наказ кошового» + chores M2, daily/weekly M6. CLAUDE.md ad rule needs "or `noAds`" (owner). Settlement = farm + suburb + Sich, kharch/defence links; lands = Host's path Khortytsia → Nova Sich (007).
 - Names: «Козацький хутір» / «Cossack Kin»; applicationId `com.cossackkin.game` (fixed at first Play upload).
+- Pacing & variety (009, accepted 2026-11-19; SPEC v1.2 §2.4–2.6; v1 ≈ 3–4 months, +30 %/land): novelty every session in week 1, daily after — measured by `pnpm balance` from `content/pacing.ts` (`novelty`, `calendar`; M1-14 logs only M1 systems); story beats `content/story.ts` (M2, save v2); variety only from seed + time (visitors M2/M6, daily news / fair good / weather economy M6, raid board M3).
 - Toolchain & supply chain (008): TS ~6.0.3, exact versions, pnpm no build scripts + 3-day release age, SHA-pinned CI on ubuntu-26.04, strict CSP, `pnpm security`.
 
 ## 5. Conventions already fixed
@@ -110,19 +112,19 @@ _(append one line per non-obvious discovery: what, where, why)_
 Read only the section you need: `grep -n "^##" docs/SPEC.md`, then read that range.
 | § | Line | Topic |
 |---|---|---|
-| 0 | 11 | instructions for Claude Code (stage gates, core purity, balance, i18n, screenshots, art gate) |
-| 1–2 | 24 | vision, names, design pillars, micro/macro loop, pacing targets |
-| 3 | 76 | **3.0 settlement zones (farm/suburb/Sich, kharch, defence)**, currencies, farm + Sich buildings, taps/stork, army/raids, culture/heroes, prestige, **lands (historical order)**, offline `advance()`, meta |
-| 4 | 262 | monetization: rewarded placements and caps, AdMob/UMP, audience |
-| 5 | 285 | art direction: 320–400 px, sizes, palette, font, code-generated art pipeline |
-| 6 | 324 | visuals: screen, layers, atmosphere stack (god rays, fog, water, wind), characters, buildings, Sich life, juice, a11y |
-| 7 | 439 | audio: folk instruments via physical modelling, ambience, SFX |
-| 8 | 474 | tech stack |
-| 9 | 495 | architecture: repo tree, data flow, key types, platform interfaces, saves, modifiers |
-| 10–11 | 621 | UX flows, localization |
-| 12 | 648 | quality: unit, e2e + debug params, balance sim metric definitions, performance budgets |
-| 13 | 690 | analytics events |
-| 14 | 697 | roadmap M0, **M-ART**, M1–M10 with acceptance criteria; MVP |
-| 15–17 | 718 | release & store, cultural notes, resolved/open questions |
+| 0 | 13 | instructions for Claude Code (stage gates, core purity, balance, i18n, screenshots, art gate) |
+| 1–2 | 26 | vision, names, design pillars, micro/macro loop, pacing targets + novelty + free/ads/payer bounds, **2.4 discovery calendar, 2.5 story beats, 2.6 seeded variety** (v1.2) |
+| 3 | 169 | **3.0 settlement zones (farm/suburb/Sich, kharch, defence)**, currencies, farm + Sich buildings, taps/stork, army/raids, culture/heroes, prestige, **lands (historical order)**, offline `advance()`, meta, **3.10 quests** (v1.3) |
+| 4 | 378 | monetization (v1.3): principles, 4.1 pysanky premium currency, 4.2 shop + sinks + never-sold, 4.3 rewarded placements/caps, 4.4 billing tech, 4.5 onboarding |
+| 5 | 466 | art direction: 320–400 px, sizes, palette, font, code-generated art pipeline |
+| 6 | 507 | visuals: screen, layers, atmosphere stack (god rays, fog, water, wind), characters, buildings, Sich life, juice, a11y |
+| 7 | 625 | audio: folk instruments via physical modelling, ambience, SFX |
+| 8 | 660 | tech stack |
+| 9 | 681 | architecture: repo tree, data flow, key types, platform interfaces (+ `StoreService`), saves, modifiers |
+| 10–11 | 824 | UX flows, localization |
+| 12 | 852 | quality: unit, e2e + debug params, balance sim metric definitions (+ novelty, profiles), performance budgets |
+| 13 | 902 | analytics events (+ IAP, pysanky) |
+| 14 | 911 | roadmap M0, **M-ART**, M1–M10 with acceptance criteria (M8a ads / M8b store); MVP |
+| 15–17 | 932 | release & store (+ billing setup), cultural notes, resolved/open questions |
 
 Art: `docs/art/ART-BIBLE.md` (style source of truth), `docs/art/palette.png`, `assets-src/palettes/master.json`.

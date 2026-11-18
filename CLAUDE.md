@@ -37,7 +37,7 @@ No backend in v1.
 - Every balance number lives in `src/content/`. No magic numbers in logic. Content change → run `pnpm balance` and put the summary in the PR.
 - Render and audio only react to store events; they never mutate game state. Economy is analytic, visuals are cosmetic.
 - All player-facing text via i18n keys (`uk` default, `en` second). No string concatenation for plurals.
-- Ads: a reward is granted only after the SDK `rewarded` callback. No forced ads, banners or interstitials — ever.
+- Ads: a reward is granted only after the SDK `rewarded` callback, or at once while the player owns «Без реклами» (`noAds`, ADR 010). No forced ads, banners or interstitials — ever. Purchases: granted once, only through Play Billing (SPEC §4).
 - No `any`, `@ts-ignore`, `as unknown as`, or non-null `!` without a one-line justification comment.
 - Never read or edit `.env*` (except `.env.example`), keystores or signing configs. Never edit `public/atlases/` (generated) or committed save fixtures.
 
