@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { FarPlane } from '../../../src/content/villages/khortytsia.layout.ts';
-import { KHORTYTSIA_FARM } from '../../../src/content/villages/khortytsia.layout.ts';
+import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { dayCycle } from '../../../src/render/atmosphere/dayCycle.ts';
 import {
   HAZE_ALPHA_STEPS,
@@ -57,8 +57,8 @@ describe('planeProfile (ART-08)', () => {
   });
 
   it('every plane fits the layer buffer', () => {
-    for (const plane of KHORTYTSIA_FARM.farPlanes) {
-      expect(Math.max(...planeProfile(plane, 600).height)).toBeLessThan(PLANE_ROWS);
+    for (const plane of KHORTYTSIA_WORLD.farPlanes) {
+      expect(Math.max(...planeProfile(plane, 1200).height)).toBeLessThan(PLANE_ROWS);
     }
   });
 

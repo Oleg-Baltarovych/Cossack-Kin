@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { KHORTYTSIA_FARM } from '../../../src/content/villages/khortytsia.layout.ts';
+import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { CLOUDS } from '../../../src/render/atmosphere/config.ts';
 import { split } from '../../../src/render/camera.ts';
 import { validateState } from '../../../src/core/state.ts';
@@ -162,7 +162,7 @@ function expectSkyOnPalette(png: Buffer, scale: number): void {
   const { width, height, data } = decodePng(png);
   const palette = new Set(PALETTE_COLORS);
   const off = new Set<string>();
-  const skyRows = (height / scale) * KHORTYTSIA_FARM.horizonRatio;
+  const skyRows = (height / scale) * KHORTYTSIA_WORLD.horizonRatio;
   const firstCloudRow = Math.min(...CLOUDS.map((c) => Math.round(skyRows * c.y))) - CLOUD_RISE;
   const rows = Math.floor(Math.max(4, firstCloudRow - 1) * scale);
   for (let i = 0; i < rows * width * 4; i += 4) {
@@ -205,7 +205,7 @@ function bandLuma(png: Buffer, y0: number, y1: number): number {
 const FAR_PLANE_ROWS = 60;
 function expectGroundDarkerThanHorizon(png: Buffer, scale: number): void {
   const { height } = decodePng(png);
-  const horizon = KHORTYTSIA_FARM.horizonRatio;
+  const horizon = KHORTYTSIA_WORLD.horizonRatio;
   const above = (FAR_PLANE_ROWS * scale) / height;
   const sky = bandLuma(png, height * (horizon - above - 0.02), height * (horizon - above));
   const ground = bandLuma(png, height * (horizon + 0.01), height * (horizon + 0.03));
@@ -265,7 +265,7 @@ test.describe('ART-07 clouds @screens', () => {
     }
     const [a, b] = shots.map((s) => decodePng(s));
     if (!a || !b) throw new Error('missing shots');
-    const horizon = Math.round(a.height * KHORTYTSIA_FARM.horizonRatio);
+    const horizon = Math.round(a.height * KHORTYTSIA_WORLD.horizonRatio);
     const changed = (y0: number, y1: number): number => {
       let n = 0;
       for (let y = y0; y < y1; y++) {
@@ -433,6 +433,37 @@ test.describe('ART-17 rain and fog @screens', () => {
   }
 });
 
+test.describe('M2-01 continuous world: zone seams @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // The view centred on each zone edge (cam = edge − half of the 390-px view), plus the suburb stub at its anchor.
+  const VIEW_HALF = 195;
+  const seams = KHORTYTSIA_WORLD.zones.slice(1).map((z, i) => ({
+    name: `${KHORTYTSIA_WORLD.zones[i]?.id ?? ''}-${z.id}`,
+    cam: z.x0 - VIEW_HALF,
+  }));
+  for (const { name, cam } of [...seams, { name: 'suburb', cam: null }]) {
+    for (const [hhmm, weather] of [
+      ['1300', 'clear'],
+      ['2300', 'clear'],
+      ['1300', 'rain'],
+    ] as const) {
+      test(`khortytsia seam ${name} ${hhmm} ${weather}: budget, particles ≤ 300, pixel grid`, async ({
+        page,
+      }, testInfo) => {
+        const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+        const at = cam === null ? 'zone=suburb' : `cam=${String(cam)}`;
+        await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&${at}&weather=${weather}`);
+        const scale = await expectWebGlWithinBudget(page);
+        const stats = await readStats(page);
+        expect(stats.particles).toBeLessThanOrEqual(300);
+        const png = await shoot(page, testInfo, `khortytsia-seam-${name}-${hhmm}-${weather}`);
+        expectPixelGrid(png, testInfo, scale, 0);
+      });
+    }
+  }
+});
+
 test.describe('ART-18 «менше руху» @screens', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
 
@@ -440,7 +471,7 @@ test.describe('ART-18 «менше руху» @screens', () => {
   const skyRows = async (page: Page, url: string): Promise<Buffer> => {
     await gotoReady(page, url);
     const png = decodePng(await page.screenshot({ scale: 'device' }));
-    const rows = Math.floor(png.height * KHORTYTSIA_FARM.horizonRatio) - 4;
+    const rows = Math.floor(png.height * KHORTYTSIA_WORLD.horizonRatio) - 4;
     return Buffer.from(png.data.subarray(0, rows * png.width * 4));
   };
 

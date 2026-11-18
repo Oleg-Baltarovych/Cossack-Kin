@@ -1,6 +1,7 @@
 // Layer 7 — light and atmosphere (screen-fixed, ungraded; ART-08/10):
 // - the haze band over the ground under the horizon (atmosphere/landscapePaint.ts): strength by time of day
-//   (HAZE_LEVELS), a dense bank with `weather=fog`;
+//   (HAZE_LEVELS), a dense bank with `weather=fog`; painted over the whole world and scrolled with the ground, its
+//   cover per column from the zones (M2-01: none over the Sich's rampart, faded out at the edge);
 // - light shafts from a low sun (ART-10, ART-BIBLE §8: dawn and golden hour, through cloud gaps) by quality tier
 //   (art-director decision, plan ART-10): `high` = occlusion at full resolution, 8 repaints/s; `med` (and auto) =
 //   occlusion at ½ resolution, 4/s — a polar shadow map from the sun through the clouds, bluffs and groves, the light
@@ -11,7 +12,7 @@
 //   with a night mask (alpha-blended right after the haze band, so they batch with it), and summer fireflies (≤ 40,
 //   additive, with the dust) — sprites in world positions, by the emissive level.
 import { BufferImageSource, Container, Sprite, Texture, type BLEND_MODES } from 'pixi.js';
-import type { SceneLayout } from '../../content/villages/khortytsia.layout.ts';
+import type { WorldLayout } from '../../content/villages/khortytsia.layout.ts';
 import { layerOffset } from '../camera.ts';
 import {
   CLOUD_FOOTPRINTS,
@@ -52,6 +53,7 @@ import type { Quality, Weather } from '../settings.ts';
 import { cloudX } from './Clouds.ts';
 import { propFrames } from './Ground.ts';
 import { createRain } from './rainLayer.ts';
+import { hazeCover } from '../zones.ts';
 import { airHaze, PLANE_ROWS } from './landscape.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
@@ -98,7 +100,7 @@ const rayLook = (cycle: DayCycle): { level: number; color: number; dust: number 
 export interface LightLayerOptions {
   readonly weather: Weather;
   readonly quality: Quality | null;
-  readonly layout: SceneLayout;
+  readonly layout: WorldLayout;
   /** Scene atlas lookup, `null` for a missing frame (which props have a night mask, and their width). */
   readonly findFrame: (name: string) => Texture | null;
   /** «Менше руху»: no dust, fireflies or splashes; everything else holds a still frame (ART-18). */
@@ -132,7 +134,11 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       }
       return tex.texture;
     };
+    // Flicker seeds count props from their zone's first one (M2-01): each zone keeps the flicker of its M-ART scene.
+    const zoneOf = (x: number): number => layout.zones.findIndex((z) => x >= z.x0 && x < z.x1);
     const pools = layout.props.flatMap((prop, i) => {
+      const zone = zoneOf(prop.x);
+      const seed = i - layout.props.findIndex((q) => zoneOf(q.x) === zone);
       const fire = prop.sprite === 'campfire';
       const mask = findFrame(propFrames(prop.sprite).emissive);
       if (!fire && !mask) return [];
@@ -146,7 +152,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       sprite.anchor.set(0.5);
       night.addChild(sprite);
       // The fire's pool centres on the flames; a window pool lies on the ground in front of the wall.
-      return [{ prop, sprite, fire, seed: i, below: fire ? -4 : WINDOW_POOL.below, alpha: look.alpha }];
+      return [{ prop, sprite, fire, seed, below: fire ? -4 : WINDOW_POOL.below, alpha: look.alpha }];
     });
     // A firefly at its blink peak: the lit px with a dim + of 4 neighbours (1/4), white so the tint colours it.
     const flyPeakBuf = cpuTexture(
@@ -158,16 +164,17 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       ]),
     );
     const flyPeak = flyPeakBuf.texture;
-    const flies = layout.fireflies
-      ? Array.from({ length: FIREFLIES.count }, () => {
-          const m = new Sprite({ texture: Texture.WHITE, roundPixels: true });
-          m.blendMode = ADD;
-          m.tint = rampColor(...FIREFLIES.color);
-          m.visible = false;
-          flyLayer.addChild(m);
-          return m;
-        })
-      : [];
+    const flies =
+      layout.fireflies.length > 0
+        ? Array.from({ length: FIREFLIES.count }, () => {
+            const m = new Sprite({ texture: Texture.WHITE, roundPixels: true });
+            m.blendMode = ADD;
+            m.tint = rampColor(...FIREFLIES.color);
+            m.visible = false;
+            flyLayer.addChild(m);
+            return m;
+          })
+        : [];
     // Particle limits by tier (0 under «менше руху»), computed once per tier change. The claim is the tier's ceiling
     // (dust only shows in shafts, fireflies only at night): the budget check is against the worst case.
     const claim = claimParticles();
@@ -180,11 +187,14 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
     };
     applyBudget();
     let hazeBuf: CpuTexture | null = null;
+    let hazeCovers: number[] = [];
+    /** Per-column top cover of the clear-air band for the current bucket (cover × haze level). */
+    let hazeRow: number[] = [];
     let shaftBuf: CpuTexture | null = null;
     let beams: { tex: CpuTexture; sprite: Sprite }[] = [];
     let size: LayerSize | null = null;
     let horizon = 0;
-    let profiles: { plane: SceneLayout['farPlanes'][number]; parallax: number; profile: Profile }[] = [];
+    let profiles: { plane: WorldLayout['farPlanes'][number]; parallax: number; profile: Profile }[] = [];
     let hazeKey = '';
     let beamKey = '';
     let shaftKey = '';
@@ -264,7 +274,10 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       horizon = horizonY(s.viewH);
       haze.y = horizon - lead;
       rain?.resize(s, horizon);
-      hazeBuf = cpuTexture(s.viewW, MAX_ROWS);
+      const worldW = contentWidth(1, s);
+      hazeBuf = cpuTexture(worldW, MAX_ROWS);
+      hazeCovers = hazeCover(layout.segments, worldW, HAZE_BAND.edge);
+      hazeRow = new Array<number>(worldW).fill(0);
       haze.texture = hazeBuf.texture;
       hazeKey = '';
       beamKey = '';
@@ -303,7 +316,9 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
           const fog = weather === 'fog';
           const rows = fog ? FOG.bandRows : Math.round(HAZE_BAND.rows[0] + (HAZE_BAND.rows[1] - HAZE_BAND.rows[0]) * h);
           // Fog covers the near ground too, even where the clear-air band is off (the Sich rampart, ART-17).
-          const cover = fog ? FOG.bandCover : layout.groundHaze === false ? 0 : HAZE_BAND.cover * h;
+          const clear = HAZE_BAND.cover * h;
+          if (!fog) hazeCovers.forEach((c, x) => (hazeRow[x] = clear * c));
+          const cover = fog ? FOG.bandCover : hazeRow;
           paintHazeBand(hazeBuf.pixels, hazeBuf.w, Math.min(rows, MAX_ROWS - lead), cycle, cover, lead, weather);
           hazeBuf.source.update();
         }
@@ -314,6 +329,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         night.visible = poolLevel > 0;
         flyLayer.visible = level > 0.5 && weather === 'clear';
         rain?.update(seconds, cycle, camX);
+        haze.x = layerOffset(camX, 1);
         if (level > 0.01) {
           const offset = layerOffset(camX, 1);
           for (const p of pools) {
@@ -323,22 +339,27 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
             const f = p.fire ? flicker(seconds, p.seed) : flicker(seconds * 0.25, p.seed, 0.125);
             p.sprite.alpha = Math.round(p.alpha * poolLevel * f * 8) / 8;
           }
-          const area = layout.fireflies;
-          if (area && flies.length > 0) {
-            const list = fireflies(seconds, {
-              x0: 0,
-              x1: contentWidth(1, size),
-              y0: horizon + area.top,
-              y1: horizon + area.bottom,
-            });
-            flies.forEach((m, i) => {
-              const fly = list[i];
-              m.visible = fly !== undefined && fly.on && i < flyLimit;
-              m.texture = fly?.peak ? flyPeak : Texture.WHITE;
-              // Whole px, top-left anchored: the 3×3 peak sits one px up-left so its centre stays on the firefly.
-              if (fly) m.position.set(fly.x + offset - (fly.peak ? 1 : 0), fly.y - (fly.peak ? 1 : 0));
-            });
-          }
+        }
+        // Fireflies of each zone's area on screen (M2-01): one shared pool; an area gets the tier's limit per
+        // FIREFLIES.span px of its width (the M-ART farm: all of it), so the density holds across a zone edge.
+        if (flyLayer.visible && flyLimit > 0 && flies.length > 0) {
+          const offset = layerOffset(camX, 1);
+          const view = { x0: camX - 3, x1: camX + size.viewW + 3 };
+          const list = layout.fireflies
+            .filter((area) => area.x1 > view.x0 && area.x0 < view.x1)
+            .flatMap((area) =>
+              fireflies(seconds, { x0: area.x0, x1: area.x1, y0: horizon + area.top, y1: horizon + area.bottom })
+                .slice(0, Math.round((flyLimit * (area.x1 - area.x0)) / FIREFLIES.span))
+                .filter((fly) => fly.on && fly.x >= view.x0 && fly.x < view.x1),
+            );
+          flies.forEach((m, i) => {
+            const fly = i < flyLimit ? list[i] : undefined;
+            m.visible = fly !== undefined;
+            if (!fly) return;
+            m.texture = fly.peak ? flyPeak : Texture.WHITE;
+            // Whole px, top-left anchored: the 3×3 peak sits one px up-left so its centre stays on the firefly.
+            m.position.set(fly.x + offset - (fly.peak ? 1 : 0), fly.y - (fly.peak ? 1 : 0));
+          });
         }
 
         // Shafts: only with a low sun on screen, never in fog (ART-17 decides fog light).

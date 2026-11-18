@@ -2,6 +2,7 @@
 // imports — so `assets-src/luts/gen.ts` (Node, tools project) reads the same numbers as render.
 // Colors are palette references `[ramp, index]` (index 0 = darkest), resolved by the consumer.
 import type { RampName } from '../palette.ts';
+import { FOREGROUND_PARALLAX } from '../../content/villages/khortytsia.layout.ts';
 
 export type ColorRef = readonly [RampName, number];
 
@@ -438,8 +439,11 @@ export const HAZE_LEVELS: Readonly<Record<SkyKeyId, number>> = {
  * band over the ground whose top `leadRows` reach above the horizon over the bases of the far planes.
  */
 export const FOG = { haze: 1, depthScale: 0.35, maxDepth: 0.8, bandRows: 110, bandCover: 0.85, leadRows: 12 } as const;
-/** Clear-air haze band under the horizon: rows at haze 0 and 1, top coverage at haze 1. */
-export const HAZE_BAND = { rows: [10, 40], cover: 0.6 } as const;
+/**
+ * Clear-air haze band under the horizon: rows at haze 0 and 1, top coverage at haze 1; `edge` px over which it fades
+ * out before a zone without ground haze (M2-01: the Sich's rampart).
+ */
+export const HAZE_BAND = { rows: [10, 40], cover: 0.6, edge: 32 } as const;
 /** How much haze thins plane depth in clear air (depth × (1 − k·haze)). */
 export const HAZE_DEPTH_K = 0.35;
 /**
@@ -461,15 +465,22 @@ export const FOLIAGE_LEVELS: Readonly<Record<SkyKeyId, number>> = {
  * toward the viewer) on a `waveHz` step clock; every `darkEvery` rows a broken line of wave dashes drifts down.
  */
 export const WATER = { waveHz: 4, maxShift: 2, darkEvery: 5, maxDashes: 160, maxPath: 90, maxGlints: 28 } as const;
+/**
+ * Where the river ends (M2-01 seam review): broken 1-px foam on the waterline (`share` of the rows, `len` px, changing
+ * `hz` times a second), and the sun/moon path stops `pathGap` px before the bank.
+ */
+export const RIVER_END = { foamShare: 0.45, foamLen: 2, foamHz: 1, pathGap: 4 } as const;
 
 /**
  * Sun/moon path on the water: `sparkle` = loose glints sampled from the disc (high sun, dawn); `column` = a solid
  * vertical path under the disc, 1 px wide far away, up to `width` px at the bank, `core` colour with `edge` dashes
- * (Kuindzhi's moon path; the golden-hour sun column).
+ * (the golden-hour sun column); `dashes` = a short moon glint near the far bank: a few broken horizontal dashes, the
+ * widest on top (M2-01 art review: the night column read as a tall spike).
  */
 export type WaterPath =
   | { readonly kind: 'sparkle'; readonly density: number }
-  | { readonly kind: 'column'; readonly core: ColorRef; readonly edge: ColorRef; readonly width: number };
+  | { readonly kind: 'column'; readonly core: ColorRef; readonly edge: ColorRef; readonly width: number }
+  | { readonly kind: 'dashes'; readonly core: ColorRef; readonly edge: ColorRef };
 
 /**
  * Per-key water look. `tint` multiplies the reflection (a step darker and cooler than the sky it shows); `depth`
@@ -507,7 +518,7 @@ export const WATER_LOOKS: Readonly<Record<SkyKeyId, WaterLook>> = {
     depth: 0,
     wave: 1.15,
     sheen: ['water', 3],
-    path: { kind: 'column', core: ['water', 7], edge: ['water', 5], width: 5 },
+    path: { kind: 'dashes', core: ['water', 6], edge: ['water', 5] },
   },
 };
 
@@ -587,7 +598,7 @@ export const SWAY = {
  * Foreground layer (SPEC §6.2 layer 5): plant clumps nearer than the farm, moving faster than the ground (parallax).
  * Over a person behind it a clump drops to `fadeAlpha`, so no one is hidden behind the grass.
  */
-export const FOREGROUND = { parallax: 1.2, fadeAlpha: 0.5 } as const;
+export const FOREGROUND = { parallax: FOREGROUND_PARALLAX, fadeAlpha: 0.5 } as const;
 
 // --- Night lights (ART-16; ART-BIBLE §8 night: blue, fire light warm and local) --------------------------------
 /**
@@ -617,8 +628,9 @@ export const POOLS = { from: 0.5 } as const;
 /**
  * Summer fireflies over the meadow (≤ 40, SPEC §6.3): each blinks on for `blinkOn` of its 3–5 s cycle, the first
  * `peak` of it with a dim + of 4 neighbours (so the blink registers among the 1-px grass highlights); yellow-green.
+ * `count` (and the tier's limit) is for an area `span` px wide; a zone's area gets its share by width (M2-01).
  */
-export const FIREFLIES = { count: 32, blinkOn: 0.4, peak: 0.3, color: ['grass', 6] } as const;
+export const FIREFLIES = { count: 32, span: 720, blinkOn: 0.4, peak: 0.3, color: ['grass', 6] } as const;
 
 // --- Weather: rain and fog (ART-17) ------------------------------------------------------------------------------
 /** An overcast rain sky per key: a grey chain (dark → light, last step unused: no sun disc), flat with a lighter horizon. */

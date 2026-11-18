@@ -2,14 +2,17 @@
 // debug URL params (render/debug/params.ts). Field names are deliberately neutral so the production
 // bundle carries no debug vocabulary (plan M0-05: no `freeze` string in dist/).
 
+import type { ZoneId } from '../content/villages/khortytsia.layout.ts';
+
 export const WEATHERS = ['clear', 'rain', 'fog'] as const;
 export const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
-export const ZONES = ['farm', 'suburb', 'sich'] as const;
+/** The world's zones (content `ZoneId`): `?zone=` puts the camera at the zone's anchor (M2-01). */
+export const ZONES: readonly ZoneId[] = ['farm', 'suburb', 'sich'];
 export const QUALITIES = ['low', 'med', 'high'] as const;
 
 export type Weather = (typeof WEATHERS)[number];
 export type Season = (typeof SEASONS)[number];
-export type Zone = (typeof ZONES)[number];
+export type Zone = ZoneId;
 export type Quality = (typeof QUALITIES)[number];
 
 export interface RenderSettings {

@@ -4,14 +4,15 @@
 // tiles scrolled in whole px), the splashes (≤ RAIN.splashes, ripples in the river band). All normal-blend sprites
 // from small CPU textures, batched with the haze band and the light pools.
 import { BufferImageSource, Container, Sprite, Texture } from 'pixi.js';
-import type { SceneLayout } from '../../content/villages/khortytsia.layout.ts';
+import type { WorldLayout } from '../../content/villages/khortytsia.layout.ts';
 import { layerOffset } from '../camera.ts';
 import { RAIN, RAIN_LOOKS, WET, type SkyKeyId } from '../atmosphere/config.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { paintStreakTile, splashes, streakOffset } from '../atmosphere/rain.ts';
 import { claimParticles } from '../fx/registry.ts';
 import { rampColor } from '../palette.ts';
-import type { LayerSize } from './Layer.ts';
+import { contentWidth, type LayerSize } from './Layer.ts';
+import { riverRowEnd, riverRowsAt } from '../zones.ts';
 
 function bufferTexture(w: number, h: number, pixels: Uint8Array<ArrayBuffer>): Texture {
   const source = new BufferImageSource({
@@ -64,10 +65,21 @@ export interface Rain {
   dispose(): void;
 }
 
-export function createRain(layout: SceneLayout): Rain {
+export function createRain(layout: WorldLayout): Rain {
   const container = new Container({ label: 'rain' });
-  const wet = new Sprite({ texture: Texture.WHITE, roundPixels: true });
-  wet.tint = rampColor(...WET.color);
+  // The wet-ground film (world space): below the river from its last row down, and the dry land beside the river from
+  // the horizon — one 1-row strip per river row where that row is land (M2-01: no river in the Sich).
+  const wet = new Container({ label: 'wet' });
+  const wetTint = rampColor(...WET.color);
+  const wetStrip = (x: number, y: number, w: number, h: number): void => {
+    if (w <= 0 || h <= 0) return;
+    const strip = new Sprite({ texture: Texture.WHITE, roundPixels: true });
+    strip.tint = wetTint;
+    strip.position.set(x, y);
+    strip.width = w;
+    strip.height = h;
+    wet.addChild(strip);
+  };
   const puddleLayer = new Container({ label: 'puddles' });
   const far = new Container({ label: 'rain-far' });
   const near = new Container({ label: 'rain-near' });
@@ -88,7 +100,7 @@ export function createRain(layout: SceneLayout): Rain {
   const splashTex = own(maskTexture(['#.#', '.#.']));
   const rippleTex = own(maskTexture(['##.##']));
   const puddleTex = new Map<number, Texture>();
-  const puddles = (layout.puddles ?? []).map((p) => {
+  const puddles = layout.puddles.map((p) => {
     let tex = puddleTex.get(p.w);
     if (!tex) {
       tex = own(maskTexture(puddleRows(p.w)));
@@ -129,10 +141,16 @@ export function createRain(layout: SceneLayout): Rain {
       horizon = h;
       grid(far, farTile, s);
       grid(near, nearTile, s);
-      const top = horizon + layout.waterRows;
-      wet.position.set(0, top);
-      wet.width = s.viewW;
-      wet.height = Math.max(0, s.viewH - top);
+      for (const child of wet.removeChildren()) child.destroy();
+      const worldW = contentWidth(1, s);
+      const river = layout.river;
+      const rows = Math.min(river?.rows ?? 0, Math.max(0, s.viewH - horizon));
+      wetStrip(0, horizon + rows, worldW, s.viewH - horizon - rows);
+      for (let r = 0; r < rows && river; r++) {
+        wetStrip(0, horizon + r, river.x0, 1);
+        const end = riverRowEnd(river, r);
+        wetStrip(end, horizon + r, worldW - end, 1);
+      }
     },
     update: (seconds, cycle, camX) => {
       if (!size) return;
@@ -140,6 +158,7 @@ export function createRain(layout: SceneLayout): Rain {
       const streak = rampColor(...look.streak);
       wet.alpha = Math.round(blend(cycle, (id) => RAIN_LOOKS[id].wet) * 16) / 16;
       const offset = layerOffset(camX, 1);
+      wet.x = offset;
       const puddle = rampColor(...look.puddle);
       const ripple = rampColor(...look.ripple);
       for (const { p, sprite } of puddles) {
@@ -155,7 +174,14 @@ export function createRain(layout: SceneLayout): Rain {
         layer.alpha = spec.alpha;
         layer.tint = streak;
       }
-      const list = splashes(seconds, { x0: 0, x1: size.viewW, y0: horizon, y1: size.viewH, water: layout.waterRows });
+      const river = layout.river;
+      const list = splashes(seconds, {
+        x0: 0,
+        x1: size.viewW,
+        y0: horizon,
+        y1: size.viewH,
+        water: (x) => riverRowsAt(river, x - offset),
+      });
       drops.forEach((d, i) => {
         const s = list[i];
         d.visible = s !== undefined && i < splashLimit;
