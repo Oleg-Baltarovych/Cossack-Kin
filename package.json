@@ -13,6 +13,7 @@
     "sprites:sheet": "node tools/contact-sheet.ts",
     "sprites:strip": "node tools/anim-strip.ts",
     "luts": "node tools/build-luts.ts",
+    "balance": "node tools/balance-sim.ts",
     "build": "pnpm sprites && pnpm luts && vite build",
     "preview": "vite preview",
     "check:dist": "node tools/check-dist.ts",

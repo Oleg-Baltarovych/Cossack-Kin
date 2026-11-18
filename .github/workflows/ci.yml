@@ -45,6 +45,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      # Balance report (plan M1-14). Becomes `pnpm balance --check` (fails outside the corridor) once M1-15 tunes land 1.
+      - run: pnpm balance
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm sprites
