@@ -113,3 +113,41 @@ describe('debug presets (M1-19)', () => {
     expect(visualTiers(presetState('fresh', 1, FROZEN_NOW))).toMatchObject({ potter: 0, windmill: 0, walls: 0 });
   });
 });
+
+describe('connectWorld follows every change (M1-19 code review)', () => {
+  it('the wind changes through store ticks: a new scene with the new strength', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    const s = store.getState();
+    // Walk 10-minute slots until the wind level changes.
+    let t = s.time.lastSeen;
+    const start = windAt(s.seed, t);
+    while (windAt(s.seed, t) === start) t += 600_000;
+    for (let now = s.time.lastSeen + 1000; now <= t + 1000; now += 1000) store.tick(now);
+    expect(f.scenes.at(-1)?.wind).toBe(WIND_STRENGTH[windAt(s.seed, t)]);
+    expect(f.scenes.at(-1)?.wind).not.toBe(f.scenes[0]?.wind);
+  });
+
+  it('a loaded save (StateReplaced) and a long absence (OfflineApplied) both refresh the plots', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    const built = rich();
+    store.replace({ ...built, village: { ...built.village, levels: { ...built.village.levels, potter: 30 } } });
+    expect(f.scenes.at(-1)?.tiers?.potter).toBe(3);
+    const count = f.scenes.length;
+    store.tick(store.getState().time.lastSeen + 3 * 3600_000);
+    // Nothing that shows changed unless the wind did: a scene only when it differs.
+    expect(f.scenes.length - count).toBeLessThanOrEqual(1);
+  });
+
+  it('events that change nothing on screen make no new scene (claiming a return)', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.dispatch({ type: 'claimReturn' }, T0 + 10);
+    store.dispatch({ type: 'hire', n: 1 }, T0 + 20);
+    expect(f.scenes).toHaveLength(1);
+  });
+});

@@ -1,6 +1,7 @@
 // Дукат — the coin that pops from a tap on the world (plan M1-19, SPEC §6.7 juice). 9×9, gold ramp only, lit from the
 // top-left; 4 frames of a spin (face → three-quarter → edge → three-quarter) so a rising coin turns as it fades.
-// No outline pass: it flies over every ground colour, so its rim is the dark end of the gold ramp itself.
+// No outline pass: its rim is the gold ramp itself — the darkest step on the bottom-right edge (a warm dark contour
+// that holds against grass and sky, art-director M1-19), a lighter one on the lit top-left; a stamped centre mark.
 import { compose } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
@@ -28,14 +29,16 @@ const coin: SpriteGenerator = {
         const ny = (y - C) / R;
         const d = nx * nx + ny * ny;
         if (d > 1) continue;
-        const rim = d > 0.55;
-        // Light from the top-left: the upper-left half of the face is lighter, the lower-right darker.
+        const edge = d > 0.7;
+        const rim = d > 0.45;
+        // Light from the top-left: the upper-left half is lighter, the lower-right darker.
         const lit = x - C + (y - C) < 0;
-        let shade = rim ? (lit ? 3 : 1) : lit ? 4 : 3;
-        // A glint on the face near the top-left, only while the face is turned to us.
+        let shade = edge ? (lit ? 2 : 0) : rim ? (lit ? 4 : 2) : lit ? 4 : 3;
+        // A glint near the top-left and a stamped mark in the middle, only while the face is turned to us.
         if (frame === 0 && x === 3 && y === 2) shade = top;
-        // The edge-on frame is all rim.
-        if (hw < 1.5) shade = lit ? 3 : 2;
+        if (frame === 0 && x === C && (y === C || y === C + 1)) shade = 1;
+        // The edge-on frame: a lit stripe with a dark contour.
+        if (hw < 1.5) shade = edge ? 0 : lit ? 3 : 2;
         plot.set(x, y, 'gold', Math.min(top, shade));
       }
     }

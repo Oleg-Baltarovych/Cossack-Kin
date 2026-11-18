@@ -578,8 +578,14 @@ test.describe('M1-19 the scene follows the game @screens', () => {
   });
 
   test('a tap on the world earns ducats: a coin pops in the scene and the number floats up', async ({ page }) => {
+    // The coin and the number live 0.7 s: under parallel SwiftShader load a frame can take longer. Pause the page's
+    // clock around the tap, then run exactly 100 ms — one coin frame, the number not yet gone.
+    await page.clock.install();
     await gotoReady(page, '/?time=13:00&freeze&seed=1&state=rich&ui=1');
+    const now = await page.evaluate(() => Date.now());
+    await page.clock.pauseAt(now + 1000);
     await page.mouse.click(200, 320);
+    await page.clock.runFor(100);
     // A tap gives max(1 × scale, 30 % of the income): nothing is built yet, so 1 ducat.
     await expect(page.getByText('+1', { exact: true })).toBeVisible();
     await expect.poll(async () => (await readStats(page)).particles).toBeGreaterThan(0);

@@ -44,6 +44,7 @@ export function TapFeedback({ world }: { world: WorldApp | null }) {
     return () => {
       off();
       for (const timer of timers) clearTimeout(timer);
+      setFloaters([]);
     };
   }, [world, act, t, num]);
 

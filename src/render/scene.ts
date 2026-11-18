@@ -18,5 +18,6 @@ export const DEFAULT_SCENE: SceneState = { tiers: null, wind: WIND.strength };
 export function plotShown(plot: Plot | undefined, tiers: VisualTiers | null): boolean {
   if (!plot || !tiers) return true;
   const t = tiers[plot.building];
-  return t >= plot.from && (plot.until === undefined || t < plot.until);
+  if (t < plot.from || (plot.until !== undefined && t >= plot.until)) return false;
+  return (plot.requires ?? []).every((r) => tiers[r.building] >= r.from);
 }

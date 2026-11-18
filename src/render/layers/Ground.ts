@@ -5,7 +5,7 @@
 // opacity by time of day), with the scripted walkers (render/walkers.ts) sorted among them and re-posed every frame. All sprites come from one atlas texture, so the
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Sprite, type Texture } from 'pixi.js';
-import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
+import type { GroundTile, Plot, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
 import { CLOUD_SHADOW, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
 import { plotShown } from '../scene.ts';
 import { cloudShadowLevel } from '../atmosphere/emissive.ts';
@@ -113,6 +113,8 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       props.addChild(sprite);
       return { walker: w, walk, idle, sprite, shadow };
     });
+    /** Tiles of plot bands (the maidan, the rampart): `on` while the plot stands, `off` while it is empty. */
+    const plotTiles: { sprite: Sprite; plot: Plot; on: Texture; off: Texture }[] = [];
     let horizon = 0;
     let shadowsOn: boolean = QUALITY_TIERS[quality ?? 'med'].cloudShadows;
 
@@ -124,13 +126,18 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       const last = bands[bands.length - 1];
       const fillTop = last ? last.top + last.h : 0;
       bands.push({ tile: layout.fill, top: fillTop, h: Math.max(0, size.viewH - horizon - fillTop) });
+      plotTiles.length = 0;
       for (const band of bands) {
         for (let y = 0; y < band.h; y += TILE_H) {
           for (let x = 0; x < width; x += TILE_W) {
-            const texture = frame(tileFrame(band.tile, x / TILE_W, (band.top + y) / TILE_H));
+            const at = (tile: GroundTile): Texture => frame(tileFrame(tile, x / TILE_W, (band.top + y) / TILE_H));
+            const texture = at(band.tile);
             const tile = new Sprite({ texture, roundPixels: true });
             tile.position.set(x, horizon + band.top + y);
             tiles.addChild(tile);
+            // A plot band swaps its tiles while the plot is empty (M1-19 art review).
+            if (band.plot)
+              plotTiles.push({ sprite: tile, plot: band.plot, on: texture, off: at(band.alt ?? layout.fill) });
           }
         }
       }
@@ -174,6 +181,7 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       update: ({ seconds, ambient, cycle, scene }) => {
         // Plots follow the game (M1-19): a building's props stand while its visual tier is in their range.
         for (const { decal, sprite } of placedDecals) sprite.visible = plotShown(decal.plot, scene.tiers);
+        for (const t of plotTiles) t.sprite.texture = plotShown(t.plot, scene.tiers) ? t.on : t.off;
         for (const { prop, sprite, shadow, anim } of placed) {
           const shown = plotShown(prop.plot, scene.tiers);
           sprite.visible = shown;

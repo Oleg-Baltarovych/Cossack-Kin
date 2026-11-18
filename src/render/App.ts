@@ -184,12 +184,12 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       (ungraded ? world : graded).addChild(layer.container);
     }
-    // Tap coins over everything in the graded world (graded with it: gold at noon, dimmer at night).
+    // Tap coins over the world, after the grade (UI feedback: as bright at night as at noon, art-director M1-19).
     const coins = createCoinFx(
       Array.from({ length: 4 }, (_, i) => sceneFrame(`coin/idle/${String(i).padStart(2, '0')}`)),
       settings.lessMotion,
     );
-    graded.addChild(coins.container);
+    worldTop.addChild(coins.container);
     disposers.push(() => {
       coins.destroy();
     });
@@ -314,11 +314,17 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       };
       for (const l of [...tapListeners]) l(tap);
     };
+    // An OS gesture (scroll, pinch) cancels the pointer: no tap.
+    const onCancel = (): void => {
+      down = null;
+    };
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onCancel);
     disposers.push(() => {
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointercancel', onCancel);
       tapListeners.clear();
     });
 

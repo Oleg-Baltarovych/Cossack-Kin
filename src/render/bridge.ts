@@ -1,7 +1,8 @@
 // The render bridge (SPEC §9.2, rules/render.md; plan M1-19): the only place render meets the game. It reads the
 // state through core selectors and reacts to store events — never dispatches, never writes state (render must not
-// import core/actions.ts; ESLint `imports[render-actions]`). On connect and on the events that change what stands in
-// the scene it recomputes the plots' tiers and the wind; on `Tapped` it pops a coin where the player tapped.
+// import core/actions.ts; ESLint `imports[render-actions]`). On connect and on every event it recomputes the plots' tiers
+// and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
+import { villageOf } from '../core/modifiers.ts';
 import { visualTiers, type VisualTiers } from '../core/selectors.ts';
 import type { GameState } from '../core/state.ts';
 import type { GameStore } from '../core/store.ts';
@@ -14,7 +15,7 @@ import type { SceneState } from './scene.ts';
 export type GameView = Pick<GameStore, 'getState' | 'onEvent'>;
 
 export function sceneOf(state: GameState): SceneState {
-  return { tiers: visualTiers(state), wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen)] };
+  return { tiers: visualTiers(state), wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen, villageOf(state))] };
 }
 
 // Object.keys widens to string[]; the keys of a VisualTiers are exactly its building ids.
@@ -44,14 +45,12 @@ export function connectWorld(world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawn
         if (lastTap) world.spawnCoin(lastTap.x, lastTap.y);
         lastTap = null;
         return;
-      case 'BuildingUpgraded':
-      case 'SichUpgraded':
-      case 'WindChanged':
-      case 'StateReplaced':
-      case 'OfflineApplied':
-        refresh();
+      case 'ActionRejected':
         return;
       default:
+        // Every other event may change what stands (a new kind of event included): refresh() only makes a new scene
+        // when something shows differently, and events are rare (a tick without a wind change emits none).
+        refresh();
     }
   });
   return () => {
