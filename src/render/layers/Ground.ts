@@ -7,9 +7,9 @@
 import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
 import { GROUND_TILE, type GroundTile, type Plot, type WorldLayout } from '../../content/villages/khortytsia.layout.ts';
 import { cullByX } from '../cull.ts';
-import { CLOUD_SHADOW, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
+import { CLOUD_SHADOW, DAYTIME_PROPS, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
 import { plotShown } from '../scene.ts';
-import { cloudShadowLevel } from '../atmosphere/emissive.ts';
+import { cloudShadowLevel, emissiveLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
 import { riverRowEnd } from '../zones.ts';
@@ -209,8 +209,10 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
         // Plots follow the game (M1-19): a building's props stand while its visual tier is in their range.
         for (const { decal, sprite } of placedDecals) sprite.visible = plotShown(decal.plot, scene.tiers);
         for (const t of plotTiles) t.sprite.texture = plotShown(t.plot, scene.tiers) ? t.on : t.off;
+        // Day-only life (bees) is out by day and never under «менше руху».
+        const daylight = !lessMotion && emissiveLevel(cycle) < DAYTIME_PROPS.maxEmissive;
         for (const { prop, sprite, shadow, anim } of placed) {
-          const shown = plotShown(prop.plot, scene.tiers);
+          const shown = plotShown(prop.plot, scene.tiers) && (prop.daytime !== true || daylight);
           sprite.visible = shown;
           if (shadow) shadow.visible = shown;
           if (!shown) continue;

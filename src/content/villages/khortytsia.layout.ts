@@ -63,7 +63,18 @@ export interface Prop {
     | 'willow'
     | 'campfire'
     | 'cross'
-    | 'gatepost';
+    | 'gatepost'
+    | `field.t${TierNo}`
+    | `garden.t${TierNo}`
+    | `apiary.t${TierNo}`
+    | 'scarecrow'
+    | 'sheaves'
+    | 'cart'
+    | 'garden-tyn'
+    | 'hive.log'
+    | 'hive.stump'
+    | 'bees'
+    | 'apiary-hut';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -77,8 +88,13 @@ export interface Prop {
    * baked lean frames from the wind (render/sway.ts) — `amp` the share of the full lean, `phase` 0..1.
    */
   readonly animate?: Animate;
+  /** Day-only life (bees): hidden at night and under «менше руху» (render: DAYTIME_PROPS). */
+  readonly daytime?: boolean;
   readonly plot?: Plot;
 }
+
+/** Tier numbers of the farm generators' variants (`field.t1` … `field.t6`). */
+type TierNo = 1 | 2 | 3 | 4 | 5 | 6;
 
 export type Animate =
   | { readonly kind: 'cycle'; readonly frames: number; readonly fps: number | 'wind' }
@@ -94,6 +110,7 @@ export interface TierPart {
   readonly lift?: number;
   readonly shadow?: boolean;
   readonly animate?: Animate;
+  readonly daytime?: boolean;
 }
 
 /** A building's drawn look at a tier: the base and its add-ons. */
@@ -359,6 +376,108 @@ export interface WorldLayout {
   readonly farPlanes: readonly FarPlane[];
 }
 
+/** Bees over the hives: 4 frames @ 8 fps (SPEC §6.5 idle animation), in front of the hives, by day only. */
+const bees = (dx: number): TierPart => ({
+  sprite: 'bees',
+  dx,
+  dground: 1,
+  shadow: false,
+  animate: { kind: 'cycle', frames: 4, fps: 8 },
+  daytime: true,
+});
+/** Log hives along the apiary's front, every other one a row further back (depth). */
+const hives = (...dxs: readonly number[]): TierPart[] =>
+  dxs.map((dx, i) => ({ sprite: 'hive.log', dx, dground: i % 2 === 0 ? 0 : -2 }));
+/**
+ * The scarecrow stands inside the wheat: sorted just in front of the field and lifted onto a row further back; its
+ * ground shadow would fall in the crop, so none.
+ */
+const scarecrow = (dx: number): TierPart => ({ sprite: 'scarecrow', dx, dground: 1, lift: 9, shadow: false });
+/** The garden wattle runs behind the back bed. */
+const gardenTyn = (...dxs: readonly number[]): TierPart[] =>
+  dxs.map((dx) => ({ sprite: 'garden-tyn', dx, dground: -20 }));
+
+/**
+ * Field, garden and apiary by tier (plan M2-06, ART-BIBLE §6): each tier its own base sprite plus add-ons — the
+ * field gets a scarecrow (III), stooks on the stubble (IV, a second row at V) and a loaded cart (V); the garden its
+ * low wattle (II); the apiary a stump hive (I), then 2 → 6 log hives with bees and the beekeeper's hut (V).
+ */
+const FARM_PLOTS: readonly TierSprite[] = [
+  {
+    building: 'field',
+    x: 450,
+    ground: 98,
+    tiers: [
+      { parts: [{ sprite: 'field.t1' }] },
+      { parts: [{ sprite: 'field.t2' }] },
+      { parts: [{ sprite: 'field.t3' }, scarecrow(-12)] },
+      { parts: [{ sprite: 'field.t4' }, scarecrow(-16), { sprite: 'sheaves', dx: 33, dground: -1 }] },
+      {
+        parts: [
+          { sprite: 'sheaves', dx: 31, dground: -8 },
+          { sprite: 'field.t5' },
+          scarecrow(-22),
+          { sprite: 'sheaves', dx: 27, dground: 0 },
+          { sprite: 'cart', dx: 72, dground: 3 },
+        ],
+      },
+      {
+        parts: [
+          { sprite: 'sheaves', dx: 40, dground: -8 },
+          { sprite: 'field.t6' },
+          scarecrow(-24),
+          { sprite: 'sheaves', dx: 38, dground: 0 },
+          { sprite: 'cart', dx: 80, dground: 3 },
+        ],
+      },
+    ],
+  },
+  {
+    building: 'apiary',
+    x: 660,
+    ground: 120,
+    tiers: [
+      { parts: [{ sprite: 'apiary.t1' }, { sprite: 'hive.stump' }, bees(0)] },
+      { parts: [{ sprite: 'apiary.t2' }, ...hives(-7, 4), bees(-2)] },
+      { parts: [{ sprite: 'apiary.t3' }, ...hives(-12, -2, 8), bees(-2)] },
+      { parts: [{ sprite: 'apiary.t4' }, ...hives(-8, 2, 12, 22), bees(-3), bees(17)] },
+      {
+        parts: [
+          { sprite: 'apiary-hut', dx: -36, dground: -7 },
+          { sprite: 'apiary.t5' },
+          ...hives(-18, -8, 2, 12, 22),
+          bees(-13),
+          bees(17),
+        ],
+      },
+      {
+        parts: [
+          { sprite: 'apiary-hut', dx: -38, dground: -7 },
+          { sprite: 'apiary.t6' },
+          ...hives(-22, -12, -2, 8, 18, 28),
+          bees(-17),
+          bees(3),
+          bees(23),
+        ],
+      },
+    ],
+  },
+  {
+    building: 'garden',
+    // The front row's foreground subject (art-director): low in the row, above the bottom sheet.
+    x: 500,
+    ground: 262,
+    tiers: [
+      { parts: [{ sprite: 'garden.t1' }] },
+      { parts: [...gardenTyn(-20, 20), { sprite: 'garden.t2' }] },
+      { parts: [...gardenTyn(-24, 24), { sprite: 'garden.t3' }] },
+      { parts: [...gardenTyn(-28, 28), { sprite: 'garden.t4' }] },
+      { parts: [...gardenTyn(-40, 0, 40), { sprite: 'garden.t5' }] },
+      { parts: [...gardenTyn(-48, 0, 48), { sprite: 'garden.t6' }] },
+    ],
+  },
+];
+
 export const KHORTYTSIA_FARM: ZoneScene = {
   width: 768,
   rows: [
@@ -430,6 +549,9 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     { sprite: 'tyn', x: 690, ground: 103 },
     { sprite: 'tyn', x: 730, ground: 103 },
     { sprite: 'gatepost', x: 752, ground: 104 },
+    // The farm's second screen (M2-06), appended after the M-ART props so their light-pool seeds stay put: the wheat
+    // field in the back row past the windmill, the apiary at the willow's foot, the garden in the front row.
+    ...FARM_PLOTS,
   ],
   // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
   // mallows at the corners of the first screen, the rest spread for the pan.
@@ -667,9 +789,6 @@ export function composeWorld(
  * one place — a tier sprite or this list — so each art task deletes its lines here.
  */
 export const TIER_ART_PENDING: Readonly<Partial<Record<PlotBuilding, string>>> = {
-  field: 'M2-06',
-  garden: 'M2-06',
-  apiary: 'M2-06',
   smithy: 'M2-08',
   tavern: 'M2-08',
   fair: 'M2-08',
