@@ -1,5 +1,5 @@
 // The game loop driver (SPEC §9.2; plan M1-17/M1-18). The core never reads the clock: this is where wall time enters.
-// While running it ticks at 10 Hz; `start` and `stop` each tick once, so the state is current the moment the page
+// While running it ticks at 10 Hz; `start` (through `resume`) and `stop` each tick once, so the state is current the moment the page
 // hides or comes back. When the loop is stopped, time is not lost — the next tick counts the gap through `applyOffline`
 // (with its caps), which is how a hidden page becomes an absence. lifecycle.ts decides when to start and stop.
 import type { GameStore } from '../core/store.ts';
@@ -28,7 +28,8 @@ export function createLoop(store: GameStore, { now = Date.now, hz = LOOP_HZ }: L
     running: () => id !== null,
     start() {
       if (id !== null) return;
-      step();
+      // The first tick back reports a clock set back; the running ticks stay quiet about it.
+      store.resume(now());
       id = setInterval(step, MS_PER_SEC / hz);
     },
     stop() {

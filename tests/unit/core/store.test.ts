@@ -102,3 +102,14 @@ describe('createStore (M1-12)', () => {
     expect(events).toEqual(['StateReplaced']);
   });
 });
+
+describe('store.resume (clock set back, M1-18 review)', () => {
+  it('reports clockBack and keeps lastSeen; a plain tick behind the clock stays quiet', () => {
+    const store = createStore(game());
+    store.tick(T0 - 10 * 60_000);
+    expect(store.getState().returnReport).toBeNull();
+    store.resume(T0 - 10 * 60_000);
+    expect(store.getState().returnReport?.reason).toBe('clockBack');
+    expect(store.getState().time.lastSeen).toBe(T0);
+  });
+});
