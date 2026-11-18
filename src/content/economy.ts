@@ -26,6 +26,16 @@ export const SICH = {
   milestones: [10, 25, 50],
 } as const;
 
+/**
+ * Levels at which a building's visual tiers start (SPEC §3.2/§3.2.1, plan M2-05): tier I at level 1 (the building
+ * stands), then one tier per milestone — farm/suburb I–VI at 1/10/25/50/75/100, Sich I–IV at 1/10/25/50. Level 0 is
+ * tier 0 (empty plot). The number of entries is the building's top tier.
+ */
+export const TIER_LEVELS = {
+  farm: [1, ...FARM.milestones.map((m) => m.level)],
+  sich: [1, ...SICH.milestones],
+} as const satisfies Readonly<Record<'farm' | 'sich', readonly number[]>>;
+
 /** Bulk-buy modes of the building list (SPEC §3.2). `max` buys as many as the ducats allow. */
 export const BUY_MODES = [1, 10, 25, 'max'] as const;
 

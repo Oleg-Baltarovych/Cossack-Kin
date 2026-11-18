@@ -4,7 +4,7 @@
 // A click is applied at the platform's `now`, which runs ahead of `lastSeen` by at most one loop tick (100 ms; a page
 // coming back ticks on `visibilitychange` first). If a wind change falls inside that gap the click can disagree with
 // the button; the reducer then refuses with ActionRejected and nothing is lost. Accepted (M1-17 review).
-import { DEFENCE, FARM, FOOD, SICH, type Milestone } from '../content/economy.ts';
+import { DEFENCE, FARM, FOOD, SICH, TIER_LEVELS, type Milestone } from '../content/economy.ts';
 import { SICH_BUILDINGS, type SichBuildingId, type SichUnlock } from '../content/sich.ts';
 import type { FarmBuildingId, WindLevel } from '../content/villages/khortytsia.ts';
 import { Big } from './big.ts';
@@ -192,17 +192,18 @@ export function hireView(state: GameState): HireView {
   };
 }
 
-/** Visual tier per building (SPEC §6.5; plan M1-19): 0 = empty plot, then 1 + milestones reached (I at level 1). */
+/**
+ * Visual tier per building (SPEC §6.5; plans M1-19, M2-05): 0 = empty plot, then the tier levels reached
+ * (content TIER_LEVELS: I at level 1). Render draws a plot's look from this alone (layout `TierSprite`).
+ */
 export type VisualTiers = Readonly<Record<FarmBuildingId | SichBuildingId, number>>;
 
 export function visualTiers(state: GameState): VisualTiers {
   const out: Partial<Record<FarmBuildingId | SichBuildingId, number>> = {};
-  const visual = (level: number, milestones: readonly number[]): number =>
-    level > 0 ? 1 + tier(level, milestones) : 0;
-  for (const b of villageOf(state).buildings) out[b.id] = visual(state.village.levels[b.id], FARM_MILESTONES);
+  for (const b of villageOf(state).buildings) out[b.id] = tier(state.village.levels[b.id], TIER_LEVELS.farm);
   for (const b of SICH_BUILDINGS) {
     // Like collectModifiers: a locked building's level (only a crafted save can hold one) counts for nothing.
-    out[b.id] = sichUnlocked(b, state) ? visual(state.village.sichLevels[b.id], SICH.milestones) : 0;
+    out[b.id] = sichUnlocked(b, state) ? tier(state.village.sichLevels[b.id], TIER_LEVELS.sich) : 0;
   }
   // Every farm id of the land and every Sich id was written above.
   return out as VisualTiers;

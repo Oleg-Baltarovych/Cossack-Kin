@@ -14,8 +14,11 @@ import type { SceneState } from './scene.ts';
 /** What render may read from the game: the state and the event stream, nothing that changes either. */
 export type GameView = Pick<GameStore, 'getState' | 'onEvent'>;
 
-export function sceneOf(state: GameState): SceneState {
-  return { tiers: visualTiers(state), wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen, villageOf(state))] };
+/** Visual tiers of a state: core `visualTiers`, or a dev/test override (`?state=tiers` shows locked buildings). */
+export type TiersOf = (state: GameState) => VisualTiers;
+
+export function sceneOf(state: GameState, tiersOf: TiersOf = visualTiers): SceneState {
+  return { tiers: tiersOf(state), wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen, villageOf(state))] };
 }
 
 // Object.keys widens to string[]; the keys of a VisualTiers are exactly its building ids.
@@ -23,11 +26,15 @@ const sameTiers = (a: VisualTiers | null, b: VisualTiers | null): boolean =>
   a !== null && b !== null && Object.keys(a).every((k) => a[k as keyof VisualTiers] === b[k as keyof VisualTiers]);
 
 /** Connects `world` to `game`; returns the disconnect function. Call it before UI tap handlers subscribe. */
-export function connectWorld(world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin'>, game: GameView): () => void {
-  let scene = sceneOf(game.getState());
+export function connectWorld(
+  world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin'>,
+  game: GameView,
+  tiersOf: TiersOf = visualTiers,
+): () => void {
+  let scene = sceneOf(game.getState(), tiersOf);
   world.setScene(scene);
   const refresh = (): void => {
-    const next = sceneOf(game.getState());
+    const next = sceneOf(game.getState(), tiersOf);
     // A new object only when something shows differently: the layers compare nothing, they just read it.
     if (next.wind === scene.wind && sameTiers(next.tiers, scene.tiers)) return;
     scene = next;

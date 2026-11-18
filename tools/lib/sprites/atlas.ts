@@ -150,6 +150,24 @@ export function composeAtlas(name: string, frames: readonly FrameImage[], palett
 }
 
 /**
+ * Every frame name a generator declares (`<entity>[.<variant>][@<layer>]/<anim>/<nn>`), without drawing: what
+ * `renderGenerator` writes when the generator succeeds. Content tests check layout sprites against it (plan M2-05).
+ */
+export function frameNames(gen: SpriteGenerator): string[] {
+  const out: string[] = [];
+  for (const variant of gen.variants ?? [null]) {
+    const entity = variant === null ? gen.id : `${gen.id}.${variant}`;
+    for (const [anim, count] of Object.entries(gen.frames)) {
+      for (let frame = 0; frame < count; frame++) {
+        const nn = String(frame).padStart(2, '0');
+        out.push(`${entity}/${anim}/${nn}`, ...(gen.layers ?? []).map((layer) => `${entity}@${layer}/${anim}/${nn}`));
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Runs one generator: every variant × animation frame, plus its companion layers right after each base frame.
  * Contract or generator failures are appended to `problems` (the frames that did render are still returned).
  */

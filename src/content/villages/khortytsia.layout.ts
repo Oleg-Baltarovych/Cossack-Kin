@@ -7,7 +7,8 @@
  * Ground tile kinds of the `khortytsia` atlas (`ground.<tile>/idle/00`, 64×32). `grass` has seeded variants
  * (`grass`, `grass-b`, `grass-c`) that the ground layer picks per tile.
  */
-import type { SichBuildingId } from '../sich.ts';
+import { TIER_LEVELS } from '../economy.ts';
+import { SICH_BUILDING_IDS, type SichBuildingId } from '../sich.ts';
 import type { FarmBuildingId } from './khortytsia.ts';
 
 /** A building whose level drives what stands on its plot (farm and Sich ids do not overlap). */
@@ -82,6 +83,92 @@ export interface Prop {
 export type Animate =
   | { readonly kind: 'cycle'; readonly frames: number; readonly fps: number | 'wind' }
   | { readonly kind: 'sway'; readonly amp: number; readonly phase: number };
+
+/** One sprite of a building's look at a tier: the base or a building-specific add-on (sails, hives). */
+export interface TierPart {
+  /** Frame stem; `<stem>@shadow` is drawn unless `shadow: false`, `<stem>@emissive` at night when the atlas has it. */
+  readonly sprite: Prop['sprite'];
+  /** Offset of this part's pivot from the building's pivot (add-ons beside the base); default 0. */
+  readonly dx?: number;
+  readonly dground?: number;
+  readonly lift?: number;
+  readonly shadow?: boolean;
+  readonly animate?: Animate;
+}
+
+/** A building's drawn look at a tier: the base and its add-ons. */
+export interface TierParts {
+  readonly parts: readonly TierPart[];
+}
+
+/**
+ * A building's look at one tier: its parts, or `prev` — the previous tier's look until the task named there (an
+ * M2-06…09 art task) draws this tier.
+ */
+export type TierLook = TierParts | { readonly prev: string };
+
+/**
+ * A building's plot by visual tier (plan M2-05, «Тіри — модульно»): `tiers[i]` is the look at tier i + 1, for every
+ * tier the building has (content TIER_LEVELS: farm/suburb I–VI, Sich I–IV); tier I is always drawn (the type says
+ * so), later tiers may fall back. Shared add-ons (tyn, mallows) stay separate props with a `plot`. `composeWorld`
+ * turns it into plain props with `plot { from, until }` in place, so render shows a look by the game's visual tier
+ * (core `visualTiers`) and never works out tiers itself.
+ */
+export interface TierSprite {
+  readonly building: PlotBuilding;
+  /** The building's pivot (bottom-centre of its ground row), x in the zone's / world's px. */
+  readonly x: number;
+  readonly ground: number;
+  readonly tiers: readonly [TierParts, ...TierLook[]];
+}
+
+/** A zone's prop list entry: a plain prop or a building drawn by tier. */
+export type SceneProp = Prop | TierSprite;
+
+export const isTierSprite = (p: SceneProp): p is TierSprite => 'tiers' in p;
+
+/** How many visual tiers `building` has (its top tier): farm/suburb 6, Sich 4. */
+export function tierCount(building: PlotBuilding): number {
+  const sich: readonly string[] = SICH_BUILDING_IDS;
+  return (sich.includes(building) ? TIER_LEVELS.sich : TIER_LEVELS.farm).length;
+}
+
+/** Tiers `from` … `until` − 1 showing one look; `until` null = up to the top tier. */
+export interface TierRun {
+  readonly parts: readonly TierPart[];
+  readonly from: number;
+  readonly until: number | null;
+}
+
+/**
+ * The runs of a tier table: every `parts` entry starts a run, every `prev` extends the run before it (tier I always
+ * starts the first). Throws when the table's length is not the building's tier count.
+ */
+export function tierRuns(t: TierSprite): TierRun[] {
+  const top = tierCount(t.building);
+  if (t.tiers.length !== top) {
+    throw new Error(`${t.building}: ${String(t.tiers.length)} tier looks, the building has ${String(top)} tiers`);
+  }
+  const starts = t.tiers.flatMap((look, i) => ('parts' in look ? [{ parts: look.parts, from: i + 1 }] : []));
+  return starts.map((run, k) => ({ ...run, until: starts[k + 1]?.from ?? null }));
+}
+
+/** The plain props of a tier sprite: each run's parts with `plot { from, until }` (the last run open-ended). */
+export function tierProps(t: TierSprite): Prop[] {
+  return tierRuns(t).flatMap(({ parts, from, until }) => {
+    const plot: Plot = until === null ? { building: t.building, from } : { building: t.building, from, until };
+    return parts.map(({ dx, dground, ...part }) => ({
+      ...part,
+      x: t.x + (dx ?? 0),
+      ground: t.ground + (dground ?? 0),
+      plot,
+    }));
+  });
+}
+
+/** A zone's props with every tier sprite expanded in place (the order the layers draw and seed them in). */
+export const sceneProps = (props: readonly SceneProp[]): Prop[] =>
+  props.flatMap((p) => (isTierSprite(p) ? tierProps(p) : [p]));
 
 /**
  * A near-camera plant clump on the foreground layer (ART-14, SPEC §6.2 layer 5, parallax 1.2): `plant.<variant>`
@@ -201,7 +288,8 @@ export interface ZoneScene {
   readonly rows: readonly GroundRow[];
   readonly fill: GroundTile;
   readonly decals: readonly Decal[];
-  readonly props: readonly Prop[];
+  /** Plain props and buildings drawn by tier (`TierSprite`), expanded in place by `composeWorld`. */
+  readonly props: readonly SceneProp[];
   readonly walkers: readonly Walker[];
   /** Plant clumps on the foreground layer, back to front. */
   readonly foreground: readonly ForegroundPlant[];
@@ -259,7 +347,10 @@ export interface WorldLayout {
   readonly segments: readonly GroundSegment[];
   readonly river: River | null;
   readonly decals: readonly Decal[];
+  /** Every prop, tier sprites expanded (`sceneProps`): what the layers draw. */
   readonly props: readonly Prop[];
+  /** The buildings drawn by tier, world x (the tier table; their props are in `props`). */
+  readonly tierSprites: readonly TierSprite[];
   readonly walkers: readonly Walker[];
   readonly foreground: readonly ForegroundPlant[];
   readonly puddles: readonly Puddle[];
@@ -296,20 +387,39 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     { sprite: 'willow', x: 240, ground: 106, animate: { kind: 'sway', amp: 0.8, phase: 0.15 } },
     // The post mill by the road past the yard fence, its sails turning with the wind (hub 53 px above the trestle foot).
     // Low enough that the top sail (93 px above the foot) stays clear of the 26-row river band.
-    { sprite: 'windmill', x: 312, ground: 124, plot: { building: 'windmill', from: 1 } },
     {
-      sprite: 'windmill-sails',
+      building: 'windmill',
       x: 312,
       ground: 124,
-      lift: 53,
-      shadow: false,
-      animate: { kind: 'cycle', frames: 8, fps: 'wind' },
-      plot: { building: 'windmill', from: 1 },
+      tiers: [
+        {
+          parts: [
+            { sprite: 'windmill' },
+            { sprite: 'windmill-sails', lift: 53, shadow: false, animate: { kind: 'cycle', frames: 8, fps: 'wind' } },
+          ],
+        },
+        { prev: 'M2-07' },
+        { prev: 'M2-07' },
+        { prev: 'M2-07' },
+        { prev: 'M2-07' },
+        { prev: 'M2-07' },
+      ],
     },
     // Front row, below the path: the potter's khata (Хата гончаря), nearer and to the right, its own fence and mallows.
-    // Tier I–II shows khata I, tier III+ khata III (the highest tier sprite that exists, M1-19).
-    { sprite: 'khata.t1', x: 292, ground: 240, plot: { building: 'potter', from: 1, until: 3 } },
-    { sprite: 'khata.t3', x: 292, ground: 240, plot: { building: 'potter', from: 3 } },
+    // Khata I at tiers I–II, khata III from III on, until M2-07 draws II and IV–VI.
+    {
+      building: 'potter',
+      x: 292,
+      ground: 240,
+      tiers: [
+        { parts: [{ sprite: 'khata.t1' }] },
+        { prev: 'M2-07' },
+        { parts: [{ sprite: 'khata.t3' }] },
+        { prev: 'M2-07' },
+        { prev: 'M2-07' },
+        { prev: 'M2-07' },
+      ],
+    },
     { sprite: 'mallows', x: 266, ground: 243, plot: { building: 'potter', from: 1 } },
     { sprite: 'tyn', x: 356, ground: 242, plot: { building: 'potter', from: 1 } },
     // An old oak in the near left corner framing the scene (a stiff tree: half the lean of the grass).
@@ -540,7 +650,8 @@ export function composeWorld(
       groundHaze: scene.groundHaze,
     })),
     decals: placed.flatMap(({ scene, x0: z }) => shift(scene.decals, z)),
-    props: placed.flatMap(({ scene, x0: z }) => shift(scene.props, z)),
+    props: placed.flatMap(({ scene, x0: z }) => shift(sceneProps(scene.props), z)),
+    tierSprites: placed.flatMap(({ scene, x0: z }) => shift(scene.props.filter(isTierSprite), z)),
     walkers: placed.flatMap(({ scene, x0: z }) => scene.walkers.map((w) => ({ ...w, x0: w.x0 + z, x1: w.x1 + z }))),
     foreground: placed.flatMap(({ scene, fg }) => shift(scene.foreground, fg)),
     puddles: placed.flatMap(({ scene, x0: z }) => shift(scene.puddles, z)),
@@ -549,6 +660,26 @@ export function composeWorld(
     ),
   };
 }
+
+/**
+ * Buildings of the land not yet drawn by tier (plan M2-05) → the art task that brings their `TierSprite`. Until then
+ * their plot keeps its M1 props (the Sich) or stays empty. The tier test wants every building of the land in exactly
+ * one place — a tier sprite or this list — so each art task deletes its lines here.
+ */
+export const TIER_ART_PENDING: Readonly<Partial<Record<PlotBuilding, string>>> = {
+  field: 'M2-06',
+  garden: 'M2-06',
+  apiary: 'M2-06',
+  smithy: 'M2-08',
+  tavern: 'M2-08',
+  fair: 'M2-08',
+  kurins: 'M2-09',
+  maidan: 'M2-09',
+  walls: 'M2-09',
+  treasury: 'M2-09',
+  church: 'M2-09',
+  special: 'M2-09',
+};
 
 /**
  * Khortytsia as one continuous world (plan M2-01, Q2 ≈ 5 screens, 1920 px): the farm (the M-ART scene, x 0–768) → the suburb

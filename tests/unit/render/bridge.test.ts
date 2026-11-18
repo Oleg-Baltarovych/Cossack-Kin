@@ -9,7 +9,7 @@ import type { WorldTap } from '../../../src/render/App.ts';
 import { WIND_STRENGTH } from '../../../src/render/atmosphere/config.ts';
 import { connectWorld, sceneOf } from '../../../src/render/bridge.ts';
 import { plotShown, type SceneState } from '../../../src/render/scene.ts';
-import { FROZEN_NOW, presetState } from '../../../src/ui/debug/gameDebug.ts';
+import { FROZEN_NOW, parseGameDebug, presetState, tiersIgnoringUnlocks } from '../../../src/ui/debug/gameDebug.ts';
 
 const T0 = 1_763_400_000_000;
 
@@ -111,6 +111,30 @@ describe('debug presets (M1-19)', () => {
     const show = visualTiers(presetState('showcase', 1, FROZEN_NOW));
     expect(show).toMatchObject({ potter: 3, windmill: 3, walls: 2, kurins: 2, maidan: 2, special: 2, church: 2 });
     expect(visualTiers(presetState('fresh', 1, FROZEN_NOW))).toMatchObject({ potter: 0, windmill: 0, walls: 0 });
+  });
+
+  it('?state=tiers&tier=N shows every building at visual tier N (the Sich capped at IV, the cannonry hidden)', () => {
+    const farm = ['field', 'garden', 'apiary', 'windmill', 'potter', 'smithy', 'tavern', 'fair'];
+    const sich = ['kurins', 'maidan', 'walls', 'treasury', 'church', 'special'];
+    for (const n of [0, 1, 2, 3, 4, 5, 6]) {
+      const state = presetState('tiers', 1, FROZEN_NOW, n);
+      const t: Record<string, number> = sceneOf(state, tiersIgnoringUnlocks).tiers ?? {};
+      for (const id of farm) expect(t[id], `${id} @${String(n)}`).toBe(n);
+      for (const id of sich) expect(t[id], `${id} @${String(n)}`).toBe(Math.min(n, 4));
+      expect(t['cannonry']).toBe(0);
+      // The game itself keeps the church locked until every farm building is at 25 (tier III); only the scene shows it.
+      expect(visualTiers(state).church).toBe(n >= 3 ? Math.min(n, 4) : 0);
+    }
+  });
+
+  it('parses ?state=tiers&tier=N from an allowlist; anything else is the top tier', () => {
+    const tierOf = (q: string): number => parseGameDebug(q, 'test').tier;
+    expect(parseGameDebug('?state=tiers&tier=0', 'test')).toMatchObject({ preset: 'tiers', tier: 0 });
+    expect(tierOf('?state=tiers&tier=4')).toBe(4);
+    for (const bad of ['', '&tier=7', '&tier=-1', '&tier=1.0', '&tier=%201', '&tier=x']) {
+      expect(tierOf(`?state=tiers${bad}`), bad).toBe(6);
+    }
+    expect(parseGameDebug('?state=tiers&tier=2', 'production')).toMatchObject({ preset: null });
   });
 });
 
