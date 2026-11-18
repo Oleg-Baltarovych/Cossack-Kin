@@ -15,6 +15,7 @@ describe('findLeaks', () => {
     ['single-quoted key', "get('freeze')", 'debug param key "freeze"'],
     ['template key', 'q.get(`freeze`)', 'debug param key "freeze"'],
     ['zoom param read', 'zoom:r(`zoom`,Zt),still:r(`still`,Ft)', 'debug param key "zoom"'],
+    ['tier param read', 'let n=t.get(`tier`);', 'debug param key "tier"'],
     ['location.search', 'Bt(window.location.search,"test")', 'URL query parsing (debug params)'],
     ['URLSearchParams', 'new URLSearchParams(e)', 'URL query parsing (debug params)'],
     ['warn format', 'console.warn("debug param %s=%o is invalid; using default %o",e,t,n)', 'debug param warning'],
@@ -41,6 +42,7 @@ describe('findLeaks', () => {
     ['identifier containing freeze', 'function freezeFrame(){}'],
     ['React unitless CSS list', '"opacity order orphans scale tabSize widows zIndex zoom fillOpacity"'],
     ['zoom as a property', 'camY:()=>k.y,zoom:()=>k.level'],
+    ['tier as a property', 'tier:a(l,i),levelMax:50'],
     ['unrelated strings', 'const a="frozen",b="overlay",c="seed";'],
     // Pixi's bundled unsafe-eval probe after minification (never called: pixi.js/unsafe-eval replaces it).
     ['Pixi probe (minified)', 'try{E=Function(`param1`,`param2`,`param3`,`return param1[param2] === param3;`)'],

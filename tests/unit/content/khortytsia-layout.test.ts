@@ -6,6 +6,7 @@ import {
   KHORTYTSIA_SICH,
   KHORTYTSIA_SUBURB,
   KHORTYTSIA_WORLD,
+  sceneProps,
 } from '../../../src/content/villages/khortytsia.layout.ts';
 
 const W = KHORTYTSIA_WORLD;
@@ -42,7 +43,7 @@ describe('khortytsia farm layout', () => {
     for (const [id, scene] of SCENES) {
       const last = scene.rows.at(-1);
       const depth = last ? last.top + last.h : 0;
-      for (const p of scene.props) {
+      for (const p of sceneProps(scene.props)) {
         expect(p.x, `${id} ${p.sprite}`).toBeGreaterThanOrEqual(0);
         expect(p.x, `${id} ${p.sprite}`).toBeLessThan(scene.width);
         expect(p.ground).toBeGreaterThan(0);
@@ -52,7 +53,7 @@ describe('khortytsia farm layout', () => {
   });
 
   it('every khata stands on a yard decal (not on a uniform lawn)', () => {
-    const khatas = KHORTYTSIA_FARM.props.filter((p) => p.sprite.startsWith('khata'));
+    const khatas = sceneProps(KHORTYTSIA_FARM.props).filter((p) => p.sprite.startsWith('khata'));
     expect(khatas.length).toBeGreaterThan(0);
     for (const k of khatas) {
       const yard = KHORTYTSIA_FARM.decals.find((d) => Math.abs(d.x - k.x) <= 8 && Math.abs(d.ground - k.ground) <= 8);
@@ -65,22 +66,24 @@ describe('khortytsia sich layout (ART-11)', () => {
   it('is all Cossacks (no women on the Sich), stays inside the world and has the gate and towers on the rampart', () => {
     const s = KHORTYTSIA_SICH;
     for (const w of s.walkers) expect(w.sprite.startsWith('kozak')).toBe(true);
-    for (const p of s.props) {
+    for (const p of sceneProps(s.props)) {
       expect(p.x).toBeGreaterThanOrEqual(0);
       expect(p.x).toBeLessThanOrEqual(s.width);
     }
-    expect(s.props.filter((p) => p.sprite === 'gate')).toHaveLength(1);
-    expect(s.props.filter((p) => p.sprite === 'tower').length).toBeGreaterThanOrEqual(2);
+    expect(sceneProps(s.props).filter((p) => p.sprite === 'gate')).toHaveLength(1);
+    expect(sceneProps(s.props).filter((p) => p.sprite === 'tower').length).toBeGreaterThanOrEqual(2);
     const val = s.rows.find((r) => r.tile === 'val');
     expect(val).toBeDefined();
-    for (const p of s.props.filter((q) => q.sprite.startsWith('palisade'))) {
+    for (const p of sceneProps(s.props).filter((q) => q.sprite.startsWith('palisade'))) {
       expect(p.ground).toBeGreaterThanOrEqual(val?.top ?? 0);
       expect(p.ground).toBeLessThan((val?.top ?? 0) + (val?.h ?? 0));
     }
   });
 
   it('the palisade never repeats one height on more than two neighbouring sections (not a comb)', () => {
-    const line = KHORTYTSIA_SICH.props.filter((p) => p.sprite.startsWith('palisade')).map((p) => p.sprite);
+    const line = sceneProps(KHORTYTSIA_SICH.props)
+      .filter((p) => p.sprite.startsWith('palisade'))
+      .map((p) => p.sprite);
     for (let i = 2; i < line.length; i++) {
       expect(line[i] === line[i - 1] && line[i] === line[i - 2]).toBe(false);
     }
@@ -108,7 +111,7 @@ describe('vegetation (ART-14)', () => {
     for (const layout of [KHORTYTSIA_FARM, KHORTYTSIA_SICH]) {
       const sways = [
         ...layout.foreground,
-        ...layout.props.flatMap((p) => (p.animate?.kind === 'sway' ? [p.animate] : [])),
+        ...sceneProps(layout.props).flatMap((p) => (p.animate?.kind === 'sway' ? [p.animate] : [])),
       ];
       expect(sways.length).toBeGreaterThan(0);
       for (const s of sways) {
@@ -157,7 +160,7 @@ describe('the continuous world (M2-01)', () => {
       const back = <T extends { readonly x: number }>(items: readonly T[], dx: number): T[] =>
         items.map((q) => ({ ...q, x: q.x - dx }));
       const x1 = x0 + scene.width;
-      expect(back(inZone(W.props, x0, x1), x0)).toEqual(scene.props);
+      expect(back(inZone(W.props, x0, x1), x0)).toEqual(sceneProps(scene.props));
       expect(back(inZone(W.decals, x0, x1), x0)).toEqual(scene.decals);
       expect(back(inZone(W.puddles, x0, x1), x0)).toEqual(scene.puddles);
       expect(back(inZone(W.foreground, fg, Math.round(x1 * FOREGROUND_PARALLAX)), fg)).toEqual(scene.foreground);

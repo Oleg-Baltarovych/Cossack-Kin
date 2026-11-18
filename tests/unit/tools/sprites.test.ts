@@ -13,6 +13,7 @@ import {
   atlasIndex,
   buildAtlases,
   composeAtlas,
+  frameNames,
   SpriteBuildError,
   type FrameImage,
 } from '../../../tools/lib/sprites/atlas.ts';
@@ -350,6 +351,11 @@ describe('buildAtlases', () => {
       'hut.t2@emissive/idle',
       'hut.t2@shadow/idle',
     ]);
+    // frameNames lists exactly what was drawn, without drawing (content tier test, M2-05).
+    expect(frameNames(hut).sort()).toEqual(Object.keys(atlas?.json.frames ?? {}).sort());
+    expect(frameNames(swatch).sort()).toEqual(
+      Object.keys(buildAtlases([swatch], palette)[0]?.json.frames ?? {}).sort(),
+    );
     expect(atlas?.json.animations['hut.t2@emissive/idle']).toEqual([
       'hut.t2@emissive/idle/00',
       'hut.t2@emissive/idle/01',
