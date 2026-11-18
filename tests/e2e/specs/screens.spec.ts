@@ -695,8 +695,9 @@ test.describe('M1-19 the scene follows the game @screens', () => {
     const before = await canvas.screenshot();
     await page.getByRole('button', { name: /Хата гончаря/ }).click();
     await expect(page.getByText('Рів. 1', { exact: true })).toBeVisible();
-    // The plot appears on the next frame; poll until the canvas changed.
-    await expect.poll(async () => (await canvas.screenshot()).equals(before), { timeout: 5000 }).toBe(false);
+    // The plot appears on the next frame; poll until the canvas changed. A canvas screenshot under SwiftShader on the
+    // CI runner takes seconds, so 5 s left room for only one or two polls (CI failure on 914c8da).
+    await expect.poll(async () => (await canvas.screenshot()).equals(before), { timeout: 20_000 }).toBe(false);
     expect(await page.evaluate(() => document.documentElement.dataset.marker)).toBe('same-page');
     const stats = await readStats(page);
     expect(stats.drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
