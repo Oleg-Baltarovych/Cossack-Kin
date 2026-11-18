@@ -69,6 +69,7 @@ describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {
         .map((s) => ({ session: s.index, t: s.start, kind: 'building', ref: `b${String(s.index)}` })),
       milestones: {},
       offlineShare: 0.5,
+      final: createInitialState({ seed: 9, now: DEFAULT_EPOCH }),
     });
     const strict: Corridor = { ...PACING, novelty: { ...PACING.novelty, maxSessionsWithoutNovelty: 0 } };
     const gate = (r: SimResult, c: Corridor = PACING) =>
@@ -102,6 +103,7 @@ describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {
         .map((s) => ({ session: s.index, t: s.start, kind: 'building', ref: `b${String(s.index)}` })),
       milestones: {},
       offlineShare: 0.5,
+      final: createInitialState({ seed: 9, now: DEFAULT_EPOCH }),
     };
     const strict: Corridor = { ...PACING, novelty: { ...PACING.novelty, maxSessionsWithoutNovelty: 0 } };
     const check = evaluate([fake], strict).find((c) => c.id.startsWith('maxSessionsWithoutNovelty'));

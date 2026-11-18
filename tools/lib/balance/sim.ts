@@ -69,6 +69,8 @@ export interface SimResult {
   readonly milestones: Readonly<Record<string, number>>;
   /** Share of all ducats earned that came from offline returns (0..1). */
   readonly offlineShare: number;
+  /** The game at the end of the run (save fixtures are captured from it: tools/capture-save.ts). */
+  readonly final: GameState;
 }
 
 /** Session start times (ms) for `days` days from `epoch`, on the pacing hours. */
@@ -273,5 +275,6 @@ export function simulate(options: SimOptions): SimResult {
     novelties,
     milestones,
     offlineShare: earned > 0 ? offlineDucats / earned : 0,
+    final: state,
   };
 }
