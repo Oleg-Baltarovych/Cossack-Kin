@@ -143,6 +143,15 @@ export function tiersIgnoringUnlocks(s: GameState): VisualTiers {
   return out;
 }
 
+/**
+ * `?state=showcase` only: the M-ART scene as it was judged — the windmill drawn at tier I (its M-ART sprite), though
+ * the preset levels it to 25 with the rest of the farm (the church needs that). M2-07 drew the windmill's later tiers.
+ */
+export function showcaseTiers(s: GameState): VisualTiers {
+  const out = visualTiers(s);
+  return { ...out, windmill: Math.min(out.windmill, 1) };
+}
+
 /** The state of `preset` at `now` with `seed` (`tier`: the visual tier of `state=tiers`). */
 export function presetState(preset: Preset, seed: number, now: number, tier = TOP_TIER): GameState {
   if (preset === 'away') return applyOffline(presetState('mid', seed, now - AWAY_MS), now).state;

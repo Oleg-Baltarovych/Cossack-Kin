@@ -17,7 +17,8 @@ const scarecrow: SpriteGenerator = {
   size: { w: W, h: H },
   frames: { idle: 1 },
   layers: ['shadow'],
-  anchor: { x: (CX + 0.5) / W, y: (SCARECROW_GROUND + 1) / H },
+  // Whole-px pivot (see hive: a half-px anchor is a texel tie decided by the atlas packing).
+  anchor: { x: CX / W, y: (SCARECROW_GROUND + 1) / H },
   generate(_rng, { buffer, layers, rampSize }) {
     const p = new Plot();
     // Pole.

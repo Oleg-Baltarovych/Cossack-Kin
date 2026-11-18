@@ -74,7 +74,15 @@ export interface Prop {
     | 'hive.log'
     | 'hive.stump'
     | 'bees'
-    | 'apiary-hut';
+    | 'apiary-hut'
+    | `mill.t${2 | 3 | 4 | 5 | 6}`
+    | 'mill-sails.m'
+    | 'mill-sails.l'
+    | `potter.t${2 | 4 | 5 | 6}`
+    | 'kiln'
+    | 'jugs'
+    | 'gilt.vane'
+    | 'gilt.jug';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -478,6 +486,25 @@ const FARM_PLOTS: readonly TierSprite[] = [
   },
 ];
 
+/** Sails hung on the mill's hub `lift` px above the trestle foot, turning with the wind. */
+const sails = (sprite: 'windmill-sails' | 'mill-sails.m' | 'mill-sails.l', lift: number): TierPart => ({
+  sprite,
+  lift,
+  shadow: false,
+  animate: { kind: 'cycle', frames: 8, fps: 'wind' },
+});
+/** Tier VI gold: a baked glint (frames 5–7 of 8) at 6 fps. */
+const GILT_SHIMMER: Animate = { kind: 'cycle', frames: 8, fps: 6 };
+/** The mill's yard (ART-BIBLE §6 «тин і квіти»): mallows at the trestle foot from II, a wattle past the sacks from IV. */
+const MILL_MALLOWS: TierPart = { sprite: 'mallows', dx: -24, dground: 2 };
+const MILL_TYN: TierPart = { sprite: 'tyn', dx: 46, dground: 2 };
+/**
+ * The potter's wares on a bench in the yard, left of the house (II, then from IV: tier III stays the M-ART khata as
+ * judged, `state=showcase`); the kiln further left (from V).
+ */
+const POTTER_JUGS: TierPart = { sprite: 'jugs', dx: -46, dground: 5 };
+const POTTER_KILN: TierPart = { sprite: 'kiln', dx: -68, dground: -2 };
+
 export const KHORTYTSIA_FARM: ZoneScene = {
   width: 768,
   rows: [
@@ -511,32 +538,44 @@ export const KHORTYTSIA_FARM: ZoneScene = {
       x: 312,
       ground: 124,
       tiers: [
+        { parts: [{ sprite: 'windmill' }, sails('windmill-sails', 53)] },
+        { parts: [{ sprite: 'mill.t2' }, sails('windmill-sails', 53), MILL_MALLOWS] },
+        { parts: [{ sprite: 'mill.t3' }, sails('mill-sails.m', 54), MILL_MALLOWS] },
+        { parts: [{ sprite: 'mill.t4' }, sails('mill-sails.m', 54), MILL_MALLOWS, MILL_TYN] },
+        { parts: [{ sprite: 'mill.t5' }, sails('mill-sails.l', 55), MILL_MALLOWS, MILL_TYN] },
         {
           parts: [
-            { sprite: 'windmill' },
-            { sprite: 'windmill-sails', lift: 53, shadow: false, animate: { kind: 'cycle', frames: 8, fps: 'wind' } },
+            { sprite: 'mill.t6' },
+            sails('mill-sails.l', 55),
+            // On the back-slope pole (generator `millPoleTop('t6')`); its top row is the last one below the river band.
+            { sprite: 'gilt.vane', dx: -9, lift: 87, shadow: false, animate: GILT_SHIMMER },
+            MILL_MALLOWS,
+            MILL_TYN,
           ],
         },
-        { prev: 'M2-07' },
-        { prev: 'M2-07' },
-        { prev: 'M2-07' },
-        { prev: 'M2-07' },
-        { prev: 'M2-07' },
       ],
     },
     // Front row, below the path: the potter's khata (Хата гончаря), nearer and to the right, its own fence and mallows.
-    // Khata I at tiers I–II, khata III from III on, until M2-07 draws II and IV–VI.
+    // Khata I and III are the M-ART frames; II, IV–VI grow the house by the trade (M2-07): wares on a bench (II, IV+),
+    // a workshop shed (IV), a drying rack and the kiln (V), gilt jug (VI).
     {
       building: 'potter',
       x: 292,
       ground: 240,
       tiers: [
         { parts: [{ sprite: 'khata.t1' }] },
-        { prev: 'M2-07' },
+        { parts: [{ sprite: 'potter.t2' }, POTTER_JUGS] },
         { parts: [{ sprite: 'khata.t3' }] },
-        { prev: 'M2-07' },
-        { prev: 'M2-07' },
-        { prev: 'M2-07' },
+        { parts: [{ sprite: 'potter.t4' }, POTTER_JUGS] },
+        { parts: [POTTER_KILN, { sprite: 'potter.t5' }, POTTER_JUGS] },
+        {
+          parts: [
+            POTTER_KILN,
+            { sprite: 'potter.t6' },
+            POTTER_JUGS,
+            { sprite: 'gilt.jug', dx: 42, dground: 4, shadow: false, animate: GILT_SHIMMER },
+          ],
+        },
       ],
     },
     { sprite: 'mallows', x: 266, ground: 243, plot: { building: 'potter', from: 1 } },
