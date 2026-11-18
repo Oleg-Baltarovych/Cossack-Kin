@@ -23,6 +23,16 @@ const NO_TS_EXT = {
   regex: '^\\.{1,2}/(?!.*\\.ts$)',
   message: 'imports[ts-ext]: relative imports in src/core and src/content end in `.ts` (Node runs them directly).',
 };
+/**
+ * Render reads the game and never changes it (rules/render.md, plan M1-19): no player actions, no offline/advance
+ * reducers, no store factory. Selectors, state types and event types are fine.
+ */
+const RENDER_WRITES = {
+  regex: '^(\\.\\./)+core/(actions|advance|offline|store)(\\.ts)?$',
+  message:
+    'imports[render-actions]: render must not import game actions or reducers — read state via core selectors and store events (render/bridge.ts).',
+  allowTypeImports: true,
+};
 const CORE_PATTERNS = [
   { regex: '^(pixi\\.js|pixi-filters|react|react-dom|howler)(/.*)?$', message: RENDER_PACKAGE },
   { regex: '^@(pixi|capacitor)/', message: RENDER_PACKAGE },
@@ -122,6 +132,10 @@ export default defineConfig(
         { selector: "MemberExpression[object.name='Math'][property.name='random']", message: RANDOM },
       ],
     },
+  },
+  {
+    files: ['src/render/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [BIG_LIB, RENDER_WRITES] }] },
   },
   {
     // The one door to break_eternity.js (keeps the core boundary and the .ts rule).

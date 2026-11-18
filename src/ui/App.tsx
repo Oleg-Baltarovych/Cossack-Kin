@@ -10,6 +10,7 @@ import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel } from './components/Panel.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
+import { TapFeedback } from './components/TapFeedback.tsx';
 import { FROZEN_NOW, installGameDebug, parseGameDebug, presetState } from './debug/gameDebug.ts';
 import { GameProvider, useGame } from './hooks/useGame.ts';
 import styles from './App.module.css';
@@ -45,40 +46,47 @@ export function App() {
 
   useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store) : undefined), [game]);
 
+  const [world, setWorld] = useState<WorldApp | null>(null);
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     // StrictMode mounts twice: a disposed effect destroys its app as soon as init resolves.
     let disposed = false;
-    let world: WorldApp | null = null;
-    startWorld(host)
-      .then((created) => {
-        if (disposed) created.destroy();
-        else world = created;
+    let created: WorldApp | null = null;
+    // The world reads the game through the bridge (render/bridge.ts): events and selectors only.
+    startWorld(host, game.store)
+      .then((w) => {
+        if (disposed) w.destroy();
+        else {
+          created = w;
+          setWorld(w);
+        }
       })
       .catch((error: unknown) => {
         console.error('world init failed', error);
       });
     return () => {
       disposed = true;
-      world?.destroy();
+      created?.destroy();
+      setWorld(null);
     };
-  }, []);
+  }, [game]);
 
   return (
     <GameProvider store={game.store} now={game.now}>
       <DocumentLang />
       <div ref={hostRef} id="world" />
-      {game.ui && <GameUi />}
+      {game.ui && <GameUi world={world} />}
     </GameProvider>
   );
 }
 
 /** HUD and panel, made inert (no focus, no screen reader) while the return window is open — aria-modal alone is not. */
-function GameUi() {
+function GameUi({ world }: { world: WorldApp | null }) {
   const away = useGame((s) => s.returnReport !== null);
   return (
     <div className={styles.ui}>
+      <TapFeedback world={world} />
       <div className={styles.layer} inert={away}>
         <Hud />
         <Panel />

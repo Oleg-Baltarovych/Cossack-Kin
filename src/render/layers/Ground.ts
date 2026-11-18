@@ -6,7 +6,8 @@
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Sprite, type Texture } from 'pixi.js';
 import type { GroundTile, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
-import { CLOUD_SHADOW, QUALITY_TIERS, sailFps, SWAY, WIND } from '../atmosphere/config.ts';
+import { CLOUD_SHADOW, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
+import { plotShown } from '../scene.ts';
 import { cloudShadowLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
@@ -170,14 +171,20 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       setQuality: (q) => {
         shadowsOn = QUALITY_TIERS[q].cloudShadows;
       },
-      update: ({ seconds, ambient, cycle }) => {
-        for (const { prop, sprite, anim } of placed) {
+      update: ({ seconds, ambient, cycle, scene }) => {
+        // Plots follow the game (M1-19): a building's props stand while its visual tier is in their range.
+        for (const { decal, sprite } of placedDecals) sprite.visible = plotShown(decal.plot, scene.tiers);
+        for (const { prop, sprite, shadow, anim } of placed) {
+          const shown = plotShown(prop.plot, scene.tiers);
+          sprite.visible = shown;
+          if (shadow) shadow.visible = shown;
+          if (!shown) continue;
           const a = prop.animate;
           if (!a || anim.length === 0) continue;
           const index =
             a.kind === 'sway'
-              ? swayFrame(ambient, a, WIND.strength, lessMotion)
-              : Math.floor(ambient * (a.fps === 'wind' ? sailFps(WIND.strength) : a.fps)) % anim.length;
+              ? swayFrame(ambient, a, scene.wind, lessMotion)
+              : Math.floor(ambient * (a.fps === 'wind' ? sailFps(scene.wind) : a.fps)) % anim.length;
           const texture = anim[index];
           if (texture) sprite.texture = texture;
         }

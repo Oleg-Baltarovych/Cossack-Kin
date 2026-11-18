@@ -3,7 +3,14 @@ import { DEFENCE, FARM, SICH } from '../../../src/content/economy.ts';
 import { KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
 import { Big } from '../../../src/core/big.ts';
 import { bulkCost, cost, prodRate } from '../../../src/core/economy.ts';
-import { farmRowView, hireView, hudView, sichRowView, visibleSichIds } from '../../../src/core/selectors.ts';
+import {
+  farmRowView,
+  hireView,
+  hudView,
+  sichRowView,
+  visibleSichIds,
+  visualTiers,
+} from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { windLookAt } from '../../../src/core/systems/village-mechanics/wind.ts';
 import { applyAction } from '../../../src/core/actions.ts';
@@ -199,5 +206,17 @@ describe('selectors agree with the reducer (M1-17 review)', () => {
       nameKey: KHORTYTSIA.sichSpecial.nameKey,
       descKey: KHORTYTSIA.sichSpecial.descKey,
     });
+  });
+});
+
+describe('visualTiers (M1-19, SPEC §6.5)', () => {
+  it('level 0 = empty plot (0); then I at level 1 and one more per milestone', () => {
+    const v = visualTiers(makeState({ levels: { field: 1, garden: 9, apiary: 10, windmill: 25, potter: 100 } }));
+    expect([v.field, v.garden, v.apiary, v.windmill, v.potter, v.fair]).toEqual([1, 1, 2, 3, 6, 0]);
+  });
+
+  it('Sich: milestones 10/25/50; a locked building shows nothing even with a level (crafted save)', () => {
+    const v = visualTiers(makeState({ sich: { kurins: 10, walls: 50, maidan: 1, church: 30 } }));
+    expect([v.kurins, v.walls, v.maidan, v.church, v.treasury]).toEqual([2, 4, 1, 0, 0]);
   });
 });

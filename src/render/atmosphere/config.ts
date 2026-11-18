@@ -554,8 +554,13 @@ export const CLOUD_FOOTPRINTS: Readonly<Record<CloudVariant, { readonly w: numbe
 };
 
 // --- Wind (ART-13; ART-14 sway and the land-1 wind mechanic build on it) ------------------------------------
-/** Wind strength 0..1 (calm … gale). M6 weather makes it deterministic per time; for now a fixed breeze. */
+/** Wind strength 0..1 (calm … gale) without a game attached (render alone, the M-ART look): a breeze. */
 export const WIND = { strength: 0.55 } as const;
+/**
+ * The game's wind (land 1 mechanic, core `windAt`) as a strength for sails and sway (M1-19): calm barely turns the
+ * sails and stills the grass, a storm bends everything. Breeze = the M-ART look.
+ */
+export const WIND_STRENGTH = { calm: 0.15, breeze: WIND.strength, storm: 0.95 } as const;
 /**
  * Sail frames per second for a wind strength: 8 frames make a quarter turn, so 2 fps (a lazy turn in light air) to
  * 10 fps (a full turn in 3.2 s in a gale). Whole frames only: the sails never sit at a sub-px angle.
@@ -818,3 +823,12 @@ export type QualityTier = (typeof QUALITY_TIERS)[keyof typeof QUALITY_TIERS];
  * over `maxGapMs` between frames (a hidden tab, a paused webview) restarts the measurement: no frames ≠ slow frames.
  */
 export const AUTO_QUALITY = { start: 'med', warmup: 1, window: 3, high: 57, low: 45, maxGapMs: 250 } as const;
+
+// --- Tap coins (M1-19, SPEC §6.7) ------------------------------------------------------------------------------
+/**
+ * A ducat from a tap: rises `rise` logical px over `life` s (ease-out), spins at `spinFps` through its 4 frames, fades
+ * after `fadeFrom` of its life. `max` in the air at once (10 taps/s cap × life). «Менше руху»: still, `stillLife` s.
+ */
+export const COIN = { life: 0.7, stillLife: 0.4, rise: 14, spinFps: 12, fadeFrom: 0.55, max: 8 } as const;
+/** A pointer that moved more than this many CSS px between down and up was a drag, not a tap. */
+export const TAP_SLOP_PX = 8;

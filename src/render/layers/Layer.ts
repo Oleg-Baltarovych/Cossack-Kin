@@ -2,6 +2,7 @@
 import { Container } from 'pixi.js';
 import { KHORTYTSIA_FARM } from '../../content/villages/khortytsia.layout.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
+import type { SceneState } from '../scene.ts';
 import type { Quality } from '../settings.ts';
 
 export type LayerId = 'sky' | 'clouds' | 'far' | 'mid' | 'ground' | 'foreground' | 'fx' | 'light';
@@ -27,6 +28,8 @@ export interface LayerFrame {
   readonly cycle: DayCycle;
   /** Camera position in world px (ground parallax); screen-fixed layers use it to place parallax content. */
   readonly camX: number;
+  /** What the game puts in the scene (render/scene.ts): plots by building tier, the wind. */
+  readonly scene: SceneState;
 }
 
 export interface WorldLayer {

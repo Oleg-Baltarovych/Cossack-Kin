@@ -15,10 +15,13 @@ export interface WorldStats {
 /**
  * Opens `url` and waits until the first world frame reached the canvas (`body[data-ready="1"]`). A failed
  * world init (e.g. a missing atlas) sets `data-ready="error"` and fails here at once, not on a timeout.
- * World screenshots judge the scene, so the DOM UI is hidden (`ui=0`) unless the URL asks for it (`ui=1`).
+ * World screenshots judge the scene, so the DOM UI is hidden (`ui=0`) unless the URL asks for it (`ui=1`), and every
+ * plot is built (`state=showcase`, the M-ART scene) unless the URL picks a state.
  */
 export async function gotoReady(page: Page, url: string): Promise<void> {
-  await page.goto(/[?&]ui=/.test(url) ? url : `${url}${url.includes('?') ? '&' : '?'}ui=0`);
+  const extra = [/[?&]ui=/.test(url) ? '' : 'ui=0', /[?&]state=/.test(url) ? '' : 'state=showcase'].filter(Boolean);
+  const full = extra.length === 0 ? url : `${url}${url.includes('?') ? '&' : '?'}${extra.join('&')}`;
+  await page.goto(full);
   await waitReady(page);
 }
 

@@ -47,6 +47,7 @@ import {
 } from '../atmosphere/rays.ts';
 import { skyPixel } from '../atmosphere/skyPaint.ts';
 import { rampColor } from '../palette.ts';
+import { plotShown } from '../scene.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { cloudX } from './Clouds.ts';
 import { propFrames } from './Ground.ts';
@@ -293,7 +294,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         applyBudget();
         if (size) rebuild(size);
       },
-      update: ({ minutes, ambient: seconds, cycle, camX }) => {
+      update: ({ minutes, ambient: seconds, cycle, camX, scene }) => {
         if (!size || !hazeBuf) return;
         const bucket = `${String(lutBucket(minutes))}:${cycle.keyA}:${cycle.keyB}`;
         if (bucket !== hazeKey) {
@@ -316,6 +317,8 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         if (level > 0.01) {
           const offset = layerOffset(camX, 1);
           for (const p of pools) {
+            // A window pool only in front of a building that stands (M1-19).
+            p.sprite.visible = plotShown(p.prop.plot, scene.tiers);
             p.sprite.position.set(p.prop.x + offset, horizon + p.prop.ground + p.below);
             const f = p.fire ? flicker(seconds, p.seed) : flicker(seconds * 0.25, p.seed, 0.125);
             p.sprite.alpha = Math.round(p.alpha * poolLevel * f * 8) / 8;
