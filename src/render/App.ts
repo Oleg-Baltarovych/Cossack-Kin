@@ -124,16 +124,23 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
   let vp = measure(host);
   let closerVp = measure(host, 1);
   const app = new Application();
-  await app.init({
-    preference: 'webgl',
-    antialias: false,
-    roundPixels: true,
-    resolution: 1,
-    autoDensity: false,
-    width: vp.deviceW,
-    height: vp.deviceH,
-    backgroundColor: rampColor('ink', 0),
-  });
+  try {
+    await app.init({
+      preference: 'webgl',
+      antialias: false,
+      roundPixels: true,
+      resolution: 1,
+      autoDensity: false,
+      width: vp.deviceW,
+      height: vp.deviceH,
+      backgroundColor: rampColor('ink', 0),
+    });
+  } catch (error) {
+    // The canvas is not in the page yet; a renderer created before the failure still holds a GL context — release it
+    // (a retry creates a new one). Pixi types `renderer` as always set, but it is unset when renderer creation threw.
+    if ((app as { renderer?: unknown }).renderer) app.destroy({ removeView: true }, { children: true });
+    throw error;
+  }
 
   // Teardown runs in reverse creation order: observer → ticker → layers → world → worldRT → app (+ canvas).
   // It is used both by destroy() and when anything below throws during setup.

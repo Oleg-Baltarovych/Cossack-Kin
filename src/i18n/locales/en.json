@@ -103,5 +103,7 @@
   "boot.unavailable.title": "Saving unavailable",
   "boot.unavailable.body": "The browser will not let the game read its save (private mode or blocked storage). You can play, but this progress will not be saved.",
   "start.error.title": "The game did not start",
-  "start.error.body": "Something went wrong while starting. Reload the page; your save is untouched."
+  "start.error.body": "Something went wrong while starting. Reload the page; your save is untouched.",
+  "world.failed.body": "The world did not load.",
+  "world.failed.retry": "Try again"
 }

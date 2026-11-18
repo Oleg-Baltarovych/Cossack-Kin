@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { PROD_CSP } from '../../../tools/lib/csp.ts';
-import { checkAtlasIndex, checkIndexHtml, findLeaks, isForbiddenFile } from '../../../tools/lib/dist-leaks.ts';
+import {
+  checkAtlasIndex,
+  checkEntryChunks,
+  checkIndexHtml,
+  entryScripts,
+  findLeaks,
+  isForbiddenFile,
+} from '../../../tools/lib/dist-leaks.ts';
 
 describe('findLeaks', () => {
   it.each([
@@ -125,6 +132,39 @@ describe('checkIndexHtml', () => {
     expect(checkIndexHtml(page(meta(PROD_CSP) + '<script>alert(1)</script><style>a{}</style>'))).toEqual([
       'inline <script> in index.html',
       'inline <style> in index.html',
+    ]);
+  });
+});
+
+describe('entry chunk budget (M2-04)', () => {
+  const html =
+    '<head><script type="module" crossorigin src="/assets/index-AB12.js"></script>' +
+    '<link rel="modulepreload" crossorigin href="/assets/vendor-CD34.js"><link rel="stylesheet" href="/assets/i.css"></head>';
+
+  it('finds the entry script and its modulepreloads (what loads before the first paint)', () => {
+    expect(entryScripts(html)).toEqual(['assets/index-AB12.js', 'assets/vendor-CD34.js']);
+  });
+
+  it("accepts ' quotes and ./ or / prefixes, ignores other links and inline scripts", () => {
+    const other =
+      "<script type='module' src='./assets/a.js'></script><link rel='modulepreload' href='assets/b.js'>" +
+      '<link rel="preload" href="/assets/c.js"><script>1</script>';
+    expect(entryScripts(other)).toEqual(['assets/a.js', 'assets/b.js']);
+  });
+
+  it('budgets the sum of the start scripts in raw bytes', () => {
+    const sizes = (a: number, b: number) => (path: string) => (path.includes('index') ? a : b);
+    expect(checkEntryChunks(html, sizes(250_000, 250_000))).toEqual([]);
+    expect(checkEntryChunks(html, sizes(250_000, 250_001))).toEqual([
+      'start chunks (assets/index-AB12.js, assets/vendor-CD34.js) are 500001 bytes > 500000 (lazy-load the rest, M2-04)',
+    ]);
+  });
+
+  it('fails when the entry script is missing from index.html or from dist/', () => {
+    expect(checkEntryChunks('<head></head>', () => 1)).toEqual(['index.html has no entry <script src>']);
+    expect(checkEntryChunks(html, () => undefined)).toEqual([
+      'start chunk assets/index-AB12.js is missing',
+      'start chunk assets/vendor-CD34.js is missing',
     ]);
   });
 });

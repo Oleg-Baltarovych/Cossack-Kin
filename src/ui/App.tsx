@@ -1,18 +1,21 @@
 // Root DOM UI: the Pixi world canvas with the HUD and the bottom panel over it (SPEC §6.1). The game was loaded before
 // React started (ui/game.ts, main.tsx); here it runs: the loop while the page is visible, autosave, the world.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { startAutosave } from '../platform/autosave.ts';
+import { chunksLoaded } from '../platform/chunkReload.ts';
 import { driveGame } from '../platform/lifecycle.ts';
-import { startWorld, type WorldApp } from '../render/index.ts';
+import type { WorldApp } from '../render/index.ts';
 import { BootNotice } from './components/BootNotice.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel } from './components/Panel.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
 import { TapFeedback } from './components/TapFeedback.tsx';
+import { WorldError } from './components/WorldError.tsx';
 import { installGameDebug } from './debug/gameDebug.ts';
 import type { Game } from './game.ts';
 import { GameProvider, useGame } from './hooks/useGame.ts';
+import { useWorld, type StartWorld } from './hooks/useWorld.ts';
 import styles from './App.module.css';
 
 export function App({ game }: { game: Game }) {
@@ -35,36 +38,23 @@ export function App({ game }: { game: Game }) {
 
   useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store) : undefined), [game]);
 
-  const [world, setWorld] = useState<WorldApp | null>(null);
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    // StrictMode mounts twice: a disposed effect destroys its app as soon as init resolves.
-    let disposed = false;
-    let created: WorldApp | null = null;
-    // The world reads the game through the bridge (render/bridge.ts): events and selectors only.
-    startWorld(host, game.store)
-      .then((w) => {
-        if (disposed) w.destroy();
-        else {
-          created = w;
-          setWorld(w);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error('world init failed', error);
-      });
-    return () => {
-      disposed = true;
-      created?.destroy();
-      setWorld(null);
-    };
-  }, [game]);
+  // The world reads the game through the bridge (render/bridge.ts): events and selectors only. Pixi and the scene are a
+  // lazy chunk (M2-04): the HUD and the panel paint first, the world joins when its code and atlases arrive.
+  const startWorld = useCallback<StartWorld<WorldApp>>(
+    async (host, signal) => {
+      const render = await import('../render/index.ts');
+      chunksLoaded();
+      return signal.aborted ? null : render.startWorld(host, game.store);
+    },
+    [game],
+  );
+  const { world, failed, retry } = useWorld(hostRef, startWorld);
 
   return (
     <GameProvider store={game.store} now={game.now}>
       <DocumentLang />
       <div ref={hostRef} id="world" />
+      {failed && <WorldError onRetry={retry} />}
       {game.ui && <GameUi world={world} notice={game.notice} />}
     </GameProvider>
   );
