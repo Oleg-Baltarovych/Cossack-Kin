@@ -1,6 +1,6 @@
 // Continuous-world geometry (plan M2-01): which stretch of the world has the river, ground haze and which zone.
 // Pure: no Pixi, no DOM. World x everywhere; screen x = world x − camX.
-import type { GroundSegment, River } from '../content/villages/khortytsia.layout.ts';
+import type { GroundSegment, River, WorldZone, ZoneId } from '../content/villages/khortytsia.layout.ts';
 
 /** World x where river row `r` (0 = right under the horizon) ends: the far row at x1, the nearest `taper` px before. */
 export function riverRowEnd(river: River, r: number): number {
@@ -43,4 +43,20 @@ export function hazeCover(segments: readonly GroundSegment[], width: number, ram
     cover[x] = Math.min(1, d / ramp);
   }
   return cover;
+}
+
+/**
+ * The zone under the view's centre (world x `centre`), M2-02: the tab follows the camera when it settles. `current`
+ * holds while the centre is within `hysteresis` px past its edges, so a camera resting near a border does not flip
+ * the tab back and forth.
+ */
+export function zoneAt(
+  zones: readonly WorldZone[],
+  centre: number,
+  current: ZoneId | null,
+  hysteresis: number,
+): ZoneId | null {
+  const held = zones.find((z) => z.id === current);
+  if (held && centre >= held.x0 - hysteresis && centre < held.x1 + hysteresis) return held.id;
+  return zones.find((z) => centre >= z.x0 && centre < z.x1)?.id ?? current;
 }

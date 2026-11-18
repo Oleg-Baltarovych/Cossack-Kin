@@ -23,6 +23,8 @@ export interface DebugStats {
   quality: string;
   /** Frames rendered since start. */
   frames: number;
+  /** Camera x on screen in the last frame, logical px (a multiple of 1/scale; M2-02). */
+  cam: number;
 }
 
 export interface DebugHandle {
@@ -55,6 +57,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     logicalH: vp.logicalH,
     quality: settings.quality ?? `auto:${world.quality()}`,
     frames: 0,
+    cam: world.camX(),
   };
   window.__CK__ = { stats, settings };
 
@@ -67,7 +70,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
   const end = (): void => {
     const now = performance.now();
     const { scale, logicalW, logicalH } = world.viewport();
-    Object.assign(stats, { scale, logicalW, logicalH, particles: particles.active });
+    Object.assign(stats, { scale, logicalW, logicalH, particles: particles.active, cam: world.camX() });
     stats.quality = settings.quality ?? `auto:${world.quality()}`;
     if (counter) stats.drawCalls = counter.count();
     stats.frames += 1;

@@ -18,12 +18,26 @@ import {
   UPDATE_PRIORITY,
   type Texture,
 } from 'pixi.js';
-import { KHORTYTSIA_WORLD } from '../content/villages/khortytsia.layout.ts';
+import { KHORTYTSIA_WORLD, type ZoneId } from '../content/villages/khortytsia.layout.ts';
 import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
 import { createGrading, gradeCycle, loadLuts } from './atmosphere/grading.ts';
 import { frame, loadAtlases, type Atlases } from './atlases.ts';
 import { cameraBounds, layerOffset, split } from './camera.ts';
+import {
+  cancel,
+  createMotion,
+  glideTo,
+  isSettled,
+  jumpTo,
+  move,
+  press,
+  release,
+  step,
+  type CameraView,
+  type PointerSample,
+} from './camera/motion.ts';
+import { zoneAt } from './zones.ts';
 import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } from './clock.ts';
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
 import { horizonY } from './layers/Layer.ts';
@@ -33,7 +47,7 @@ import { rampColor, rampCss } from './palette.ts';
 import { DEFAULT_SCENE, type SceneState } from './scene.ts';
 import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
-import { AUTO_QUALITY, TAP_SLOP_PX } from './atmosphere/config.ts';
+import { AUTO_QUALITY, CAMERA } from './atmosphere/config.ts';
 import { createCoinFx } from './fx/coins.ts';
 import { computeViewport, worldTargetSize, type Viewport } from './viewport.ts';
 
@@ -65,10 +79,25 @@ export interface WorldApp {
   viewport(): Viewport;
   /** The quality tier in use (the auto-detect may change it once, ART-18). */
   quality(): Quality;
+  /** Puts the camera at `camX` logical px at once (clamped to the world). */
   setCamX(camX: number): void;
+  /** Glides the camera to the zone's anchor (UI tabs, M2-02); «менше руху» jumps. Cosmetic: no game state. */
+  focusZone(zone: ZoneId): void;
+  /** The camera x on screen in the last frame (logical px, a multiple of 1/scale). */
+  camX(): number;
+  /**
+   * Calls `listener` with the zone under the view's centre now and whenever the camera settles in another one
+   * (with hysteresis, M2-02: the panel tab follows the camera); returns the unsubscribe function.
+   */
+  readonly onZoneChange: (listener: (zone: ZoneId) => void) => () => void;
+  /**
+   * «Менше руху» at runtime (the settings screen, M2): the camera (no glide, no coast) and the ambient clock follow at
+   * once; plants, coins and particle budgets still take the value the world was created with.
+   */
+  setLessMotion(on: boolean): void;
   /** What the game shows (plots by tier, wind); render/bridge.ts sets it from store events (M1-19). */
   setScene(scene: SceneState): void;
-  /** Calls `listener` for every tap on the world (not a drag); returns the unsubscribe function. */
+  /** Calls `listener` for every tap on the world (not a drag; both taps of a double tap); returns the unsubscribe. */
   onTap(listener: (tap: WorldTap) => void): () => void;
   /** A tap coin at ground-space px (render/bridge.ts on the core's `Tapped`). */
   spawnCoin(x: number, y: number): void;
@@ -197,10 +226,16 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     const upscale = new Sprite({ texture: worldRT, label: 'upscale', roundPixels: true });
     app.stage.addChild(upscale);
 
-    let camX = settings.camX ?? WORLD.zones.find((z) => z.id === settings.zone)?.anchorX ?? 0;
+    const anchorX = (zone: ZoneId): number => WORLD.zones.find((z) => z.id === zone)?.anchorX ?? 0;
+    // Camera (M2-02): drag, inertia, glides — pure motion state (camera/motion.ts), stepped once per frame.
+    let motion = createMotion(settings.camX ?? anchorX(settings.zone));
+    let lessMotion = settings.lessMotion;
+    const zoneListeners = new Set<(zone: ZoneId) => void>();
+    let zone: ZoneId | null = null;
+    let settled = true;
     let scene: SceneState = DEFAULT_SCENE;
     // The camera of the last frame: a tap is read in the frame the player saw.
-    let lastCam = split(camX, 1);
+    let lastCam = split(motion.x, 1);
     // Quality (ART-18): a fixed `?quality`, else auto — start at AUTO_QUALITY.start and let the fps probe pick once.
     // No probe under `?freeze`: screenshots must not change tier mid-test.
     let quality: Quality = settings.quality ?? AUTO_QUALITY.start;
@@ -235,18 +270,45 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       graded.filterArea = new Rectangle(0, 0, target.width, target.height);
     };
     applyViewport();
+    // Bounds use the visible width ceil(deviceW/scale) = target.width − 1, not logicalW (floor): with
+    // floor, the camera could stop up to one partial column past the world's right edge. The spare
+    // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
+    const cameraView = (): CameraView => ({
+      bounds: cameraBounds(WORLD.width, target.width - 1),
+      viewW: target.width - 1,
+      lessMotion,
+    });
+    zone = zoneAt(WORLD.zones, motion.x + cameraView().viewW / 2, null, CAMERA.zoneHysteresisPx);
 
     // Runs at NORMAL priority, i.e. before Application's own stage render (LOW).
     const renderWorld = (): void => {
-      // Bounds use the visible width ceil(deviceW/scale) = target.width − 1, not logicalW (floor): with
-      // floor, the camera could stop up to one partial column past the world's right edge. The spare
-      // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
-      const cam = split(camX, vp.scale, cameraBounds(WORLD.width, target.width - 1));
+      const view = cameraView();
+      motion = step(motion, performance.now(), view);
+      const cam = split(motion.x, vp.scale, view.bounds);
       lastCam = cam;
+      // The tab follows the camera once it has settled (not during a drag, coast or glide).
+      const nowSettled = isSettled(motion);
+      if (nowSettled && !settled) {
+        const next = zoneAt(WORLD.zones, motion.x + view.viewW / 2, zone, CAMERA.zoneHysteresisPx);
+        if (next && next !== zone) {
+          zone = next;
+          for (const l of [...zoneListeners]) l(next);
+        }
+      }
+      settled = nowSettled;
       const minutes = clock.minutesOfDay();
       const seconds = clock.seconds();
-      const ambient = settings.lessMotion ? 0 : seconds;
-      const frameInfo = { minutes, seconds, ambient, cycle: dayCycle(minutes), camX: cam.worldPx, scene };
+      const ambient = lessMotion ? 0 : seconds;
+      const frameInfo = {
+        minutes,
+        seconds,
+        ambient,
+        cycle: dayCycle(minutes),
+        camX: cam.worldPx,
+        cameraMoving: !nowSettled,
+        nowMs: performance.now(),
+        scene,
+      };
       if (probe && !probe.verdict()) {
         probe.sample(performance.now());
         const picked = probe.verdict();
@@ -290,41 +352,88 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       readyOwner = null;
     });
 
-    // Taps (M1-19): pointer down and up close together; the point in ground-space logical px of the frame on screen.
+    // Pointer (M1-19, M2-02): one finger drags the camera (with inertia); a press that stays within the slop is a tap at
+    // the ground-space logical px of the frame on screen; a double tap also centres the tapped point (motion.ts).
+    // `touch-action: none` keeps the browser from taking the horizontal pan (pinch is M2-03); no long-press callout,
+    // selection or context menu on the world. Times are `performance.now()`, not `e.timeStamp`: the frame clock uses
+    // it too (and Playwright's fake clock moves it, but not event timestamps).
+    canvas.style.touchAction = 'none';
+    canvas.style.userSelect = 'none';
+    canvas.style.setProperty('-webkit-touch-callout', 'none');
     const tapListeners = new Set<(tap: WorldTap) => void>();
-    let down: { id: number; x: number; y: number } | null = null;
-    const onDown = (e: PointerEvent): void => {
-      down = { id: e.pointerId, x: e.clientX, y: e.clientY };
-    };
-    const onUp = (e: PointerEvent): void => {
-      const start = down;
-      down = null;
-      if (start?.id !== e.pointerId) return;
-      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > TAP_SLOP_PX) return;
+    /** Screen logical px of a pointer (the frame's sub-px shift not included: drags work in screen space). */
+    const pointer = (e: PointerEvent): PointerSample => {
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
-      const lx = ((e.clientX - rect.left) * dpr + lastCam.fracDevicePx) / vp.scale;
-      const ly = ((e.clientY - rect.top) * dpr) / vp.scale;
+      return {
+        id: e.pointerId,
+        x: ((e.clientX - rect.left) * dpr) / vp.scale,
+        y: ((e.clientY - rect.top) * dpr) / vp.scale,
+        t: performance.now(),
+        primary: e.isPrimary,
+      };
+    };
+    const holds = (id: number): boolean =>
+      (motion.mode.kind === 'press' || motion.mode.kind === 'drag') && motion.mode.id === id;
+    const onDown = (e: PointerEvent): void => {
+      if (e.button !== 0) return; // mouse: left button only
+      motion = press(motion, pointer(e), cameraView());
+      if (!holds(e.pointerId)) return; // an ignored second finger
+      // Keep the moves and the release coming when the finger leaves the canvas (e.g. over the HUD).
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // The pointer is already gone (released before this handler ran): nothing to capture.
+      }
+    };
+    const onMove = (e: PointerEvent): void => {
+      motion = move(motion, pointer(e), cameraView());
+    };
+    const onUp = (e: PointerEvent): void => {
+      const p = pointer(e);
+      const r = release(motion, p, cameraView());
+      motion = r.motion;
+      if (!r.tap) return;
+      // Ground-space px of the frame on screen: the same sample plus that frame's camera.
       const tap: WorldTap = {
         clientX: e.clientX,
         clientY: e.clientY,
-        x: Math.floor(lx - layerOffset(lastCam.worldPx, 1)),
-        y: Math.floor(ly),
+        x: Math.floor(p.x + lastCam.fracDevicePx / vp.scale + lastCam.worldPx),
+        y: Math.floor(p.y),
       };
       for (const l of [...tapListeners]) l(tap);
     };
-    // An OS gesture (scroll, pinch) cancels the pointer: no tap.
-    const onCancel = (): void => {
-      down = null;
+    // The OS took the pointer (scroll, system gesture) or the capture was lost: no tap, no inertia.
+    const onLost = (e: PointerEvent): void => {
+      if (holds(e.pointerId)) motion = cancel(motion, performance.now(), cameraView());
+    };
+    // Focus or the page went away mid-gesture: the up will never come.
+    const onAway = (): void => {
+      if (document.visibilityState === 'hidden' || !document.hasFocus())
+        motion = cancel(motion, performance.now(), cameraView());
+    };
+    const onContextMenu = (e: Event): void => {
+      e.preventDefault();
     };
     canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', onCancel);
+    canvas.addEventListener('pointercancel', onLost);
+    canvas.addEventListener('lostpointercapture', onLost);
+    canvas.addEventListener('contextmenu', onContextMenu);
+    window.addEventListener('blur', onAway);
+    document.addEventListener('visibilitychange', onAway);
     disposers.push(() => {
       canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);
-      canvas.removeEventListener('pointercancel', onCancel);
+      canvas.removeEventListener('pointercancel', onLost);
+      canvas.removeEventListener('lostpointercapture', onLost);
+      canvas.removeEventListener('contextmenu', onContextMenu);
+      window.removeEventListener('blur', onAway);
+      document.removeEventListener('visibilitychange', onAway);
       tapListeners.clear();
+      zoneListeners.clear();
     });
 
     const observer = new ResizeObserver(applyViewport);
@@ -344,7 +453,21 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       viewport: () => vp,
       quality: () => quality,
       setCamX: (x) => {
-        camX = x;
+        motion = jumpTo(motion, x, cameraView());
+      },
+      focusZone: (zone) => {
+        motion = glideTo(motion, anchorX(zone), performance.now(), cameraView());
+      },
+      camX: () => lastCam.worldPx + lastCam.fracDevicePx / vp.scale,
+      onZoneChange: (listener) => {
+        zoneListeners.add(listener);
+        if (zone) listener(zone);
+        return () => {
+          zoneListeners.delete(listener);
+        };
+      },
+      setLessMotion: (on) => {
+        lessMotion = on;
       },
       setScene: (next) => {
         scene = next;

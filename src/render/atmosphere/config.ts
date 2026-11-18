@@ -842,5 +842,26 @@ export const AUTO_QUALITY = { start: 'med', warmup: 1, window: 3, high: 57, low:
  * after `fadeFrom` of its life. `max` in the air at once (10 taps/s cap × life). «Менше руху»: still, `stillLife` s.
  */
 export const COIN = { life: 0.7, stillLife: 0.4, rise: 14, spinFps: 12, fadeFrom: 0.55, max: 8 } as const;
-/** A pointer that moved more than this many CSS px between down and up was a drag, not a tap. */
-export const TAP_SLOP_PX = 8;
+
+// --- Camera (M2-02, SPEC §6.1) ---------------------------------------------------------------------------------
+/**
+ * Camera motion (render/camera/motion.ts), logical px and ms. A press that moved more than `slopPx` is a drag (never a
+ * tap); a fling keeps the drag's speed over the last `velocityWindowMs`, capped at `maxSpeed` px/s, and decays as
+ * e^(−friction·t) until it is under `stopSpeed` px/s — ln(maxSpeed / stopSpeed) / friction ≈ 0.88 s ≤ 1 s (plan M2-02).
+ * A tab or a double tap glides there in `glideMs` (ease in-out; ≤ 600 ms); two taps within `doubleTapMs` and
+ * `doubleTapSlopPx` of each other are a double tap; its centring waits `doubleTapMs` more and a third tap cancels it
+ * (tapping to earn never moves the camera). Logical px ≈ CSS px on phones (scale ≈ dpr), so the old 8 CSS px tap slop
+ * carries over. The tab follows the settled camera; it keeps its zone until the view centre is `zoneHysteresisPx`
+ * past the zone's edge.
+ */
+export const CAMERA = {
+  slopPx: 8,
+  velocityWindowMs: 80,
+  maxSpeed: 2400,
+  friction: 6,
+  stopSpeed: 12,
+  glideMs: 500,
+  doubleTapMs: 300,
+  doubleTapSlopPx: 16,
+  zoneHysteresisPx: 32,
+} as const;

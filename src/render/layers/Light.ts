@@ -202,6 +202,10 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
     let grid: { key: string; value: PolarGrid } | null = null;
     let beamGate = Number.NaN;
     let lastSeconds = Number.NaN;
+    // The camera the shafts / beams were last painted for, and when (M2-02: while the camera moves they repaint at
+    // most tier.repaintHz times a second; once it settles, at once for the exact position).
+    let paintedCam = Number.NaN;
+    let paintedAt = Number.NEGATIVE_INFINITY;
     const lead = weather === 'fog' ? FOG.leadRows : 0;
     const motes = Array.from({ length: RAYS.dust }, () => {
       const m = new Sprite({ texture: Texture.WHITE, roundPixels: true });
@@ -282,6 +286,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       hazeKey = '';
       beamKey = '';
       shaftKey = '';
+      paintedCam = Number.NaN;
       shaftMap = null;
       grid = null;
       profiles = layout.farPlanes.map((plane) => {
@@ -307,7 +312,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         applyBudget();
         if (size) rebuild(size);
       },
-      update: ({ minutes, ambient: seconds, cycle, camX, scene }) => {
+      update: ({ minutes, ambient: seconds, cycle, camX, scene, cameraMoving, nowMs }) => {
         if (!size || !hazeBuf) return;
         const bucket = `${String(lutBucket(minutes))}:${cycle.keyA}:${cycle.keyB}`;
         if (bucket !== hazeKey) {
@@ -374,12 +379,19 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         if (!on) return;
         rays.alpha = look.level;
 
+        // A moved camera shifts the far planes and clouds that cast the shafts: repaint for it, rate-limited while moving.
+        const camDue = camX !== paintedCam && (!cameraMoving || nowMs - paintedAt >= 1000 / tier.repaintHz);
+        const markPainted = (): void => {
+          paintedCam = camX;
+          paintedAt = nowMs;
+        };
         let lit: (x: number, y: number) => number;
         if (variant !== 'beams' && shaftBuf) {
           // The shadow map and the paint refresh tier.repaintHz times a second (clouds drift ~1–2 px/s).
-          const key = `${bucket}:${String(Math.floor(seconds * tier.repaintHz))}:${String(camX)}`;
-          if (key !== shaftKey || !shaftMap) {
+          const key = `${bucket}:${String(Math.floor(seconds * tier.repaintHz))}`;
+          if (key !== shaftKey || !shaftMap || camDue) {
             shaftKey = key;
+            markPainted();
             shaftMap = shadowMap(sun, occluderAt(seconds, camX, true), RAYS.reach, RAYS.bins);
             // Polar coordinates per px are cached while the sun stays on the same px.
             const gridKey = `${String(sun.x)}:${String(sun.y)}`;
@@ -407,9 +419,10 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
             return d > (map[binOf(sun, x, y, map.length)] ?? RAYS.reach) ? 0 : shaftStep(d, RAYS.reach);
           };
         } else {
-          const key = `${bucket}:${String(sun.x)}:${String(sun.y)}:${String(camX)}`;
-          if (key !== beamKey) {
+          const key = `${bucket}:${String(sun.x)}:${String(sun.y)}`;
+          if (key !== beamKey || camDue) {
             beamKey = key;
+            markPainted();
             freeBeams();
             const map = shadowMap(sun, occluderAt(seconds, camX, false), RAYS.reach, RAYS.bins);
             beams = RAYS.beams.map((angle) => {

@@ -85,6 +85,73 @@ describe('building rows (M1-17)', () => {
     expect(within(list).queryByText('Пушкарня')).toBeNull();
   });
 
+  it('tabs take the camera to their zone (M2-02): click and arrow keys; «Ще» has no zone', () => {
+    const zones: string[] = [];
+    mount(
+      createStore(makeState()),
+      <Panel
+        onZone={(z) => {
+          zones.push(z);
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Січ' }));
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Січ' }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Ще' }), { key: 'ArrowRight' });
+    expect(zones).toEqual(['sich', 'farm']);
+  });
+
+  it('Home/End jump to the first and last tab; the tab panel is focusable', () => {
+    const zones: string[] = [];
+    mount(
+      createStore(makeState()),
+      <Panel
+        onZone={(z) => {
+          zones.push(z);
+        }}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Хутір' }), { key: 'End' });
+    expect(screen.getByRole('tab', { name: 'Ще' }).getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Ще' }));
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Ще' }), { key: 'Home' });
+    expect(screen.getByRole('tab', { name: 'Хутір' }).getAttribute('aria-selected')).toBe('true');
+    expect(zones).toEqual(['farm']);
+    expect(screen.getByRole('tabpanel').tabIndex).toBe(0);
+  });
+
+  it('the tab follows the zone the camera settles in, without moving the camera or focus, never leaving «Ще»', () => {
+    let emit: (zone: 'farm' | 'suburb' | 'sich') => void = () => undefined;
+    const zones: string[] = [];
+    mount(
+      createStore(makeState()),
+      <Panel
+        onZone={(z) => {
+          zones.push(z);
+        }}
+        zoneSource={(listener) => {
+          emit = listener;
+          listener('sich'); // the current zone at once (the world started at the Sich)
+          return () => undefined;
+        }}
+      />,
+    );
+    const selected = (name: string): string | null => screen.getByRole('tab', { name }).getAttribute('aria-selected');
+    expect(selected('Січ')).toBe('true');
+    const focused = document.activeElement;
+    act(() => {
+      emit('suburb'); // the suburb's buildings are in the farm list
+    });
+    expect(selected('Хутір')).toBe('true');
+    expect(document.activeElement).toBe(focused);
+    fireEvent.click(screen.getByRole('tab', { name: 'Ще' }));
+    act(() => {
+      emit('sich');
+    });
+    expect(selected('Ще')).toBe('true');
+    expect(zones).toEqual([]); // following the camera never sends it anywhere
+  });
+
   it('the language setting switches every string, and English has no Ukrainian left (no text outside i18n)', () => {
     const store = createStore(makeState({ field: 12 }));
     const { container } = mount(

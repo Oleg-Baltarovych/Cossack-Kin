@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GroundSegment, River } from '../../../src/content/villages/khortytsia.layout.ts';
-import { hazeCover, riverRowEnd, riverRowsAt, riverSpan } from '../../../src/render/zones.ts';
+import { hazeCover, riverRowEnd, riverRowsAt, riverSpan, zoneAt } from '../../../src/render/zones.ts';
 import { overlapsX } from '../../../src/render/cull.ts';
 
 const river: River = { x0: 0, x1: 1000, rows: 26, taper: 50 };
@@ -62,5 +62,26 @@ describe('cullByX (M2-01)', () => {
     expect(overlapsX(1, 64, 64, 400)).toBe(true);
     expect(overlapsX(399, 10, 64, 400)).toBe(true);
     expect(overlapsX(400, 10, 64, 400)).toBe(false);
+  });
+});
+
+describe('zoneAt (M2-02: the tab follows the settled camera)', () => {
+  const zones = [
+    { id: 'farm', x0: 0, x1: 768, anchorX: 0 },
+    { id: 'suburb', x0: 768, x1: 1152, anchorX: 768 },
+    { id: 'sich', x0: 1152, x1: 1920, anchorX: 1152 },
+  ] as const;
+
+  it('the zone under the centre; edges belong to the zone on the right', () => {
+    expect(zoneAt(zones, 100, null, 32)).toBe('farm');
+    expect(zoneAt(zones, 768, null, 32)).toBe('suburb');
+    expect(zoneAt(zones, 1500, null, 32)).toBe('sich');
+  });
+
+  it('keeps the current zone within the hysteresis past its edge, switches beyond it', () => {
+    expect(zoneAt(zones, 1152 + 31, 'suburb', 32)).toBe('suburb');
+    expect(zoneAt(zones, 1152 + 32, 'suburb', 32)).toBe('sich');
+    expect(zoneAt(zones, 1152 - 20, 'sich', 32)).toBe('sich');
+    expect(zoneAt(zones, 1152 - 40, 'sich', 32)).toBe('suburb');
   });
 });
