@@ -37,6 +37,11 @@ export interface LayerFrame {
   readonly nowMs: number;
   /** What the game puts in the scene (render/scene.ts): plots by building tier, the wind. */
   readonly scene: SceneState;
+  /**
+   * Rows the sky band is moved down at the closer zoom level so the sun/moon stays in the window (camera.ts `skyShift`;
+   * 0 at the normal level). Anything aimed at the disc (light shafts) adds it to the disc row.
+   */
+  readonly skyY: number;
 }
 
 export interface WorldLayer {

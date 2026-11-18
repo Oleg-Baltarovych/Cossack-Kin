@@ -7,6 +7,7 @@ describe('findLeaks', () => {
     ['minified params read', 'freeze:r("freeze",Ft),quality:r("quality",Qa)', 'debug param key "freeze"'],
     ['single-quoted key', "get('freeze')", 'debug param key "freeze"'],
     ['template key', 'q.get(`freeze`)', 'debug param key "freeze"'],
+    ['zoom param read', 'zoom:r(`zoom`,Zt),still:r(`still`,Ft)', 'debug param key "zoom"'],
     ['location.search', 'Bt(window.location.search,"test")', 'URL query parsing (debug params)'],
     ['URLSearchParams', 'new URLSearchParams(e)', 'URL query parsing (debug params)'],
     ['warn format', 'console.warn("debug param %s=%o is invalid; using default %o",e,t,n)', 'debug param warning'],
@@ -31,6 +32,8 @@ describe('findLeaks', () => {
   it.each([
     ['Pixi Object.freeze', 't.filters=Object.freeze(e),r&&(n?'],
     ['identifier containing freeze', 'function freezeFrame(){}'],
+    ['React unitless CSS list', '"opacity order orphans scale tabSize widows zIndex zoom fillOpacity"'],
+    ['zoom as a property', 'camY:()=>k.y,zoom:()=>k.level'],
     ['unrelated strings', 'const a="frozen",b="overlay",c="seed";'],
     // Pixi's bundled unsafe-eval probe after minification (never called: pixi.js/unsafe-eval replaces it).
     ['Pixi probe (minified)', 'try{E=Function(`param1`,`param2`,`param3`,`return param1[param2] === param3;`)'],

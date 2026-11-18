@@ -864,4 +864,13 @@ export const CAMERA = {
   doubleTapMs: 300,
   doubleTapSlopPx: 16,
   zoneHysteresisPx: 32,
+  /** Pinch (M2-03): spread to 1.25× the finger distance → closer level; pinch to 0.8× → normal (from the last switch). */
+  pinchInRatio: 1.25,
+  pinchOutRatio: 0.8,
+  /** Fingers closer than this (normal-level logical px ≈ css px) do not measure a ratio (two fingers landing together). */
+  pinchMinBasePx: 24,
+  /** Ctrl+wheel: accumulated |deltaY| (css px) per level switch, so trackpad jitter cannot flip levels. */
+  wheelZoomPx: 50,
+  /** Closer level (M2-03 review): rows kept between the sun/moon disc centre and the window edge or the horizon. */
+  skyDiscMarginPx: 12,
 } as const;

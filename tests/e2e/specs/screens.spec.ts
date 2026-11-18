@@ -464,6 +464,61 @@ test.describe('M2-01 continuous world: zone seams @screens', () => {
   }
 });
 
+test.describe('M2-03 closer zoom level @screens', () => {
+  // `?zoom=1` = the closer level about the screen centre: scale + 1, a window of the normal frame (camera y > 0); the
+  // sky band moves down just enough to keep the sun/moon in the window. Every phone: day + night at the farm and the
+  // world's right edge (cam past the end, clamped); 390 only: the morning sun and the Sich's evening light shafts.
+  const CASES = [
+    { name: 'farm-0700', zone: 'farm', hhmm: '0700', cam: null, phones: '390' },
+    { name: 'farm-1300', zone: 'farm', hhmm: '1300', cam: null, phones: 'all' },
+    { name: 'farm-2300', zone: 'farm', hhmm: '2300', cam: null, phones: 'all' },
+    { name: 'sich-1930', zone: 'sich', hhmm: '1930', cam: null, phones: '390' },
+    { name: 'edge-1300', zone: 'sich', hhmm: '1300', cam: KHORTYTSIA_WORLD.width, phones: 'all' },
+  ] as const;
+  for (const { name, zone, hhmm, cam, phones } of CASES) {
+    test(`khortytsia ${name} clear, closer level: scale + 1, budget, pixel grid`, async ({ page }, testInfo) => {
+      test.skip(phones === '390' && testInfo.project.use.viewport?.width !== 390, 'runs on the 390×844 project only');
+      const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+      const at = cam === null ? `zone=${zone}` : `cam=${String(cam)}`;
+      await gotoReady(page, `/?time=${time}&freeze&seed=1&${at}`);
+      const normal = await readStats(page);
+      await gotoReady(page, `/?time=${time}&freeze&seed=1&${at}&zoom=1`);
+      const scale = await expectWebGlWithinBudget(page);
+      const stats = await readStats(page);
+      expect(stats.zoom).toBe(1);
+      expect(scale).toBe(normal.scale + 1);
+      expect(stats.camY).toBeGreaterThan(0);
+      expect(stats.drawCalls).toBe(normal.drawCalls); // the same worldRT, only a closer window of it
+      const file = `khortytsia-${name}-clear-zoom1`;
+      const png = await shoot(page, testInfo, file);
+      expectPixelGrid(png, testInfo, scale, split(stats.cam, scale).fracDevicePx);
+      if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
+      if (cam !== null) {
+        const { viewport, deviceScaleFactor = 1 } = testInfo.project.use;
+        if (!viewport) throw new Error('project has no viewport');
+        const deviceW = Math.floor(viewport.width * deviceScaleFactor);
+        // Clamped to the closer level's right bound, and the last logical column is drawn (no blank/garbage edge):
+        // it shows as many distinct colours down the frame as the column one block to its left.
+        expect(stats.cam).toBe(KHORTYTSIA_WORLD.width - Math.ceil(deviceW / scale));
+        const colours = (x: number): number => columnColours(png, x, Math.floor(viewport.height * deviceScaleFactor));
+        expect(colours(deviceW - 1)).toBeGreaterThan(5); // a blank column would be 1
+        expect(colours(deviceW - 1)).toBeGreaterThan(colours(deviceW - 1 - scale) / 2);
+      }
+    });
+  }
+});
+
+/** Distinct colours in device column `x` over the first `rows` rows. */
+function columnColours(png: Buffer, x: number, rows: number): number {
+  const { data, width } = decodePng(png);
+  const seen = new Set<number>();
+  for (let y = 0; y < rows; y++) {
+    const i = (y * width + x) * 4;
+    seen.add(((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0));
+  }
+  return seen.size;
+}
+
 test.describe('ART-18 «менше руху» @screens', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
 

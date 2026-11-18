@@ -9,7 +9,10 @@ import { CAMERA } from '../../../src/render/atmosphere/config.ts';
 import { split } from '../../../src/render/camera.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
-import { gotoReady, readStats } from '../helpers/world.ts';
+import { validateState } from '../../../src/core/state.ts';
+import { gotoReady, readStats, type WorldStats } from '../helpers/world.ts';
+// Type-only: the window.__CK_GAME__ declaration.
+import type {} from '../../../src/ui/debug/gameDebug.ts';
 
 const T0 = new Date('2026-06-01T10:00:00Z').getTime();
 /** One 60 fps frame of fake time. */
@@ -141,5 +144,126 @@ test.describe('M2-02 camera', () => {
     await page.getByRole('tab', { name: 'Хутір' }).click();
     await page.clock.runFor(CAMERA.glideMs + SETTLE_MS);
     expect(await cam(page)).toBe(0);
+  });
+});
+
+// Plan M2-03 (SPEC §6.1, Q4): a two-finger pinch switches between the two integer zoom levels and keeps the world point
+// between the fingers in place; it never taps (earns). Ctrl+wheel is the desktop equivalent.
+test.describe('M2-03 pinch zoom', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  /** World px under a CSS-px screen point in the frame on screen. */
+  const worldAt = (s: WorldStats, dpr: number, x: number, y: number) => ({
+    x: s.cam + (x * dpr) / s.scale,
+    y: s.camY + (y * dpr) / s.scale,
+  });
+  const taps = async (page: Page): Promise<number> => {
+    const json = await page.evaluate(() => window.__CK_GAME__?.state() ?? 'null');
+    const game = validateState(JSON.parse(json));
+    if (!game.ok) throw new Error('no game state');
+    return game.state.stats.taps;
+  };
+
+  test('spreading two fingers goes one level closer, pinching goes back; the midpoint stays (±1 px), no tap', async ({
+    page,
+  }, testInfo: TestInfo) => {
+    await openPaused(page, '/?seed=1&freeze&time=13:00&cam=600&ui=1');
+    const dpr = testInfo.project.use.deviceScaleFactor ?? 1;
+    const normal = await readStats(page);
+    expect(normal).toMatchObject({ zoom: 0, camY: 0, cam: 600 });
+
+    // Record the last clientX the canvas got per pointer: each move is awaited until delivered (see the drag test).
+    await page.evaluate(() => {
+      const canvas = document.querySelector('#world canvas');
+      if (!canvas) throw new Error('no world canvas');
+      const seen: Record<number, number> = {};
+      Object.assign(window, { __fingers: seen });
+      canvas.addEventListener('pointermove', (e) => {
+        if (e instanceof PointerEvent) seen[e.pointerId] = e.clientX;
+      });
+    });
+    const delivered = (): Promise<number[]> =>
+      page.evaluate(() =>
+        Object.values((window as Window & { __fingers?: Record<number, number> }).__fingers ?? {}).sort(
+          (a, b) => a - b,
+        ),
+      );
+    const cdp = await page.context().newCDPSession(page);
+    const Y = 300;
+    const MID = 195;
+    const fingers = (half: number) => [
+      { x: MID - half, y: Y, id: 1 },
+      { x: MID + half, y: Y, id: 2 },
+    ];
+    /** Both fingers from half-distance `from` to `to` around the midpoint in 6 frames, then both lift. */
+    const gesture = async (from: number, to: number): Promise<void> => {
+      // A new touch sequence gets new pointer ids: forget the last gesture's fingers.
+      await page.evaluate(() => {
+        const seen = (window as Window & { __fingers?: Record<number, number> }).__fingers ?? {};
+        for (const id of Object.keys(seen)) Reflect.deleteProperty(seen, id);
+      });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(from) });
+      for (let i = 1; i <= 6; i++) {
+        const half = from + ((to - from) * i) / 6;
+        await page.clock.runFor(FRAME_MS);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: fingers(half) });
+        await expect.poll(delivered).toEqual([MID - half, MID + half]);
+      }
+      await page.clock.runFor(SETTLE_MS);
+    };
+    const lift = async (): Promise<void> => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await page.clock.runFor(1000);
+    };
+
+    const before = worldAt(normal, dpr, MID, Y);
+    await gesture(45, 90); // finger distance ×2 ≥ CAMERA.pinchInRatio
+    const closer = await readStats(page);
+    expect(closer.zoom).toBe(1);
+    expect(closer.scale).toBe(normal.scale + 1);
+    const after = worldAt(closer, dpr, MID, Y);
+    expect(Math.abs(after.x - before.x), `x ${String(before.x)} → ${String(after.x)}`).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.y - before.y), `y ${String(before.y)} → ${String(after.y)}`).toBeLessThanOrEqual(1);
+    await lift();
+    // Lifting both fingers: no fling, no tap, still closer.
+    expect(await readStats(page)).toMatchObject({ zoom: 1, cam: closer.cam, camY: closer.camY });
+    expect(await taps(page)).toBe(0);
+
+    await gesture(90, 45); // ×0.5 ≤ CAMERA.pinchOutRatio
+    const back = await readStats(page);
+    expect(back).toMatchObject({ zoom: 0, camY: 0, scale: normal.scale });
+    expect(Math.abs(worldAt(back, dpr, MID, Y).x - before.x)).toBeLessThanOrEqual(1);
+    await lift();
+    expect(await taps(page)).toBe(0);
+  });
+
+  test('ctrl+wheel zooms about the cursor (desktop)', async ({ page }, testInfo: TestInfo) => {
+    await openPaused(page, '/?seed=1&freeze&time=13:00&cam=600');
+    const dpr = testInfo.project.use.deviceScaleFactor ?? 1;
+    const normal = await readStats(page);
+    const wheel = (deltaY: number): Promise<void> =>
+      page.evaluate((dy) => {
+        const canvas = document.querySelector('#world canvas');
+        if (!canvas) throw new Error('no world canvas');
+        const e = new WheelEvent('wheel', { deltaY: dy, ctrlKey: true, clientX: 100, clientY: 400, cancelable: true });
+        canvas.dispatchEvent(e);
+        if (!e.defaultPrevented) throw new Error('ctrl+wheel was not taken by the world');
+      }, deltaY);
+    // Small trackpad deltas add up: 2 × 20 px stay normal, the third crosses CAMERA.wheelZoomPx (50).
+    await wheel(-20);
+    await wheel(-20);
+    await page.clock.runFor(SETTLE_MS);
+    expect((await readStats(page)).zoom).toBe(0);
+    await wheel(-20);
+    await page.clock.runFor(SETTLE_MS);
+    const closer = await readStats(page);
+    expect(closer.zoom).toBe(1);
+    const a = worldAt(normal, dpr, 100, 400);
+    const b = worldAt(closer, dpr, 100, 400);
+    expect(Math.abs(b.x - a.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(b.y - a.y)).toBeLessThanOrEqual(1);
+    await wheel(100);
+    await page.clock.runFor(SETTLE_MS);
+    expect(await readStats(page)).toMatchObject({ zoom: 0, camY: 0 });
   });
 });

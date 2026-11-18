@@ -10,6 +10,10 @@ export interface WorldStats {
   readonly frames: number;
   /** Live particles from the registry (SPEC §12.4 budget ≤ 300). */
   readonly particles: number;
+  /** Camera x (logical px, a multiple of 1/scale), camera y (whole logical px) and zoom level (M2-02/03). */
+  readonly cam: number;
+  readonly camY: number;
+  readonly zoom: number;
 }
 
 /**
@@ -47,6 +51,9 @@ export async function readStats(page: Page): Promise<WorldStats> {
           logicalH: s.logicalH,
           frames: s.frames,
           particles: s.particles,
+          cam: s.cam,
+          camY: s.camY,
+          zoom: s.zoom,
         }
       : null;
   });

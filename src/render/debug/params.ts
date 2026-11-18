@@ -14,6 +14,7 @@ import {
   type Weather,
   type Zone,
 } from '../settings.ts';
+import type { ZoomLevel } from '../viewport.ts';
 
 export interface DebugParams {
   /** Cosmetic RNG seed; `null` = random. */
@@ -30,6 +31,8 @@ export interface DebugParams {
   readonly overlay: boolean;
   /** Initial camera x in logical px; `null` = scene default. */
   readonly cam: number | null;
+  /** Start at the closer zoom level (`?zoom=1`, M2-03). */
+  readonly zoom: ZoomLevel;
   /** «Менше руху»: still plants. */
   readonly still: boolean;
 }
@@ -44,6 +47,7 @@ export const DEBUG_DEFAULTS: DebugParams = {
   quality: null,
   overlay: false,
   cam: null,
+  zoom: 0,
   still: false,
 };
 
@@ -96,6 +100,8 @@ const parseCam: Parser<number> = (raw) => {
   return Number.isFinite(x) ? x : undefined;
 };
 
+const parseZoom: Parser<ZoomLevel> = (raw) => (raw === '1' || raw === '' ? 1 : raw === '0' ? 0 : undefined);
+
 export function parseDebugParams(search: string, mode: string): DebugParams {
   if (!isDebugMode(mode)) return DEBUG_DEFAULTS;
   const query = new URLSearchParams(search);
@@ -120,6 +126,7 @@ export function parseDebugParams(search: string, mode: string): DebugParams {
     quality: read('quality', oneOf(QUALITIES)),
     overlay: read('overlay', parseFlag),
     cam: read('cam', parseCam),
+    zoom: read('zoom', parseZoom),
     still: read('still', parseFlag),
   };
 }
@@ -141,6 +148,7 @@ export function toRenderSettings(params: DebugParams): RenderSettings {
     quality: params.quality,
     showOverlay: params.overlay,
     camX: params.cam,
+    zoom: params.zoom,
     lessMotion: params.still,
   };
 }

@@ -175,8 +175,11 @@ const color = ([ramp, i]: ColorRef): number => rampColor(ramp, i);
 export interface Water {
   /** Rebuilds textures and strips for a new worldRT size; `horizon` is the first water row. */
   resize(width: number, height: number, horizon: number): void;
-  /** Renders the two water passes onto worldRT (call right after the base world render); `camX` in whole world px. */
-  render(renderer: Renderer, seconds: number, cycle: DayCycle, camX: number): void;
+  /**
+   * Renders the two water passes onto worldRT (call right after the base world render); `camX` in whole world px,
+   * `skyY` = rows the sky band is moved down (closer zoom level), so the glints sample the disc where it is drawn.
+   */
+  render(renderer: Renderer, seconds: number, cycle: DayCycle, camX: number, skyY?: number): void;
   destroy(): void;
 }
 
@@ -287,7 +290,7 @@ export function createWater(worldRT: RenderTexture, river: River | null, weather
       strokePool = pool(band, WATER.maxPath, () => Texture.WHITE);
       foamPool = pool(band, n, () => Texture.WHITE);
     },
-    render(renderer, seconds, cycle, camX) {
+    render(renderer, seconds, cycle, camX, skyY = 0) {
       if (!waterRT || strips.length === 0 || !river) return;
       const n = strips.length;
       // Screen span of every row; nothing on screen = no passes at all (the Sich).
@@ -304,7 +307,8 @@ export function createWater(worldRT: RenderTexture, river: River | null, weather
       // The disc the path follows: the sun while it is up, else the moon while it is shown; none under rain clouds.
       const disc =
         weather === 'rain' ? null : cycle.sun.y > 0.02 ? cycle.sun : moonShown(cycle, weather) ? cycle.moon : null;
-      const centre = disc ? skyPixel(disc, width, horizon) : null;
+      const at = disc ? skyPixel(disc, width, horizon) : null;
+      const centre = at ? { x: at.x, y: at.y + skyY } : null;
       const onSky =
         centre !== null && centre.y >= 0 && centre.y < horizon && centre.x >= 0 && centre.x < width ? centre : null;
 
