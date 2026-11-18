@@ -20,7 +20,9 @@ export const PACING = {
   /** Hours (UTC) the two daily sessions start at; the gaps between them are offline. */
   sessionStartHours: [8, 20],
   /** Novelty (SPEC §2.3–2.4, ADR 009): sessions in a row with nothing new, week 1 (14 sessions); days, days 8–60. */
-  novelty: { week1Sessions: 14, maxSessionsWithoutNovelty: 0, maxDaysWithoutNovelty: 0 },
+  // Week 1 counts only up to the bloom session (after bloom the move is the novelty, M5). M1 allows 1 empty session:
+  // only buildings and tiers can be new yet; back to 0 when story beats and quests land in M2 (owner, 2026-11-19).
+  novelty: { week1Sessions: 14, maxSessionsWithoutNovelty: 1, maxDaysWithoutNovelty: 0 },
 } as const;
 
 /** A novelty the simulator logs (M1: what exists in the core). */
