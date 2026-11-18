@@ -108,7 +108,11 @@ export function evaluate(
       fmt(atOpen),
       atOpen !== null && atOpen >= pacing.offline8hNoticeable.min && atOpen <= pacing.offline8hNoticeable.max,
     );
-    const week1 = noveltiesPerSession(r, pacing.novelty.week1Sessions);
+    // Up to bloom only: after bloom the move to the next land is the novelty (M5).
+    const week1 = noveltiesPerSession(
+      r,
+      Math.min(pacing.novelty.week1Sessions, r.bloomSession ?? pacing.novelty.week1Sessions),
+    );
     const emptyRun = longestZeroRun(week1);
     add(
       'maxSessionsWithoutNovelty (week 1)',

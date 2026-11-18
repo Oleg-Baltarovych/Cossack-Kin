@@ -34,7 +34,7 @@ afterEach(cleanup);
 
 describe('building rows (M1-17)', () => {
   it('a row re-renders only when its own view changes, not on every tick', () => {
-    // 20 fields earn ducats every tick; the fair (180M) stays out of reach, so its row has nothing new to show.
+    // 20 fields earn ducats every tick; the fair (5G) stays out of reach, so its row has nothing new to show.
     // 150 ducats: level 21 of the field (~164) becomes affordable a few ticks in.
     const store = createStore(makeState({ ducats: 150, field: 20 }));
     const commits = { fair: 0, field: 0 };
@@ -59,7 +59,7 @@ describe('building rows (M1-17)', () => {
     expect(commits.field).toBeGreaterThan(mounted.field);
 
     act(() => {
-      store.replace(makeState({ ducats: 1e9, field: 20 }));
+      store.replace(makeState({ ducats: 1e11, field: 20 }));
     });
     expect(commits.fair).toBe(mounted.fair + 1);
     expect(screen.getAllByRole<HTMLButtonElement>('button').map((b) => b.disabled)).toEqual([false, false]);

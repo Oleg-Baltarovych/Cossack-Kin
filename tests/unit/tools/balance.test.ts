@@ -49,7 +49,39 @@ describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {
     expect(longestZeroRun([1, 1])).toBe(0);
   });
 
-  it('a run with an empty week-1 session reports maxSessionsWithoutNovelty = 1 and fails the gate', () => {
+  it('empty sessions before bloom count (and fail the strict target); after bloom they do not', () => {
+    const sessions = Array.from({ length: 14 }, (_, i) => ({
+      index: i + 1,
+      start: i,
+      actions: 8,
+      noticeable: 3,
+      noticeableAtOpen: 3,
+    }));
+    const run = (empty: readonly number[]): SimResult => ({
+      seed: 9,
+      days: 7,
+      firstPurchaseSec: 0,
+      bloomSec: 5 * 86_400,
+      bloomSession: 10,
+      sessions,
+      novelties: sessions
+        .filter((s) => !empty.includes(s.index))
+        .map((s) => ({ session: s.index, t: s.start, kind: 'building', ref: `b${String(s.index)}` })),
+      milestones: {},
+      offlineShare: 0.5,
+    });
+    const strict: Corridor = { ...PACING, novelty: { ...PACING.novelty, maxSessionsWithoutNovelty: 0 } };
+    const gate = (r: SimResult, c: Corridor = PACING) =>
+      evaluate([r], c).find((x) => x.id.startsWith('maxSessionsWithoutNovelty'));
+    expect(gate(run([5]), strict)).toMatchObject({ actual: '1', ok: false, gate: true });
+    // M1 allows one empty session (owner 2026-11-19), not two in a row.
+    expect(gate(run([5]))).toMatchObject({ ok: true });
+    expect(gate(run([5, 6]))).toMatchObject({ actual: '2', ok: false });
+    // After the bloom session (S10) the move is the novelty: empty S11–S14 do not count.
+    expect(gate(run([11, 12, 13]), strict)).toMatchObject({ actual: '0', ok: true });
+  });
+
+  it('a run with an empty week-1 session reports maxSessionsWithoutNovelty = 1 (strict target: fails)', () => {
     const sessions = Array.from({ length: 14 }, (_, i) => ({
       index: i + 1,
       start: i,
@@ -71,7 +103,8 @@ describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {
       milestones: {},
       offlineShare: 0.5,
     };
-    const check = evaluate([fake]).find((c) => c.id.startsWith('maxSessionsWithoutNovelty'));
+    const strict: Corridor = { ...PACING, novelty: { ...PACING.novelty, maxSessionsWithoutNovelty: 0 } };
+    const check = evaluate([fake], strict).find((c) => c.id.startsWith('maxSessionsWithoutNovelty'));
     expect(check).toMatchObject({ actual: '1', ok: false, gate: true });
   });
 
