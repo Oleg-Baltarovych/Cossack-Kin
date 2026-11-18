@@ -52,12 +52,19 @@ export interface Splash {
 }
 
 /**
- * Splashes alive now inside `area` (x0 ≤ x < x1, y0 ≤ y < y1; the first `water` rows are the river): each slot
+ * Splashes alive now inside `area` (x0 ≤ x < x1, y0 ≤ y < y1; the first `water` rows — or `water(x)` per column —
+ * are the river): each slot
  * lands somewhere new every RAIN.splashLife s, shows the hit, then the spread.
  */
 export function splashes(
   seconds: number,
-  area: { readonly x0: number; readonly x1: number; readonly y0: number; readonly y1: number; readonly water: number },
+  area: {
+    readonly x0: number;
+    readonly x1: number;
+    readonly y0: number;
+    readonly y1: number;
+    readonly water: number | ((x: number) => number);
+  },
 ): Splash[] {
   const out: Splash[] = [];
   const w = area.x1 - area.x0;
@@ -70,7 +77,8 @@ export function splashes(
     const x = area.x0 + Math.min(w - 1, Math.floor(hash(i * 131 + gen, 12) * w));
     // Denser toward the viewer: the ground rows near the bottom cover more of the screen.
     const y = area.y0 + Math.min(h - 1, Math.floor(Math.sqrt(hash(i * 71 + gen, 13)) * h));
-    out.push({ x, y, kind: y < area.y0 + area.water ? 'ripple' : 'splash', stage: t < 0.3 ? 0 : 1 });
+    const water = typeof area.water === 'number' ? area.water : area.water(x);
+    out.push({ x, y, kind: y < area.y0 + water ? 'ripple' : 'splash', stage: t < 0.3 ? 0 : 1 });
   }
   return out;
 }

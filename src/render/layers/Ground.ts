@@ -4,25 +4,28 @@
 // their pivot (SPEC §6.2), then the cloud shadows over everything (ART-07: one tiled overlay scrolling with the wind,
 // opacity by time of day), with the scripted walkers (render/walkers.ts) sorted among them and re-posed every frame. All sprites come from one atlas texture, so the
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
-import { Container, Sprite, type Texture } from 'pixi.js';
-import type { GroundTile, Plot, SceneLayout } from '../../content/villages/khortytsia.layout.ts';
+import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
+import { GROUND_TILE, type GroundTile, type Plot, type WorldLayout } from '../../content/villages/khortytsia.layout.ts';
+import { cullByX } from '../cull.ts';
 import { CLOUD_SHADOW, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
 import { plotShown } from '../scene.ts';
 import { cloudShadowLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
+import { riverRowEnd } from '../zones.ts';
 import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
 const PARALLAX = 1;
-const TILE_W = 64;
-const TILE_H = 32;
+const { w: TILE_W, h: TILE_H } = GROUND_TILE;
+/** Culling margin (logical px) around the view: wide enough for any sprite's anchor/mirror slack. */
+const CULL_MARGIN = 16;
 
 /** Frame lookup in the scene atlas (`<name>` → texture; throws on a missing frame). */
 export type FrameLookup = (name: string) => Texture;
 
 export interface GroundLayerOptions {
-  readonly layout: SceneLayout;
+  readonly layout: WorldLayout;
   readonly frame: FrameLookup;
   /** «Менше руху»: swaying props stand upright. */
   readonly lessMotion: boolean;
@@ -115,38 +118,58 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
     });
     /** Tiles of plot bands (the maidan, the rampart): `on` while the plot stands, `off` while it is empty. */
     const plotTiles: { sprite: Sprite; plot: Plot; on: Texture; off: Texture }[] = [];
+    /** The last, cut shore tile where the river's nearest row ends (owned: destroyed on resize and dispose). */
+    let shoreEnd: Texture | null = null;
+    let viewW = 0;
     let horizon = 0;
     let shadowsOn: boolean = QUALITY_TIERS[quality ?? 'med'].cloudShadows;
 
     const resize = (size: LayerSize): void => {
       for (const child of tiles.removeChildren()) child.destroy();
+      shoreEnd?.destroy(false);
+      shoreEnd = null;
       const width = contentWidth(PARALLAX, size);
       horizon = horizonY(size.viewH);
-      const bands = [...layout.rows];
-      const last = bands[bands.length - 1];
-      const fillTop = last ? last.top + last.h : 0;
-      bands.push({ tile: layout.fill, top: fillTop, h: Math.max(0, size.viewH - horizon - fillTop) });
+      viewW = size.viewW;
       plotTiles.length = 0;
-      for (const band of bands) {
-        for (let y = 0; y < band.h; y += TILE_H) {
-          for (let x = 0; x < width; x += TILE_W) {
-            const at = (tile: GroundTile): Texture => frame(tileFrame(tile, x / TILE_W, (band.top + y) / TILE_H));
-            const texture = at(band.tile);
-            const tile = new Sprite({ texture, roundPixels: true });
-            tile.position.set(x, horizon + band.top + y);
-            tiles.addChild(tile);
-            // A plot band swaps its tiles while the plot is empty (M1-19 art review).
-            if (band.plot)
-              plotTiles.push({ sprite: tile, plot: band.plot, on: texture, off: at(band.alt ?? layout.fill) });
+      // Each zone's ground from its left edge (M2-01): tile columns and their seeded variants count from the zone's
+      // edge, so every zone keeps the tiles of its M-ART scene; the last zone's tiles may run past the world's end.
+      for (const segment of layout.segments) {
+        const bands = [...segment.rows];
+        const last = bands[bands.length - 1];
+        const fillTop = last ? last.top + last.h : 0;
+        bands.push({ tile: segment.fill, top: fillTop, h: Math.max(0, size.viewH - horizon - fillTop) });
+        for (const band of bands) {
+          for (let y = 0; y < band.h; y += TILE_H) {
+            for (let x = 0; x < segment.x1 - segment.x0 && segment.x0 + x < width; x += TILE_W) {
+              const at = (tile: GroundTile): Texture => frame(tileFrame(tile, x / TILE_W, (band.top + y) / TILE_H));
+              const texture = at(band.tile);
+              const tile = new Sprite({ texture, roundPixels: true });
+              tile.position.set(segment.x0 + x, horizon + band.top + y);
+              tiles.addChild(tile);
+              // A plot band swaps its tiles while the plot is empty (M1-19 art review).
+              if (band.plot)
+                plotTiles.push({ sprite: tile, plot: band.plot, on: texture, off: at(band.alt ?? segment.fill) });
+            }
           }
         }
       }
-      // The near bank's edge under the river (ART-09): shore tiles right under the last water row.
-      if (layout.waterRows > 0) {
-        const shoreTexture = frame('shore/idle/00');
-        for (let x = 0; x < width; x += shoreTexture.width) {
-          const tile = new Sprite({ texture: shoreTexture, roundPixels: true });
-          tile.position.set(x, horizon + layout.waterRows);
+      // The near bank's edge under the river (ART-09): shore tiles right under the last water row, as far as that
+      // row runs (the taper beyond it has no straight bank line).
+      const river = layout.river;
+      if (river && river.rows > 0) {
+        const shore = frame('shore/idle/00');
+        const x1 = Math.min(width, riverRowEnd(river, river.rows - 1));
+        for (let x = river.x0; x < x1; x += shore.width) {
+          const w = Math.min(shore.width, x1 - x);
+          let texture = shore;
+          if (w < shore.width) {
+            const f = shore.frame;
+            shoreEnd = new Texture({ source: shore.source, frame: new Rectangle(f.x, f.y, w, f.height) });
+            texture = shoreEnd;
+          }
+          const tile = new Sprite({ texture, roundPixels: true });
+          tile.position.set(x, horizon + river.rows);
           tiles.addChild(tile);
         }
       }
@@ -175,10 +198,14 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
 
     return {
       resize,
+      dispose: () => {
+        shoreEnd?.destroy(false);
+        shoreEnd = null;
+      },
       setQuality: (q) => {
         shadowsOn = QUALITY_TIERS[q].cloudShadows;
       },
-      update: ({ seconds, ambient, cycle, scene }) => {
+      update: ({ seconds, ambient, cycle, scene, camX }) => {
         // Plots follow the game (M1-19): a building's props stand while its visual tier is in their range.
         for (const { decal, sprite } of placedDecals) sprite.visible = plotShown(decal.plot, scene.tiers);
         for (const t of plotTiles) t.sprite.texture = plotShown(t.plot, scene.tiers) ? t.on : t.off;
@@ -213,6 +240,10 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
           sprite.scale.x = pose.facing;
           sprite.zIndex = y;
         }
+        // The world is ~5 screens wide (M2-01): only what overlaps the view (+ margin) is drawn.
+        const x0 = camX - CULL_MARGIN;
+        const x1 = camX + viewW + CULL_MARGIN;
+        for (const into of [tiles, decals, shadows, props, nearShadows, farShadows]) cullByX(into, x0, x1);
       },
     };
   });

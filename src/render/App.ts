@@ -18,8 +18,7 @@ import {
   UPDATE_PRIORITY,
   type Texture,
 } from 'pixi.js';
-import { KHORTYTSIA_ZONES } from '../content/villages/khortytsia.layout.ts';
-import { WORLD_WIDTH_PX } from '../content/world.ts';
+import { KHORTYTSIA_WORLD } from '../content/villages/khortytsia.layout.ts';
 import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
 import { createGrading, gradeCycle, loadLuts } from './atmosphere/grading.ts';
@@ -38,8 +37,8 @@ import { AUTO_QUALITY, TAP_SLOP_PX } from './atmosphere/config.ts';
 import { createCoinFx } from './fx/coins.ts';
 import { computeViewport, worldTargetSize, type Viewport } from './viewport.ts';
 
-/** Scene width in logical px (≈ 2 screens, plan Q3). */
-export const WORLD_WIDTH = WORLD_WIDTH_PX;
+/** The continuous world of land 1 (plan M2-01): farm → suburb → Sich; `?zone=` only places the camera. */
+const WORLD = KHORTYTSIA_WORLD;
 /** Atlas of the current scene (the farm of land 1). */
 const SCENE_ATLAS = 'khortytsia';
 /** SPEC §9.2: 30 fps idle / 60 interactive — fixed at 60 until the interaction-driven switch (M2). */
@@ -146,7 +145,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       graded.destroy();
     });
     // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
-    const layout = KHORTYTSIA_ZONES[settings.zone];
+    const layout = WORLD;
     const sceneFrame = (name: string): Texture => frame(atlases, SCENE_ATLAS, name);
     const findFrame = (name: string): Texture | null => atlases.get(SCENE_ATLAS)?.textures[name] ?? null;
     const post = createPostGrade({
@@ -167,7 +166,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       lessMotion: settings.lessMotion,
       findFrame,
     });
-    const water = createWater(worldRT, layout.waterRows, settings.weather);
+    const water = createWater(worldRT, layout.river, settings.weather);
     disposers.push(() => {
       water.destroy();
     });
@@ -198,7 +197,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     const upscale = new Sprite({ texture: worldRT, label: 'upscale', roundPixels: true });
     app.stage.addChild(upscale);
 
-    let camX = settings.camX ?? 0;
+    let camX = settings.camX ?? WORLD.zones.find((z) => z.id === settings.zone)?.anchorX ?? 0;
     let scene: SceneState = DEFAULT_SCENE;
     // The camera of the last frame: a tap is read in the frame the player saw.
     let lastCam = split(camX, 1);
@@ -228,7 +227,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       canvas.style.height = `${String(vp.deviceH / dpr)}px`;
       worldRT.resize(target.width, target.height, 1);
       upscale.scale.set(vp.scale);
-      const size = { viewW: target.width, viewH: target.height, worldW: WORLD_WIDTH };
+      const size = { viewW: target.width, viewH: target.height, worldW: WORLD.width };
       for (const layer of layers) layer.resize(size);
       post.resize(size);
       water.resize(target.width, target.height, horizonY(target.height));
@@ -242,7 +241,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       // Bounds use the visible width ceil(deviceW/scale) = target.width − 1, not logicalW (floor): with
       // floor, the camera could stop up to one partial column past the world's right edge. The spare
       // RT column is only on screen while frac > 0, i.e. strictly inside the bounds.
-      const cam = split(camX, vp.scale, cameraBounds(WORLD_WIDTH, target.width - 1));
+      const cam = split(camX, vp.scale, cameraBounds(WORLD.width, target.width - 1));
       lastCam = cam;
       const minutes = clock.minutesOfDay();
       const seconds = clock.seconds();
@@ -265,7 +264,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       coins.update(performance.now() / 1000);
       upscale.x = -cam.fracDevicePx;
       app.renderer.render({ container: world, target: worldRT, clear: true });
-      water.render(app.renderer, frameInfo.ambient, frameInfo.cycle);
+      water.render(app.renderer, frameInfo.ambient, frameInfo.cycle, cam.worldPx);
       app.renderer.render({ container: worldTop, target: worldRT, clear: false });
     };
     app.ticker.maxFPS = TARGET_FPS;

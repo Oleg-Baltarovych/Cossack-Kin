@@ -1,6 +1,7 @@
-// Khortytsia farm scene layout (plan §0, ART-05): positions only. M2 grows this into the full village file
-// (buildings by tier, plots, path graph). Units are logical px; x is in world px (0..WORLD_WIDTH = 720),
-// y offsets are measured down from the horizon row.
+// Khortytsia scene layout (plan §0, ART-05, M2-01): positions only. Zones are authored in zone-local px
+// (`ZoneScene`) and placed edge to edge into one continuous world (`KHORTYTSIA_WORLD`, world px). M2 grows this into
+// the full village file (buildings by tier, plots, path graph). Units are logical px; y offsets are measured down from
+// the horizon row.
 
 /**
  * Ground tile kinds of the `khortytsia` atlas (`ground.<tile>/idle/00`, 64×32). `grass` has seeded variants
@@ -59,7 +60,9 @@ export interface Prop {
     | 'windmill-sails'
     | 'oak'
     | 'willow'
-    | 'campfire';
+    | 'campfire'
+    | 'cross'
+    | 'gatepost';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -95,7 +98,7 @@ export interface ForegroundPlant {
 
 /** Flat ground decal (no shadow, not Y-sorted): drawn over the tiles, under every shadow and prop. */
 export interface Decal {
-  readonly sprite: 'yard' | 'trail.l' | 'trail.r';
+  readonly sprite: 'yard' | 'trail.l' | 'trail.r' | 'val-end' | 'maidan-edge' | 'road-mouth' | 'road-track' | 'bank';
   /** Centre of the decal, world x / rows below the horizon. */
   readonly x: number;
   readonly ground: number;
@@ -151,6 +154,8 @@ export type FarPlane =
       readonly seed: number;
       /** Plateaus: start x, end x, height. */
       readonly plateaus: readonly (readonly [number, number, number])[];
+      /** Rapids (пороги): low granite ridges in the river — start x, end x, height; foam at their foot. */
+      readonly rapids?: readonly (readonly [number, number, number])[];
     }
   | {
       /** A line of tree crowns (oak and willow groves). */
@@ -162,9 +167,36 @@ export type FarPlane =
       readonly groves: readonly (readonly [number, number, number])[];
     };
 
-export interface SceneLayout {
-  /** Horizon as a share of the view height (ART-BIBLE §2: 40–45 %; the bottom sheet covers the lowest ~25 %). */
-  readonly horizonRatio: number;
+/** Settlement zones along the world, left to right (SPEC §3.0). */
+export type ZoneId = 'farm' | 'suburb' | 'sich';
+
+/** Parallax of the foreground layer (SPEC §6.2 layer 5): foreground x is in its own space, 1.2× the ground's. */
+export const FOREGROUND_PARALLAX = 1.2;
+/** Ground tile size (`ground.<tile>` frames): zone edges sit on whole tile columns. */
+export const GROUND_TILE = { w: 64, h: 32 } as const;
+
+export interface Puddle {
+  /** Centre x, rows below the horizon, width. */
+  readonly x: number;
+  readonly ground: number;
+  readonly w: number;
+}
+
+/** Summer fireflies at night (ART-16): an x range and the rows below the horizon they wander in. */
+export interface FireflyArea {
+  readonly x0: number;
+  readonly x1: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
+/**
+ * One zone as authored (M-ART scenes, plan M2-01): x is zone-local (0 = the zone's left edge; foreground x in the
+ * foreground layer's space, also from the zone's edge). `composeWorld` places it in the world.
+ */
+export interface ZoneScene {
+  /** Zone width in logical px: whole ground tiles (a multiple of GROUND_TILE.w). */
+  readonly width: number;
   /** Depth bands from the horizon down; below the last one the `fill` tile runs to the bottom of the view. */
   readonly rows: readonly GroundRow[];
   readonly fill: GroundTile;
@@ -173,23 +205,71 @@ export interface SceneLayout {
   readonly walkers: readonly Walker[];
   /** Plant clumps on the foreground layer, back to front. */
   readonly foreground: readonly ForegroundPlant[];
-  /** Puddles shown in the rain (ART-17): centre x (world px), rows below the horizon, width. */
-  readonly puddles?: readonly { readonly x: number; readonly ground: number; readonly w: number }[];
-  /** Summer fireflies at night (ART-16): rows below the horizon they wander in; absent = none. */
-  readonly fireflies?: { readonly top: number; readonly bottom: number };
-  /** Back to front. */
-  readonly farPlanes: readonly FarPlane[];
-  /** The river under the horizon (ART-09): rows of water from the horizon down; 0 = no water. */
-  readonly waterRows: number;
+  /** Puddles shown in the rain (ART-17). */
+  readonly puddles: readonly Puddle[];
+  /** Absent = none. */
+  readonly fireflies?: FireflyArea;
   /**
-   * Haze band over the ground under the horizon (ART-08), default on. Off where the near scene stands right at the
-   * horizon (the Sich's rampart is near, not far meadow).
+   * Haze band over the ground under the horizon (ART-08). Off where the near scene stands right at the horizon (the
+   * Sich's rampart is near, not far meadow).
    */
-  readonly groundHaze?: boolean;
+  readonly groundHaze: boolean;
 }
 
-export const KHORTYTSIA_FARM: SceneLayout = {
-  horizonRatio: 0.42,
+/** A zone's x range in the world; `anchorX` is the camera's left edge when the view goes to the zone. */
+export interface WorldZone {
+  readonly id: ZoneId;
+  readonly x0: number;
+  readonly x1: number;
+  readonly anchorX: number;
+}
+
+/** A zone's ground in the world: its bands and fill tiles from `x0` (tile columns counted from `x0`) to `x1`. */
+export interface GroundSegment {
+  readonly x0: number;
+  readonly x1: number;
+  readonly rows: readonly GroundRow[];
+  readonly fill: GroundTile;
+  readonly groundHaze: boolean;
+}
+
+/**
+ * The river under the horizon (ART-09): `rows` of water from the horizon down over [x0, x1). Toward `x1` the bank
+ * comes forward: over the last `taper` px each row ends a little earlier than the one above it (the nearest row
+ * first), so the water runs out to the far bank instead of ending on a vertical cut.
+ */
+export interface River {
+  readonly x0: number;
+  readonly x1: number;
+  readonly rows: number;
+  readonly taper: number;
+  /** Rows where a boulder stands on the waterline at the river's end (the `bank` decal draws it, water foams at it). */
+  readonly rocks?: readonly number[];
+}
+
+/** The whole settlement as one continuous world (plan M2-01, §0 «Неперервний світ»): world x everywhere. */
+export interface WorldLayout {
+  /** Horizon as a share of the view height (ART-BIBLE §2: 40–45 %; the bottom sheet covers the lowest ~25 %). */
+  readonly horizonRatio: number;
+  /** World width in logical px (the camera's range). */
+  readonly width: number;
+  /** Left to right, edge to edge. */
+  readonly zones: readonly WorldZone[];
+  /** Left to right, one per zone. */
+  readonly segments: readonly GroundSegment[];
+  readonly river: River | null;
+  readonly decals: readonly Decal[];
+  readonly props: readonly Prop[];
+  readonly walkers: readonly Walker[];
+  readonly foreground: readonly ForegroundPlant[];
+  readonly puddles: readonly Puddle[];
+  readonly fireflies: readonly FireflyArea[];
+  /** Back to front; x in each plane's layer space (parallax 0.2 / 0.5), covering the whole world's pan. */
+  readonly farPlanes: readonly FarPlane[];
+}
+
+export const KHORTYTSIA_FARM: ZoneScene = {
+  width: 768,
   rows: [
     { tile: 'meadow', top: 0, h: 32 }, // far meadow, aerial perspective
     { tile: 'grass', top: 32, h: 96 }, // back row: khata tier I and its yard fence
@@ -234,6 +314,12 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { sprite: 'tyn', x: 356, ground: 242, plot: { building: 'potter', from: 1 } },
     // An old oak in the near left corner framing the scene (a stiff tree: half the lean of the grass).
     { sprite: 'oak', x: 44, ground: 282, animate: { kind: 'sway', amp: 0.5, phase: 0.6 } },
+    // Where the khutir runs out toward the suburb (M2-01 seam review): a willow by the water and the last stretch of
+    // wattle fence (beyond the M-ART farm frames).
+    { sprite: 'willow', x: 600, ground: 108, animate: { kind: 'sway', amp: 0.8, phase: 0.4 } },
+    { sprite: 'tyn', x: 690, ground: 103 },
+    { sprite: 'tyn', x: 730, ground: 103 },
+    { sprite: 'gatepost', x: 752, ground: 104 },
   ],
   // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
   // mallows at the corners of the first screen, the rest spread for the pan.
@@ -278,49 +364,40 @@ export const KHORTYTSIA_FARM: SceneLayout = {
     { x: 122, ground: 110, w: 8 },
     { x: 300, ground: 250, w: 10 },
   ],
-  // Fireflies over the meadow and the front field at night, above the foreground clumps.
-  fireflies: { top: 40, bottom: 300 },
-  // The Dnipro between the far bank and the farm: it covers the far meadow row but the near bank below it.
-  waterRows: 26,
-  // Far plane layer (parallax 0.2) is ~460 px wide on a 390 px phone, the mid layer (0.5) ~555 px.
-  farPlanes: [
-    // Left bank of the Dnipro: flat steppe with a chain of kurgans (Vasylkivsky's steppe).
-    {
-      kind: 'steppe',
-      layer: 'far',
-      depth: 0.8,
-      seed: 11,
-      // A continuous 8–11 px band; kurgans 4–6 px on top of it, 20–40 px wide.
-      kurgans: [
-        [64, 16, 5],
-        [300, 20, 6],
-        [430, 12, 4],
-      ],
-    },
-    // Khortytsia's granite bluffs: a long plateau and a lower spur, trees on the crest.
-    {
-      kind: 'cliffs',
-      layer: 'far',
-      depth: 1.4,
-      seed: 23,
-      plateaus: [
-        [150, 290, 36],
-        [330, 400, 24],
-      ],
-    },
-    // Groves on our side, between the far bank and the farm.
-    {
-      kind: 'grove',
-      layer: 'mid',
-      depth: 2.3,
-      seed: 37,
-      groves: [
-        [0, 70, 18],
-        [210, 330, 22],
-        [470, 560, 16],
-      ],
-    },
+  // Fireflies over the meadow and the front field at night, above the foreground clumps (x range of the M-ART farm,
+  // so its night frames stay as signed off).
+  fireflies: { x0: 0, x1: 720, top: 40, bottom: 300 },
+  groundHaze: true,
+};
+
+/**
+ * The suburb (передмістя, SPEC §3.0) — a stub until M2-08 builds the smithy, the tavern and the fair on it: the farm's
+ * meadow, grass and road run on to the Sich.
+ */
+export const KHORTYTSIA_SUBURB: ZoneScene = {
+  width: 384,
+  rows: KHORTYTSIA_FARM.rows,
+  fill: 'grass',
+  // Where the Dnipro ends: its bank (sand lip on the 2:1 waterline, boulders, reeds) — row ends from the world's river.
+  decals: [{ sprite: 'bank', x: 324, ground: 0 }],
+  // The suburb's focal object until M2-08 builds on it: a roadside cross with a рушник by the road.
+  props: [{ sprite: 'cross', x: 150, ground: 124 }],
+  walkers: [],
+  foreground: [
+    { sprite: 'plant.grass', x: 40, ground: 380, amp: 1, phase: 0.3 },
+    { sprite: 'plant.grass', x: 190, ground: 381, amp: 1, phase: 0.75 },
+    { sprite: 'plant.reeds', x: 320, ground: 379, amp: 1, phase: 0.55 },
   ],
+  // Puddles in the road's ruts.
+  puddles: [
+    { x: 40, ground: 144, w: 10 },
+    { x: 120, ground: 138, w: 8 },
+    { x: 205, ground: 150, w: 12 },
+    { x: 290, ground: 142, w: 9 },
+    { x: 350, ground: 148, w: 8 },
+  ],
+  fireflies: { x0: 0, x1: 384, top: 40, bottom: 300 },
+  groundHaze: true,
 };
 
 /** Palisade sections along the rampart: 16-px tiles, heights mixed by a fixed pattern (never a comb). */
@@ -333,7 +410,8 @@ const palisadeLine = (
   plot: Plot,
 ): Prop[] => {
   const out: Prop[] = [];
-  for (let x = x0, i = 0; x < x1; x += 16, i++) {
+  // The pattern index follows x (not the count), so a line that starts further in keeps every section's height.
+  for (let x = x0, i = Math.floor(x0 / 16); x < x1; x += 16, i++) {
     if (skip.some(([a, b]) => x + 16 > a && x < b)) continue;
     const h = PALISADE_PATTERN[i % PALISADE_PATTERN.length] ?? 'h1';
     out.push({ sprite: `palisade.${h}`, x, ground, plot });
@@ -346,8 +424,8 @@ const palisadeLine = (
  * with the palisade along its crest, two watchtowers and the gate with the корогва, the maidan, two курені. No women
  * on the Sich (historical): only Cossacks walk here.
  */
-export const KHORTYTSIA_SICH: SceneLayout = {
-  horizonRatio: KHORTYTSIA_FARM.horizonRatio,
+export const KHORTYTSIA_SICH: ZoneScene = {
+  width: 768,
   rows: [
     { tile: 'meadow', top: 0, h: 32 },
     // Until the walls stand the rampart is steppe; until the first kurin the maidan is grass with a trodden patch by
@@ -359,6 +437,17 @@ export const KHORTYTSIA_SICH: SceneLayout = {
   fill: 'grass',
   // Worn paths from the gate to the two курінь doors (they lead the eye to the gate).
   decals: [
+    // The zone's left edge (M2-01 seam review): the maidan's ragged grass edge, the road's mouth bending up toward the
+    // gate and its ruts across the maidan, the rampart's sloped end.
+    { sprite: 'maidan-edge', x: 0, ground: 64, plot: { building: 'kurins', from: 1 } },
+    { sprite: 'road-mouth', x: 16, ground: 112 },
+    {
+      sprite: 'road-track',
+      x: 10,
+      ground: 40,
+      plot: { building: 'kurins', from: 1, requires: [{ building: 'walls', from: 1 }] },
+    },
+    { sprite: 'val-end', x: 0, ground: 32, plot: { building: 'walls', from: 1 } },
     // The trails run from the gate to the kurin doors: they need both.
     {
       sprite: 'trail.l',
@@ -380,7 +469,9 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     // No stakes behind the gate's passage: the view through it is open (the pylons hide the cut ends).
     // Plots (M1-19): the walls (Вали, частокіл і брама) raise the palisade and the gate; the watchtower (the land's own
     // Sich building) one tower at tier I and the second at II.
-    ...palisadeLine(0, 720, 35, [[185, 211]], { building: 'walls', from: 1 }),
+    // It starts behind the left watchtower (M2-01 seam review): that tower is the wall's corner, the rampart's sloped
+    // end (`val-end`) runs out from under it, and the river and plateau stay open between the bank and the wall.
+    ...palisadeLine(48, 768, 35, [[185, 211]], { building: 'walls', from: 1 }),
     { sprite: 'tower', x: 62, ground: 37, plot: { building: 'special', from: 1 } },
     { sprite: 'gate', x: 198, ground: 39, plot: { building: 'walls', from: 1 } },
     { sprite: 'tower', x: 340, ground: 37, plot: { building: 'special', from: 2 } },
@@ -419,11 +510,111 @@ export const KHORTYTSIA_SICH: SceneLayout = {
     { sprite: 'plant.grass', x: 520, ground: 400, amp: 1, phase: 0.4 },
     { sprite: 'plant.grass', x: 700, ground: 401, amp: 1, phase: 0.9 },
   ],
-  farPlanes: KHORTYTSIA_FARM.farPlanes,
-  // From inside the Sich the river is hidden behind the rampart (and a water band would cover the tower bases).
-  waterRows: 0,
+  // From inside the Sich the river is hidden behind the rampart (and a water band would cover the tower bases): the
+  // world's river ends at the Sich's edge.
   groundHaze: false,
 };
 
-/** Scene layout per zone of Khortytsia (the suburb comes with M2). */
-export const KHORTYTSIA_ZONES = { farm: KHORTYTSIA_FARM, suburb: KHORTYTSIA_FARM, sich: KHORTYTSIA_SICH } as const;
+/** Places zones edge to edge from x = 0: zone-local x → world x (foreground x by the foreground's parallax). */
+export function composeWorld(
+  base: Pick<WorldLayout, 'horizonRatio' | 'river' | 'farPlanes'>,
+  zones: readonly { readonly id: ZoneId; readonly scene: ZoneScene }[],
+): WorldLayout {
+  let x0 = 0;
+  const placed = zones.map(({ id, scene }) => {
+    const at = { id, scene, x0, fg: Math.round(x0 * FOREGROUND_PARALLAX) };
+    x0 += scene.width;
+    return at;
+  });
+  const shift = <T extends { readonly x: number }>(items: readonly T[], dx: number): T[] =>
+    items.map((item) => ({ ...item, x: item.x + dx }));
+  return {
+    ...base,
+    width: x0,
+    zones: placed.map(({ id, scene, x0: z }) => ({ id, x0: z, x1: z + scene.width, anchorX: z })),
+    segments: placed.map(({ scene, x0: z }) => ({
+      x0: z,
+      x1: z + scene.width,
+      rows: scene.rows,
+      fill: scene.fill,
+      groundHaze: scene.groundHaze,
+    })),
+    decals: placed.flatMap(({ scene, x0: z }) => shift(scene.decals, z)),
+    props: placed.flatMap(({ scene, x0: z }) => shift(scene.props, z)),
+    walkers: placed.flatMap(({ scene, x0: z }) => scene.walkers.map((w) => ({ ...w, x0: w.x0 + z, x1: w.x1 + z }))),
+    foreground: placed.flatMap(({ scene, fg }) => shift(scene.foreground, fg)),
+    puddles: placed.flatMap(({ scene, x0: z }) => shift(scene.puddles, z)),
+    fireflies: placed.flatMap(({ scene, x0: z }) =>
+      scene.fireflies ? [{ ...scene.fireflies, x0: scene.fireflies.x0 + z, x1: scene.fireflies.x1 + z }] : [],
+    ),
+  };
+}
+
+/**
+ * Khortytsia as one continuous world (plan M2-01, Q2 ≈ 5 screens, 1920 px): the farm (the M-ART scene, x 0–768) → the suburb
+ * stub (768–1152) → the Sich (1152–1920). The Dnipro runs behind the farm and the suburb and ends at the Sich's edge.
+ */
+export const KHORTYTSIA_WORLD: WorldLayout = composeWorld(
+  {
+    horizonRatio: 0.42,
+    // The Dnipro between the far bank and the settlement: it covers the far meadow row but the near bank below it.
+    river: { x0: 0, x1: KHORTYTSIA_FARM.width + KHORTYTSIA_SUBURB.width, rows: 26, taper: 50, rocks: [6, 14, 21] },
+    // The far plane layer (parallax 0.2) is ~695 px wide on a 400 px view, the mid layer (0.5) ~1140 px. The M-ART
+    // features come first (the farm's frames); the rest fill the pan to the Sich — no «Січ за Дніпром» silhouette now
+    // that the Sich stands in the same world (plan Q3): bluffs and the rapids' low granite ridges instead.
+    farPlanes: [
+      // Left bank of the Dnipro: flat steppe with a chain of kurgans (Vasylkivsky's steppe).
+      {
+        kind: 'steppe',
+        layer: 'far',
+        depth: 0.8,
+        seed: 11,
+        // A continuous 8–11 px band; kurgans 4–6 px on top of it, 20–40 px wide.
+        kurgans: [
+          [64, 26, 5],
+          [300, 30, 6],
+          [430, 20, 4],
+          [560, 28, 5],
+          [665, 22, 4],
+        ],
+      },
+      // Khortytsia's granite bluffs: a long plateau and a lower spur, trees on the crest; downstream the rapids'
+      // ridges (пороги) as low granite humps and one more bluff.
+      {
+        kind: 'cliffs',
+        layer: 'far',
+        depth: 1.4,
+        seed: 23,
+        plateaus: [
+          [150, 290, 36],
+          [330, 400, 24],
+          [590, 690, 30],
+        ],
+        rapids: [
+          [452, 476, 7],
+          [496, 512, 5],
+        ],
+      },
+      // Groves on our side, between the far bank and the settlement.
+      {
+        kind: 'grove',
+        layer: 'mid',
+        depth: 2.3,
+        seed: 37,
+        groves: [
+          [0, 70, 18],
+          [210, 330, 22],
+          [470, 560, 16],
+          [650, 730, 20],
+          [830, 940, 18],
+          [1020, 1110, 21],
+        ],
+      },
+    ],
+  },
+  [
+    { id: 'farm', scene: KHORTYTSIA_FARM },
+    { id: 'suburb', scene: KHORTYTSIA_SUBURB },
+    { id: 'sich', scene: KHORTYTSIA_SICH },
+  ],
+);

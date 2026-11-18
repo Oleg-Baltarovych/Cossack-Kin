@@ -7,12 +7,17 @@
 //          darker); the 1-px waterline sheen at the far bank; the moon/sun column. Pixi batches the waterRT frames and
 //          the white-texture strokes together (multi-texture batch).
 // Whole-px shifts only: the pixel grid never blurs. Deterministic under `?freeze` (step clock from animation time).
+// The river has a world x range (M2-01, content `River`): every pass-2 sprite is clipped per row to the part of the
+// row on screen (render/zones.ts `riverSpan`, the taper toward the far bank), and with no water on screen both passes
+// are skipped.
+import type { River } from '../content/villages/khortytsia.layout.ts';
 import type { Weather } from './settings.ts';
 import { Container, Rectangle, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
-import { WATER, WATER_LOOKS, type ColorRef } from './atmosphere/config.ts';
+import { RIVER_END, WATER, WATER_LOOKS, type ColorRef } from './atmosphere/config.ts';
 import type { DayCycle } from './atmosphere/dayCycle.ts';
 import { moonShown, skyPixel } from './atmosphere/skyPaint.ts';
 import { rampColor } from './palette.ts';
+import { riverRowEnd, riverSpan } from './zones.ts';
 
 /** Integer hash → 0..1. */
 function hash(a: number, b: number): number {
@@ -127,6 +132,33 @@ export function columnPath(cx: number, rows: number, maxWidth: number, step: num
   return out;
 }
 
+/** Moon glint dashes: row share, width (widest on top). */
+const MOON_DASHES: readonly (readonly [number, number])[] = [
+  [0.08, 7],
+  [0.2, 5],
+  [0.36, 4],
+  [0.55, 2],
+];
+
+/**
+ * A short moon glint under the disc at `cx`: 3–4 horizontal dashes near the far bank, the widest on top, the wider
+ * ones broken by a 1-px gap, each shifting ±1 px with the waves; the outer px are `edge`, the rest `core`.
+ */
+export function moonDashes(cx: number, rows: number, step: number): PathStroke[] {
+  const out: PathStroke[] = [];
+  MOON_DASHES.forEach(([share, w], k) => {
+    const row = Math.max(1, Math.round(share * rows));
+    if (row >= rows || hash(k + 909, step) < 0.15) return;
+    const x = cx - Math.floor(w / 2) + Math.round((hash(k + 707, step) - 0.5) * 2);
+    const gap = w >= 5 ? 1 + Math.floor(hash(k + 808, step) * (w - 3)) : -1;
+    for (let i = 0; i < w; i++) {
+      if (i === gap) continue;
+      out.push({ row, x: x + i, width: 1, core: i > 0 && i < w - 1 });
+    }
+  });
+  return out;
+}
+
 const channel = (c: number, shift: number, k: number): number => Math.min(255, Math.round(((c >> shift) & 0xff) * k));
 const scaleTint = (c: number, k: number): number =>
   (channel(c, 16, k) << 16) | (channel(c, 8, k) << 8) | channel(c, 0, k);
@@ -143,8 +175,8 @@ const color = ([ramp, i]: ColorRef): number => rampColor(ramp, i);
 export interface Water {
   /** Rebuilds textures and strips for a new worldRT size; `horizon` is the first water row. */
   resize(width: number, height: number, horizon: number): void;
-  /** Renders the two water passes onto worldRT (call right after the base world render). */
-  render(renderer: Renderer, seconds: number, cycle: DayCycle): void;
+  /** Renders the two water passes onto worldRT (call right after the base world render); `camX` in whole world px. */
+  render(renderer: Renderer, seconds: number, cycle: DayCycle, camX: number): void;
   destroy(): void;
 }
 
@@ -154,7 +186,8 @@ const PAD = WATER.maxShift;
 const BANK_ROWS = 2;
 const BANK_SHADE = 0.85;
 
-export function createWater(worldRT: RenderTexture, rows: number, weather: Weather): Water {
+export function createWater(worldRT: RenderTexture, river: River | null, weather: Weather): Water {
+  const rows = river?.rows ?? 0;
   const fog = weather === 'fog';
   const mirrorScene = new Container({ label: 'water-mirror' });
   const band = new Container({ label: 'water' });
@@ -164,7 +197,9 @@ export function createWater(worldRT: RenderTexture, rows: number, weather: Weath
   let glintPool: Sprite[] = [];
   let dashPool: Sprite[] = [];
   let sheen: Sprite[] = [];
+  let sheenSegs: Segment[] = [];
   let strokePool: Sprite[] = [];
+  let foamPool: Sprite[] = [];
   let width = 0;
   let horizon = 0;
 
@@ -178,6 +213,7 @@ export function createWater(worldRT: RenderTexture, rows: number, weather: Weath
     dashPool = [];
     sheen = [];
     strokePool = [];
+    foamPool = [];
   };
   const frameOf = (source: RenderTexture, x: number, y: number, w: number, h: number): Texture => {
     const t = new Texture({ source: source.source, frame: new Rectangle(x, y, w, h) });
@@ -240,7 +276,8 @@ export function createWater(worldRT: RenderTexture, rows: number, weather: Weath
         strips.push(strip);
       }
       dashPool = pool(band, WATER.maxDashes, () => frameOf(rt, 0, 0, 1, 1));
-      sheen = sheenDashes(w).map((seg) => {
+      sheenSegs = sheenDashes(w);
+      sheen = sheenSegs.map((seg) => {
         const s = new Sprite({ texture: Texture.WHITE, roundPixels: true });
         s.position.set(seg.x, hz);
         s.scale.set(seg.len, 1);
@@ -248,10 +285,14 @@ export function createWater(worldRT: RenderTexture, rows: number, weather: Weath
         return s;
       });
       strokePool = pool(band, WATER.maxPath, () => Texture.WHITE);
+      foamPool = pool(band, n, () => Texture.WHITE);
     },
-    render(renderer, seconds, cycle) {
-      if (!waterRT || strips.length === 0) return;
+    render(renderer, seconds, cycle, camX) {
+      if (!waterRT || strips.length === 0 || !river) return;
       const n = strips.length;
+      // Screen span of every row; nothing on screen = no passes at all (the Sich).
+      const spans = strips.map((_, r) => riverSpan(river, r, camX, width));
+      if (spans.every((sp) => sp === null)) return;
       const step = waveStep(seconds);
       const a = WATER_LOOKS[cycle.keyA];
       const b = WATER_LOOKS[cycle.keyB];
@@ -282,22 +323,33 @@ export function createWater(worldRT: RenderTexture, rows: number, weather: Weath
       // Pass 2: strips — key tint, darker toward the viewer, the first rows a shade darker (bank line).
       strips.forEach((strip, r) => {
         const near = n > 1 ? r / (n - 1) : 0;
-        strip.x = waveOffset(r, n, step) - PAD;
+        const span = spans[r];
+        strip.visible = span !== null && span !== undefined;
+        if (!span) return;
+        // Screen column x shows waterRT column x − shift + PAD; the strip is cut to [a, b).
+        const dx = waveOffset(r, n, step);
+        setFrame(strip, span.a - dx + PAD, r, span.b - span.a);
+        strip.x = span.a;
         strip.tint = scaleTint(tint, (1 - depth * near) * (r < BANK_ROWS ? BANK_SHADE : 1));
       });
       // Wave dashes: frames of the same row at the row's shift, darker by day, a moonlit sheen at night.
       let used = 0;
       for (let r = 0; r < n; r++) {
-        if (!darkWave(r, n, step)) continue;
+        const span = spans[r];
+        if (!span || !darkWave(r, n, step)) continue;
         const near = n > 1 ? r / (n - 1) : 0;
         const dx = waveOffset(r, n, step);
         for (const seg of waveDashes(r, n, width, step)) {
+          const x0 = Math.max(seg.x + dx, span.a);
+          const x1 = Math.min(seg.x + dx + seg.len, span.b);
           const sprite = dashPool[used];
           if (!sprite) break;
+          // A dash cut away still takes its slot: the pool runs out where it always did (M-ART frames unchanged).
           used += 1;
-          sprite.visible = true;
-          setFrame(sprite, seg.x + PAD, r, seg.len);
-          sprite.position.set(seg.x + dx, horizon + r);
+          sprite.visible = x1 > x0;
+          if (!sprite.visible) continue;
+          setFrame(sprite, x0 - dx + PAD, r, x1 - x0);
+          sprite.position.set(x0, horizon + r);
           sprite.tint = scaleTint(tint, (1 - depth * near) * wave);
         }
       }
@@ -307,20 +359,52 @@ export function createWater(worldRT: RenderTexture, rows: number, weather: Weath
       }
       // Waterline sheen at the far bank (gone in fog).
       const sheenTint = color(dominant.sheen);
-      for (const s of sheen) {
+      const top = spans[0];
+      sheenSegs.forEach((seg, i) => {
+        const s = sheen[i];
+        if (!s) return;
+        const x0 = Math.max(seg.x, top?.a ?? 0);
+        const x1 = Math.min(seg.x + seg.len, top?.b ?? 0);
         s.tint = sheenTint;
-        s.visible = !fog;
-      }
-      // Moon/sun column.
-      const path = onSky && dominant.path.kind === 'column' ? dominant.path : null;
-      const strokes = path && onSky ? columnPath(onSky.x, n, path.width, step) : [];
+        s.visible = !fog && x1 > x0;
+        s.position.x = x0;
+        s.scale.x = x1 - x0;
+      });
+      // Sun/moon path: the golden column or the moon's dashes; it stops short of the bank where the river ends.
+      const path = onSky && dominant.path.kind !== 'sparkle' ? dominant.path : null;
+      const strokes =
+        path && onSky
+          ? path.kind === 'column'
+            ? columnPath(onSky.x, n, path.width, step)
+            : moonDashes(onSky.x, n, step)
+          : [];
       strokePool.forEach((p, i) => {
         const s = strokes[i];
-        p.visible = s !== undefined && path !== null;
-        if (!s || !path) return;
-        p.position.set(s.x, horizon + s.row);
-        p.scale.set(s.width, 1);
+        const span = s ? spans[s.row] : null;
+        const end = s ? riverRowEnd(river, s.row) - camX : 0;
+        const stop = span && end <= span.b ? span.b - RIVER_END.pathGap : (span?.b ?? 0);
+        const x0 = s && span ? Math.max(s.x, span.a) : 0;
+        const x1 = s && span ? Math.min(s.x + s.width, stop) : 0;
+        p.visible = s !== undefined && path !== null && x1 > x0;
+        if (!s || !path || x1 <= x0) return;
+        p.position.set(x0, horizon + s.row);
+        p.scale.set(x1 - x0, 1);
         p.tint = color(s.core ? path.core : path.edge);
+      });
+      // Foam on the waterline where each row ends on screen: broken 1–2 px dashes in the sheen colour, always at a
+      // boulder (the river's `rocks`).
+      const foamStep = Math.floor(seconds * RIVER_END.foamHz);
+      foamPool.forEach((f, r) => {
+        const span = spans[r];
+        const end = riverRowEnd(river, r) - camX;
+        const rock = river.rocks?.some((k) => Math.abs(k - r) <= 1) ?? false;
+        const on = !!span && end <= span.b && end > 0 && (rock || hash(r + 31, foamStep) < RIVER_END.foamShare);
+        f.visible = on;
+        if (!on) return;
+        const len = Math.min(RIVER_END.foamLen, end);
+        f.position.set(end - len, horizon + r);
+        f.scale.set(len, 1);
+        f.tint = sheenTint;
       });
       renderer.render({ container: band, target: worldRT, clear: false });
     },

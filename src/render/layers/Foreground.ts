@@ -4,7 +4,7 @@
 // that covers a walker drops to half alpha, so no one is hidden behind the grass. One atlas texture: it batches with
 // the ground layer.
 import { Sprite, type Texture } from 'pixi.js';
-import type { SceneLayout } from '../../content/villages/khortytsia.layout.ts';
+import type { WorldLayout } from '../../content/villages/khortytsia.layout.ts';
 import { FOREGROUND, SWAY } from '../atmosphere/config.ts';
 import { foregroundAlpha, SWAY_UPRIGHT, swayFrame, type Rect } from '../sway.ts';
 import { walkerPose } from '../walkers.ts';
@@ -12,7 +12,7 @@ import type { FrameLookup } from './Ground.ts';
 import { createLayer, horizonY, type WorldLayer } from './Layer.ts';
 
 export interface ForegroundLayerOptions {
-  readonly layout: SceneLayout;
+  readonly layout: WorldLayout;
   readonly frame: FrameLookup;
   readonly lessMotion: boolean;
 }

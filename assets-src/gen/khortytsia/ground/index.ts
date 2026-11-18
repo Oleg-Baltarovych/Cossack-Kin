@@ -38,6 +38,59 @@ function shift(plot: Plot, steps: number, fade = 0): void {
   }
 }
 
+/**
+ * Вал (ART-11, art-director review): the rampart's inner slope under the palisade, not a road — a 3-row grassy crest
+ * (grass 4/3, ragged), earth stepping darker down the slope (4 → 3 → 2 → 1, 2-row checker seams) with horizontal slump
+ * smears, a 2-row dark toe (earth 0/1) broken every 6–10 px by grass tufts from the maidan. Shared with the rampart's
+ * end piece (`val-end`, M2-01), which must continue this tile pixel for pixel.
+ */
+export function paintVal(plot: Plot): void {
+  const seed = 'ground.val';
+  const rng = seededRng(`${seed}:slope`);
+  const bands: readonly (readonly [number, number])[] = [
+    [3, 4],
+    [10, 3],
+    [18, 2],
+    [25, 1],
+  ];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let shade = 4;
+      for (const [top, sh] of bands) {
+        if (y >= top) shade = sh;
+        // 2-row checker seam into the next band.
+        if ((y === top || y === top + 1) && (x + y) % 2 === 0) shade = Math.min(4, sh + 1);
+      }
+      plot.set(x, y, 'earth', shade);
+    }
+  }
+  // Slump smears: short horizontal dashes one step darker.
+  for (let k = 0; k < 14; k++) {
+    const y = 5 + Math.floor(rng() * 20);
+    const x0 = Math.floor(rng() * W);
+    const len = 3 + Math.floor(rng() * 6);
+    for (let i = 0; i < len; i++) {
+      const x = (x0 + i) % W;
+      const px = plot.get(x, y);
+      if (px) plot.set(x, y, 'earth', Math.max(0, px.shade - 1));
+    }
+  }
+  for (let x = 0; x < W; x++) {
+    const crest = 3 + (rng() < 0.3 ? 1 : 0);
+    for (let y = 0; y < crest; y++) plot.set(x, y, 'grass', y === 0 ? 4 : y === crest - 1 ? 2 : 3);
+    plot.set(x, H - 2, 'earth', 1);
+    plot.set(x, H - 1, 'earth', 0);
+  }
+  // Toe broken by grass tufts every 6–10 px.
+  for (let x = Math.floor(rng() * 6); x < W - 1; x += 6 + Math.floor(rng() * 5)) {
+    plot.set(x, H - 1, 'grass', 2);
+    plot.set(x, H - 2, 'grass', 3);
+    plot.set(x + 1, H - 1, 'grass', 3);
+    if (rng() < 0.5) plot.set(x, H - 3, 'grass', 3);
+  }
+  pebbles(plot, { x: 2, y: 8, w: W - 4, h: H - 14 }, seed, 2);
+}
+
 const ground: SpriteGenerator = {
   atlas: 'khortytsia',
   id: 'ground',
@@ -79,55 +132,9 @@ const ground: SpriteGenerator = {
         pebbles(plot, { x: 2, y: 2, w: W - 4, h: H - 4 }, seed, 6);
         shift(plot, -1);
         break;
-      case 'val': {
-        // Вал (ART-11, art-director review): the rampart's inner slope under the palisade, not a road — a 3-row grassy
-        // crest (grass 4/3, ragged), earth stepping darker down the slope (4 → 3 → 2 → 1, 2-row checker seams) with
-        // horizontal slump smears, a 2-row dark toe (earth 0/1) broken every 6–10 px by grass tufts from the maidan.
-        const rng = seededRng(`${seed}:slope`);
-        const bands: readonly (readonly [number, number])[] = [
-          [3, 4],
-          [10, 3],
-          [18, 2],
-          [25, 1],
-        ];
-        for (let y = 0; y < H; y++) {
-          for (let x = 0; x < W; x++) {
-            let shade = 4;
-            for (const [top, sh] of bands) {
-              if (y >= top) shade = sh;
-              // 2-row checker seam into the next band.
-              if ((y === top || y === top + 1) && (x + y) % 2 === 0) shade = Math.min(4, sh + 1);
-            }
-            plot.set(x, y, 'earth', shade);
-          }
-        }
-        // Slump smears: short horizontal dashes one step darker.
-        for (let k = 0; k < 14; k++) {
-          const y = 5 + Math.floor(rng() * 20);
-          const x0 = Math.floor(rng() * W);
-          const len = 3 + Math.floor(rng() * 6);
-          for (let i = 0; i < len; i++) {
-            const x = (x0 + i) % W;
-            const px = plot.get(x, y);
-            if (px) plot.set(x, y, 'earth', Math.max(0, px.shade - 1));
-          }
-        }
-        for (let x = 0; x < W; x++) {
-          const crest = 3 + (rng() < 0.3 ? 1 : 0);
-          for (let y = 0; y < crest; y++) plot.set(x, y, 'grass', y === 0 ? 4 : y === crest - 1 ? 2 : 3);
-          plot.set(x, H - 2, 'earth', 1);
-          plot.set(x, H - 1, 'earth', 0);
-        }
-        // Toe broken by grass tufts every 6–10 px.
-        for (let x = Math.floor(rng() * 6); x < W - 1; x += 6 + Math.floor(rng() * 5)) {
-          plot.set(x, H - 1, 'grass', 2);
-          plot.set(x, H - 2, 'grass', 3);
-          plot.set(x + 1, H - 1, 'grass', 3);
-          if (rng() < 0.5) plot.set(x, H - 3, 'grass', 3);
-        }
-        pebbles(plot, { x: 2, y: 8, w: W - 4, h: H - 14 }, seed, 2);
+      case 'val':
+        paintVal(plot);
         break;
-      }
       case 'maidan-end': {
         // Where the maidan meets the grass (art-director ART-11 note): earth 3 giving way to grass over a ragged edge
         // — tongues of grass reaching up every 6–10 px, earth crumbs below the line — never a ruler line.

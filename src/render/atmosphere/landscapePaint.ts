@@ -4,7 +4,8 @@
 // mauve, night ones navy, always on the palette and in harmony with the sky behind them.
 // Shading (art-director ART-08 review): a 1-step lit rim on sun-facing crests and slopes; bluffs with a lighter left
 // scarp, a darker right face, irregular horizontal ledges and at most two cracks per span, crest trees in a few round
-// clusters; groves as solid crown lumps with a `foliage` rim on their top-left; a misty foot that rises in fog.
+// clusters; groves as solid crown lumps with a lit rim and 3-px `foliage` leaf clusters on their top-left; a misty foot
+// that rises in fog.
 // Haze (time of day, fog) pulls every plane toward the horizon colour. Also the haze band over the ground.
 // Pure: no Pixi, no DOM.
 import type { FarPlane } from '../../content/villages/khortytsia.layout.ts';
@@ -74,6 +75,9 @@ function crestClusters(x0: number, x1: number, seed: number): { cx: number; r: n
   return crowns;
 }
 
+/** Crowns at each end of a grove that taper into the line (lower, rounder). */
+const GROVE_TAPER = 3;
+
 /** Column heights of a plane over `w` px of its layer. */
 export function planeProfile(plane: FarPlane, w: number): Profile {
   const height = new Int16Array(w);
@@ -87,10 +91,16 @@ export function planeProfile(plane: FarPlane, w: number): Profile {
   }
   if (plane.kind === 'grove') {
     for (const [x0, x1, crownH] of plane.groves) {
-      for (let cx = x0; cx <= x1; cx += 6 + Math.floor(hash(cx, plane.seed) * 4)) {
-        const r = Math.max(3, Math.round(crownH * (0.28 + hash(cx, plane.seed + 3) * 0.14)));
-        crowns.push({ cx, r, base: Math.round(crownH * (0.75 + hash(cx, plane.seed + 4) * 0.25)) - r });
-      }
+      const centres: number[] = [];
+      for (let cx = x0; cx <= x1; cx += 6 + Math.floor(hash(cx, plane.seed) * 4)) centres.push(cx);
+      centres.forEach((cx, i) => {
+        // The ends taper over the outer 3 crowns into lower, rounder trees (art-director M2-01: no cut-off blocks).
+        const fromEnd = Math.min(i, centres.length - 1 - i);
+        const f = fromEnd >= GROVE_TAPER ? 1 : (fromEnd + 1) / (GROVE_TAPER + 1);
+        const h = crownH * f;
+        const r = Math.max(2, Math.round(Math.max(3 * f, h * (0.28 + hash(cx, plane.seed + 3) * 0.14))));
+        crowns.push({ cx, r, base: Math.max(0, Math.round(h * (0.75 + hash(cx, plane.seed + 4) * 0.25)) - r) });
+      });
     }
   }
   for (let x = 0; x < w; x++) {
@@ -99,11 +109,12 @@ export function planeProfile(plane: FarPlane, w: number): Profile {
       // A continuous band 8–11 px, kurgans on top of it.
       r = 8 + 3 * noise1(x, 41, plane.seed);
       for (const [cx, hw, kh] of plane.kurgans) {
+        // A low, wide, soft dome (smooth shoulders, no cone).
         const d = (x - cx) / hw;
-        if (d * d < 1) r = Math.max(r, 8 + kh * (1 - d * d));
+        if (d * d < 1) r = Math.max(r, 8 + kh * (1 - d * d) * (1 - d * d));
       }
     } else if (plane.kind === 'cliffs') {
-      for (const [x0, x1, top] of plane.plateaus) {
+      for (const [x0, x1, top] of [...plane.plateaus, ...(plane.rapids ?? [])]) {
         const crest = top + 2 * noise1(x, 11, plane.seed) - 1;
         // Steep scarp on the left (sun side), a longer talus slope on the right.
         const v = x < x0 ? crest - (x0 - x) * 1.7 : x > x1 ? crest - (x - x1) * 0.8 : crest;
@@ -221,14 +232,46 @@ export function paintPlane(
       // horizon colour so it never melts into the sky behind.
       const sunFacing = fromTop === 0 && left <= top;
       if (sunFacing) steps += 1;
+      // Kurgans (above the steppe band): half a step lighter, toward the horizon colour — earthen domes, not trees.
+      if (plane.kind === 'steppe' && r >= 9 && top > 11) steps += 0.5;
       let color = aerial(cycle, Math.min(sunFacing ? -0.25 : 0, steps), x, y, weather);
       // Groves: solid lumps; a 1–2 px lit rim on each crown's top-left, 0.8 step above the body (light, not a dark
-      // hedge trim), 30 % of it in the local foliage colour when the air is clear; 25 % of the row under it likewise.
-      if (plane.kind === 'grove' && x <= crownX && (fromTop <= 1 ? left <= top : fromTop === 2 && bayer(x, y) < 0.25)) {
+      // hedge trim), the foliage colour only as leaf clusters when the air is clear.
+      // (M2-01 art review: the local colour in 3-px leaf clusters on the top row only — single dots read as a dotted
+      // selection outline.)
+      if (plane.kind === 'grove' && x <= crownX && fromTop <= 1 && left <= top) {
         color = aerial(cycle, Math.min(-0.25, steps + 0.8), x, y, weather);
-        if (showFoliage && bayer(x + 3, y + 1) < 0.3) color = foliage;
+        if (showFoliage && fromTop === 0 && hash(Math.floor((crownX - x) / 3), crownX + plane.seed) < 0.45)
+          color = foliage;
       }
       put(out, w, x, y, color);
+    }
+  }
+  if (plane.kind === 'cliffs') paintRapids(out, w, h, plane.rapids ?? [], cycle, weather);
+}
+
+/**
+ * The rapids' water (M2-01 art review): broken 1-px pale foam along the foot of each ridge (on the far bank's
+ * waterline) and a lighter, dithered disturbed stretch running downstream (right) from it, fading out over 28 px.
+ */
+function paintRapids(
+  out: Uint8Array,
+  w: number,
+  h: number,
+  rapids: readonly (readonly [number, number, number])[],
+  cycle: DayCycle,
+  weather: Weather,
+): void {
+  const y = h - 1;
+  for (const [x0, x1] of rapids) {
+    for (let x = x0 - 2; x <= x1 + 2 && x < w; x++) {
+      if (x < 0 || hash(x, 4421) < 0.35) continue;
+      put(out, w, x, y, aerial(cycle, 1.5, x, y, weather));
+    }
+    for (let x = x1 + 3; x < x1 + 31 && x < w; x++) {
+      const fade = 1 - (x - x1 - 3) / 28;
+      if (bayer(x, y) >= 0.6 * fade) continue;
+      put(out, w, x, y, aerial(cycle, 0.6, x, y, weather));
     }
   }
 }
@@ -238,7 +281,7 @@ export const HAZE_ALPHA_STEPS = 4;
 
 /**
  * Haze over the ground under the horizon: one solid horizon colour (no chain dither: it showed as dotted rows) in
- * HAZE_ALPHA_STEPS equal bands of falling opacity, `cover` at the top band, 2-row dithered seams between bands. `lead` rows above the horizon
+ * HAZE_ALPHA_STEPS equal bands of falling opacity, `cover` at the top band (one value, or per column x), 2-row dithered seams between bands. `lead` rows above the horizon
  * (fog only) let the bank overlap the bases of the far planes. Premultiplied RGBA; row 0 = the top of the band.
  */
 export function paintHazeBand(
@@ -246,13 +289,12 @@ export function paintHazeBand(
   w: number,
   rows: number,
   cycle: DayCycle,
-  cover: number,
+  cover: number | ArrayLike<number>,
   lead = 0,
   weather: Weather = 'clear',
 ): void {
   out.fill(0);
   const color = aerialSolid(cycle, -0.2, weather);
-  const alphaOf = (step: number): number => cover * (1 - step / HAZE_ALPHA_STEPS);
   for (let r = 0; r < lead + rows; r++) {
     // The lead rows above the horizon fade in from the top (ordered dither), so the bank has no hard upper edge
     // across what stands on the horizon (the Sich towers, ART-17).
@@ -260,7 +302,7 @@ export function paintHazeBand(
       const f = (r + 1) / (lead + 1);
       for (let x = 0; x < w; x++) {
         if (bayer(x, r) >= f) continue;
-        const alpha = alphaOf(0);
+        const alpha = typeof cover === 'number' ? cover : (cover[x] ?? 0);
         const i = (r * w + x) * 4;
         out[i] = Math.round(((color >> 16) & 0xff) * alpha);
         out[i + 1] = Math.round(((color >> 8) & 0xff) * alpha);
@@ -277,7 +319,8 @@ export function paintHazeBand(
     const frac = level - lo;
     for (let x = 0; x < w; x++) {
       const step = bayer(x, r) < frac ? lo + 1 : lo;
-      const alpha = (cover * Math.min(HAZE_ALPHA_STEPS, step)) / HAZE_ALPHA_STEPS;
+      const top = typeof cover === 'number' ? cover : (cover[x] ?? 0);
+      const alpha = (top * Math.min(HAZE_ALPHA_STEPS, step)) / HAZE_ALPHA_STEPS;
       if (alpha <= 0) continue;
       const i = (r * w + x) * 4;
       out[i] = Math.round(((color >> 16) & 0xff) * alpha);

@@ -7,7 +7,7 @@
 // - dev/test only: the `debug/swatch` (M0-08) at the bottom-left, under the future bottom sheet and away from the
 //   scene. Ungraded, so every palette color reaches the canvas unchanged (the @screens swatch check).
 import { Container, Sprite, Texture } from 'pixi.js';
-import type { SceneLayout } from '../content/villages/khortytsia.layout.ts';
+import type { WorldLayout } from '../content/villages/khortytsia.layout.ts';
 import { plotShown, type SceneState } from './scene.ts';
 import { FIRE, QUALITY_TIERS } from './atmosphere/config.ts';
 import { sparks } from './atmosphere/nightLights.ts';
@@ -25,7 +25,7 @@ const SWATCH_BOTTOM_MARGIN = 6;
 const FIRE_TOP = 6;
 
 export interface PostGradeOptions {
-  readonly layout: SceneLayout;
+  readonly layout: WorldLayout;
   /** Frame lookup in the scene atlas; `null` when the frame does not exist (props without a night mask). */
   readonly frame: (name: string) => Texture | null;
   readonly swatch?: Texture | undefined;

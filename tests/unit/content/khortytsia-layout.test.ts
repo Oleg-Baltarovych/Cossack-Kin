@@ -1,31 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import { KHORTYTSIA_FARM, KHORTYTSIA_SICH } from '../../../src/content/villages/khortytsia.layout.ts';
-import { WORLD_WIDTH_PX } from '../../../src/content/world.ts';
+import {
+  FOREGROUND_PARALLAX,
+  GROUND_TILE,
+  KHORTYTSIA_FARM,
+  KHORTYTSIA_SICH,
+  KHORTYTSIA_SUBURB,
+  KHORTYTSIA_WORLD,
+} from '../../../src/content/villages/khortytsia.layout.ts';
+
+const W = KHORTYTSIA_WORLD;
+const SCENES = [
+  ['farm', KHORTYTSIA_FARM],
+  ['suburb', KHORTYTSIA_SUBURB],
+  ['sich', KHORTYTSIA_SICH],
+] as const;
+const zone = (id: string): { x0: number; x1: number } => {
+  const z = W.zones.find((q) => q.id === id);
+  if (!z) throw new Error(`no zone ${id}`);
+  return z;
+};
 
 describe('khortytsia farm layout', () => {
   it('horizon follows ART-BIBLE §2 (40–45 % of the view)', () => {
-    expect(KHORTYTSIA_FARM.horizonRatio).toBeGreaterThanOrEqual(0.4);
-    expect(KHORTYTSIA_FARM.horizonRatio).toBeLessThanOrEqual(0.45);
+    expect(W.horizonRatio).toBeGreaterThanOrEqual(0.4);
+    expect(W.horizonRatio).toBeLessThanOrEqual(0.45);
   });
 
-  it('ground rows start at the horizon, are contiguous and whole 32-px tiles tall', () => {
-    let top = 0;
-    for (const row of KHORTYTSIA_FARM.rows) {
-      expect(row.top).toBe(top);
-      expect(row.h % 32).toBe(0);
-      expect(row.h).toBeGreaterThan(0);
-      top += row.h;
+  it('ground rows of every zone start at the horizon, are contiguous and whole 32-px tiles tall', () => {
+    for (const scene of [KHORTYTSIA_FARM, KHORTYTSIA_SUBURB, KHORTYTSIA_SICH]) {
+      let top = 0;
+      for (const row of scene.rows) {
+        expect(row.top).toBe(top);
+        expect(row.h % GROUND_TILE.h).toBe(0);
+        expect(row.h).toBeGreaterThan(0);
+        top += row.h;
+      }
     }
   });
 
-  it('props stand inside the world and inside the ground rows', () => {
-    const last = KHORTYTSIA_FARM.rows.at(-1);
-    const depth = last ? last.top + last.h : 0;
-    for (const p of KHORTYTSIA_FARM.props) {
-      expect(p.x - 32).toBeGreaterThanOrEqual(0);
-      expect(p.x + 32).toBeLessThanOrEqual(WORLD_WIDTH_PX);
-      expect(p.ground).toBeGreaterThan(0);
-      expect(p.ground).toBeLessThan(depth);
+  it('in every zone, props stand inside the zone and inside its ground rows', () => {
+    for (const [id, scene] of SCENES) {
+      const last = scene.rows.at(-1);
+      const depth = last ? last.top + last.h : 0;
+      for (const p of scene.props) {
+        expect(p.x, `${id} ${p.sprite}`).toBeGreaterThanOrEqual(0);
+        expect(p.x, `${id} ${p.sprite}`).toBeLessThan(scene.width);
+        expect(p.ground).toBeGreaterThan(0);
+        expect(p.ground).toBeLessThan(depth);
+      }
     }
   });
 
@@ -45,7 +67,7 @@ describe('khortytsia sich layout (ART-11)', () => {
     for (const w of s.walkers) expect(w.sprite.startsWith('kozak')).toBe(true);
     for (const p of s.props) {
       expect(p.x).toBeGreaterThanOrEqual(0);
-      expect(p.x).toBeLessThanOrEqual(WORLD_WIDTH_PX);
+      expect(p.x).toBeLessThanOrEqual(s.width);
     }
     expect(s.props.filter((p) => p.sprite === 'gate')).toHaveLength(1);
     expect(s.props.filter((p) => p.sprite === 'tower').length).toBeGreaterThanOrEqual(2);
@@ -66,26 +88,22 @@ describe('khortytsia sich layout (ART-11)', () => {
 });
 
 describe('nothing tall stands in the river band', () => {
-  it('every farm prop with a lift (windmill sails) keeps its top below the water rows', () => {
-    for (const p of KHORTYTSIA_FARM.props.filter((q) => q.lift !== undefined)) {
-      // Sails reach 36 px above the hub.
-      expect(p.ground - (p.lift ?? 0) - 36).toBeGreaterThanOrEqual(KHORTYTSIA_FARM.waterRows);
+  // Rows from the pivot to the top of the sprite: sails reach 36 px above the hub; trees (oak 88×96, willow 80×88).
+  const HEIGHT: Readonly<Record<string, number>> = { 'windmill-sails': 36, oak: 92, willow: 80 };
+
+  it('every tall prop over the river (sails, trees) keeps its top below the water rows, in every zone', () => {
+    const river = W.river;
+    expect(river?.rows).toBeGreaterThan(0);
+    const over = W.props.filter((q) => river && q.x >= river.x0 && q.x < river.x1);
+    expect(over.filter((q) => q.sprite in HEIGHT).length).toBeGreaterThanOrEqual(3);
+    for (const q of over) {
+      const top = q.ground - (q.lift ?? 0) - (HEIGHT[q.sprite] ?? 0);
+      expect(top, `${q.sprite} at ${String(q.x)}`).toBeGreaterThanOrEqual(river?.rows ?? 0);
     }
   });
 });
 
 describe('vegetation (ART-14)', () => {
-  // Rows from the pivot to the top of the crown in the generated sprites (oak 88×96, willow 80×88).
-  const TREE_HEIGHT: Readonly<Record<string, number>> = { oak: 92, willow: 80 };
-
-  it('trees keep their crowns below the river band', () => {
-    const trees = KHORTYTSIA_FARM.props.filter((p) => p.sprite in TREE_HEIGHT);
-    expect(trees.length).toBeGreaterThanOrEqual(2);
-    for (const t of trees) {
-      expect(t.ground - (TREE_HEIGHT[t.sprite] ?? 0), t.sprite).toBeGreaterThanOrEqual(KHORTYTSIA_FARM.waterRows);
-    }
-  });
-
   it('every sway has a lean share in (0, 1] and a phase in [0, 1)', () => {
     for (const layout of [KHORTYTSIA_FARM, KHORTYTSIA_SICH]) {
       const sways = [
@@ -104,5 +122,82 @@ describe('vegetation (ART-14)', () => {
 
   it('the Sich foreground is grass only (no gardens inside the walls)', () => {
     for (const p of KHORTYTSIA_SICH.foreground) expect(p.sprite).toBe('plant.grass');
+  });
+});
+
+describe('the continuous world (M2-01)', () => {
+  it('zones run edge to edge from 0 to the world width, inner edges on whole ground tiles', () => {
+    expect(W.zones.map((z) => z.id)).toEqual(['farm', 'suburb', 'sich']);
+    let x = 0;
+    for (const z of W.zones) {
+      expect(z.x0).toBe(x);
+      expect(z.x0 % GROUND_TILE.w).toBe(0);
+      expect(z.anchorX).toBeGreaterThanOrEqual(z.x0);
+      expect(z.anchorX).toBeLessThan(z.x1);
+      x = z.x1;
+    }
+    expect(x).toBe(W.width);
+    // ≈ 4–5 screens of 360–400 px (plan Q2).
+    expect(W.width).toBeGreaterThanOrEqual(1600);
+    expect(W.width).toBeLessThanOrEqual(2000);
+    expect(W.segments.map((s) => [s.x0, s.x1])).toEqual(W.zones.map((z) => [z.x0, z.x1]));
+  });
+
+  it('every zone width is whole ground tiles', () => {
+    for (const [id, scene] of SCENES) expect(scene.width % GROUND_TILE.w, id).toBe(0);
+  });
+
+  it.each(SCENES)(
+    '%s: every item is its scene item moved by the zone edge (foreground by its parallax)',
+    (id, scene) => {
+      const { x0 } = zone(id);
+      const fg = Math.round(x0 * FOREGROUND_PARALLAX);
+      const inZone = <T extends { readonly x: number }>(items: readonly T[], from: number, to: number): T[] =>
+        items.filter((q) => q.x >= from && q.x < to);
+      const back = <T extends { readonly x: number }>(items: readonly T[], dx: number): T[] =>
+        items.map((q) => ({ ...q, x: q.x - dx }));
+      const x1 = x0 + scene.width;
+      expect(back(inZone(W.props, x0, x1), x0)).toEqual(scene.props);
+      expect(back(inZone(W.decals, x0, x1), x0)).toEqual(scene.decals);
+      expect(back(inZone(W.puddles, x0, x1), x0)).toEqual(scene.puddles);
+      expect(back(inZone(W.foreground, fg, Math.round(x1 * FOREGROUND_PARALLAX)), fg)).toEqual(scene.foreground);
+      // Walkers by their first end; both ends (leftward walkers too) move by the zone edge.
+      const walkers = W.walkers.filter((w) => w.x0 >= x0 && w.x0 < x1);
+      expect(walkers.map((w) => ({ ...w, x0: w.x0 - x0, x1: w.x1 - x0 }))).toEqual(scene.walkers);
+      const flies = W.fireflies.filter((f) => f.x0 >= x0 && f.x0 < x1);
+      expect(flies.map((f) => ({ ...f, x0: f.x0 - x0, x1: f.x1 - x0 }))).toEqual(
+        scene.fireflies ? [scene.fireflies] : [],
+      );
+    },
+  );
+
+  it('the suburb foreground starts at round(768 × 1.2) = 922 in the foreground layer', () => {
+    expect(zone('suburb').x0).toBe(768);
+    const first = KHORTYTSIA_SUBURB.foreground[0];
+    expect(W.foreground.find((p) => p.x === 922 + (first?.x ?? 0))).toBeDefined();
+  });
+
+  it('women never stand in the Sich and nothing of a zone leaves it', () => {
+    const sich = zone('sich');
+    for (const w of W.walkers.filter((q) => Math.max(q.x0, q.x1) >= sich.x0)) {
+      expect(w.sprite.startsWith('kozak'), w.sprite).toBe(true);
+    }
+    for (const [id, scene] of SCENES) {
+      for (const p of [...scene.props, ...scene.decals, ...scene.puddles]) {
+        expect(p.x, `${id} ${String(p.x)}`).toBeGreaterThanOrEqual(0);
+        expect(p.x, `${id} ${String(p.x)}`).toBeLessThan(scene.width);
+      }
+      for (const w of scene.walkers) {
+        for (const x of [w.x0, w.x1]) {
+          expect(x).toBeGreaterThanOrEqual(0);
+          expect(x).toBeLessThanOrEqual(scene.width);
+        }
+      }
+    }
+  });
+
+  it('the Dnipro runs behind the farm and the suburb and ends at the Sich (its rampart hides the river)', () => {
+    expect(W.river).toMatchObject({ x0: 0, x1: zone('sich').x0 });
+    expect(W.segments.find((s) => s.x0 === zone('sich').x0)?.groundHaze).toBe(false);
   });
 });

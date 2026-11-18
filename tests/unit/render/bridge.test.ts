@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KHORTYTSIA_FARM, KHORTYTSIA_SICH, type Plot } from '../../../src/content/villages/khortytsia.layout.ts';
+import { KHORTYTSIA_WORLD, type Plot } from '../../../src/content/villages/khortytsia.layout.ts';
 import { Big } from '../../../src/core/big.ts';
 import { visualTiers } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
@@ -53,7 +53,7 @@ describe('plotShown (M1-19)', () => {
 
   it('every plot in the layouts names a building that exists in the tiers', () => {
     const tiers = visualTiers(rich());
-    for (const layout of [KHORTYTSIA_FARM, KHORTYTSIA_SICH]) {
+    for (const layout of [KHORTYTSIA_WORLD]) {
       for (const item of [...layout.props, ...layout.decals]) {
         if (item.plot) expect(tiers[item.plot.building], item.sprite).toBeTypeOf('number');
       }
