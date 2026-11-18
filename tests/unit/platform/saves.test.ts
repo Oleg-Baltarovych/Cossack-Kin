@@ -58,7 +58,7 @@ describe('bootGame + saver: two rotating slots (M1-13)', () => {
     boot.saver.save(game(8, T0 + 2000));
     const [a, b] = await slots(storage);
     expect(a).toBe(encodeSave(game(7, T0 + 1000)));
-    expect(b).toBe(encodeSave(game(8, T0 + 2000)));
+    expect(b).toBe(encodeSave(game(8, T0 + 2000), 1));
   });
 
   it('a corrupted save_a → save_b, with the «restored» notice', async () => {
@@ -69,12 +69,34 @@ describe('bootGame + saver: two rotating slots (M1-13)', () => {
     expect([boot.notice, boot.state.village.levels.field]).toEqual(['restored', 4]);
   });
 
-  it('both corrupted → a fresh game with the «corrupt» notice', async () => {
+  it('both corrupted → a fresh game with the «corrupt» notice; the damaged text is kept aside first', async () => {
     const storage = memoryStorage();
     await storage.save('a', '{');
     await storage.save('b', 'garbage');
     const boot = await bootGame(storage, fresh);
     expect([boot.notice, boot.state.village.levels.field]).toEqual(['corrupt', 0]);
+    expect([...storage.backups.entries()]).toEqual([
+      ['a', '{'],
+      ['b', 'garbage'],
+    ]);
+  });
+
+  it('a storage that cannot be read: play on, but never write over the slots we could not see', async () => {
+    const inner = memoryStorage();
+    const storage = { ...inner, load: () => Promise.reject(new Error('SecurityError')) };
+    const boot = await bootGame(storage, fresh);
+    expect([boot.notice, boot.saver.enabled]).toEqual(['unavailable', false]);
+    boot.saver.save(game(3));
+    expect(await slots(inner)).toEqual([null, null]);
+  });
+
+  it('the write counter continues after a load, so the next save wins a tie on lastSeen', async () => {
+    const storage = memoryStorage();
+    await storage.save('a', encodeSave(game(4), 41));
+    const boot = await bootGame(storage, fresh);
+    boot.saver.save(game(5));
+    const b = await storage.load('b');
+    expect(b && (JSON.parse(b) as { seq: number }).seq).toBe(42);
   });
 
   it('a save from a newer game: «newer», play goes on in memory, nothing is ever written', async () => {
@@ -91,13 +113,13 @@ describe('bootGame + saver: two rotating slots (M1-13)', () => {
 
 describe('webStorage (M1-13)', () => {
   it('keeps the slots in localStorage under ck.save_a / ck.save_b', async () => {
-    const storage = webStorage(localStorage);
+    const storage = webStorage(() => localStorage);
     await storage.save('a', 'x');
     expect(localStorage.getItem('ck.save_a')).toBe('x');
     expect(await storage.load('b')).toBeNull();
   });
 
-  it('a storage that throws (quota, private mode) never crashes: load → null, save → rejected', async () => {
+  it('a storage that throws (quota, private mode, even opening it) rejects instead of crashing', async () => {
     const broken = {
       getItem: () => {
         throw new Error('denied');
@@ -106,9 +128,13 @@ describe('webStorage (M1-13)', () => {
         throw new Error('quota');
       },
     };
-    const storage = webStorage(broken);
-    expect(await storage.load('a')).toBeNull();
+    const storage = webStorage(() => broken);
+    await expect(storage.load('a')).rejects.toThrow();
     await expect(storage.save('a', 'x')).rejects.toThrow();
+    const blocked = webStorage(() => {
+      throw new Error('SecurityError');
+    });
+    await expect(blocked.load('a')).rejects.toThrow();
   });
 });
 

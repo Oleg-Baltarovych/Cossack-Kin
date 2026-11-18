@@ -99,5 +99,9 @@
   "boot.newer.body": "This save comes from a newer version of the game. Update to continue: until then progress is not saved.",
   "boot.ok": "Got it",
   "tab.elsewhere.title": "Already open",
-  "tab.elsewhere.body": "The farm is open in another tab. Play there: two tabs would overwrite one save."
+  "tab.elsewhere.body": "The farm is open in another tab. Play there: two tabs would overwrite one save.",
+  "boot.unavailable.title": "Saving unavailable",
+  "boot.unavailable.body": "The browser will not let the game read its save (private mode or blocked storage). You can play, but this progress will not be saved.",
+  "start.error.title": "The game did not start",
+  "start.error.body": "Something went wrong while starting. Reload the page; your save is untouched."
 }

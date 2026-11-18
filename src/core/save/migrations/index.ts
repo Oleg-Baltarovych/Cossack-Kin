@@ -24,7 +24,12 @@ export function migrate(
   for (let v = version; v < target;) {
     const step = chain.find((m) => m.from === v);
     if (!step || step.to <= v) return { ok: false };
-    value = step.run(value);
+    // A step that chokes on a damaged payload refuses the save; it never crashes the boot.
+    try {
+      value = step.run(value);
+    } catch {
+      return { ok: false };
+    }
     v = step.to;
   }
   return { ok: true, value };

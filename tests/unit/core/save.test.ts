@@ -53,7 +53,7 @@ describe('encodeSave / decodeSave (M1-13, SPEC §9.5)', () => {
 
   it('the envelope is {version, checksum, payload} with the checksum over the payload string', () => {
     const e = envelope(encodeSave(game()));
-    expect(Object.keys(e).sort()).toEqual(['checksum', 'payload', 'version']);
+    expect(Object.keys(e).sort()).toEqual(['checksum', 'payload', 'seq', 'version']);
     expect(e.version).toBe(SAVE_VERSION);
     expect(typeof e.payload).toBe('string');
     expect(e.checksum).toBe(fnv1a32(e.payload as string));
@@ -83,7 +83,7 @@ describe('encodeSave / decodeSave (M1-13, SPEC §9.5)', () => {
       '"__proto__x"',
       '"__proto__"',
     );
-    const poisoned = JSON.stringify({ version: SAVE_VERSION, checksum: fnv1a32(payload), payload });
+    const poisoned = JSON.stringify({ version: SAVE_VERSION, seq: 1, checksum: fnv1a32(payload), payload });
     expect(decodeSave(poisoned)).toMatchObject({ ok: false, reason: 'invalid' });
     const envPoison = encodeSave(game()).replace('{"version"', '{"__proto__":{"x":1},"version"');
     expect(decodeSave(envPoison)).toMatchObject({ ok: false, reason: 'envelope' });
@@ -156,5 +156,48 @@ describe('export / import as base64 (M1-13, SPEC §9.5)', () => {
     expect(r.ok && r.state.currencies.ducats.eq(42)).toBe(true);
     expect(importSave(text.slice(5))).toMatchObject({ ok: false });
     expect(importSave('!!!')).toMatchObject({ ok: false });
+  });
+});
+
+describe('save safety (M1-13 security + platform review)', () => {
+  it('a newer save is «newer» even when its envelope or checksum changed: it is never taken for damage', () => {
+    const e = envelope(encodeSave(game()));
+    const extraKey = JSON.stringify({ ...e, version: SAVE_VERSION + 1, seq2: 1 });
+    const otherSum = JSON.stringify({ ...e, version: SAVE_VERSION + 1, checksum: 'xxxx' });
+    expect(decodeSave(extraKey)).toMatchObject({ ok: false, reason: 'newer' });
+    expect(decodeSave(otherSum)).toMatchObject({ ok: false, reason: 'newer' });
+  });
+
+  it('a payload that claims a newer state version is «newer» too', () => {
+    const payload = JSON.stringify({ ...(JSON.parse(JSON.stringify(game())) as object), version: STATE_VERSION + 1 });
+    const raw = JSON.stringify({ version: SAVE_VERSION, seq: 1, checksum: fnv1a32(payload), payload });
+    expect(decodeSave(raw)).toMatchObject({ ok: false, reason: 'newer' });
+  });
+
+  it('an unreadably large slot blocks overwriting like a newer save (it may be one)', () => {
+    expect(chooseSave(' '.repeat(SAVE.maxChars + 1), null)).toEqual({ kind: 'newer' });
+  });
+
+  it('a migration step that throws is a refused save, not a crash', () => {
+    const chain: Migration[] = [
+      {
+        from: 1,
+        to: 2,
+        run: () => {
+          throw new Error('bad step');
+        },
+      },
+    ];
+    expect(migrate({}, 1, chain, 2)).toEqual({ ok: false });
+  });
+
+  it('equal lastSeen in both slots (clock held back): the save written later wins by its sequence number', () => {
+    const first = encodeSave(game({ field: 1 }), 7);
+    const second = encodeSave(game({ field: 2 }), 8);
+    const r = chooseSave(second, first);
+    expect(r.kind === 'loaded' && [r.slot, r.state.village.levels.field]).toEqual(['a', 2]);
+    const s = chooseSave(first, second);
+    expect(s.kind === 'loaded' && [s.slot, s.state.village.levels.field]).toEqual(['b', 2]);
+    expect(s.kind === 'loaded' && s.seq).toBe(8);
   });
 });
