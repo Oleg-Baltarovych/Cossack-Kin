@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { claimTab } from './platform/singleTab.ts';
 import { App } from './ui/App.tsx';
-import { OtherTab } from './ui/components/OtherTab.tsx';
+import { OtherTab, StartError } from './ui/components/OtherTab.tsx';
 import { initGame } from './ui/game.ts';
 import './ui/global.css';
 import { applyPalette, trackScale } from './ui/theme.ts';
@@ -14,13 +14,21 @@ if (!container) throw new Error('#root element is missing in index.html');
 applyPalette(document.documentElement);
 trackScale(document.documentElement);
 
+// A page restored from the back/forward cache holds a stale game (and maybe no tab lock): start over from the save.
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) window.location.reload();
+});
+
+const root = createRoot(container);
+
 // One tab owns the game (and its save); the save loads once, before React (a StrictMode double mount never reloads it).
-async function start(root: HTMLElement): Promise<void> {
+async function start(): Promise<void> {
   const claim = await claimTab();
   const game = claim === 'owner' ? await initGame() : null;
-  createRoot(root).render(<StrictMode>{game ? <App game={game} /> : <OtherTab />}</StrictMode>);
+  root.render(<StrictMode>{game ? <App game={game} /> : <OtherTab />}</StrictMode>);
 }
 
-start(container).catch((error: unknown) => {
+start().catch((error: unknown) => {
   console.error('game start failed', error);
+  root.render(<StartError />);
 });
