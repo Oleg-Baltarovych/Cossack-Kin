@@ -23,11 +23,9 @@ concurrency:
 
 jobs:
   check:
-    name: Check, build, e2e
-    runs-on: ubuntu-26.04 # pinned: screenshot baselines depend on the OS image (fonts, SwiftShader)
+    name: Check, build
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
-    env:
-      UPDATE_SNAPSHOTS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_snapshots }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -65,6 +63,32 @@ jobs:
         if: steps.audit_full.outcome == 'failure'
         run: echo "::warning title=pnpm audit::high/critical advisories in dev dependencies — see the 'pnpm audit (all deps, non-blocking)' step"
 
+  # e2e split into shards (plan M2): the single job outgrew its 30-minute limit as the @screens matrix grew
+  # (run 44404232670 was cancelled at 30 min). Each shard builds its own test bundle via playwright webServer.
+  e2e:
+    name: e2e (${{ matrix.shard }}/4)
+    runs-on: ubuntu-26.04 # pinned: screenshot baselines depend on the OS image (fonts, SwiftShader)
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      UPDATE_SNAPSHOTS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_snapshots }}
+      SHARD: ${{ matrix.shard }}/4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
 
       # Baselines (tests/e2e/__screenshots__/, compared on Linux only) are created by a manual run with
@@ -73,19 +97,19 @@ jobs:
       - name: e2e
         run: |
           if [ "$UPDATE_SNAPSHOTS" = "true" ]; then
-            pnpm e2e --update-snapshots=all
+            pnpm e2e --shard="$SHARD" --update-snapshots=all
           elif [ -z "$(find tests/e2e/__screenshots__ -name '*.png' -print -quit 2>/dev/null)" ]; then
-            echo "::warning title=Screenshot baselines::none committed yet — toHaveScreenshot skipped. Run CI via workflow_dispatch with update_snapshots=true and commit the artifact."
-            pnpm e2e --ignore-snapshots
+            echo "::warning title=Screenshot baselines::none committed yet — toHaveScreenshot skipped. Run CI via workflow_dispatch with update_snapshots=true and commit the artifacts."
+            pnpm e2e --shard="$SHARD" --ignore-snapshots
           else
-            pnpm e2e --update-snapshots=none
+            pnpm e2e --shard="$SHARD" --update-snapshots=none
           fi
 
       - name: Upload e2e reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-reports
+          name: e2e-reports-${{ matrix.shard }}
           path: |
             reports/screens/
             playwright-report/
@@ -97,9 +121,9 @@ jobs:
         if: env.UPDATE_SNAPSHOTS == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: screenshot-baselines
+          name: screenshot-baselines-${{ matrix.shard }}
           path: tests/e2e/__screenshots__/
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
   secrets:
