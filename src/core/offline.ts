@@ -1,6 +1,8 @@
 // Offline progress and the return window (SPEC §3.8, §12.1; plan §0, M1-11, Q7). `applyOffline(state, now)` counts
 // the absence through the same `advance` the online ticks use — after the caps, never past them:
-//   now < lastSeen                          → 0 earned, lastSeen = now                  (reason 'clockBack')
+//   now < lastSeen                          → 0 earned, lastSeen stays                  (reason 'clockBack')
+//     lastSeen never moves back: lowering it to `now` would let «clock back 8 h, then forward» count the same 8 h
+//     again and again once saves exist (platform review M1-18). Time with the clock behind earns nothing.
 //   now > maxSeen + forwardJumpCapSec       → exactly offlineCapSec counted              (reason 'forwardJump')
 //   otherwise                               → min(away, offlineCapSec) counted           (reason 'normal')
 // Glory is held to the store (gloryCapSec of income). What was earned goes into `returnReport`, and `claimReturn`
@@ -56,8 +58,7 @@ export function applyOffline(input: GameState, now: number): AdvanceResult {
   const awaySec = Math.max(0, Math.round((now - from) / MS_PER_SEC));
 
   if (now < from) {
-    const back: GameState = { ...s, time: { ...s.time, lastSeen: now } };
-    const r = report(back, { awaySec: 0, countedSec: 0, capped: false, reason: 'clockBack' }, Big.ZERO, Big.ZERO);
+    const r = report(s, { awaySec: 0, countedSec: 0, capped: false, reason: 'clockBack' }, Big.ZERO, Big.ZERO);
     return { state: r.state, events: [...before, ...r.events] };
   }
   if (awaySec < OFFLINE.returnMinSec) {
@@ -99,4 +100,13 @@ export function tick(state: GameState, now: number): AdvanceResult {
   return now - state.time.lastSeen <= OFFLINE.onlineGapSec * MS_PER_SEC
     ? advance(state, now)
     : applyOffline(state, now);
+}
+
+/**
+ * The first tick of a returning page (or a loaded save): like `tick`, but a clock set back by more than the online
+ * gap is reported (`clockBack`), so the window can say why nothing grew. Ticks of the running loop stay quiet while
+ * the clock is behind (`advance` ignores now ≤ lastSeen) — otherwise the notice would come back ten times a second.
+ */
+export function resume(state: GameState, now: number): AdvanceResult {
+  return now < state.time.lastSeen - OFFLINE.onlineGapSec * MS_PER_SEC ? applyOffline(state, now) : tick(state, now);
 }

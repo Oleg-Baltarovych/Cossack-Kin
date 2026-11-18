@@ -6,7 +6,7 @@
 // `applyOffline` (with its caps) — an action can never integrate an uncapped gap.
 import { applyAction, type Action } from './actions.ts';
 import type { GameEvent } from './events.ts';
-import { tick as tickCore } from './offline.ts';
+import { resume as resumeCore, tick as tickCore } from './offline.ts';
 import type { GameState } from './state.ts';
 
 export interface GameStore {
@@ -14,8 +14,10 @@ export interface GameStore {
   getState(): GameState;
   /** Applies a player action at `now` (ms); returns its events (also delivered to `onEvent`). */
   dispatch(action: Action, now: number): readonly GameEvent[];
-  /** Moves time to `now` (the platform loop calls it at 10 Hz and on resume). */
+  /** Moves time to `now` (the platform loop calls it at 10 Hz). */
   tick(now: number): readonly GameEvent[];
+  /** The first tick after the page comes back or a save loads: also reports a clock set back (`clockBack`). */
+  resume(now: number): readonly GameEvent[];
   /** Replaces the whole state (a loaded save or a reset); emits StateReplaced. */
   replace(state: GameState): void;
   /** Called after every state change; returns the unsubscribe function. */
@@ -45,6 +47,10 @@ export function createStore(initial: GameState): GameStore {
   return {
     getState: () => state,
     tick,
+    resume(now) {
+      const r = resumeCore(state, now);
+      return commit(r.state, r.events);
+    },
     dispatch(action, now) {
       const moved = tickCore(state, now);
       const r = applyAction(moved.state, action, now);

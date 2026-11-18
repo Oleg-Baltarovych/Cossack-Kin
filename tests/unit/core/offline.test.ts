@@ -3,7 +3,7 @@ import { ARMY, OFFLINE } from '../../../src/content/economy.ts';
 import { advance } from '../../../src/core/advance.ts';
 import { Big } from '../../../src/core/big.ts';
 import { collectModifiers } from '../../../src/core/modifiers.ts';
-import { applyOffline, tick } from '../../../src/core/offline.ts';
+import { applyOffline, resume, tick } from '../../../src/core/offline.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { gloryRate } from '../../../src/core/systems/army.ts';
 
@@ -62,10 +62,10 @@ describe('applyOffline (M1-11, SPEC §3.8, §12.1)', () => {
     if (report) expect(rel(report.glory, rate.mul(ARMY.gloryCapSec))).toBeLessThan(1e-9);
   });
 
-  it('the clock went back: nothing earned, lastSeen = now, reason clockBack', () => {
+  it('the clock went back: nothing earned, lastSeen never moves back, reason clockBack', () => {
     const s = midGame();
     const r = applyOffline(s, T0 - 2 * HOUR);
-    expect(r.state.time.lastSeen).toBe(T0 - 2 * HOUR);
+    expect(r.state.time.lastSeen).toBe(s.time.lastSeen);
     expect(r.state.time.maxSeen).toBe(s.time.maxSeen);
     expect(r.state.returnReport).toMatchObject({ countedSec: 0, reason: 'clockBack' });
     expect(r.state.returnReport?.ducats.isZero()).toBe(true);
@@ -118,5 +118,57 @@ describe('tick (M1-11)', () => {
     const rate = gloryRate(s, collectModifiers(s, T0));
     if (far.state.returnReport)
       expect(rel(far.state.returnReport.glory, rate.mul(ARMY.gloryCapSec))).toBeLessThan(1e-9);
+  });
+});
+
+describe('clock set back and forward again (platform review M1-18, SPEC §3.8)', () => {
+  const claim = (s: GameState): GameState => ({
+    ...s,
+    currencies: {
+      ...s.currencies,
+      ducats: s.currencies.ducats.add(s.returnReport?.ducats ?? Big.ZERO),
+    },
+    returnReport: null,
+  });
+
+  it('back 8 h, then forward to the real time: nothing earned, no matter how often it is repeated', () => {
+    let s = midGame();
+    const start = s.currencies.ducats;
+    for (let i = 0; i < 5; i += 1) {
+      s = claim(applyOffline(s, T0 - 8 * HOUR).state);
+      s = claim(resume(s, T0).state);
+    }
+    expect(s.currencies.ducats.eq(start)).toBe(true);
+    expect(s.time.lastSeen).toBe(T0);
+  });
+
+  it('time spent with the clock behind earns nothing until the clock passes lastSeen again', () => {
+    const s = midGame();
+    const behind = resume(s, T0 - HOUR).state;
+    const ticked = tick(behind, T0 - HOUR + 10 * 60_000);
+    expect(ticked.state.currencies.ducats.eq(s.currencies.ducats)).toBe(true);
+    // Real time moves on past lastSeen: from there the income runs as usual.
+    const later = tick(claim(ticked.state), T0 + 1000);
+    expect(later.state.currencies.ducats.gt(s.currencies.ducats)).toBe(true);
+  });
+});
+
+describe('resume (M1-18 review): the tick a returning page makes', () => {
+  it('a clock set back by more than the online gap reports clockBack (the window says why nothing grew)', () => {
+    const s = midGame();
+    const r = resume(s, T0 - 10 * 60_000);
+    expect(r.state.returnReport?.reason).toBe('clockBack');
+    expect(r.state.time.lastSeen).toBe(s.time.lastSeen);
+  });
+
+  it('a tiny step back (clock sync jitter) is ignored quietly, like an online tick', () => {
+    const s = midGame();
+    const r = resume(s, T0 - 2000);
+    expect(r.state).toBe(s);
+  });
+
+  it('forward it is the same as tick', () => {
+    const s = midGame();
+    expect(resume(s, T0 + 3 * HOUR).state.returnReport).toEqual(tick(s, T0 + 3 * HOUR).state.returnReport);
   });
 });

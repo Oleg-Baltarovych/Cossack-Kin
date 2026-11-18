@@ -47,6 +47,19 @@ describe('createLoop (M1-18)', () => {
     expect(store.getState().time.lastSeen).toBe(T0 + 1100);
   });
 
+  it('start with the clock set back reports clockBack once; the running ticks do not repeat it', () => {
+    const store = createStore(farm());
+    const clock = { now: T0 - 10 * 60_000 };
+    const loop = createLoop(store, { now: () => clock.now });
+    loop.start();
+    expect(store.getState().returnReport?.reason).toBe('clockBack');
+    store.dispatch({ type: 'claimReturn' }, clock.now);
+    vi.advanceTimersByTime(2000);
+    expect(store.getState().returnReport).toBeNull();
+    expect(store.getState().time.lastSeen).toBe(T0);
+    loop.stop();
+  });
+
   it('start twice keeps one interval (a second start does not double the ticks)', () => {
     const store = createStore(farm());
     let ticks = 0;
