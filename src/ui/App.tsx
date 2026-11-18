@@ -1,48 +1,37 @@
-// Root DOM UI: the Pixi world canvas with the HUD and the bottom panel over it (SPEC §6.1). Owns the one game store
-// and the loop that ticks it while the page is visible (until saves land in M1-13 a reload starts a new game).
+// Root DOM UI: the Pixi world canvas with the HUD and the bottom panel over it (SPEC §6.1). The game was loaded before
+// React started (ui/game.ts, main.tsx); here it runs: the loop while the page is visible, autosave, the world.
 import { useEffect, useRef, useState } from 'react';
-import { createInitialState } from '../core/state.ts';
-import { createStore, type GameStore } from '../core/store.ts';
+import { startAutosave } from '../platform/autosave.ts';
 import { driveGame } from '../platform/lifecycle.ts';
-import { newSeed } from '../platform/loop.ts';
 import { startWorld, type WorldApp } from '../render/index.ts';
+import { BootNotice } from './components/BootNotice.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel } from './components/Panel.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
 import { TapFeedback } from './components/TapFeedback.tsx';
-import { FROZEN_NOW, installGameDebug, parseGameDebug, presetState } from './debug/gameDebug.ts';
+import { installGameDebug } from './debug/gameDebug.ts';
+import type { Game } from './game.ts';
 import { GameProvider, useGame } from './hooks/useGame.ts';
 import styles from './App.module.css';
 
-interface Game {
-  readonly store: GameStore;
-  readonly now: () => number;
-  /** false: `?freeze` — the clock stands still, no loop. */
-  readonly live: boolean;
-  /** false: `?ui=0` (world-only screenshots). */
-  readonly ui: boolean;
-}
-
-function createGame(): Game {
-  if (__CK_DEBUG__) {
-    const d = parseGameDebug(window.location.search, import.meta.env.MODE);
-    const seed = d.seed ?? newSeed();
-    const now = d.frozen ? () => FROZEN_NOW : Date.now;
-    const base = d.preset ? presetState(d.preset, seed, now()) : createInitialState({ seed, now: now() });
-    const state = d.lang ? { ...base, settings: { ...base.settings, lang: d.lang } } : base;
-    return { store: createStore(state), now, live: !d.frozen, ui: d.ui };
-  }
-  const now = Date.now;
-  return { store: createStore(createInitialState({ seed: newSeed(), now: now() })), now, live: true, ui: true };
-}
-
-export function App() {
+export function App({ game }: { game: Game }) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [game] = useState(createGame);
 
-  // M1-13 adds the save as driveGame's onPause.
-  useEffect(() => (game.live ? driveGame(game.store, { now: game.now }) : undefined), [game]);
+  // The loop runs while the page is visible; pausing it (hidden, pagehide) saves.
+  useEffect(() => {
+    if (!game.live) return undefined;
+    const save = (): void => {
+      game.saver.save(game.store.getState());
+    };
+    const stopLoop = driveGame(game.store, { now: game.now, onPause: save });
+    const stopAutosave = startAutosave(game.store, game.saver);
+    return () => {
+      stopAutosave();
+      stopLoop();
+      save();
+    };
+  }, [game]);
 
   useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store) : undefined), [game]);
 
@@ -76,22 +65,33 @@ export function App() {
     <GameProvider store={game.store} now={game.now}>
       <DocumentLang />
       <div ref={hostRef} id="world" />
-      {game.ui && <GameUi world={world} />}
+      {game.ui && <GameUi world={world} notice={game.notice} />}
     </GameProvider>
   );
 }
 
-/** HUD and panel, made inert (no focus, no screen reader) while the return window is open — aria-modal alone is not. */
-function GameUi({ world }: { world: WorldApp | null }) {
+/** HUD and panel, made inert (no focus, no screen reader) while a window is open — aria-modal alone is not. */
+function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notice'] }) {
   const away = useGame((s) => s.returnReport !== null);
+  const [noticeOpen, setNoticeOpen] = useState(notice !== 'none');
   return (
     <div className={styles.ui}>
       <TapFeedback world={world} />
-      <div className={styles.layer} inert={away}>
+      <div className={styles.layer} inert={away || noticeOpen}>
         <Hud />
         <Panel />
       </div>
-      <ReturnModal />
+      {/* The save notice first: the return window waits under it. */}
+      {noticeOpen ? (
+        <BootNotice
+          notice={notice}
+          onClose={() => {
+            setNoticeOpen(false);
+          }}
+        />
+      ) : (
+        <ReturnModal />
+      )}
     </div>
   );
 }

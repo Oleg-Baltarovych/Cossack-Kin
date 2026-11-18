@@ -90,5 +90,14 @@
   "return.nothing": "Nothing was earned meanwhile: build something on the farm first.",
   "return.gain": "+{value}",
   "return.claim": "Collect",
-  "ui.tap.gain": "+{value}"
+  "ui.tap.gain": "+{value}",
+  "boot.restored.title": "Save restored",
+  "boot.restored.body": "The latest save was damaged, so the copy before it was loaded. A few seconds of play may be lost.",
+  "boot.corrupt.title": "Save damaged",
+  "boot.corrupt.body": "Neither copy of the save can be read, so a new game has started.",
+  "boot.newer.title": "Update the game",
+  "boot.newer.body": "This save comes from a newer version of the game. Update to continue: until then progress is not saved.",
+  "boot.ok": "Got it",
+  "tab.elsewhere.title": "Already open",
+  "tab.elsewhere.body": "The farm is open in another tab. Play there: two tabs would overwrite one save."
 }

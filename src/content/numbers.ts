@@ -13,3 +13,9 @@ export const BIG_MAX_EXPONENT = 1e15;
  * then throw on every load. The economy stays below ~1e300.
  */
 export const SAVE_MAX_EXPONENT = 1e12;
+
+/**
+ * Save format limits (SPEC §9.5, rules/security.md): a save string longer than `maxChars` UTF-16 units is refused
+ * before parsing (a v1 save is ~2 KB; 256 K leaves room for every later system).
+ */
+export const SAVE = { maxChars: 256 * 1024 } as const;
