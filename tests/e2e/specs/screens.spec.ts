@@ -16,9 +16,10 @@ import type {} from '../../../src/ui/debug/gameDebug.ts';
 /**
  * Frame budget (SPEC §12.4 caps the game at 30): the scene measured 5 before ART-09; the water adds 2 passes (ART-09:
  * mirror into waterRT, row strips back onto worldRT); light shafts with their dust add 2 while a low sun shines
- * (ART-10, additive). Per-tier budgets are set in ART-18. Raise only with the reason here.
+ * (ART-10, additive). Per-tier budgets are set in ART-18. M2-11: boats are drawn over the water in their own graded
+ * container — its filter pass adds 2 while a boat is on screen (night farm/suburb 9 → 11). Raise only with the reason here.
  */
-const MAX_DRAW_CALLS = 9;
+const MAX_DRAW_CALLS = 11;
 const SCENE = '/?seed=1&freeze&time=13:00';
 const CAM = 10.5;
 const COMPARE_BASELINES = process.platform === 'linux';
@@ -814,6 +815,58 @@ test.describe('M2-09 the Sich by tier @screens', () => {
         });
       }
     }
+  }
+});
+
+test.describe('M2-11 building life: smoke, pennants, boats @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // Every building at its top tier (Sich IV): chimney smoke over the potter, the tavern, the smithy and the far kurins
+  // drifting with seed 1's breeze, the fair's pennants, the moored boat on the farm's second screen and the dugout
+  // behind the tavern; by day, at night (smoke darkened by the night grade, not glowing), in rain, and under «менше
+  // руху» (a still plume, no particles).
+  const VIEWS = [
+    ['farm-potter', 'cam=140'],
+    ['farm-boat', 'cam=380'],
+    ['suburb', 'zone=suburb'],
+    ['sich-east', 'cam=1530'],
+  ] as const;
+  for (const [view, at] of VIEWS) {
+    for (const [hhmm, weather, still] of [
+      ['1300', 'clear', false],
+      ['1930', 'clear', false],
+      ['2300', 'clear', false],
+      ['1300', 'rain', false],
+      ['2300', 'rain', false],
+      ['1300', 'clear', true],
+    ] as const) {
+      const name = `life-${view}-${hhmm}-${weather}${still ? '-still' : ''}`;
+      test(`${name}: budget, pixel grid`, async ({ page }, testInfo) => {
+        const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+        await gotoReady(
+          page,
+          `/?time=${time}&freeze=2.5&seed=1&${at}&weather=${weather}&state=tiers&tier=6${still ? '&still' : ''}`,
+        );
+        const scale = await expectWebGlWithinBudget(page);
+        const stats = await readStats(page);
+        if (still) expect(stats.particles).toBe(0);
+        const png = await shoot(page, testInfo, name);
+        expectPixelGrid(png, testInfo, scale, 0);
+        if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
+      });
+    }
+  }
+
+  // The particle budget's worst case (SPEC §12.4): night + rain (splashes, sparks of 3 fires, fireflies' claim) with
+  // every chimney smoking at the high tier, and the rich preset the AC names.
+  for (const state of ['rich', 'tiers&tier=6'] as const) {
+    test(`particles ≤ 300: state=${state}, 23:00 rain, high tier`, async ({ page }) => {
+      await gotoReady(page, `/?time=23:00&freeze=1.3&seed=1&zone=suburb&weather=rain&quality=high&state=${state}`);
+      const stats = await readStats(page);
+      expect(stats.particles).toBeGreaterThan(0);
+      expect(stats.particles).toBeLessThanOrEqual(300);
+      expect(stats.drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+    });
   }
 });
 

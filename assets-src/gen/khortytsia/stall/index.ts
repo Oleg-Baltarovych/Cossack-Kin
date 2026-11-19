@@ -1,17 +1,22 @@
 // Ятка — a fair stall (plan M2-08, ART-BIBLE §6): a plank counter on a board front, two front poles (the back ones
 // hidden), a sloping awning with a scalloped hem, wares on the counter. Variants: `a` crimson-and-linen striped
 // awning over glazed pots; `b` a blue cloth awning over калачі (ring loaves); `c` a reed roof over hanging ribbons and
-// kerchiefs. Linen is plaster 3–4, never white (art-director: it glowed at night). Ramps: wood + 2–3 by variant (prop budget ≤ 16 colours). 40×36, pivot at the base centre; cast shadow.
+// kerchiefs. Stall `a` carries a pennant pole up through its awning (the green `pennant.b` add-on flies from it,
+// `STALL_PENNANT`, plan M2-11). Linen is plaster 3–4, never white (art-director: it glowed at night). Ramps: wood + 2–3 by variant (prop budget ≤ 16 colours). 40×42, pivot at the base centre; cast shadow.
 import { castShadow, compose } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
-import { smallPot } from '../../lib/recipes-suburb.ts';
+import { pennantHoist, pennantPole, smallPot } from '../../lib/recipes-suburb.ts';
 import type { RampName, SpriteGenerator } from '../../lib/types.ts';
 
 const W = 40;
-const H = 36;
-const GROUND = 34;
+const H = 42;
+const GROUND = 40;
 const CX = 20;
 const COUNTER = GROUND - 9;
+/** Stall `a`'s pennant pole: the left front pole run on up past the awning. */
+const PENNANT_POLE = { x: 6, ground: GROUND, h: 38 } as const;
+/** Where stall `a`'s `pennant.b` hangs, as a layout offset from the stall's pivot. */
+export const STALL_PENNANT = pennantHoist(PENNANT_POLE, CX, GROUND);
 /** A калач ring: px around its centre on the counter. */
 const KALACH: readonly (readonly [number, number])[] = [
   [-1, -2],
@@ -41,6 +46,7 @@ const stall: SpriteGenerator = {
         p.set(x + 1, y, 'wood', 2);
       }
     }
+    if (variant === 'a') pennantPole(p, PENNANT_POLE.x, PENNANT_POLE.ground, PENNANT_POLE.h);
     // Board front and the counter top (lit edge).
     for (let y = COUNTER + 2; y <= GROUND; y++) {
       for (let x = 8; x < 32; x++) p.set(x, y, 'wood', (x - 8) % 4 === 3 ? 1 : y === COUNTER + 2 ? 2 : 3);

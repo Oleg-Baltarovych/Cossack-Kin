@@ -54,6 +54,8 @@ function puddleRows(w: number): string[] {
 
 const blend = (cycle: DayCycle, pick: (id: SkyKeyId) => number): number =>
   pick(cycle.keyA) + (pick(cycle.keyB) - pick(cycle.keyA)) * cycle.t;
+/** The wet-ground film's alpha at `cycle` (RAIN_LOOKS.wet blended, in 1/16 steps): also laid over the boats (M2-11). */
+export const wetAlpha = (cycle: DayCycle): number => Math.round(blend(cycle, (id) => RAIN_LOOKS[id].wet) * 16) / 16;
 const dominant = (cycle: DayCycle): SkyKeyId => (cycle.t < 0.5 ? cycle.keyA : cycle.keyB);
 
 export interface Rain {
@@ -156,7 +158,7 @@ export function createRain(layout: WorldLayout): Rain {
       if (!size) return;
       const look = RAIN_LOOKS[dominant(cycle)];
       const streak = rampColor(...look.streak);
-      wet.alpha = Math.round(blend(cycle, (id) => RAIN_LOOKS[id].wet) * 16) / 16;
+      wet.alpha = wetAlpha(cycle);
       const offset = layerOffset(camX, 1);
       wet.x = offset;
       const puddle = rampColor(...look.puddle);
