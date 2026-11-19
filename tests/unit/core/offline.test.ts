@@ -172,3 +172,15 @@ describe('resume (M1-18 review): the tick a returning page makes', () => {
     expect(resume(s, T0 + 3 * HOUR).state.returnReport).toEqual(tick(s, T0 + 3 * HOUR).state.returnReport);
   });
 });
+
+describe('no level events from time alone (M2-12: an offline return never spams tier banners)', () => {
+  it('tick, applyOffline and resume never emit BuildingUpgraded, SichUpgraded or TierReached; levels stay', () => {
+    const s = { ...midGame(), currencies: { ...midGame().currencies, ducats: Big.from(1e30), glory: Big.from(1e20) } };
+    const level = new Set(['BuildingUpgraded', 'SichUpgraded', 'TierReached']);
+    for (const r of [tick(s, T0 + 2000), tick(s, T0 + 3 * HOUR), applyOffline(s, T0 + 9 * HOUR), resume(s, T0 + DAY)]) {
+      expect(r.events.filter((e) => level.has(e.type))).toEqual([]);
+      expect(r.state.village.levels).toEqual(s.village.levels);
+      expect(r.state.village.sichLevels).toEqual(s.village.sichLevels);
+    }
+  });
+});

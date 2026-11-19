@@ -7,6 +7,7 @@ import {
   createElement,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useSyncExternalStore,
   type ReactNode,
@@ -87,4 +88,24 @@ export function useGame<T>(selector: (state: GameState) => T, isEqual: (a: T, b:
 export function useAct(): (action: Action) => readonly GameEvent[] {
   const { store, now } = useGameContext();
   return useCallback((action: Action) => store.dispatch(action, now()), [store, now]);
+}
+
+/**
+ * Calls `listener` with every game event (plan M2-12: the tier banner reacts to `TierReached` from any action) and
+ * the state right after it. The UI only reads here, never dispatches back.
+ */
+export function useGameEvent(listener: (e: GameEvent, state: GameState) => void): void {
+  const { store } = useGameContext();
+  // The latest listener, read at event time: the subscription itself depends only on the store.
+  const latest = useRef(listener);
+  useEffect(() => {
+    latest.current = listener;
+  });
+  useEffect(
+    () =>
+      store.onEvent((e) => {
+        latest.current(e, store.getState());
+      }),
+    [store],
+  );
 }

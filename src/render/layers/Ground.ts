@@ -13,6 +13,7 @@ import {
 } from '../../content/villages/khortytsia.layout.ts';
 import { cullByX } from '../cull.ts';
 import { CLOUD_SHADOW, DAYTIME_PROPS, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
+import { popSize } from '../fx/construction.ts';
 import { plotShown } from '../scene.ts';
 import type { VisualTiers } from '../../core/selectors.ts';
 import { cloudShadowLevel, emissiveLevel } from '../atmosphere/emissive.ts';
@@ -258,6 +259,14 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
           sprite.visible = shown;
           if (shadow) shadow.visible = shown;
           if (!shown) continue;
+          // A building popping in (M2-12, Q5): scaled about its pivot to a whole-px size (rows/columns repeat under
+          // nearest sampling); a lifted part (sails) rides up with the grown building.
+          const k = prop.plot ? (scene.pop?.[prop.plot.building] ?? 1) : 1;
+          if (k !== 1 || sprite.scale.y !== 1) {
+            const size = popSize(sprite.texture.width, sprite.texture.height, k);
+            sprite.scale.set(size.w / sprite.texture.width, size.h / sprite.texture.height);
+            sprite.y = horizon + prop.ground - Math.round((prop.lift ?? 0) * k);
+          }
           const a = prop.animate;
           if (!a || anim.length === 0) continue;
           const index =

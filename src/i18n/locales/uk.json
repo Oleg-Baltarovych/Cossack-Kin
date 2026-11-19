@@ -97,6 +97,7 @@
   "return.gain": "+{value}",
   "return.claim": "Забрати",
   "ui.tap.gain": "+{value}",
+  "ui.tier.reached": "{name} — тір {tier}",
   "boot.restored.title": "Збереження відновлено",
   "boot.restored.body": "Останнє збереження пошкодилось, тож завантажено попередню копію. Могли загубитися кілька секунд гри.",
   "boot.corrupt.title": "Збереження пошкоджене",

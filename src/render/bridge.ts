@@ -2,6 +2,8 @@
 // state through core selectors and reacts to store events — never dispatches, never writes state (render must not
 // import core/actions.ts; ESLint `imports[render-actions]`). On connect and on every event it recomputes the plots' tiers,
 // their cosmetic variants (M2-10, from the seed) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
+// M2-12: `BuildingUpgraded` 0 → 1 builds the plot on screen (scaffold → pop → confetti), `TierReached` celebrates it
+// (flash, rising standard) — the level is already in the state; the animation never holds the economy back.
 import { villageOf } from '../core/modifiers.ts';
 import { plotVariants, visualTiers, type PlotVariants, type VisualTiers } from '../core/selectors.ts';
 import type { GameState } from '../core/state.ts';
@@ -40,7 +42,7 @@ function sameRecord<T extends Readonly<Record<string, number>>>(a: T | null, b: 
 
 /** Connects `world` to `game`; returns the disconnect function. Call it before UI tap handlers subscribe. */
 export function connectWorld(
-  world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin'>,
+  world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin' | 'construct' | 'celebrate'>,
   game: GameView,
   tiersOf: TiersOf = visualTiers,
   variantsOf: VariantsOf = plotVariants,
@@ -68,6 +70,15 @@ export function connectWorld(
         lastTap = null;
         return;
       case 'ActionRejected':
+        return;
+      case 'BuildingUpgraded':
+        // Before the refresh: the new plot must not stand for a frame before its scaffold does.
+        if (e.from === 0) world.construct(e.id);
+        refresh();
+        return;
+      case 'TierReached':
+        world.celebrate(e.id);
+        refresh();
         return;
       default:
         // Every other event may change what stands (a new kind of event included): refresh() only makes a new scene

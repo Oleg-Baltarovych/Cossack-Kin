@@ -8,6 +8,7 @@ import {
   hireView,
   hudView,
   sichRowView,
+  tierBannerView,
   visibleSichIds,
   visualTiers,
 } from '../../../src/core/selectors.ts';
@@ -218,5 +219,33 @@ describe('visualTiers (M1-19, SPEC §6.5)', () => {
   it('Sich: milestones 10/25/50; a locked building shows nothing even with a level (crafted save)', () => {
     const v = visualTiers(makeState({ sich: { kurins: 10, walls: 50, maidan: 1, church: 30 } }));
     expect([v.kurins, v.walls, v.maidan, v.church, v.treasury]).toEqual([2, 4, 1, 0, 0]);
+  });
+});
+
+describe('tierBannerView (M2-12)', () => {
+  it('names the building and its new visual tier: milestone 1 of the farm = tier II; the land names its own Sich building', () => {
+    const s = makeState({});
+    expect(tierBannerView(s, { type: 'TierReached', zone: 'farm', id: 'field', tier: 1 })).toEqual({
+      nameKey: 'building.field.name',
+      tier: 2,
+    });
+    expect(tierBannerView(s, { type: 'TierReached', zone: 'sich', id: 'special', tier: 3 })).toEqual({
+      nameKey: KHORTYTSIA.sichSpecial.nameKey,
+      tier: 4,
+    });
+    expect(tierBannerView(s, { type: 'TierReached', zone: 'sich', id: 'walls', tier: 2 })?.nameKey).toBe(
+      'sich.walls.name',
+    );
+  });
+
+  it('an id the land does not have (a crafted event) gives null, not a crash', () => {
+    const s = makeState({});
+    // A forged event: the type allows only real ids, so the test widens it on purpose.
+    const forged = { type: 'TierReached', zone: 'farm', id: 'mine', tier: 1 } as unknown as Extract<
+      Parameters<typeof tierBannerView>[1],
+      { type: 'TierReached' }
+    >;
+    expect(tierBannerView(s, forged)).toBeNull();
+    expect(tierBannerView(s, { ...forged, zone: 'sich' })).toBeNull();
   });
 });

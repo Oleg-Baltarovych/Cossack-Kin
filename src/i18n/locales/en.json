@@ -91,6 +91,7 @@
   "return.gain": "+{value}",
   "return.claim": "Collect",
   "ui.tap.gain": "+{value}",
+  "ui.tier.reached": "{name} — tier {tier}",
   "boot.restored.title": "Save restored",
   "boot.restored.body": "The latest save was damaged, so the copy before it was loaded. A few seconds of play may be lost.",
   "boot.corrupt.title": "Save damaged",

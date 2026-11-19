@@ -114,3 +114,12 @@ export function formatBig(value: Big, lang: Lang, format: NumberFormat): string 
   const e = Number(m.toFixed(2)) >= 10 ? exp + 1 : exp;
   return `${mantissa(m2, decimal)}e${String(e)}`;
 }
+
+// --- tiers -------------------------------------------------------------------------------------------------------
+
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'] as const;
+
+/** A building's visual tier as shown to the player (plan M2-12): Roman I–VI, the same in every language. */
+export function romanTier(n: number): string {
+  return ROMAN[n - 1] ?? String(n);
+}

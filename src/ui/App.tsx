@@ -11,6 +11,7 @@ import { Hud } from './components/Hud.tsx';
 import { Panel } from './components/Panel.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
 import { TapFeedback } from './components/TapFeedback.tsx';
+import { TierBanner } from './components/TierBanner.tsx';
 import { WorldError } from './components/WorldError.tsx';
 import { installGameDebug } from './debug/gameDebug.ts';
 import type { Game } from './game.ts';
@@ -71,6 +72,7 @@ function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notic
         <Hud />
         <Panel onZone={(zone) => world?.focusZone(zone)} zoneSource={world?.onZoneChange} />
       </div>
+      <TierBanner />
       {/* The save notice first: the return window waits under it. */}
       {noticeOpen ? (
         <BootNotice
