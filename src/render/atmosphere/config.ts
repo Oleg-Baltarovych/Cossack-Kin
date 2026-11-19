@@ -2,6 +2,7 @@
 // imports — so `assets-src/luts/gen.ts` (Node, tools project) reads the same numbers as render.
 // Colors are palette references `[ramp, index]` (index 0 = darkest), resolved by the consumer.
 import type { RampName } from '../palette.ts';
+import { TIER_CELEBRATION_MS } from '../../content/juice.ts';
 import { FOREGROUND_PARALLAX } from '../../content/villages/khortytsia.layout.ts';
 
 export type ColorRef = readonly [RampName, number];
@@ -901,6 +902,42 @@ export const AUTO_QUALITY = { start: 'med', warmup: 1, window: 3, high: 57, low:
  * after `fadeFrom` of its life. `max` in the air at once (10 taps/s cap × life). «Менше руху»: still, `stillLife` s.
  */
 export const COIN = { life: 0.7, stillLife: 0.4, rise: 14, spinFps: 12, fadeFrom: 0.55, max: 8 } as const;
+
+// --- Construction and tier juice (M2-12, SPEC §6.5/§6.7, plan Q5) ------------------------------------------------
+/**
+ * A new building (level 0 → 1): 3 scaffold stages of `stageMs` each (the building hidden; `dust` puffs at the
+ * scaffold's foot, ≤ `dustRise` px up, `dustLife` ms each), then it pops 1 → `popPeak` → 1 over `popMs` (≤ 200 ms,
+ * Q5: whole-px sizes in the low-res RT) while `confetti` pieces burst for `confettiMs` (thrown up at `confettiUp` px/s
+ * ± `confettiJitter`, sideways ≤ `confettiSide` px/s, falling at `gravity` px/s², tumbling at `confettiFlipFps`).
+ * A new tier: a flash (3 frames over `flashMs`) and a standard rising through its 6 frames at `standardFps`, standing
+ * until `celebrationMs`. «Менше руху»: no pop, confetti, dust or flash; the standard stands raised. A scaffold frame
+ * taller than `largeMinH` and at least `largeMinRatio` × its width (a house, not a field) takes the large scaffold;
+ * dust kicks up along the scaffold's footprint `scaffoldW`.
+ */
+export const BUILD = {
+  stageMs: 400,
+  popMs: 180,
+  popPeak: 1.08,
+  confettiMs: 1200,
+  confetti: 24,
+  confettiUp: 70,
+  confettiJitter: 30,
+  confettiSide: 40,
+  gravity: 140,
+  confettiFlipFps: 10,
+  /** The burst starts this share of the base frame's height above its pivot (frames are padded, not trimmed). */
+  confettiFrom: 0.4,
+  dust: 4,
+  dustRise: 6,
+  dustLife: 500,
+  flashMs: 180,
+  standardFps: 10,
+  celebrationMs: TIER_CELEBRATION_MS,
+  largeMinH: 56,
+  largeMinRatio: 0.5,
+  /** Footprints of the `scaffold.s|l` looks (the generator's SCAFFOLD_LOOKS; a gen test holds them equal). */
+  scaffoldW: { s: 40, l: 56 },
+} as const;
 
 // --- Camera (M2-02, SPEC §6.1) ---------------------------------------------------------------------------------
 /**

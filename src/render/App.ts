@@ -53,6 +53,8 @@ import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
 import { AUTO_QUALITY, CAMERA } from './atmosphere/config.ts';
 import { createCoinFx } from './fx/coins.ts';
+import { createBuildFx } from './fx/build.ts';
+import type { PlotBuilding } from '../content/villages/khortytsia.layout.ts';
 import { computeViewport, worldTargetSize, type Viewport, type ZoomLevel } from './viewport.ts';
 
 /** The continuous world of land 1 (plan M2-01): farm → suburb → Sich; `?zone=` only places the camera. */
@@ -108,6 +110,10 @@ export interface WorldApp {
   onTap(listener: (tap: WorldTap) => void): () => void;
   /** A tap coin at ground-space px (render/bridge.ts on the core's `Tapped`). */
   spawnCoin(x: number, y: number): void;
+  /** A new building (level 0 → 1, M2-12): scaffold stages, then the pop and confetti. Cosmetic only. */
+  construct(building: PlotBuilding): void;
+  /** A new tier (M2-12): the flash and the rising standard (after the reveal if it is still being built). */
+  celebrate(building: PlotBuilding): void;
   destroy(): void;
 }
 
@@ -254,6 +260,18 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     disposers.push(() => {
       coins.destroy();
     });
+    // Construction and tier juice (M2-12): scaffolds, dust and the standard graded right over the ground layer;
+    // confetti and the flash after the grade, like the coins.
+    const build = createBuildFx(layout, sceneFrame, settings.lessMotion, () => horizonY(target.height));
+    const groundLayer = layers.find((l) => l.id === 'ground');
+    graded.addChildAt(
+      build.world,
+      groundLayer ? graded.getChildIndex(groundLayer.container) + 1 : graded.children.length,
+    );
+    worldTop.addChild(build.top);
+    disposers.push(() => {
+      build.destroy();
+    });
     worldTop.addChild(post.container);
     // Boats over the water, graded like the world, under the haze band and the rain (M2-11).
     const boats = createBoats(layout.boats, sceneFrame, grading.filter, settings.weather);
@@ -352,6 +370,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const seconds = clock.seconds();
       const ambient = lessMotion ? 0 : seconds;
       const cycle = dayCycle(minutes);
+      // The scene as it looks this frame: a building under scaffolding still empty, a popping one scaled (M2-12).
+      const shown = build.present(scene, performance.now(), emissiveLevel(cycle));
       // Closer level: the sky band moves down just enough to keep the shown disc in the window (art-director, M2-03).
       const skyH = horizonY(target.height);
       const disc = cycle.sun.y > 0 ? cycle.sun : cycle.moon.y > 0 ? cycle.moon : null;
@@ -369,7 +389,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
         camX: cam.worldPx,
         cameraMoving: !nowSettled,
         nowMs: performance.now(),
-        scene,
+        scene: shown,
         skyY,
       };
       if (probe && !probe.verdict()) {
@@ -379,7 +399,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       grading.update(gradeCycle(frameInfo.cycle, settings.weather), minutes);
       post.setEmissive(emissiveLevel(frameInfo.cycle));
-      post.update(frameInfo.ambient, scene);
+      post.update(frameInfo.ambient, shown);
       for (const layer of layers) {
         layer.update(frameInfo);
         layer.container.x = layerOffset(cam.worldPx, layer.parallax);
@@ -387,6 +407,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       post.container.x = layerOffset(cam.worldPx, post.parallax);
       coins.container.x = layerOffset(cam.worldPx, 1);
+      build.top.x = coins.container.x;
+      build.world.x = coins.container.x;
       boats.update(frameInfo.ambient, frameInfo.cycle, cam.worldPx, target.width);
       boats.container.x = layerOffset(cam.worldPx, 1);
       boats.film.x = boats.container.x;
@@ -592,6 +614,12 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       },
       spawnCoin: (x, y) => {
         coins.spawn(x, y, performance.now() / 1000);
+      },
+      construct: (building) => {
+        build.construct(building, performance.now());
+      },
+      celebrate: (building) => {
+        build.celebrate(building, performance.now());
       },
       destroy: disposeAll,
     };

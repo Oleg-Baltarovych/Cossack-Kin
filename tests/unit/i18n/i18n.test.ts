@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Big } from '../../../src/core/big.ts';
-import { formatBig, formatDuration, t } from '../../../src/i18n/index.ts';
+import { formatBig, formatDuration, romanTier, t } from '../../../src/i18n/index.ts';
 import enTable from '../../../src/i18n/locales/en.json';
 import ukTable from '../../../src/i18n/locales/uk.json';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
@@ -132,5 +132,13 @@ describe('formatDuration (M1-18)', () => {
     expect(formatDuration('uk', 0)).toBe('0 хвилин');
     expect(formatDuration('uk', 59)).toBe('0 хвилин');
     expect(formatDuration('en', Number.NaN)).toBe('0 minutes');
+  });
+});
+
+describe('tier banner (M2-12)', () => {
+  it('tiers are Roman numerals I–VI; the banner text takes the name and the numeral as params in both languages', () => {
+    expect([1, 2, 3, 4, 5, 6].map(romanTier)).toEqual(['I', 'II', 'III', 'IV', 'V', 'VI']);
+    expect(t('uk', 'ui.tier.reached', { name: 'Пасіка', tier: romanTier(2) })).toBe('Пасіка — тір II');
+    expect(t('en', 'ui.tier.reached', { name: 'Apiary', tier: romanTier(5) })).toBe('Apiary — tier V');
   });
 });

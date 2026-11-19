@@ -1,0 +1,77 @@
+/* «Тір II» banner (plan M2-12): a gold-rimmed wood plaque under the HUD, centred, never in the way of taps. */
+.region {
+  position: absolute;
+  /* Just under the HUD strip (its height at the default text size). */
+  top: calc(env(safe-area-inset-top) + 40 * var(--px));
+  left: calc(env(safe-area-inset-left) + 8 * var(--px));
+  right: calc(env(safe-area-inset-right) + 8 * var(--px));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.banner {
+  margin: 0;
+  padding: calc(4 * var(--px)) calc(8 * var(--px));
+  max-width: 100%;
+  /* Two lines at most (the longest name, «Вали, частокіл і брама», wraps once on 360 px); never taller. */
+  max-height: calc(2 * 1.25 * var(--font-s) + 8 * var(--px) + 2 * var(--px));
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  background: var(--c-wood-1);
+  /* A plain 1-px ink border + inset gold rim (box-shadow) rather than a 9-slice border-image: the plaque is a flat
+     rectangle with no corner ornament yet, so a frame asset would add a texture for nothing (UI frames come in M2). */
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 0 0 var(--px) var(--c-gold-3),
+    inset 0 calc(-2 * var(--px)) 0 var(--px) var(--c-wood-0);
+  color: var(--c-gold-5);
+  font-size: var(--font-s);
+  line-height: 1.25;
+  text-align: center;
+  /* Rise in one step, hold, fade in 3 whole steps (timing per keyframe); length from TIER_CELEBRATION_MS. */
+  animation: banner var(--banner-ms, 3000ms) forwards;
+}
+
+@keyframes banner {
+  0% {
+    transform: translateY(calc(-6 * var(--px)));
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  4% {
+    transform: translateY(0);
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  85% {
+    opacity: 1;
+    animation-timing-function: steps(3, end);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+
+/* «Менше руху»: the system setting or the game's own switch — no rise, the text simply stands and goes. */
+@media (prefers-reduced-motion: reduce) {
+  .banner {
+    animation-name: still;
+  }
+}
+
+:global([data-motion='reduced']) .banner {
+  animation-name: still;
+}
+
+@keyframes still {
+  0%,
+  90% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  100% {
+    opacity: 0;
+  }
+}

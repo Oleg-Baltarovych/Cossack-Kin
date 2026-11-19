@@ -18,6 +18,7 @@ import {
   sichUnlocked,
   villageOf,
 } from './modifiers.ts';
+import type { GameEvent } from './events.ts';
 import type { GameState } from './state.ts';
 import { canHire, gloryRate, hireCost } from './systems/army.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
@@ -229,4 +230,26 @@ export function plotVariants(state: GameState): PlotVariants {
   for (const p of Object.keys(PLOT_VARIANTS) as VariantPlot[]) out[p] = plotVariant(state.seed, p);
   // Every key of PLOT_VARIANTS was written above.
   return out as PlotVariants;
+}
+
+/** The «new tier» banner (plan M2-12): the building's name key and the visual tier it reached (I at level 1). */
+export interface TierBannerView {
+  readonly nameKey: string;
+  readonly tier: number;
+}
+
+/** `null` for an id the land does not have (a crafted event): the UI shows nothing rather than crash. */
+export function tierBannerView(
+  state: GameState,
+  e: Extract<GameEvent, { type: 'TierReached' }>,
+): TierBannerView | null {
+  // `TierReached.tier` counts milestones; the visual tier counts level 1 as tier I too (TIER_LEVELS).
+  const tier = e.tier + 1;
+  if (e.zone === 'farm') {
+    const b = villageOf(state).buildings.find((x) => x.id === e.id);
+    return b ? { nameKey: b.nameKey, tier } : null;
+  }
+  const b = SICH_BUILDINGS.find((x) => x.id === e.id);
+  if (!b) return null;
+  return { nameKey: e.id === 'special' ? villageOf(state).sichSpecial.nameKey : b.nameKey, tier };
 }

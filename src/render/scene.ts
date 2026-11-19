@@ -3,7 +3,7 @@
 // fills it from store events; without a game (render alone, the M-ART look) every plot stands, no add-on does, and a
 // breeze blows.
 import { isVariantPlot } from '../content/variants.ts';
-import type { Plot } from '../content/villages/khortytsia.layout.ts';
+import type { Plot, PlotBuilding } from '../content/villages/khortytsia.layout.ts';
 import type { PlotVariants, VisualTiers } from '../core/selectors.ts';
 import { WIND } from './atmosphere/config.ts';
 
@@ -14,6 +14,11 @@ export interface SceneState {
   readonly variants: PlotVariants | null;
   /** Wind strength 0..1 for sails and sway. */
   readonly wind: number;
+  /**
+   * Buildings popping in right now (plan M2-12, Q5): their props are drawn at this scale about their pivots, in whole
+   * px. Set by render/fx/build.ts for one frame at a time, never by the bridge.
+   */
+  readonly pop?: Readonly<Partial<Record<PlotBuilding, number>>>;
 }
 
 export const DEFAULT_SCENE: SceneState = { tiers: null, variants: null, wind: WIND.strength };

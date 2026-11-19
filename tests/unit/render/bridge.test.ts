@@ -23,10 +23,14 @@ const T0 = 1_763_400_000_000;
 function fakeWorld() {
   const scenes: SceneState[] = [];
   const coins: [number, number][] = [];
+  const built: string[] = [];
+  const celebrated: string[] = [];
   let tap: ((t: WorldTap) => void) | null = null;
   return {
     scenes,
     coins,
+    built,
+    celebrated,
     tapAt: (x: number, y: number) => tap?.({ clientX: 0, clientY: 0, x, y }),
     world: {
       setScene: (s: SceneState) => scenes.push(s),
@@ -37,6 +41,8 @@ function fakeWorld() {
         };
       },
       spawnCoin: (x: number, y: number) => coins.push([x, y]),
+      construct: (b: string) => built.push(b),
+      celebrate: (b: string) => celebrated.push(b),
     },
   };
 }
@@ -110,6 +116,26 @@ describe('connectWorld (M1-19)', () => {
   it('the wind follows the game: storm bends, calm stills (render WIND_STRENGTH)', () => {
     const s = rich();
     expect(sceneOf(s).wind).toBe(WIND_STRENGTH[windAt(s.seed, s.time.lastSeen)]);
+  });
+});
+
+describe('construction and tier juice (M2-12)', () => {
+  it('the first level builds (scaffold → pop), a milestone celebrates; the level is in the state at once', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 1 }, T0 + 100);
+    expect(store.getState().village.levels.field).toBe(1);
+    expect(f.built).toEqual(['field']);
+    expect(f.celebrated).toEqual([]);
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 10 }, T0 + 200);
+    expect(store.getState().village.levels.field).toBe(11);
+    expect(f.built).toEqual(['field']);
+    expect(f.celebrated).toEqual(['field']);
+    // 0 → 10 in one purchase: built and celebrated (the celebration waits for the reveal in render).
+    store.dispatch({ type: 'buyBuilding', id: 'garden', mode: 10 }, T0 + 300);
+    expect(f.built).toEqual(['field', 'garden']);
+    expect(f.celebrated).toEqual(['field', 'garden']);
   });
 });
 
