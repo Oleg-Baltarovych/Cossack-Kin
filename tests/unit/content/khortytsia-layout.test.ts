@@ -71,7 +71,10 @@ describe('khortytsia sich layout (ART-11)', () => {
       expect(p.x).toBeLessThanOrEqual(s.width);
     }
     expect(sceneProps(s.props).filter((p) => p.sprite === 'gate')).toHaveLength(1);
-    expect(sceneProps(s.props).filter((p) => p.sprite === 'tower').length).toBeGreaterThanOrEqual(2);
+    // Towers by tier (M2-09): the watchtower and the wall towers, all standing on the rampart's crest.
+    const towers = sceneProps(s.props).filter((p) => /^(tower|watchtower\.|wall-tower\.)/.test(p.sprite));
+    expect(towers.length).toBeGreaterThanOrEqual(2);
+    for (const t of towers) expect(t.ground, t.sprite).toBeLessThan(40);
     const val = s.rows.find((r) => r.tile === 'val');
     expect(val).toBeDefined();
     for (const p of sceneProps(s.props).filter((q) => q.sprite.startsWith('palisade'))) {
@@ -202,5 +205,23 @@ describe('the continuous world (M2-01)', () => {
   it('the Dnipro runs behind the farm and the suburb and ends at the Sich (its rampart hides the river)', () => {
     expect(W.river).toMatchObject({ x0: 0, x1: zone('sich').x0 });
     expect(W.segments.find((s) => s.x0 === zone('sich').x0)?.groundHaze).toBe(false);
+  });
+});
+
+describe('night pools and tier bands (M2-09)', () => {
+  it('sets poolRx only as a positive half-width (no pool is `noPool`, never 0 or less)', () => {
+    for (const p of KHORTYTSIA_WORLD.props) {
+      if (p.poolRx !== undefined) expect(p.poolRx, p.sprite).toBeGreaterThan(0);
+    }
+  });
+
+  it('lists every ground band upgrade in ascending tier order, after the band itself', () => {
+    for (const segment of KHORTYTSIA_WORLD.segments) {
+      for (const row of segment.rows) {
+        const froms = (row.upgrades ?? []).map((u) => u.from);
+        expect(froms, row.tile).toEqual([...froms].sort((a, b) => a - b));
+        for (const f of froms) expect(f, row.tile).toBeGreaterThan(row.plot?.from ?? 0);
+      }
+    }
   });
 });

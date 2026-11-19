@@ -27,7 +27,19 @@ export interface Plot {
   readonly requires?: readonly { readonly building: PlotBuilding; readonly from: number }[];
 }
 
-export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan' | 'maidan-end' | 'road' | 'trodden';
+export type GroundTile =
+  | 'meadow'
+  | 'grass'
+  | 'path'
+  | 'earth'
+  | 'val'
+  | 'maidan'
+  | 'maidan-end'
+  | 'road'
+  | 'trodden'
+  | 'moat'
+  | 'rampart'
+  | 'ditch';
 
 export interface GroundRow {
   readonly tile: GroundTile;
@@ -37,6 +49,8 @@ export interface GroundRow {
   /** A band that belongs to a plot (the maidan, the rampart): `alt` (default: the layout's `fill`) while it is empty. */
   readonly plot?: Plot;
   readonly alt?: GroundTile;
+  /** A plot band's later looks: `tile` from the plot building's visual tier `from` on (the rampart from walls III). */
+  readonly upgrades?: readonly { readonly from: number; readonly tile: GroundTile }[];
 }
 
 export interface Prop {
@@ -94,7 +108,19 @@ export interface Prop {
     | 'stall.a'
     | 'stall.b'
     | 'stall.c'
-    | 'shop';
+    | 'shop'
+    | 'brama.t2'
+    | 'brama.t4'
+    | 'banner'
+    | `wall-tower.t${2 | 3 | 4}`
+    | `watchtower.t${2 | 3 | 4}`
+    | `pokrova.t${2 | 3 | 4}`
+    | `treasury.t${1 | 2 | 3 | 4}`
+    | 'kurin-b'
+    | 'kurin-c'
+    | 'koshovyi'
+    | 'flagpole'
+    | 'kazan';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -110,8 +136,10 @@ export interface Prop {
   readonly animate?: Animate;
   /** Day-only life (bees): hidden at night and under «менше руху» (render: DAYTIME_PROPS). */
   readonly daytime?: boolean;
-  /** Half-width of the window light pool at night (default: a share of the frame width, render WINDOW_POOL). */
+  /** Half-width of the window light pool at night, > 0 (default: a share of the frame width, render WINDOW_POOL). */
   readonly poolRx?: number;
+  /** No window pool although the sprite has an `@emissive` frame (a tier whose shared night layer is dark). */
+  readonly noPool?: true;
   readonly plot?: Plot;
 }
 
@@ -134,6 +162,7 @@ export interface TierPart {
   readonly animate?: Animate;
   readonly daytime?: boolean;
   readonly poolRx?: number;
+  readonly noPool?: true;
 }
 
 /** A building's drawn look at a tier: the base and its add-ons. */
@@ -226,7 +255,16 @@ export interface ForegroundPlant {
 /** Flat ground decal (no shadow, not Y-sorted): drawn over the tiles, under every shadow and prop. */
 export interface Decal {
   readonly sprite:
-    'yard' | 'trail.l' | 'trail.r' | 'val-end' | 'maidan-edge' | 'road-mouth' | 'road-track' | 'bank' | 'square';
+    | 'yard'
+    | 'trail.l'
+    | 'trail.r'
+    | 'val-end'
+    | 'maidan-edge'
+    | 'road-mouth'
+    | 'road-track'
+    | 'bank'
+    | 'square'
+    | 'moat-bridge';
   /** Centre of the decal, world x / rows below the horizon. */
   readonly x: number;
   readonly ground: number;
@@ -860,6 +898,145 @@ const palisadeLine = (
 };
 
 /**
+ * Sich buildings by tier (plan M2-09, ART-BIBLE §6; Sich I–IV at levels 1/10/25/50): I a palisaded camp — II the moat,
+ * the first wall tower, the корогва in the wind — III the rampart's fighting walk, a ring of towers, tin domes — IV
+ * gilt. The palisade is a shared add-on of the walls (plain props with a plot), never part of a tier look.
+ */
+/**
+ * The wind-blown корогва (4 frames at the wind's rate, like the sails) hung off a pole top: `dx`/`lift` put its pivot
+ * (the cloth's top-left) at the hoist of the generator under it — gate `BANNER_HOIST`, `FLAGPOLE_HOIST` (unit-tested).
+ */
+const banner = (dx: number, lift: number, dground = 0): TierPart => ({
+  sprite: 'banner',
+  dx,
+  dground,
+  lift,
+  shadow: false,
+  animate: { kind: 'cycle', frames: 4, fps: 'wind' },
+});
+/** Gate pivot → its pole's hoist (gate generator: pivot (38, 111), hoist (68, 3)). */
+export const GATE_BANNER = { dx: 30, lift: 108 } as const;
+/** Flagpole pivot → its hoist (flagpole generator: pivot (5, 63), hoist (6, 4)). */
+export const FLAGPOLE_BANNER = { dx: 1, lift: 59 } as const;
+/** Сторожова вежа (the land's special building) on the wall's left corner: the M1 tower, then gallery, beacon, gilt. */
+const WATCHTOWER: TierSprite = {
+  building: 'special',
+  x: 62,
+  ground: 37,
+  tiers: [
+    { parts: [{ sprite: 'tower' }] },
+    { parts: [{ sprite: 'watchtower.t2' }] },
+    { parts: [{ sprite: 'watchtower.t3' }] },
+    { parts: [{ sprite: 'watchtower.t4' }] },
+  ],
+};
+/** Wall towers along the palisade, `dx` from the gate (world x 340 from II; 540 and 720 from III). */
+const wallTowers = (tier: 2 | 3 | 4, dxs: readonly number[]): TierPart[] =>
+  dxs.map((dx) => ({ sprite: `wall-tower.t${String(tier) as '2' | '3' | '4'}`, dx, dground: -2 }));
+const GATE_FLAG = banner(GATE_BANNER.dx, GATE_BANNER.lift);
+/**
+ * Вали, частокіл і брама: the M1 gate (its painted корогва) at I; from II the moat behind the palisade (ground band) and
+ * a plank bridge through the passage, the корогва in the wind and the first wall tower; from III the rampart (ground
+ * band) and three towers; IV the gilt gate with the Pokrova icon.
+ */
+const WALLS: TierSprite = {
+  building: 'walls',
+  x: 198,
+  ground: 39,
+  tiers: [
+    { parts: [{ sprite: 'gate' }] },
+    { parts: [...wallTowers(2, [142]), { sprite: 'brama.t2' }, GATE_FLAG] },
+    { parts: [...wallTowers(3, [142, 342, 522]), { sprite: 'brama.t2' }, GATE_FLAG] },
+    { parts: [...wallTowers(4, [142, 342, 522]), { sprite: 'brama.t4' }, GATE_FLAG] },
+  ],
+};
+/**
+ * The Pokrova church at the back of the maidan right at the rampart's foot (inside the walls), tall enough that its
+ * centre cross clears the gate's roof against open sky: the M1 church at I; from II the gallery (опасання) and the
+ * belfry beside it (6 px further out than in M1: clear of the gallery), III tin domes, IV the gilt main dome.
+ */
+const BELFRY: TierPart = { sprite: 'belfry', dx: 84, dground: 9 };
+const CHURCH: TierSprite = {
+  building: 'church',
+  x: 280,
+  ground: 63,
+  tiers: [
+    { parts: [{ sprite: 'church' }] },
+    { parts: [{ sprite: 'pokrova.t2' }, BELFRY] },
+    { parts: [{ sprite: 'pokrova.t3' }, BELFRY] },
+    { parts: [{ sprite: 'pokrova.t4' }, BELFRY] },
+  ],
+};
+/** The 2nd–4th kurins; window pools ≈ 0.45 × the wall, not the frame. */
+const KURIN_2: TierPart = { sprite: 'kurin', dx: 208, dground: 58 };
+const KURIN_3: TierPart = { sprite: 'kurin-b', dx: 410, dground: 26, poolRx: 42 };
+const KURIN_4: TierPart = { sprite: 'kurin-c', dx: 586, dground: 66, poolRx: 41 };
+/** Курені round the maidan: one more per tier (the 3rd whitewashed, the 4th with a porch), the koshovyi's house at IV. */
+const KURINS: TierSprite = {
+  building: 'kurins',
+  x: 92,
+  ground: 210,
+  tiers: [
+    { parts: [{ sprite: 'kurin' }] },
+    { parts: [{ sprite: 'kurin' }, KURIN_2] },
+    { parts: [{ sprite: 'kurin' }, KURIN_2, KURIN_3] },
+    {
+      parts: [
+        { sprite: 'koshovyi', dx: 500, dground: -76, poolRx: 34 },
+        { sprite: 'kurin' },
+        KURIN_2,
+        KURIN_3,
+        KURIN_4,
+      ],
+    },
+  ],
+};
+/**
+ * The maidan (drill: the army's power): the cannons (I–II), the flagpole with the корогва where the host gathers (III),
+ * a second fire with the куліш cauldron by the far kurins (IV; the kazan stands beside the fire — over it the night
+ * flames would hide the pot).
+ */
+const CANNONS: readonly TierPart[] = [{ sprite: 'cannon' }, { sprite: 'cannon', dx: 148, dground: 12 }];
+const FLAGPOLE: readonly TierPart[] = [
+  { sprite: 'flagpole', dx: 108, dground: 36 },
+  banner(108 + FLAGPOLE_BANNER.dx, FLAGPOLE_BANNER.lift, 36),
+];
+const MAIDAN: TierSprite = {
+  building: 'maidan',
+  x: 128,
+  ground: 100,
+  tiers: [
+    { parts: [{ sprite: 'cannon' }] },
+    { parts: CANNONS },
+    { parts: [...CANNONS, ...FLAGPOLE] },
+    {
+      parts: [
+        ...CANNONS,
+        ...FLAGPOLE,
+        { sprite: 'campfire', dx: 458, dground: 100, animate: { kind: 'cycle', frames: 6, fps: 10 } },
+        { sprite: 'kazan', dx: 476, dground: 101 },
+      ],
+    },
+  ],
+};
+/**
+ * Скарбниця: a cellar under a turf mound on the maidan's right, clear of the walk at row 150 (its mound top ≥ 8 px
+ * below it, art-director M2-09); its lantern (III+) lights a small pool, I–II stay dark
+ * (`noPool`: the generator's shared emissive layer is empty there).
+ */
+const TREASURY: TierSprite = {
+  building: 'treasury',
+  x: 344,
+  ground: 188,
+  tiers: [
+    { parts: [{ sprite: 'treasury.t1', noPool: true }] },
+    { parts: [{ sprite: 'treasury.t2', noPool: true }] },
+    { parts: [{ sprite: 'treasury.t3', poolRx: 9 }] },
+    { parts: [{ sprite: 'treasury.t4', poolRx: 9 }] },
+  ],
+};
+
+/**
  * Khortytsia, the Sich zone (plan ART-11, ART-BIBLE §6): seen from inside, back to front — the river, the rampart
  * with the palisade along its crest, two watchtowers and the gate with the корогва, the maidan, two курені. No women
  * on the Sich (historical): only Cossacks walk here.
@@ -867,10 +1044,21 @@ const palisadeLine = (
 export const KHORTYTSIA_SICH: ZoneScene = {
   width: 768,
   rows: [
-    { tile: 'meadow', top: 0, h: 32 },
+    // Behind the palisade: the moat from walls II (it shows where the wall opens: the left end and the gate).
+    { tile: 'ditch', top: 0, h: 32, plot: { building: 'walls', from: 2 }, alt: 'meadow' },
     // Until the walls stand the rampart is steppe; until the first kurin the maidan is grass with a trodden patch by
     // the fire (art-director M1-19: an empty dirt maidan read as an abandoned building site).
-    { tile: 'val', top: 32, h: 32, plot: { building: 'walls', from: 1 } }, // the rampart's inner slope
+    // The rampart's inner slope; from walls II the moat along its toe, from III the fighting walk and stake revetment.
+    {
+      tile: 'val',
+      top: 32,
+      h: 32,
+      plot: { building: 'walls', from: 1 },
+      upgrades: [
+        { from: 2, tile: 'moat' },
+        { from: 3, tile: 'rampart' },
+      ],
+    },
     { tile: 'maidan', top: 64, h: 224, plot: { building: 'kurins', from: 1 } }, // the maidan, down to ~75 %
     { tile: 'maidan-end', top: 288, h: 32, plot: { building: 'kurins', from: 1 } }, // a ragged edge into the grass
   ],
@@ -888,6 +1076,8 @@ export const KHORTYTSIA_SICH: ZoneScene = {
       plot: { building: 'kurins', from: 1, requires: [{ building: 'walls', from: 1 }] },
     },
     { sprite: 'val-end', x: 0, ground: 32, plot: { building: 'walls', from: 1 } },
+    // The plank bridge over the moat where the gate path crosses it (walls II+), over the road track.
+    { sprite: 'moat-bridge', x: 198, ground: 57, plot: { building: 'walls', from: 2 } },
     // The trails run from the gate to the kurin doors: they need both.
     {
       sprite: 'trail.l',
@@ -912,18 +1102,12 @@ export const KHORTYTSIA_SICH: ZoneScene = {
     // It starts behind the left watchtower (M2-01 seam review): that tower is the wall's corner, the rampart's sloped
     // end (`val-end`) runs out from under it, and the river and plateau stay open between the bank and the wall.
     ...palisadeLine(48, 768, 35, [[185, 211]], { building: 'walls', from: 1 }),
-    { sprite: 'tower', x: 62, ground: 37, plot: { building: 'special', from: 1 } },
-    { sprite: 'gate', x: 198, ground: 39, plot: { building: 'walls', from: 1 } },
-    { sprite: 'tower', x: 340, ground: 37, plot: { building: 'special', from: 2 } },
-    // The Pokrova church at the back of the maidan right at the rampart's foot (inside the walls), tall enough that its
-    // centre cross clears the gate's roof against open sky; its belfry beside it with some air.
-    { sprite: 'church', x: 280, ground: 63, plot: { building: 'church', from: 1 } },
-    { sprite: 'belfry', x: 358, ground: 72, plot: { building: 'church', from: 2 } },
-    // Курені: one at tier I, the second at II. The maidan (drill: the army's power) brings out the cannons.
-    { sprite: 'kurin', x: 92, ground: 210, plot: { building: 'kurins', from: 1 } },
-    { sprite: 'kurin', x: 300, ground: 268, plot: { building: 'kurins', from: 2 } },
-    { sprite: 'cannon', x: 128, ground: 100, plot: { building: 'maidan', from: 1 } },
-    { sprite: 'cannon', x: 276, ground: 112, plot: { building: 'maidan', from: 2 } },
+    WATCHTOWER,
+    WALLS,
+    CHURCH,
+    KURINS,
+    MAIDAN,
+    TREASURY,
     { sprite: 'logpile', x: 178, ground: 252 },
     // The campfire in the middle of the maidan (ART-16): the night's warm, local light; flames 6 frames @10 fps.
     { sprite: 'campfire', x: 196, ground: 176, animate: { kind: 'cycle', frames: 6, fps: 10 } },
@@ -996,14 +1180,7 @@ export function composeWorld(
  * their plot keeps its M1 props (the Sich) or stays empty. The tier test wants every building of the land in exactly
  * one place — a tier sprite or this list — so each art task deletes its lines here.
  */
-export const TIER_ART_PENDING: Readonly<Partial<Record<PlotBuilding, string>>> = {
-  kurins: 'M2-09',
-  maidan: 'M2-09',
-  walls: 'M2-09',
-  treasury: 'M2-09',
-  church: 'M2-09',
-  special: 'M2-09',
-};
+export const TIER_ART_PENDING: Readonly<Partial<Record<PlotBuilding, string>>> = {};
 
 /**
  * Khortytsia as one continuous world (plan M2-01, Q2 ≈ 5 screens, 1920 px): the farm (the M-ART scene, x 0–768) → the suburb

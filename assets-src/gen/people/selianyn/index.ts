@@ -76,7 +76,7 @@ function stamps(pose: Pose): Stamp[] {
 }
 
 const selianyn: SpriteGenerator = {
-  atlas: 'khortytsia',
+  atlas: 'people',
   id: 'selianyn',
   size: { w: MAN_W, h: MAN_H },
   frames: { idle: IDLE.length, walk: WALK.length },

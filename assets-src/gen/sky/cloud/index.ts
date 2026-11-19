@@ -144,7 +144,7 @@ function keepLargestComponent(plot: Plot): void {
 }
 
 const cloud: SpriteGenerator = {
-  atlas: 'khortytsia',
+  atlas: 'sky',
   id: 'cloud',
   size: { w: W, h: H },
   frames: { idle: 1, rim: 1 },

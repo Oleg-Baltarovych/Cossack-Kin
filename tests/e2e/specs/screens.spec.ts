@@ -174,7 +174,7 @@ const luma = (c: number): number => 0.2126 * ((c >> 16) & 0xff) + 0.7152 * ((c >
 const rgbAt = (data: Uint8Array, i: number): number =>
   ((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0);
 
-/** Tallest cloud frame (assets-src/gen/khortytsia/cloud: 44 rows, pivot on the base row 40). */
+/** Tallest cloud frame (assets-src/gen/sky/cloud: 44 rows, pivot on the base row 40). */
 const CLOUD_RISE = 41;
 /**
  * The sky is ungraded (it is the light source): its rows above the highest cloud must be pure palette colors. Clouds
@@ -733,6 +733,40 @@ test.describe('M2-08 the suburb @screens', () => {
         expectPixelGrid(png, testInfo, scale, 0);
         if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
       });
+    }
+  }
+});
+
+test.describe('M2-09 the Sich by tier @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // Every Sich building at tier N (0 = the empty steppe camp … IV), by day, at night and in fog; `west` = the zone's
+  // anchor (gate, church, treasury, flagpole), `east` = its far end (kurins III–IV, the koshovyi's house, the 2nd fire).
+  for (const tier of [0, 1, 2, 3, 4] as const) {
+    for (const [view, at] of [
+      ['west', 'zone=sich'],
+      ['east', 'cam=1530'],
+    ] as const) {
+      for (const [hhmm, weather] of [
+        ['1300', 'clear'],
+        ['2300', 'clear'],
+        ['0700', 'fog'],
+      ] as const) {
+        test(`tiers ${String(tier)} sich ${view} ${hhmm} ${weather}: budget, particles ≤ 300, pixel grid`, async ({
+          page,
+        }, testInfo) => {
+          const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+          await gotoReady(
+            page,
+            `/?time=${time}&freeze=1.3&seed=1&${at}&weather=${weather}&state=tiers&tier=${String(tier)}`,
+          );
+          const scale = await expectWebGlWithinBudget(page);
+          expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+          const png = await shoot(page, testInfo, `tiers-${String(tier)}-sich-${view}-${hhmm}-${weather}`);
+          expectPixelGrid(png, testInfo, scale, 0);
+          if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
+        });
+      }
     }
   }
 });

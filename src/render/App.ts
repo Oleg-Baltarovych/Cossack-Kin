@@ -22,7 +22,7 @@ import { KHORTYTSIA_WORLD, type ZoneId } from '../content/villages/khortytsia.la
 import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
 import { createGrading, gradeCycle, loadLuts } from './atmosphere/grading.ts';
-import { frame, loadAtlases, type Atlases } from './atlases.ts';
+import { frame, frameLookup, loadAtlases, unloadAtlases, WORLD_ATLASES, type Atlases } from './atlases.ts';
 import { layerOffset, levelView, skyShift, split } from './camera.ts';
 import { skyPixel } from './atmosphere/skyPaint.ts';
 import {
@@ -56,8 +56,6 @@ import { computeViewport, worldTargetSize, type Viewport, type ZoomLevel } from 
 
 /** The continuous world of land 1 (plan M2-01): farm → suburb → Sich; `?zone=` only places the camera. */
 const WORLD = KHORTYTSIA_WORLD;
-/** Atlas of the current scene (the farm of land 1). */
-const SCENE_ATLAS = 'khortytsia';
 /** SPEC §9.2: 30 fps idle / 60 interactive — fixed at 60 until the interaction-driven switch (M2). */
 export const TARGET_FPS = 60;
 
@@ -119,8 +117,16 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
   TextureSource.defaultOptions.scaleMode = 'nearest';
   host.style.background = rampCss('ink', 0);
 
-  // Atlases and LUTs first: nothing to clean up if loading fails, and the first frame already has everything.
-  const [atlases, luts] = await Promise.all([loadAtlases(), loadLuts()]);
+  // Atlases and LUTs first, so the first frame already has everything. A failed load releases what did load (a partial
+  // atlas set inside loadAtlases; the whole set when the LUTs fail).
+  const [atlasesLoad, lutsLoad] = await Promise.allSettled([loadAtlases(), loadLuts()]);
+  if (atlasesLoad.status === 'rejected') throw atlasesLoad.reason;
+  const atlases = atlasesLoad.value;
+  if (lutsLoad.status === 'rejected') {
+    unloadAtlases(atlases);
+    throw lutsLoad.reason;
+  }
+  const luts = lutsLoad.value;
   let vp = measure(host);
   let closerVp = measure(host, 1);
   const app = new Application();
@@ -139,15 +145,20 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     // The canvas is not in the page yet; a renderer created before the failure still holds a GL context — release it
     // (a retry creates a new one). Pixi types `renderer` as always set, but it is unset when renderer creation threw.
     if ((app as { renderer?: unknown }).renderer) app.destroy({ removeView: true }, { children: true });
+    unloadAtlases(atlases);
     throw error;
   }
 
-  // Teardown runs in reverse creation order: observer → ticker → layers → world → worldRT → app (+ canvas).
+  // Teardown runs in reverse creation order: observer → ticker → layers → world → worldRT → app (+ canvas) → atlases.
   // It is used both by destroy() and when anything below throws during setup.
   const disposers: (() => void)[] = [];
   const disposeAll = (): void => {
     for (let undo = disposers.pop(); undo; undo = disposers.pop()) undo();
   };
+  // The atlases go last, after the app and every sprite that drew from them.
+  disposers.push(() => {
+    unloadAtlases(atlases);
+  });
   disposers.push(() => {
     app.destroy({ removeView: true }, { children: true });
   });
@@ -191,8 +202,13 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     });
     // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
     const layout = WORLD;
-    const sceneFrame = (name: string): Texture => frame(atlases, SCENE_ATLAS, name);
-    const findFrame = (name: string): Texture | null => atlases.get(SCENE_ATLAS)?.textures[name] ?? null;
+    const worldFrames = frameLookup(atlases, WORLD_ATLASES);
+    const findFrame = (name: string): Texture | null => worldFrames.get(name) ?? null;
+    const sceneFrame = (name: string): Texture => {
+      const texture = worldFrames.get(name);
+      if (!texture) throw new Error(`no world atlas has frame "${name}" — run \`pnpm sprites\``);
+      return texture;
+    };
     const post = createPostGrade({
       layout,
       frame: findFrame,

@@ -21,7 +21,7 @@ import { frameNames } from '../../../tools/lib/sprites/atlas.ts';
 import { loadGenerators } from '../../../tools/lib/sprites/load.ts';
 
 const FRAMES: ReadonlySet<string> = new Set(
-  (await loadGenerators()).filter((g) => g.atlas === 'khortytsia').flatMap(frameNames),
+  (await loadGenerators()).filter((g) => g.atlas !== 'debug').flatMap(frameNames),
 );
 
 /** Buildings land 1 shows: its farm/suburb buildings and every Sich building not held back for a later land. */
