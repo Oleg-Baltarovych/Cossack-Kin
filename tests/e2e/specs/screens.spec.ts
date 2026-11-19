@@ -1,6 +1,6 @@
 // Screenshot spec (plan M0-04/06/07, ART-04). Writes artifacts to reports/screens/<date>/ on every platform;
 // baselines (`toHaveScreenshot`) are compared on Linux only — SwiftShader output differs per OS.
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
@@ -8,7 +8,7 @@ import { CLOUDS } from '../../../src/render/atmosphere/config.ts';
 import { split } from '../../../src/render/camera.ts';
 import { validateState } from '../../../src/core/state.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
-import { decodePng } from '../../../tools/lib/png.ts';
+import { decodePng, encodePng, type RgbaImage } from '../../../tools/lib/png.ts';
 import { gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
@@ -734,6 +734,52 @@ test.describe('M2-08 the suburb @screens', () => {
         if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
       });
     }
+  }
+});
+
+/** Images of the same height side by side, a 4-device-px dark gap between them. */
+function sideBySide(images: readonly RgbaImage[]): RgbaImage {
+  const gap = 4;
+  const height = Math.max(...images.map((i) => i.height));
+  const width = images.reduce((w, i) => w + i.width, 0) + gap * (images.length - 1);
+  const data = new Uint8Array(width * height * 4);
+  for (let i = 3; i < data.length; i += 4) data[i] = 255;
+  let x0 = 0;
+  for (const img of images) {
+    for (let y = 0; y < img.height; y++) {
+      data.set(img.data.subarray(y * img.width * 4, (y + 1) * img.width * 4), (y * width + x0) * 4);
+    }
+    x0 += img.width + gap;
+  }
+  return { width, height, data };
+}
+
+test.describe('M2-10 plot variants by seed @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // The same scene (every building at tier IV, 13:00) with seeds 1, 2, 3: each seed its own add-ons (kennel, bench,
+  // laundry, woodpile, stork nest, pumpkins, flowers, cart); one board per view, the three seeds side by side.
+  for (const [view, at] of [
+    ['mill-potter', 'cam=140'],
+    ['farm-plots', 'cam=380'],
+    ['suburb', 'zone=suburb'],
+  ] as const) {
+    test(`variants ${view} 1300, seeds 1/2/3: different add-ons, budget, pixel grid`, async ({ page }, testInfo) => {
+      const shots: Buffer[] = [];
+      for (const seed of [1, 2, 3]) {
+        await gotoReady(page, `/?time=13:00&freeze&seed=${String(seed)}&${at}&state=tiers&tier=4`);
+        const scale = await expectWebGlWithinBudget(page);
+        const png = await shoot(page, testInfo, `variants-${view}-1300-seed${String(seed)}`);
+        expectPixelGrid(png, testInfo, scale, 0);
+        shots.push(png);
+      }
+      expect(new Set(shots.map((b) => b.toString('base64'))).size, 'seeds 1/2/3 look the same').toBe(3);
+      const board = encodePng(sideBySide(shots.map(decodePng)));
+      mkdirSync(SCREENS_DIR, { recursive: true });
+      const file = `variants-${view}-1300-seeds-${testInfo.project.name}.png`;
+      writeFileSync(join(SCREENS_DIR, file), board);
+      await testInfo.attach(file, { body: board, contentType: 'image/png' });
+    });
   }
 });
 

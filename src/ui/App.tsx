@@ -44,7 +44,7 @@ export function App({ game }: { game: Game }) {
     async (host, signal) => {
       const render = await import('../render/index.ts');
       chunksLoaded();
-      return signal.aborted ? null : render.startWorld(host, game.store, game.sceneTiers);
+      return signal.aborted ? null : render.startWorld(host, game.store, game.sceneTiers, game.sceneVariants);
     },
     [game],
   );

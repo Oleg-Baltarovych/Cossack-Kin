@@ -21,6 +21,8 @@ import {
 import type { GameState } from './state.ts';
 import { canHire, gloryRate, hireCost } from './systems/army.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
+import { PLOT_VARIANTS, VARIANT_SALT, type VariantPlot } from '../content/variants.ts';
+import { pickStable } from './rng.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -207,4 +209,24 @@ export function visualTiers(state: GameState): VisualTiers {
   }
   // Every farm id of the land and every Sich id was written above.
   return out as VisualTiers;
+}
+
+/** Cosmetic variant per plot (plan M2-10, SPEC §2.6): which add-on set of the layout each plot shows. */
+export type PlotVariants = Readonly<Record<VariantPlot, number>>;
+
+/**
+ * The add-on set `plot` shows in a game with `seed`: 0 … options − 1, a pure function of the seed (no state). A stable
+ * pick: adding an option later moves a game only onto the new option.
+ */
+export function plotVariant(seed: number, plot: VariantPlot): number {
+  const { key, options } = PLOT_VARIANTS[plot];
+  return pickStable(seed, VARIANT_SALT ^ key, options);
+}
+
+/** Every plot's variant for the game's seed; progress and time never change it. */
+export function plotVariants(state: GameState): PlotVariants {
+  const out: Partial<Record<VariantPlot, number>> = {};
+  for (const p of Object.keys(PLOT_VARIANTS) as VariantPlot[]) out[p] = plotVariant(state.seed, p);
+  // Every key of PLOT_VARIANTS was written above.
+  return out as PlotVariants;
 }
