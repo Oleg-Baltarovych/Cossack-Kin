@@ -79,6 +79,8 @@ function region(png: Buffer, rows: { y0: number; y1: number }): Buffer {
 
 test.describe('M2-12 construction and tiers', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+  // 4–6 full-page device-scale screenshots per test; CI SwiftShader takes ~15 s per shot.
+  test.describe.configure({ timeout: 180_000 });
 
   for (const time of ['13:00', '23:00'] as const) {
     test(`first level: in the state at once; scaffold 3 stages → pop → confetti (${time})`, async ({
