@@ -856,13 +856,37 @@ export const RAIN_NIGHT_GRADE = 0.7;
 // --- Quality tiers and auto-detect (ART-18) ---------------------------------------------------------------------
 /**
  * Per-tier effect budgets. Light shafts have their own variants (RAYS, `rayVariant`); the rest scale here: dust
- * motes in the shafts, campfire sparks, fireflies, rain splashes, the far rain layer, cloud shadows on the ground.
+ * motes in the shafts, campfire sparks, fireflies, rain splashes, the far rain layer, cloud shadows on the ground,
+ * chimney smoke puffs per chimney (M2-11).
  */
 export const QUALITY_TIERS = {
-  low: { dust: 0, sparks: 4, fireflies: 12, splashes: 24, rainFar: false, cloudShadows: false },
-  med: { dust: 20, sparks: 8, fireflies: 24, splashes: 40, rainFar: true, cloudShadows: true },
-  high: { dust: 40, sparks: 10, fireflies: 32, splashes: 64, rainFar: true, cloudShadows: true },
+  low: { dust: 0, sparks: 4, fireflies: 12, splashes: 24, rainFar: false, cloudShadows: false, smoke: 4 },
+  med: { dust: 20, sparks: 8, fireflies: 24, splashes: 40, rainFar: true, cloudShadows: true, smoke: 6 },
+  high: { dust: 40, sparks: 10, fireflies: 32, splashes: 64, rainFar: true, cloudShadows: true, smoke: 8 },
 } as const;
+
+// --- Building life (M2-11, SPEC §6.3 wind, §6.5 idle animation) ------------------------------------------------
+/**
+ * Chimney smoke: each chimney keeps `QUALITY_TIERS[q].smoke` puffs (`smoke` frames 0–2 by age, `ages` the frame
+ * boundaries) staggered over `life` s, so the plume is continuous. A puff climbs up to `rise` px, easing out; the wind
+ * (strength s, 0..1) bends it downwind (+x, the way the clouds drift) by `lean.calm` (the game's calm wind) … `lean.gale` px per px climbed
+ * and flattens it (`flatten`: the share of the climb a gale takes away). `wobble` = whole px a puff wanders sideways.
+ * «Менше руху»: a still plume of `stillPuffs` puffs at fixed ages, leaning with the wind (not particles: it never moves).
+ */
+export const SMOKE = {
+  life: 7,
+  rise: 30,
+  lean: { calm: 0.12, gale: 1.6 },
+  flatten: 0.45,
+  wobble: 1,
+  ages: [0.22, 0.55],
+  stillPuffs: 3,
+} as const;
+/**
+ * Boats (render/boats.ts): a drifting boat swings `drift` px each way over `driftPeriod` s on the stream; ripple frames
+ * (3) cycle at `rippleFps`. Both stand still under «менше руху».
+ */
+export const BOATS = { driftPeriod: 38, rippleFps: 3 } as const;
 export type QualityTier = (typeof QUALITY_TIERS)[keyof typeof QUALITY_TIERS];
 /**
  * Auto quality (`?quality` absent, live time): start at `med`, skip `warmup` s of start-up, then the mean fps over

@@ -349,16 +349,26 @@ export function heads(plot: Plot, cx: number, ground: number, ramp: 'grass' | 't
   });
 }
 
-/** Ярмаркова корогва: a pole `h` tall with a crimson pennant flying right, a lit fold. */
-export function pennant(plot: Plot, x: number, ground: number, h: number): void {
+/**
+ * A pennant pole `h` tall (wood 4 lit left, 2 shaded) with a knob; the cloth is the wind-animated `pennant` add-on
+ * hung at `pennantHoist` (plan M2-11; until then a static crimson cloth was baked in here).
+ */
+export function pennantPole(plot: Plot, x: number, ground: number, h: number): void {
   for (let y = ground - h; y <= ground; y++) {
     plot.set(x, y, 'wood', 4);
     plot.set(x + 1, y, 'wood', 2);
   }
   plot.set(x, ground - h - 1, 'wood', 4);
-  for (let c = 0; c < 9; c++) {
-    const rows = c < 4 ? 5 : c < 7 ? 4 : 3;
-    for (let r = 0; r < rows; r++)
-      plot.set(x + 2 + c, ground - h + 1 + r + (c >= 7 ? 1 : 0), 'crimson', r === 0 ? 4 : 3);
-  }
+}
+
+/**
+ * Where a `pennant` hangs off a `pennantPole(x, ground, h)` drawn in a frame whose pivot is (`pivotX`, `pivotGround`):
+ * the cloth's top-left px right of the pole, one row under its top — a layout offset (`dx`, `lift`) from the pivot.
+ */
+export function pennantHoist(
+  pole: { readonly x: number; readonly ground: number; readonly h: number },
+  pivotX: number,
+  pivotGround: number,
+): { readonly dx: number; readonly lift: number } {
+  return { dx: pole.x + 2 - pivotX, lift: pivotGround + 1 - (pole.ground - pole.h + 1) };
 }

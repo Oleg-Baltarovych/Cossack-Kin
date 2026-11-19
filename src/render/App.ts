@@ -45,6 +45,7 @@ import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } fr
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
 import { horizonY } from './layers/Layer.ts';
 import { createWater } from './water.ts';
+import { createBoats } from './boats.ts';
 import { createPostGrade } from './postGrade.ts';
 import { rampColor, rampCss } from './palette.ts';
 import { DEFAULT_SCENE, type SceneState } from './scene.ts';
@@ -254,6 +255,13 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       coins.destroy();
     });
     worldTop.addChild(post.container);
+    // Boats over the water, graded like the world, under the haze band and the rain (M2-11).
+    const boats = createBoats(layout.boats, sceneFrame, grading.filter, settings.weather);
+    worldTop.addChildAt(boats.container, 0);
+    worldTop.addChildAt(boats.film, 1);
+    disposers.push(() => {
+      boats.destroy();
+    });
 
     const upscale = new Sprite({ texture: worldRT, label: 'upscale', roundPixels: true });
     app.stage.addChild(upscale);
@@ -298,6 +306,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       for (const layer of layers) layer.resize(size);
       post.resize(size);
       water.resize(target.width, target.height, horizonY(target.height));
+      boats.resize(horizonY(target.height));
       // Whole worldRT: the filter pass covers every row even where the graded layers draw nothing yet.
       graded.filterArea = new Rectangle(0, 0, target.width, target.height);
     };
@@ -378,6 +387,9 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       post.container.x = layerOffset(cam.worldPx, post.parallax);
       coins.container.x = layerOffset(cam.worldPx, 1);
+      boats.update(frameInfo.ambient, frameInfo.cycle, cam.worldPx, target.width);
+      boats.container.x = layerOffset(cam.worldPx, 1);
+      boats.film.x = boats.container.x;
       coins.update(performance.now() / 1000);
       upscale.scale.set(lv.scale);
       upscale.x = -cam.fracDevicePx;

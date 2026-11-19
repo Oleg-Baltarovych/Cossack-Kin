@@ -1,13 +1,13 @@
 // Ярмарок, tiers I–VI (plan M2-08, ART-BIBLE §6 «ярмарок (ятки, рядна, бочки)»): the goods laid out on the square in
 // front of the stalls, growing with the fair. I one рядно (woven mat) with pots and cabbages, two grain sacks; II a
 // second mat with onions; III plank crates stacked; IV a back row of sacks and a third mat; V the fair's pennant on a
-// pole (ярмаркова корогва); VI more sacks and a taller pole. The stalls (`stall.a|b|c`), the barrels, the shop
+// pole (ярмаркова корогва: the wind-animated `pennant.a` add-on, `fairPennant`); VI more sacks and a taller pole. The stalls (`stall.a|b|c`), the barrels, the shop
 // (`shop`, IV+) and the gilt vane on its roof (VI) are add-ons placed by the layout. Ramps: plaster, crimson, earth,
 // grass, thatch, wood. 128×48, pivot at the front edge.
 import { castShadow } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import { composeOutlined } from '../../lib/recipes-farm.ts';
-import { crate, heads, pennant, ryadno, sack, smallPot } from '../../lib/recipes-suburb.ts';
+import { crate, heads, pennantHoist, pennantPole, ryadno, sack, smallPot } from '../../lib/recipes-suburb.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 
 const W = 128;
@@ -79,6 +79,13 @@ export const FAIR_TIERS: Readonly<Record<string, FairTier>> = {
   },
 };
 
+/** Where the fair's `pennant.a` hangs on tier `variant` (V–VI: the pole), as a layout offset; `null` = no pole. */
+export function fairPennant(variant: string): { readonly dx: number; readonly lift: number } | null {
+  const pole = FAIR_TIERS[variant]?.pole;
+  if (!pole) return null;
+  return pennantHoist({ x: FAIR_PIVOT_X + pole[0], ground: FAIR_GROUND - 1, h: pole[1] }, FAIR_PIVOT_X, FAIR_GROUND);
+}
+
 const fair: SpriteGenerator = {
   atlas: 'khortytsia',
   id: 'fair',
@@ -93,7 +100,7 @@ const fair: SpriteGenerator = {
     const g = FAIR_GROUND;
     const p = new Plot();
     // Back to front: the pole, the back sacks, the crates, the mats and their goods, the front sacks.
-    if (t.pole) pennant(p, cx + t.pole[0], g - 1, t.pole[1]);
+    if (t.pole) pennantPole(p, cx + t.pole[0], g - 1, t.pole[1]);
     for (const x of t.backSacks ?? []) sack(p, cx + x, g - 4, 7);
     if (t.crates !== undefined) {
       crate(p, cx + t.crates, g, 9, 7);

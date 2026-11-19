@@ -137,7 +137,9 @@ export interface Prop {
     | 'laundry'
     | 'woodpile'
     | 'stork-nest'
-    | 'pumpkins';
+    | 'pumpkins'
+    | 'pennant.a'
+    | 'pennant.b';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -157,7 +159,19 @@ export interface Prop {
   readonly poolRx?: number;
   /** No window pool although the sprite has an `@emissive` frame (a tier whose shared night layer is dark). */
   readonly noPool?: true;
+  /** A chimney: smoke rises from its mouth (plan M2-11, render fx/smoke.ts). */
+  readonly smoke?: SmokeVent;
   readonly plot?: Plot;
+}
+
+/**
+ * A chimney's mouth (plan M2-11): its px column is `dx` from the prop's pivot, its top row `lift` rows above the pivot
+ * (`horizon + ground − lift`); puffs rise from the row above. Read off the generator's frame — a unit test holds every
+ * vent on an opaque chimney top with open air above it (tests/unit/tools/gen-life.test.ts).
+ */
+export interface SmokeVent {
+  readonly dx: number;
+  readonly lift: number;
 }
 
 /** Tier numbers of the farm generators' variants (`field.t1` … `field.t6`). */
@@ -180,6 +194,7 @@ export interface TierPart {
   readonly daytime?: boolean;
   readonly poolRx?: number;
   readonly noPool?: true;
+  readonly smoke?: SmokeVent;
 }
 
 /** A building's drawn look at a tier: the base and its add-ons. */
@@ -365,6 +380,18 @@ export interface Puddle {
   readonly w: number;
 }
 
+/**
+ * A boat on the Dnipro (plan M2-11): drawn over the water with its ripples (render boats.ts). `ground` = the pivot
+ * (the bottom edge of the waterline row) below the horizon, inside the river's rows; `drift` = how far it swings each
+ * way on the stream (px; 0 = moored).
+ */
+export interface Boat {
+  readonly sprite: 'boat.a' | 'boat.b';
+  readonly x: number;
+  readonly ground: number;
+  readonly drift: number;
+}
+
 /** Summer fireflies at night (ART-16): an x range and the rows below the horizon they wander in. */
 export interface FireflyArea {
   readonly x0: number;
@@ -393,6 +420,8 @@ export interface ZoneScene {
   readonly puddles: readonly Puddle[];
   /** Absent = none. */
   readonly fireflies?: FireflyArea;
+  /** Boats on the zone's stretch of the river; absent = none. */
+  readonly boats?: readonly Boat[];
   /**
    * Haze band over the ground under the horizon (ART-08). Off where the near scene stands right at the horizon (the
    * Sich's rampart is near, not far meadow).
@@ -451,6 +480,7 @@ export interface WorldLayout {
   readonly foreground: readonly ForegroundPlant[];
   readonly puddles: readonly Puddle[];
   readonly fireflies: readonly FireflyArea[];
+  readonly boats: readonly Boat[];
   /** Back to front; x in each plane's layer space (parallax 0.2 / 0.5), covering the whole world's pan. */
   readonly farPlanes: readonly FarPlane[];
 }
@@ -575,6 +605,8 @@ const MILL_TYN: TierPart = { sprite: 'tyn', dx: 46, dground: 2 };
  */
 const POTTER_JUGS: TierPart = { sprite: 'jugs', dx: -46, dground: 5 };
 const POTTER_KILN: TierPart = { sprite: 'kiln', dx: -68, dground: -2 };
+/** The potter's stovepipe (II) and the khata's whitewashed chimney (III–V; VI's is taller). */
+const POTTER_FLUE: SmokeVent = { dx: 1, lift: 53 };
 
 /**
  * A cosmetic add-on of a plot (plan M2-10, SPEC §2.6): stands while `building` is built and the game seed picked
@@ -614,6 +646,8 @@ const FARM_VARIANTS: readonly Prop[] = [
 
 export const KHORTYTSIA_FARM: ZoneScene = {
   width: 768,
+  // A plank boat moored at the near bank below the willow on the farm's second screen (beyond the M-ART frames).
+  boats: [{ sprite: 'boat.a', x: 560, ground: 25, drift: 0 }],
   rows: [
     { tile: 'meadow', top: 0, h: 32 }, // far meadow, aerial perspective
     { tile: 'grass', top: 32, h: 96 }, // back row: khata tier I and its yard fence
@@ -671,14 +705,14 @@ export const KHORTYTSIA_FARM: ZoneScene = {
       ground: 240,
       tiers: [
         { parts: [{ sprite: 'khata.t1' }] },
-        { parts: [{ sprite: 'potter.t2' }, POTTER_JUGS] },
-        { parts: [{ sprite: 'khata.t3' }] },
-        { parts: [{ sprite: 'potter.t4' }, POTTER_JUGS] },
-        { parts: [POTTER_KILN, { sprite: 'potter.t5' }, POTTER_JUGS] },
+        { parts: [{ sprite: 'potter.t2', smoke: POTTER_FLUE }, POTTER_JUGS] },
+        { parts: [{ sprite: 'khata.t3', smoke: POTTER_FLUE }] },
+        { parts: [{ sprite: 'potter.t4', smoke: POTTER_FLUE }, POTTER_JUGS] },
+        { parts: [POTTER_KILN, { sprite: 'potter.t5', smoke: POTTER_FLUE }, POTTER_JUGS] },
         {
           parts: [
             POTTER_KILN,
-            { sprite: 'potter.t6' },
+            { sprite: 'potter.t6', smoke: { dx: 1, lift: 56 } },
             POTTER_JUGS,
             { sprite: 'gilt.jug', dx: 42, dground: 4, shadow: false, animate: GILT_SHIMMER },
           ],
@@ -768,11 +802,11 @@ const SMITHY: TierSprite = {
   ground: 214,
   tiers: [
     { parts: [{ sprite: 'smithy.t1' }, forge(-6)] },
-    { parts: [{ sprite: 'smithy.t2' }, forge(-9)] },
-    { parts: [{ sprite: 'smithy.t3' }, forge(-15)] },
-    { parts: [{ sprite: 'smithy.t4' }, forge(-15)] },
-    { parts: [{ sprite: 'smithy.t5' }, forge(-17)] },
-    { parts: [{ sprite: 'smithy.t6' }, forge(-17)] },
+    { parts: [{ sprite: 'smithy.t2', smoke: { dx: -10, lift: 37 } }, forge(-9)] },
+    { parts: [{ sprite: 'smithy.t3', smoke: { dx: -16, lift: 45 } }, forge(-15)] },
+    { parts: [{ sprite: 'smithy.t4', smoke: { dx: -16, lift: 45 } }, forge(-15)] },
+    { parts: [{ sprite: 'smithy.t5', smoke: { dx: -18, lift: 49 } }, forge(-17)] },
+    { parts: [{ sprite: 'smithy.t6', smoke: { dx: -18, lift: 50 } }, forge(-17)] },
   ],
 };
 
@@ -791,11 +825,11 @@ const TAVERN: TierSprite = {
   tiers: [
     { parts: [{ sprite: 'tavern.t1', poolRx: 20 }, broomSign(0)] },
     { parts: [{ sprite: 'tavern.t2', poolRx: 23 }, broomSign(1), HITCHING_RAIL(46)] },
-    { parts: [{ sprite: 'tavern.t3', poolRx: 27 }, broomSign(6), HITCHING_RAIL(50)] },
+    { parts: [{ sprite: 'tavern.t3', smoke: { dx: 4, lift: 46 }, poolRx: 27 }, broomSign(6), HITCHING_RAIL(50)] },
     {
       parts: [
         { sprite: 'barrels', dx: -58, dground: 3 },
-        { sprite: 'tavern.t4', poolRx: 31 },
+        { sprite: 'tavern.t4', smoke: { dx: 5, lift: 47 }, poolRx: 31 },
         broomSign(3),
         HITCHING_RAIL(54),
       ],
@@ -803,7 +837,7 @@ const TAVERN: TierSprite = {
     {
       parts: [
         { sprite: 'barrels', dx: -60, dground: 3 },
-        { sprite: 'tavern.t5', poolRx: 32 },
+        { sprite: 'tavern.t5', smoke: { dx: 6, lift: 48 }, poolRx: 32 },
         broomSign(3),
         HITCHING_RAIL(50),
       ],
@@ -811,7 +845,7 @@ const TAVERN: TierSprite = {
     {
       parts: [
         { sprite: 'barrels', dx: -62, dground: 3 },
-        { sprite: 'tavern.t6', poolRx: 34 },
+        { sprite: 'tavern.t6', smoke: { dx: 7, lift: 52 }, poolRx: 34 },
         { sprite: 'broom-sign', dx: -41, dground: 2 },
         // The gilt jug on a stake left of the porch (not in front of the door); the pole off the painted eave band.
         { sprite: 'gilt.jug', dx: -24, dground: 3, shadow: false, animate: GILT_SHIMMER },
@@ -821,8 +855,30 @@ const TAVERN: TierSprite = {
   ],
 };
 
+/** A pennant in the wind (4 frames at the wind's rate, plan M2-11), hung at a pole's hoist (`lift` above `dground`). */
+const pennant = (variant: 'a' | 'b', dx: number, lift: number, dground = 0): TierPart => ({
+  sprite: `pennant.${variant}`,
+  dx,
+  dground,
+  lift,
+  shadow: false,
+  animate: { kind: 'cycle', frames: 4, fps: 'wind' },
+});
+const STALL_DGROUND = -8;
 /** A stall stands behind the goods row (sorted behind the mats). */
-const stall = (variant: 'a' | 'b' | 'c', dx: number): TierPart => ({ sprite: `stall.${variant}`, dx, dground: -8 });
+const stall = (variant: 'a' | 'b' | 'c', dx: number): TierPart => ({
+  sprite: `stall.${variant}`,
+  dx,
+  dground: STALL_DGROUND,
+});
+/** Stall `a` with the green pennant on its pole (generator `STALL_PENNANT`). */
+const STALL_PENNANT = { dx: -12, lift: 38 } as const;
+const stallA = (dx: number): TierPart[] => [
+  stall('a', dx),
+  pennant('b', dx + STALL_PENNANT.dx, STALL_PENNANT.lift, STALL_DGROUND),
+];
+/** The fair's crimson pennant on its pole (V–VI, generator `fairPennant`). */
+export const FAIR_PENNANT = { t5: { dx: -48, lift: 29 }, t6: { dx: -54, lift: 35 } } as const;
 /** The shop at the back left of the square (from IV); the gilt vane of VI on its ridge (generator `SHOP_RIDGE`). */
 const SHOP_DGROUND = -16;
 const shop = (dx: number): TierPart => ({ sprite: 'shop', dx, dground: SHOP_DGROUND });
@@ -837,13 +893,13 @@ const FAIR: TierSprite = {
   x: 150,
   ground: 236,
   tiers: [
-    { parts: [stall('a', 0), { sprite: 'fair.t1' }] },
-    { parts: [stall('a', -16), stall('b', 24), { sprite: 'fair.t2' }] },
-    { parts: [stall('a', -16), stall('b', 24), { sprite: 'fair.t3' }, { sprite: 'barrels', dx: 50, dground: -2 }] },
+    { parts: [...stallA(0), { sprite: 'fair.t1' }] },
+    { parts: [...stallA(-16), stall('b', 24), { sprite: 'fair.t2' }] },
+    { parts: [...stallA(-16), stall('b', 24), { sprite: 'fair.t3' }, { sprite: 'barrels', dx: 50, dground: -2 }] },
     {
       parts: [
         shop(-58),
-        stall('a', -14),
+        ...stallA(-14),
         stall('b', 24),
         { sprite: 'fair.t4' },
         { sprite: 'barrels', dx: 56, dground: -2 },
@@ -852,10 +908,11 @@ const FAIR: TierSprite = {
     {
       parts: [
         shop(-60),
-        stall('a', -18),
+        ...stallA(-18),
         stall('b', 20),
         stall('c', 58),
         { sprite: 'fair.t5' },
+        pennant('a', FAIR_PENNANT.t5.dx, FAIR_PENNANT.t5.lift),
         { sprite: 'barrels', dx: -44, dground: -12 },
       ],
     },
@@ -870,10 +927,11 @@ const FAIR: TierSprite = {
           shadow: false,
           animate: GILT_SHIMMER,
         },
-        stall('a', -22),
+        ...stallA(-22),
         stall('b', 16),
         stall('c', 54),
         { sprite: 'fair.t6' },
+        pennant('a', FAIR_PENNANT.t6.dx, FAIR_PENNANT.t6.lift),
         { sprite: 'barrels', dx: -46, dground: -12 },
       ],
     },
@@ -900,6 +958,8 @@ const SUBURB_VARIANTS: readonly Prop[] = [
 ];
 
 export const KHORTYTSIA_SUBURB: ZoneScene = {
+  // A fisherman's dugout out on the river behind the tavern, swinging on the stream.
+  boats: [{ sprite: 'boat.b', x: 132, ground: 15, drift: 6 }],
   width: 384,
   rows: [
     { tile: 'meadow', top: 0, h: 32 },
@@ -1037,7 +1097,7 @@ const CHURCH: TierSprite = {
 /** The 2nd–4th kurins; window pools ≈ 0.45 × the wall, not the frame. */
 const KURIN_2: TierPart = { sprite: 'kurin', dx: 208, dground: 58 };
 const KURIN_3: TierPart = { sprite: 'kurin-b', dx: 410, dground: 26, poolRx: 42 };
-const KURIN_4: TierPart = { sprite: 'kurin-c', dx: 586, dground: 66, poolRx: 41 };
+const KURIN_4: TierPart = { sprite: 'kurin-c', dx: 586, dground: 66, poolRx: 41, smoke: { dx: 8, lift: 58 } };
 /** Курені round the maidan: one more per tier (the 3rd whitewashed, the 4th with a porch), the koshovyi's house at IV. */
 const KURINS: TierSprite = {
   building: 'kurins',
@@ -1049,7 +1109,7 @@ const KURINS: TierSprite = {
     { parts: [{ sprite: 'kurin' }, KURIN_2, KURIN_3] },
     {
       parts: [
-        { sprite: 'koshovyi', dx: 500, dground: -76, poolRx: 34 },
+        { sprite: 'koshovyi', dx: 500, dground: -76, poolRx: 34, smoke: { dx: 7, lift: 60 } },
         { sprite: 'kurin' },
         KURIN_2,
         KURIN_3,
@@ -1236,6 +1296,7 @@ export function composeWorld(
     walkers: placed.flatMap(({ scene, x0: z }) => scene.walkers.map((w) => ({ ...w, x0: w.x0 + z, x1: w.x1 + z }))),
     foreground: placed.flatMap(({ scene, fg }) => shift(scene.foreground, fg)),
     puddles: placed.flatMap(({ scene, x0: z }) => shift(scene.puddles, z)),
+    boats: placed.flatMap(({ scene, x0: z }) => shift(scene.boats ?? [], z)),
     fireflies: placed.flatMap(({ scene, x0: z }) =>
       scene.fireflies ? [{ ...scene.fireflies, x0: scene.fireflies.x0 + z, x1: scene.fireflies.x1 + z }] : [],
     ),
