@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { FIRE, FIREFLIES } from '../../../src/render/atmosphere/config.ts';
-import { fireflies, flicker, paintPool, sparks } from '../../../src/render/atmosphere/nightLights.ts';
+import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
+import { FIRE, FIRE_LIGHTS, FIREFLIES, WINDOW_POOL } from '../../../src/render/atmosphere/config.ts';
+import { fireflies, flicker, paintPool, poolLook, sparks } from '../../../src/render/atmosphere/nightLights.ts';
 
 describe('flicker (ART-16)', () => {
   it('stays within base ± depth in whole 1/8 steps and repeats for the same time', () => {
@@ -77,5 +78,24 @@ describe('sparks and fireflies (ART-16)', () => {
     const lit = list.filter((f) => f.on).length;
     expect(lit).toBeGreaterThan(0);
     expect(lit).toBeLessThan(list.length);
+  });
+});
+
+describe('poolLook (M2-08)', () => {
+  it('gives fires their FIRE_LIGHTS pool and windows a flat one of a share of the mask width', () => {
+    expect(poolLook({ sprite: 'campfire' }, null)).toMatchObject({ ...FIRE_LIGHTS.campfire, fire: true });
+    expect(poolLook({ sprite: 'forge' }, 14)).toMatchObject({ ...FIRE_LIGHTS.forge, fire: true });
+    expect(poolLook({ sprite: 'khata.t1' }, 76)).toMatchObject({ rx: 34, ry: WINDOW_POOL.ry, fire: false });
+    expect(poolLook({ sprite: 'kurin' }, 4)?.rx).toBe(WINDOW_POOL.minRx);
+    expect(poolLook({ sprite: 'tyn' }, null)).toBeNull();
+  });
+
+  it("takes a tier part's poolRx through the world layout (the tavern's pool fits its wall, not its frame)", () => {
+    const taverns = KHORTYTSIA_WORLD.props.filter((p) => p.sprite.startsWith('tavern.'));
+    expect(taverns).toHaveLength(6);
+    for (const t of taverns) {
+      expect(t.poolRx, t.sprite).toBeGreaterThan(0);
+      expect(poolLook(t, 132)?.rx, t.sprite).toBe(t.poolRx);
+    }
   });
 });

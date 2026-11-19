@@ -1,6 +1,6 @@
-// Farm tier bases (plans M2-06/M2-07, ART-BIBLE §4/§6): every tier of the field, the garden, the apiary, the windmill
-// and the potter's khata stays inside the building colour budget (≤ 24 colours from ≤ 6 ramps; companion layers do
-// not count) and grows from tier to tier — a tier never shrinks in width or height, and each one differs from the
+// Farm and suburb tier bases (plans M2-06/07/08, ART-BIBLE §4/§6): every tier of the field, the garden, the apiary,
+// the smithy, the tavern, the fair, the windmill and the potter's khata stays inside the building colour budget
+// (≤ 24 colours from ≤ 6 ramps; companion layers do not count) and grows from tier to tier — a tier never shrinks in width or height, and each one differs from the
 // last in silhouette, not only in colour.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -9,7 +9,11 @@ import field from '../../../assets-src/gen/khortytsia/field/index.ts';
 import garden from '../../../assets-src/gen/khortytsia/garden/index.ts';
 import khata from '../../../assets-src/gen/khortytsia/khata/index.ts';
 import mill, { millPoleTop, millSailLift } from '../../../assets-src/gen/khortytsia/mill/index.ts';
-import { isTierSprite, KHORTYTSIA_FARM } from '../../../src/content/villages/khortytsia.layout.ts';
+import { isTierSprite, KHORTYTSIA_FARM, KHORTYTSIA_SUBURB } from '../../../src/content/villages/khortytsia.layout.ts';
+import smithy, { smithyForge } from '../../../assets-src/gen/khortytsia/smithy/index.ts';
+import tavern from '../../../assets-src/gen/khortytsia/tavern/index.ts';
+import fair from '../../../assets-src/gen/khortytsia/fair/index.ts';
+import { SHOP_RIDGE } from '../../../assets-src/gen/khortytsia/shop/index.ts';
 import potter from '../../../assets-src/gen/khortytsia/potter/index.ts';
 import windmill from '../../../assets-src/gen/khortytsia/windmill/index.ts';
 import { loadPalette, type Palette } from '../../../assets-src/gen/lib/palette.ts';
@@ -51,6 +55,9 @@ describe.each([
   ['field', field],
   ['garden', garden],
   ['apiary', apiary],
+  ['smithy', smithy],
+  ['tavern', tavern],
+  ['fair', fair],
 ] as const)('%s tiers', (_, gen) => {
   const frames = bases(gen);
 
@@ -148,5 +155,34 @@ describe('windmill add-ons', () => {
     const vane = partsAt(6).find((p) => p.sprite === 'gilt.vane');
     const top = millPoleTop('t6');
     expect([vane?.dx, vane?.lift]).toEqual([top.dx, top.lift]);
+  });
+});
+
+describe('smithy add-ons', () => {
+  const smithySprite = KHORTYTSIA_SUBURB.props.filter(isTierSprite).find((t) => t.building === 'smithy');
+
+  it('lays the forge fire on the hearth of every tier', () => {
+    expect(smithySprite).toBeDefined();
+    for (const tier of [1, 2, 3, 4, 5, 6]) {
+      const look = smithySprite?.tiers[tier - 1];
+      const fire = look && 'parts' in look ? look.parts.find((p) => p.sprite === 'forge') : undefined;
+      const want = smithyForge(`t${String(tier)}`);
+      expect([fire?.dx, fire?.lift], `t${String(tier)}`).toEqual([want.dx, want.lift]);
+    }
+  });
+});
+
+describe('fair add-ons', () => {
+  it('stands the VI gilt vane on the shop ridge of the generator', () => {
+    const fairSprite = KHORTYTSIA_SUBURB.props.filter(isTierSprite).find((t) => t.building === 'fair');
+    const look = fairSprite?.tiers[5];
+    const parts = look && 'parts' in look ? look.parts : [];
+    const shop = parts.find((p) => p.sprite === 'shop');
+    const vane = parts.find((p) => p.sprite === 'gilt.vane');
+    expect([vane?.dx, vane?.dground, vane?.lift]).toEqual([
+      (shop?.dx ?? 0) + SHOP_RIDGE.dx,
+      shop?.dground,
+      SHOP_RIDGE.lift,
+    ]);
   });
 });

@@ -1,7 +1,8 @@
 // Night lights (plan ART-16): the campfire's flicker and sparks, light pools, fireflies. Pure functions of animation
 // seconds (seeded hashes, no Math.random), so `?freeze=<s>` frames repeat; everything is quantized to whole px and
 // 1/8 alpha steps — no smooth crawl over the pixel grid.
-import { FIRE, FIREFLIES } from './config.ts';
+import type { Prop } from '../../content/villages/khortytsia.layout.ts';
+import { FIRE, FIRE_LIGHTS, FIREFLIES, WINDOW_POOL, type ColorRef } from './config.ts';
 
 /** Integer hash → 0..1. */
 function hash(a: number, b: number): number {
@@ -101,4 +102,28 @@ export function fireflies(seconds: number, area: { x0: number; x1: number; y0: n
     const t = phase - Math.floor(phase);
     return { x, y, on: t < FIREFLIES.blinkOn, peak: t < FIREFLIES.blinkOn * FIREFLIES.peak };
   });
+}
+
+/** A prop's light pool: its size, colour and alpha, rows below the pivot, and whether it flickers like a fire. */
+export interface PoolLook {
+  readonly rx: number;
+  readonly ry: number;
+  readonly color: ColorRef;
+  readonly alpha: number;
+  readonly below: number;
+  readonly fire: boolean;
+}
+
+const isFire = (sprite: string): sprite is keyof typeof FIRE_LIGHTS => sprite in FIRE_LIGHTS;
+
+/**
+ * The pool a prop throws at night: a fire's (`FIRE_LIGHTS`, by sprite id), a window's in front of a prop whose atlas
+ * has an `@emissive` frame `maskWidth` px wide (`poolRx` when the prop sets it), or none.
+ */
+export function poolLook(prop: Pick<Prop, 'sprite' | 'poolRx'>, maskWidth: number | null): PoolLook | null {
+  if (isFire(prop.sprite)) return { ...FIRE_LIGHTS[prop.sprite], fire: true };
+  if (maskWidth === null) return null;
+  const rx = prop.poolRx ?? Math.max(WINDOW_POOL.minRx, Math.round(maskWidth * WINDOW_POOL.rxShare));
+  const { ry, color, alpha, below } = WINDOW_POOL;
+  return { rx, ry, color, alpha, below, fire: false };
 }

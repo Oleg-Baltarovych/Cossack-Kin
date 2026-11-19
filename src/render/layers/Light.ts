@@ -17,7 +17,6 @@ import { layerOffset } from '../camera.ts';
 import {
   CLOUD_FOOTPRINTS,
   CLOUDS,
-  FIRE,
   FIREFLIES,
   FOG,
   HAZE_BAND,
@@ -26,10 +25,9 @@ import {
   RAYS,
   POOLS,
   QUALITY_TIERS,
-  WINDOW_POOL,
 } from '../atmosphere/config.ts';
 import { emissiveLevel } from '../atmosphere/emissive.ts';
-import { fireflies, flicker, paintPool } from '../atmosphere/nightLights.ts';
+import { fireflies, flicker, paintPool, poolLook } from '../atmosphere/nightLights.ts';
 import { claimParticles } from '../fx/registry.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { lutBucket } from '../atmosphere/grading.ts';
@@ -139,20 +137,18 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
     const pools = layout.props.flatMap((prop, i) => {
       const zone = zoneOf(prop.x);
       const seed = i - layout.props.findIndex((q) => zoneOf(q.x) === zone);
-      const fire = prop.sprite === 'campfire';
       const mask = findFrame(propFrames(prop.sprite).emissive);
-      if (!fire && !mask) return [];
-      const look = fire ? FIRE.pool : WINDOW_POOL;
-      const rx = fire ? FIRE.pool.rx : Math.max(4, Math.round((mask?.width ?? 0) * WINDOW_POOL.rxShare));
-      const ry = fire ? FIRE.pool.ry : WINDOW_POOL.ry;
+      const look = poolLook(prop, mask ? mask.width : null);
+      if (!look) return [];
       const sprite = new Sprite({
-        texture: poolTexture(rx, ry, rampColor(look.color[0], look.color[1])),
+        texture: poolTexture(look.rx, look.ry, rampColor(look.color[0], look.color[1])),
         roundPixels: true,
       });
       sprite.anchor.set(0.5);
       night.addChild(sprite);
-      // The fire's pool centres on the flames; a window pool lies on the ground in front of the wall.
-      return [{ prop, sprite, fire, seed, below: fire ? -4 : WINDOW_POOL.below, alpha: look.alpha }];
+      // A fire's pool centres on the flames; a window pool lies on the ground in front of the wall.
+      const { fire, below } = look;
+      return [{ prop, sprite, fire, seed, below, alpha: look.alpha }];
     });
     // A firefly at its blink peak: the lit px with a dim + of 4 neighbours (1/4), white so the tint colours it.
     const flyPeakBuf = cpuTexture(

@@ -8,9 +8,15 @@
 // - `path`   packed earth with two wavering ruts and grass biting in from both edges;
 // - `earth`  packed earth without ruts, one step deeper (the Sich maidan, the strip under the bottom sheet);
 // - `val`    the Sich rampart's inner slope: grassy crest, packed earth with slump smears, a dark toe (ART-11).
+// - `road`   the suburb's road (M2-08): the `path` tile pixel for pixel (same ruts, so the seams with the farm's path
+//            stay clean) with hoofprints, straw wisps and dung between the ruts — horses and carts come to the fair;
+// - `trodden`, `trodden-b`, `trodden-c` the suburb's front row (M2-08): near grass worn bald in patches by feet and
+//            hooves, straw blown off the carts — a different worn shape per variant (dents / a long stroke / a ragged
+//            patch, anywhere in the tile: no polka-dot rhythm); the wear keeps 6 px off the tile's sides.
 // Recipe parts: `light: false`, `occlusion: false` (the recipes already place every shade), no outline (tiles meet
 // edge to edge).
 import { compose } from '../../lib/passes.ts';
+import { seedOf, valueNoise } from '../../lib/noise.ts';
 import { seededRng } from '../../lib/rng.ts';
 import { Plot } from '../../lib/plot.ts';
 import { grassField, pathField, pebbles } from '../../lib/recipes.ts';
@@ -91,6 +97,103 @@ export function paintVal(plot: Plot): void {
   pebbles(plot, { x: 2, y: 8, w: W - 4, h: H - 14 }, seed, 2);
 }
 
+/** The farm path (ART-05): packed earth, two ruts, grass biting in; `road` paints it first (same seed). */
+function paintPath(plot: Plot): void {
+  const seed = 'ground.path';
+  pathField(plot, { seed, x: 0, y: 0, w: W, h: H, ruts: [11, 21], grass: { top: 3, bottom: 3 } });
+  pebbles(plot, { x: 2, y: 5, w: W - 4, h: H - 10 }, seed, 4, (x, y) => plot.get(x, y)?.ramp === 'earth');
+}
+
+/**
+ * Traffic on the suburb road (M2-08): hoofprints (a 3-px earth 2 «U» opening up the road), straw wisps fallen from
+ * the carts (thatch 4 with a thatch 2 end, 2–3 px, lying along the road) and a dung dot (earth 1 with a lit earth 3
+ * top) — only on earth px between the grass edges, never on a rut lip.
+ */
+function roadLife(plot: Plot, seed: string): void {
+  const rng = seededRng(`${seed}:life`);
+  const onEarth = (x: number, y: number): boolean => {
+    const px = plot.get(x, y);
+    return px?.ramp === 'earth' && px.shade >= 3 && px.shade <= 4;
+  };
+  for (let k = 0, placed = 0; k < 40 && placed < 4; k++) {
+    const x = 2 + Math.floor(rng() * (W - 6));
+    const y = 6 + Math.floor(rng() * (H - 13));
+    if (!onEarth(x, y) || !onEarth(x + 2, y) || !onEarth(x + 1, y + 1)) continue;
+    plot.set(x, y, 'earth', 2);
+    plot.set(x + 2, y, 'earth', 2);
+    plot.set(x + 1, y + 1, 'earth', 2);
+    placed++;
+  }
+  for (let k = 0, placed = 0; k < 40 && placed < 3; k++) {
+    const x = 2 + Math.floor(rng() * (W - 6));
+    const y = 5 + Math.floor(rng() * (H - 10));
+    const len = 2 + Math.floor(rng() * 2);
+    let ok = true;
+    for (let i = 0; i < len; i++) ok = ok && onEarth(x + i, y);
+    if (!ok) continue;
+    for (let i = 0; i < len; i++) plot.set(x + i, y, 'thatch', i === len - 1 ? 2 : 4);
+    placed++;
+  }
+  for (let k = 0; k < 40; k++) {
+    const x = 4 + Math.floor(rng() * (W - 8));
+    const y = 7 + Math.floor(rng() * (H - 14));
+    if (!onEarth(x, y) || !onEarth(x + 1, y) || !onEarth(x, y - 1)) continue;
+    plot.set(x, y - 1, 'earth', 3);
+    plot.set(x, y, 'earth', 1);
+    plot.set(x + 1, y, 'earth', 1);
+    break;
+  }
+}
+
+/**
+ * Trodden grass (M2-08): the near-grass recipe, worn bald by `wear` (0 two small dents, 1 a long stroke, 2 a ragged
+ * patch and a satellite: earth 3 inside, earth 2 dithering into the grass), straw wisps on the grass. Patches stay ≥ 6 px from the sides and
+ * ≥ 3 px from the top/bottom so neighbouring tiles (and the plain grass across a zone edge) meet on grass.
+ */
+function paintTrodden(plot: Plot, seed: string, wear: number): void {
+  const flip = wear === 1;
+  grassField(plot, { x: 0, y: 0, w: HALF, h: H }, `${seed}:a`, { tufts: flip ? 4 : 5, flecks: 1 });
+  grassField(plot, { x: HALF, y: 0, w: HALF, h: H }, `${seed}:b`, { tufts: flip ? 5 : 4, flecks: 1 });
+  const rng = seededRng(`${seed}:patches`);
+  const s = seedOf(seed);
+  // Wear by variant, each its own shape so the tile grid never shows as a polka-dot rhythm (art-director M2-08): two
+  // short hoof-worn dents, one long stroke along the road, or a ragged patch with a small satellite; positions free.
+  const shape = (rx: number, ry: number): readonly [number, number] => [rx, ry];
+  const shapes =
+    [
+      [shape(3, 1), shape(2, 1)],
+      [shape(9 + Math.floor(rng() * 4), 1)],
+      [shape(6 + Math.floor(rng() * 4), 2 + Math.floor(rng() * 2)), shape(2, 1)],
+    ][wear] ?? [];
+  for (const [k, [rx, ry]] of shapes.entries()) {
+    const cx = 6 + rx + Math.floor(rng() * Math.max(1, W - 12 - 2 * rx));
+    const cy = 3 + ry + Math.floor(rng() * Math.max(1, H - 6 - 2 * ry));
+    /** Distance in the ragged ellipse: < 0.6 bare, 0.6–0.85 bare on half the px, 0.85–1 on a quarter (into grass). */
+    const dist = (x: number, y: number): number => {
+      const u = (x - cx) / rx;
+      const v = (y - cy) / ry;
+      return u * u + v * v + 0.6 * (valueNoise(x, y, 4, 2, s + k) - 0.5);
+    };
+    for (let y = cy - ry - 2; y <= cy + ry + 2; y++) {
+      for (let x = cx - rx - 2; x <= cx + rx + 2; x++) {
+        if (x < 6 || x >= W - 6 || y < 3 || y >= H - 3) continue;
+        const d = dist(x, y);
+        const bare = d < 0.6 || (d < 0.85 && (x + y) % 2 === 0) || (d < 1 && x % 2 === 0 && y % 2 === 0);
+        if (!bare) continue;
+        // Worn turf, not a dug hole: earth 2 at the rim (in the grass's value), earth 3 inside, a hoof dent here and there.
+        plot.set(x, y, 'earth', d >= 0.6 || (x * 7 + y * 3) % 23 === 0 ? 2 : 3);
+      }
+    }
+  }
+  for (let k = 0; k < 3; k++) {
+    const x = 6 + Math.floor(rng() * (W - 14));
+    const y = 3 + Math.floor(rng() * (H - 6));
+    if (plot.get(x, y)?.ramp !== 'grass') continue;
+    plot.set(x, y, 'thatch', 4);
+    plot.set(x + 1, y, 'thatch', 3);
+  }
+}
+
 const ground: SpriteGenerator = {
   atlas: 'khortytsia',
   id: 'ground',
@@ -110,6 +213,10 @@ const ground: SpriteGenerator = {
     'maidan-b',
     'maidan-c',
     'maidan-end',
+    'road',
+    'trodden',
+    'trodden-b',
+    'trodden-c',
   ],
   anchor: { x: 0, y: 0 },
   generate(_rng, { variant, buffer, rampSize }) {
@@ -122,8 +229,16 @@ const ground: SpriteGenerator = {
         shift(plot, 1, 2);
         break;
       case 'path':
-        pathField(plot, { seed, x: 0, y: 0, w: W, h: H, ruts: [11, 21], grass: { top: 3, bottom: 3 } });
-        pebbles(plot, { x: 2, y: 5, w: W - 4, h: H - 10 }, seed, 4, (x, y) => plot.get(x, y)?.ramp === 'earth');
+        paintPath(plot);
+        break;
+      case 'road':
+        paintPath(plot);
+        roadLife(plot, seed);
+        break;
+      case 'trodden':
+      case 'trodden-b':
+      case 'trodden-c':
+        paintTrodden(plot, seed, variant === 'trodden' ? 0 : variant === 'trodden-b' ? 1 : 2);
         break;
       case 'earth':
       case 'earth-b':

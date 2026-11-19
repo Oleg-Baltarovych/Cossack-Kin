@@ -617,14 +617,32 @@ export const FIRE = {
   sparks: 10,
   sparkRise: 30,
   sparkLife: 1.4,
-  pool: { rx: 46, ry: 20, alpha: 0.6, color: ['gold', 2] },
   spark: ['gold', 5],
 } as const;
+/** A fire's light pool on the ground: a round ellipse rx × ry, flickering like the fire (`FIRE.flicker`). */
+export interface FireLight {
+  readonly rx: number;
+  readonly ry: number;
+  readonly alpha: number;
+  readonly color: ColorRef;
+  /** Ground offset of the pool's centre from the prop's pivot row, logical px (negative = up, behind the pivot). */
+  readonly below: number;
+}
+/**
+ * Fire props (by sprite id) and their pools: the campfire's wide pool centred on the flames (ART-16, ART-BIBLE §8.3)
+ * and the smithy's forge (M2-08) — smaller, in front of the open bay. Every other prop with an `@emissive` frame gets
+ * a flat `WINDOW_POOL`.
+ */
+export const FIRE_LIGHTS: Readonly<Record<'campfire' | 'forge', FireLight>> = {
+  campfire: { rx: 46, ry: 20, alpha: 0.6, color: ['gold', 2], below: -4 },
+  forge: { rx: 30, ry: 12, alpha: 0.5, color: ['gold', 2], below: -2 },
+};
 /**
  * Window light spilling on the ground in front of every building with a night mask: a flat ellipse `rxShare` × the
- * sprite width wide, `ry` rows tall, `below` rows under the pivot; a slow candle flicker.
+ * sprite width wide (at least `minRx`; a prop's `poolRx` overrides), `ry` rows tall, `below` rows under the pivot; a
+ * slow candle flicker.
  */
-export const WINDOW_POOL = { rxShare: 0.45, ry: 5, below: 3, alpha: 0.4, color: ['gold', 2] } as const;
+export const WINDOW_POOL = { rxShare: 0.45, minRx: 4, ry: 5, below: 3, alpha: 0.4, color: ['gold', 2] } as const;
 /**
  * Light pools are alpha-blended (not additive: orange added to the blue night ground lands on grey-pink), so the
  * middle step reads amber (gold 2 at 0.6 over the night ground ≈ #916037, art-director ART-16). They show only once
