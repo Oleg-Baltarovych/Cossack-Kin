@@ -96,7 +96,16 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # Ubuntu package mirrors sometimes time out while fetching Chromium's font deps (run 44522096633: apt exit
+      # 100 in 2 of 6 jobs). Retry the whole install a few times before failing the job.
+      - name: Install Playwright Chromium (with retries)
+        run: |
+          for attempt in 1 2 3; do
+            pnpm exec playwright install --with-deps chromium && exit 0
+            echo "::warning title=playwright install::attempt $attempt failed, retrying in 20 s"
+            sleep 20
+          done
+          exit 1
 
       # Baselines (tests/e2e/__screenshots__/, compared on Linux only) are created by a manual run with
       # update_snapshots=true and committed by the owner. Until the first set is committed, comparisons are
