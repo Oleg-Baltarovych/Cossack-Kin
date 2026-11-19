@@ -36,6 +36,20 @@ async function cam(page: Page): Promise<number> {
   return c;
 }
 
+/**
+ * Asks Chrome for one real main frame. Chrome holds touch/pointer moves until its next (real) frame (rAF-aligned
+ * input), and with the fake clock owning `requestAnimationFrame` nothing else guarantees that frame comes after a
+ * move was dispatched: the frame `runFor` drew may already be past. Without it a move can wait forever (CI: the pinch
+ * saw the previous move for 5 s). A style write on the root schedules a visual update — a real BeginMainFrame — which
+ * flushes the queued moves; the game never reads the property.
+ */
+async function requestRealFrame(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--e2e-frame', String(Number(root.style.getPropertyValue('--e2e-frame') || '0') + 1));
+  });
+}
+
 /** Opens `url` on a fake clock and pauses it: from here on frames run only through `runFor`. */
 async function openPaused(page: Page, url: string): Promise<void> {
   await page.clock.install({ time: T0 });
@@ -85,7 +99,12 @@ test.describe('M2-02 camera', () => {
     for (let i = 1; i <= 10; i++) {
       await page.clock.runFor(FRAME_MS);
       await touch('touchMove', 300 - 20 * i);
-      await expect.poll(async () => (await delivered()).x).toBe(300 - 20 * i);
+      await expect
+        .poll(async () => {
+          await requestRealFrame(page);
+          return (await delivered()).x;
+        })
+        .toBe(300 - 20 * i);
     }
     expect((await delivered()).moves).toBe(10);
     await page.clock.runFor(SETTLE_MS);
@@ -207,7 +226,12 @@ test.describe('M2-03 pinch zoom', () => {
         const half = from + ((to - from) * i) / 6;
         await page.clock.runFor(FRAME_MS);
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: fingers(half) });
-        await expect.poll(delivered).toEqual([MID - half, MID + half]);
+        await expect
+          .poll(async () => {
+            await requestRealFrame(page);
+            return delivered();
+          })
+          .toEqual([MID - half, MID + half]);
       }
       await page.clock.runFor(SETTLE_MS);
     };

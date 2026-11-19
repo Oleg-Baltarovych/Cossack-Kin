@@ -9,6 +9,7 @@
  */
 import { TIER_LEVELS } from '../economy.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../sich.ts';
+import type { VariantPlot } from '../variants.ts';
 import type { FarmBuildingId } from './khortytsia.ts';
 
 /** A building whose level drives what stands on its plot (farm and Sich ids do not overlap). */
@@ -25,7 +26,15 @@ export interface Plot {
   readonly until?: number;
   /** Other buildings that must stand too (a trail from the gate to a kurin needs both). */
   readonly requires?: readonly { readonly building: PlotBuilding; readonly from: number }[];
+  /**
+   * A cosmetic add-on (plan M2-10): shown only while the game's `plotVariant(seed, building)` is this option
+   * (content PLOT_VARIANTS); without a game (the M-ART frames, `state=showcase`) never.
+   */
+  readonly variant?: number;
 }
+
+/** A ground band's plot: bands are never cosmetic variants (those are props). */
+export type BandPlot = Omit<Plot, 'variant'>;
 
 export type GroundTile =
   | 'meadow'
@@ -47,7 +56,7 @@ export interface GroundRow {
   readonly top: number;
   readonly h: number;
   /** A band that belongs to a plot (the maidan, the rampart): `alt` (default: the layout's `fill`) while it is empty. */
-  readonly plot?: Plot;
+  readonly plot?: BandPlot;
   readonly alt?: GroundTile;
   /** A plot band's later looks: `tile` from the plot building's visual tier `from` on (the rampart from walls III). */
   readonly upgrades?: readonly { readonly from: number; readonly tile: GroundTile }[];
@@ -120,7 +129,15 @@ export interface Prop {
     | 'kurin-c'
     | 'koshovyi'
     | 'flagpole'
-    | 'kazan';
+    | 'kazan'
+    | 'flowers.a'
+    | 'flowers.b'
+    | 'kennel'
+    | 'bench'
+    | 'laundry'
+    | 'woodpile'
+    | 'stork-nest'
+    | 'pumpkins';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -559,6 +576,42 @@ const MILL_TYN: TierPart = { sprite: 'tyn', dx: 46, dground: 2 };
 const POTTER_JUGS: TierPart = { sprite: 'jugs', dx: -46, dground: 5 };
 const POTTER_KILN: TierPart = { sprite: 'kiln', dx: -68, dground: -2 };
 
+/**
+ * A cosmetic add-on of a plot (plan M2-10, SPEC §2.6): stands while `building` is built and the game seed picked
+ * `variant` for it (core `plotVariant`, content PLOT_VARIANTS). Placed clear of every tier of every building
+ * (tests/unit/tools/gen-variants.test.ts); appended after a zone's other props so their seeds stay put.
+ */
+const addOn = (building: VariantPlot, variant: number, sprite: Prop['sprite'], x: number, ground: number): Prop => ({
+  sprite,
+  x,
+  ground,
+  plot: { building, from: 1, variant },
+});
+
+/**
+ * The farm's plot variants (art-director M2-10): the stork's pole by the mill's yard fence or beside the potter's khata,
+ * the kennel in the potter's yard, pumpkins and flowers at a fence or a bed end; one laundry line on the farm (the
+ * potter's), so a screen never shows two.
+ */
+const FARM_VARIANTS: readonly Prop[] = [
+  addOn('windmill', 0, 'woodpile', 258, 122),
+  addOn('windmill', 1, 'stork-nest', 362, 96),
+  addOn('windmill', 2, 'pumpkins', 258, 122),
+  addOn('potter', 0, 'laundry', 406, 238),
+  addOn('potter', 1, 'kennel', 318, 254),
+  addOn('potter', 2, 'stork-nest', 196, 238),
+  addOn('field', 0, 'pumpkins', 470, 116),
+  addOn('field', 1, 'flowers.a', 440, 114),
+  addOn('field', 1, 'flowers.b', 500, 116),
+  addOn('field', 2, 'bench', 520, 118),
+  addOn('apiary', 0, 'flowers.b', 728, 112),
+  addOn('apiary', 1, 'bench', 728, 124),
+  addOn('apiary', 2, 'kennel', 728, 124),
+  addOn('garden', 0, 'pumpkins', 584, 262),
+  addOn('garden', 1, 'flowers.a', 586, 244),
+  addOn('garden', 2, 'woodpile', 600, 258),
+];
+
 export const KHORTYTSIA_FARM: ZoneScene = {
   width: 768,
   rows: [
@@ -645,6 +698,7 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     // The farm's second screen (M2-06), appended after the M-ART props so their light-pool seeds stay put: the wheat
     // field in the back row past the windmill, the apiary at the willow's foot, the garden in the front row.
     ...FARM_PLOTS,
+    ...FARM_VARIANTS,
   ],
   // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
   // mallows at the corners of the first screen, the rest spread for the pan.
@@ -833,6 +887,18 @@ const FAIR: TierSprite = {
  * crane well, the roadside cross toward the Sich. Front row: the fair on its trodden square (stalls, barrels, later a
  * shop) and the smithy nearest the Sich, its forge the zone's night light.
  */
+/** The suburb's plot variants: before the tavern, at the fair square's edge, in the smithy's yard. */
+const SUBURB_VARIANTS: readonly Prop[] = [
+  addOn('tavern', 0, 'bench', 90, 126),
+  addOn('tavern', 1, 'woodpile', 84, 126),
+  addOn('fair', 0, 'pumpkins', 168, 250),
+  addOn('fair', 1, 'cart', 236, 258),
+  addOn('fair', 2, 'bench', 120, 248),
+  addOn('smithy', 0, 'woodpile', 340, 232),
+  addOn('smithy', 1, 'kennel', 345, 230),
+  addOn('smithy', 2, 'cart', 300, 240),
+];
+
 export const KHORTYTSIA_SUBURB: ZoneScene = {
   width: 384,
   rows: [
@@ -857,6 +923,7 @@ export const KHORTYTSIA_SUBURB: ZoneScene = {
     TAVERN,
     FAIR,
     SMITHY,
+    ...SUBURB_VARIANTS,
   ],
   walkers: [],
   foreground: [

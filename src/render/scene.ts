@@ -1,21 +1,29 @@
-// What the game shows in the scene (plan M1-19, SPEC §6.5): per building its visual tier (which plot props stand) and
-// the wind. Render only reads it — render/bridge.ts fills it from store events; without a game (render alone, the
-// M-ART look) every prop stands and a breeze blows.
+// What the game shows in the scene (plan M1-19, SPEC §6.5): per building its visual tier (which plot props stand),
+// per plot its cosmetic variant (M2-10: which add-ons stand) and the wind. Render only reads it — render/bridge.ts
+// fills it from store events; without a game (render alone, the M-ART look) every plot stands, no add-on does, and a
+// breeze blows.
+import { isVariantPlot } from '../content/variants.ts';
 import type { Plot } from '../content/villages/khortytsia.layout.ts';
-import type { VisualTiers } from '../core/selectors.ts';
+import type { PlotVariants, VisualTiers } from '../core/selectors.ts';
 import { WIND } from './atmosphere/config.ts';
 
 export interface SceneState {
   /** Visual tier per building; `null` = no game attached: show everything. */
   readonly tiers: VisualTiers | null;
+  /** Cosmetic add-on set per plot (core `plotVariants`); `null` = none (no game, the M-ART showcase). */
+  readonly variants: PlotVariants | null;
   /** Wind strength 0..1 for sails and sway. */
   readonly wind: number;
 }
 
-export const DEFAULT_SCENE: SceneState = { tiers: null, wind: WIND.strength };
+export const DEFAULT_SCENE: SceneState = { tiers: null, variants: null, wind: WIND.strength };
 
-/** Whether a prop or decal with `plot` stands now. */
-export function plotShown(plot: Plot | undefined, tiers: VisualTiers | null): boolean {
+/** Whether a prop or decal with `plot` stands now. A variant add-on needs its plot's variant (none without a game). */
+export function plotShown(plot: Plot | undefined, tiers: VisualTiers | null, variants: PlotVariants | null): boolean {
+  if (plot?.variant !== undefined) {
+    const v = variants && isVariantPlot(plot.building) ? variants[plot.building] : undefined;
+    if (v !== plot.variant) return false;
+  }
   if (!plot || !tiers) return true;
   const t = tiers[plot.building];
   if (t < plot.from || (plot.until !== undefined && t >= plot.until)) return false;

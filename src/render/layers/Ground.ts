@@ -5,7 +5,12 @@
 // opacity by time of day), with the scripted walkers (render/walkers.ts) sorted among them and re-posed every frame. All sprites come from one atlas texture, so the
 // whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
-import { GROUND_TILE, type GroundTile, type Plot, type WorldLayout } from '../../content/villages/khortytsia.layout.ts';
+import {
+  GROUND_TILE,
+  type BandPlot,
+  type GroundTile,
+  type WorldLayout,
+} from '../../content/villages/khortytsia.layout.ts';
 import { cullByX } from '../cull.ts';
 import { CLOUD_SHADOW, DAYTIME_PROPS, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
 import { plotShown } from '../scene.ts';
@@ -74,14 +79,14 @@ export function tileFrame(tile: GroundTile, col: number, row: number): string {
  */
 export function plotTileTexture<T>(
   t: {
-    readonly plot: Plot;
+    readonly plot: BandPlot;
     readonly on: T;
     readonly off: T;
     readonly upgrades: readonly { from: number; texture: T }[];
   },
   tiers: VisualTiers | null,
 ): T {
-  if (!plotShown(t.plot, tiers)) return t.off;
+  if (!plotShown(t.plot, tiers, null)) return t.off;
   const tier = tiers ? tiers[t.plot.building] : Number.POSITIVE_INFINITY;
   return t.upgrades.reduce((tex, u) => (tier >= u.from ? u.texture : tex), t.on);
 }
@@ -143,7 +148,7 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
     /** Tiles of plot bands (the maidan, the rampart): `on` while the plot stands, `off` while it is empty. */
     const plotTiles: {
       sprite: Sprite;
-      plot: Plot;
+      plot: BandPlot;
       on: Texture;
       off: Texture;
       upgrades: { from: number; texture: Texture }[];
@@ -243,12 +248,13 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       },
       update: ({ seconds, ambient, cycle, scene, camX }) => {
         // Plots follow the game (M1-19): a building's props stand while its visual tier is in their range.
-        for (const { decal, sprite } of placedDecals) sprite.visible = plotShown(decal.plot, scene.tiers);
+        for (const { decal, sprite } of placedDecals)
+          sprite.visible = plotShown(decal.plot, scene.tiers, scene.variants);
         for (const t of plotTiles) t.sprite.texture = plotTileTexture(t, scene.tiers);
         // Day-only life (bees) is out by day and never under «менше руху».
         const daylight = !lessMotion && emissiveLevel(cycle) < DAYTIME_PROPS.maxEmissive;
         for (const { prop, sprite, shadow, anim } of placed) {
-          const shown = plotShown(prop.plot, scene.tiers) && (prop.daytime !== true || daylight);
+          const shown = plotShown(prop.plot, scene.tiers, scene.variants) && (prop.daytime !== true || daylight);
           sprite.visible = shown;
           if (shadow) shadow.visible = shown;
           if (!shown) continue;

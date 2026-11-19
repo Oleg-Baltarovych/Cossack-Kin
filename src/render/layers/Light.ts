@@ -335,7 +335,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
           const offset = layerOffset(camX, 1);
           for (const p of pools) {
             // A window pool only in front of a building that stands (M1-19).
-            p.sprite.visible = plotShown(p.prop.plot, scene.tiers);
+            p.sprite.visible = plotShown(p.prop.plot, scene.tiers, scene.variants);
             p.sprite.position.set(p.prop.x + p.dx + offset, horizon + p.prop.ground + p.below);
             const f = p.fire ? flicker(seconds, p.seed) : flicker(seconds * 0.25, p.seed, 0.125);
             p.sprite.alpha = Math.round(p.alpha * poolLevel * f * 8) / 8;

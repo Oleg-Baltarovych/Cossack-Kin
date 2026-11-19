@@ -186,7 +186,9 @@ describe('tier sprites become plot props (render reads visual tiers only)', () =
     };
     const props = tierProps(mill);
     for (let tier = 0; tier <= tierCount('windmill'); tier++) {
-      const shown = props.filter((p) => plotShown(p.plot, withWindmill(tier))).map((p) => [p.sprite, p.x, p.ground]);
+      const shown = props
+        .filter((p) => plotShown(p.plot, withWindmill(tier), null))
+        .map((p) => [p.sprite, p.x, p.ground]);
       const want = lookAt(mill, tier).map((p) => [p.sprite, 100 + (p.dx ?? 0), 50 + (p.dground ?? 0)]);
       expect(shown, `tier ${String(tier)}`).toEqual(want);
     }

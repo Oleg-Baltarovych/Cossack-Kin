@@ -107,7 +107,7 @@ export function createPostGrade({ layout, frame, swatch, quality, lessMotion }: 
     update: (seconds, scene) => {
       if (!emissive.visible) return;
       for (const { prop, sprite, frames, fps } of masks) {
-        sprite.visible = plotShown(prop.plot, scene.tiers);
+        sprite.visible = plotShown(prop.plot, scene.tiers, scene.variants);
         if (frames.length < 2 || fps <= 0) continue;
         const texture = frames[Math.floor(seconds * fps) % frames.length];
         if (texture) sprite.texture = texture;

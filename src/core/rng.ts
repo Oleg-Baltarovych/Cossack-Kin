@@ -44,3 +44,22 @@ export function hash32(seed: number, i: number): number {
 export function hashUnit(seed: number, i: number): number {
   return hash32(seed, i) / 4294967296;
 }
+
+/**
+ * A stable choice of one of `options` for (seed, key): rendezvous (highest-random-weight) hashing — every option i
+ * gets the weight hash32(hash32(seed, key), i) and the heaviest wins (ties: the lower i). Adding an option moves a seed
+ * only onto the new option, never between the old ones, so content can grow without reshuffling shipped games.
+ */
+export function pickStable(seed: number, key: number, options: number): number {
+  const base = hash32(seed, key);
+  let best = 0;
+  let bestWeight = -1;
+  for (let i = 0; i < options; i++) {
+    const w = hash32(base, i);
+    if (w > bestWeight) {
+      best = i;
+      bestWeight = w;
+    }
+  }
+  return best;
+}

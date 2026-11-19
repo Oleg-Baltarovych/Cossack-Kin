@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KHORTYTSIA_WORLD, type Plot } from '../../../src/content/villages/khortytsia.layout.ts';
 import { Big } from '../../../src/core/big.ts';
-import { visualTiers } from '../../../src/core/selectors.ts';
+import { plotVariant, plotVariants, visualTiers } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { createStore } from '../../../src/core/store.ts';
 import { windAt } from '../../../src/core/systems/village-mechanics/wind.ts';
@@ -11,6 +11,7 @@ import { connectWorld, sceneOf } from '../../../src/render/bridge.ts';
 import { plotShown, type SceneState } from '../../../src/render/scene.ts';
 import {
   FROZEN_NOW,
+  noVariants,
   parseGameDebug,
   presetState,
   showcaseTiers,
@@ -48,11 +49,15 @@ function rich(): GameState {
 describe('plotShown (M1-19)', () => {
   const plot: Plot = { building: 'potter', from: 1, until: 3 };
   it('no game attached shows everything; an empty plot hides; [from, until) picks the tier sprite', () => {
-    expect(plotShown(plot, null)).toBe(true);
-    expect(plotShown(undefined, visualTiers(rich()))).toBe(true);
+    expect(plotShown(plot, null, null)).toBe(true);
+    expect(plotShown(undefined, visualTiers(rich()), null)).toBe(true);
     const at = (potter: number): boolean => {
       const s = rich();
-      return plotShown(plot, visualTiers({ ...s, village: { ...s.village, levels: { ...s.village.levels, potter } } }));
+      return plotShown(
+        plot,
+        visualTiers({ ...s, village: { ...s.village, levels: { ...s.village.levels, potter } } }),
+        null,
+      );
     };
     expect([at(0), at(1), at(24), at(25)]).toEqual([false, true, true, false]);
   });
@@ -105,6 +110,31 @@ describe('connectWorld (M1-19)', () => {
   it('the wind follows the game: storm bends, calm stills (render WIND_STRENGTH)', () => {
     const s = rich();
     expect(sceneOf(s).wind).toBe(WIND_STRENGTH[windAt(s.seed, s.time.lastSeen)]);
+  });
+});
+
+describe('plot variants in the scene (M2-10)', () => {
+  const kennel: Plot = { building: 'potter', from: 1, variant: 1 };
+  it('a variant add-on stands only with its plot variant, and never without a game (the M-ART frames)', () => {
+    const tiers = visualTiers({
+      ...rich(),
+      village: { ...rich().village, levels: { ...rich().village.levels, potter: 1 } },
+    });
+    const variants = (potter: number) => ({ ...plotVariants(rich()), potter });
+    expect(plotShown(kennel, tiers, variants(1))).toBe(true);
+    expect(plotShown(kennel, tiers, variants(0))).toBe(false);
+    expect(plotShown(kennel, tiers, null)).toBe(false);
+    expect(plotShown(kennel, null, null)).toBe(false);
+    // The variant still needs its building to stand.
+    expect(plotShown(kennel, visualTiers(rich()), variants(1))).toBe(false);
+  });
+
+  it('the scene takes the variants from the game seed; showcase pins none', () => {
+    for (const seed of [1, 2, 3]) {
+      const s = createInitialState({ seed, now: T0 });
+      expect(sceneOf(s).variants?.potter).toBe(plotVariant(seed, 'potter'));
+    }
+    expect(sceneOf(presetState('showcase', 1, FROZEN_NOW), showcaseTiers, noVariants).variants).toBeNull();
   });
 });
 
