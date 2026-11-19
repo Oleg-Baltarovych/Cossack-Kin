@@ -36,6 +36,9 @@ async function cam(page: Page): Promise<number> {
   return c;
 }
 
+/** CI SwiftShader can take several seconds to deliver a queued touch move (the default 5 s poll flaked). */
+const TOUCH_POLL = { timeout: 15_000 } as const;
+
 /**
  * Asks Chrome for one real main frame. Chrome holds touch/pointer moves until its next (real) frame (rAF-aligned
  * input), and with the fake clock owning `requestAnimationFrame` nothing else guarantees that frame comes after a
@@ -103,7 +106,7 @@ test.describe('M2-02 camera', () => {
         .poll(async () => {
           await requestRealFrame(page);
           return (await delivered()).x;
-        })
+        }, TOUCH_POLL)
         .toBe(300 - 20 * i);
     }
     expect((await delivered()).moves).toBe(10);
@@ -230,7 +233,7 @@ test.describe('M2-03 pinch zoom', () => {
           .poll(async () => {
             await requestRealFrame(page);
             return delivered();
-          })
+          }, TOUCH_POLL)
           .toEqual([MID - half, MID + half]);
       }
       await page.clock.runFor(SETTLE_MS);
