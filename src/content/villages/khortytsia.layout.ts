@@ -27,7 +27,7 @@ export interface Plot {
   readonly requires?: readonly { readonly building: PlotBuilding; readonly from: number }[];
 }
 
-export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan' | 'maidan-end';
+export type GroundTile = 'meadow' | 'grass' | 'path' | 'earth' | 'val' | 'maidan' | 'maidan-end' | 'road' | 'trodden';
 
 export interface GroundRow {
   readonly tile: GroundTile;
@@ -82,7 +82,19 @@ export interface Prop {
     | 'kiln'
     | 'jugs'
     | 'gilt.vane'
-    | 'gilt.jug';
+    | 'gilt.jug'
+    | 'well'
+    | `smithy.t${TierNo}`
+    | 'forge'
+    | `tavern.t${TierNo}`
+    | 'broom-sign'
+    | 'hitching-rail'
+    | 'barrels'
+    | `fair.t${TierNo}`
+    | 'stall.a'
+    | 'stall.b'
+    | 'stall.c'
+    | 'shop';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -98,6 +110,8 @@ export interface Prop {
   readonly animate?: Animate;
   /** Day-only life (bees): hidden at night and under «менше руху» (render: DAYTIME_PROPS). */
   readonly daytime?: boolean;
+  /** Half-width of the window light pool at night (default: a share of the frame width, render WINDOW_POOL). */
+  readonly poolRx?: number;
   readonly plot?: Plot;
 }
 
@@ -119,6 +133,7 @@ export interface TierPart {
   readonly shadow?: boolean;
   readonly animate?: Animate;
   readonly daytime?: boolean;
+  readonly poolRx?: number;
 }
 
 /** A building's drawn look at a tier: the base and its add-ons. */
@@ -210,7 +225,8 @@ export interface ForegroundPlant {
 
 /** Flat ground decal (no shadow, not Y-sorted): drawn over the tiles, under every shadow and prop. */
 export interface Decal {
-  readonly sprite: 'yard' | 'trail.l' | 'trail.r' | 'val-end' | 'maidan-edge' | 'road-mouth' | 'road-track' | 'bank';
+  readonly sprite:
+    'yard' | 'trail.l' | 'trail.r' | 'val-end' | 'maidan-edge' | 'road-mouth' | 'road-track' | 'bank' | 'square';
   /** Centre of the decal, world x / rows below the horizon. */
   readonly x: number;
   readonly ground: number;
@@ -642,30 +658,183 @@ export const KHORTYTSIA_FARM: ZoneScene = {
 };
 
 /**
- * The suburb (передмістя, SPEC §3.0) — a stub until M2-08 builds the smithy, the tavern and the fair on it: the farm's
- * meadow, grass and road run on to the Sich.
+ * The forge fire on the smithy's hearth (4 frames @8 fps, `@emissive`, the zone's night light pool): `dx`/`lift` from
+ * the generator's `smithyForge` (a unit test holds them equal), sorted just in front of the smithy.
+ */
+const forge = (dx: number): TierPart => ({
+  sprite: 'forge',
+  dx,
+  dground: 1,
+  lift: 10,
+  shadow: false,
+  animate: { kind: 'cycle', frames: 4, fps: 8 },
+});
+/** The smithy by tier (generator `smithy`): the shed, then the hut, the lean-to, the shoeing frame, the gilt shoe. */
+const SMITHY: TierSprite = {
+  building: 'smithy',
+  x: 318,
+  ground: 214,
+  tiers: [
+    { parts: [{ sprite: 'smithy.t1' }, forge(-6)] },
+    { parts: [{ sprite: 'smithy.t2' }, forge(-9)] },
+    { parts: [{ sprite: 'smithy.t3' }, forge(-15)] },
+    { parts: [{ sprite: 'smithy.t4' }, forge(-15)] },
+    { parts: [{ sprite: 'smithy.t5' }, forge(-17)] },
+    { parts: [{ sprite: 'smithy.t6' }, forge(-17)] },
+  ],
+};
+
+/** The tavern's віхоть on its pole just right of the door (`tavernDoor` in the generator), in front of the wall. */
+const broomSign = (door: number): TierPart => ({ sprite: 'broom-sign', dx: door + 8, dground: 2 });
+// Tier III: its door + 8 crossed the right-hand window, so it stands 4 px further right (art: off the window).
+const HITCHING_RAIL = (dx: number): TierPart => ({ sprite: 'hitching-rail', dx, dground: 8 });
+/**
+ * The tavern by tier (generator `tavern`): the house grows longer, gets a porch, a storeroom and a cart shed; its
+ * windows light a pool as wide as the wall (`poolRx` ≈ 0.45 × the wall, not the 132-px frame).
+ */
+const TAVERN: TierSprite = {
+  building: 'tavern',
+  x: 96,
+  ground: 112,
+  tiers: [
+    { parts: [{ sprite: 'tavern.t1', poolRx: 20 }, broomSign(0)] },
+    { parts: [{ sprite: 'tavern.t2', poolRx: 23 }, broomSign(1), HITCHING_RAIL(46)] },
+    { parts: [{ sprite: 'tavern.t3', poolRx: 27 }, broomSign(6), HITCHING_RAIL(50)] },
+    {
+      parts: [
+        { sprite: 'barrels', dx: -58, dground: 3 },
+        { sprite: 'tavern.t4', poolRx: 31 },
+        broomSign(3),
+        HITCHING_RAIL(54),
+      ],
+    },
+    {
+      parts: [
+        { sprite: 'barrels', dx: -60, dground: 3 },
+        { sprite: 'tavern.t5', poolRx: 32 },
+        broomSign(3),
+        HITCHING_RAIL(50),
+      ],
+    },
+    {
+      parts: [
+        { sprite: 'barrels', dx: -62, dground: 3 },
+        { sprite: 'tavern.t6', poolRx: 34 },
+        { sprite: 'broom-sign', dx: -41, dground: 2 },
+        // The gilt jug on a stake left of the porch (not in front of the door); the pole off the painted eave band.
+        { sprite: 'gilt.jug', dx: -24, dground: 3, shadow: false, animate: GILT_SHIMMER },
+        HITCHING_RAIL(52),
+      ],
+    },
+  ],
+};
+
+/** A stall stands behind the goods row (sorted behind the mats). */
+const stall = (variant: 'a' | 'b' | 'c', dx: number): TierPart => ({ sprite: `stall.${variant}`, dx, dground: -8 });
+/** The shop at the back left of the square (from IV); the gilt vane of VI on its ridge (generator `SHOP_RIDGE`). */
+const SHOP_DGROUND = -16;
+const shop = (dx: number): TierPart => ({ sprite: 'shop', dx, dground: SHOP_DGROUND });
+const SHOP_VANE = { dx: 2, lift: 38 } as const;
+/**
+ * The fair by tier (generator `fair`: the goods on mats, sacks, crates, the pennant pole): one striped stall at I, a
+ * second at II, barrels at III, the shop at IV, a third stall at V, the gilt vane on the shop at VI. From V the
+ * barrels stand by the shop, well inside the square's rim (the right side is the third stall's).
+ */
+const FAIR: TierSprite = {
+  building: 'fair',
+  x: 150,
+  ground: 236,
+  tiers: [
+    { parts: [stall('a', 0), { sprite: 'fair.t1' }] },
+    { parts: [stall('a', -16), stall('b', 24), { sprite: 'fair.t2' }] },
+    { parts: [stall('a', -16), stall('b', 24), { sprite: 'fair.t3' }, { sprite: 'barrels', dx: 50, dground: -2 }] },
+    {
+      parts: [
+        shop(-58),
+        stall('a', -14),
+        stall('b', 24),
+        { sprite: 'fair.t4' },
+        { sprite: 'barrels', dx: 56, dground: -2 },
+      ],
+    },
+    {
+      parts: [
+        shop(-60),
+        stall('a', -18),
+        stall('b', 20),
+        stall('c', 58),
+        { sprite: 'fair.t5' },
+        { sprite: 'barrels', dx: -44, dground: -12 },
+      ],
+    },
+    {
+      parts: [
+        shop(-64),
+        {
+          sprite: 'gilt.vane',
+          dx: -64 + SHOP_VANE.dx,
+          dground: SHOP_DGROUND,
+          lift: SHOP_VANE.lift,
+          shadow: false,
+          animate: GILT_SHIMMER,
+        },
+        stall('a', -22),
+        stall('b', 16),
+        stall('c', 54),
+        { sprite: 'fair.t6' },
+        { sprite: 'barrels', dx: -46, dground: -12 },
+      ],
+    },
+  ],
+};
+
+/**
+ * The suburb (передмістя, SPEC §3.0, ART-BIBLE §6; plan M2-08): the trade street between the khutir and the Sich. The
+ * farm's meadow and grass run on; the path becomes the suburb road (hoofprints, straw: same ruts, clean seams) and the
+ * front row is grass trodden bald by feet and hooves. Back row: the шинок with its віхоть sign and hitching rail, the
+ * crane well, the roadside cross toward the Sich. Front row: the fair on its trodden square (stalls, barrels, later a
+ * shop) and the smithy nearest the Sich, its forge the zone's night light.
  */
 export const KHORTYTSIA_SUBURB: ZoneScene = {
   width: 384,
-  rows: KHORTYTSIA_FARM.rows,
+  rows: [
+    { tile: 'meadow', top: 0, h: 32 },
+    { tile: 'grass', top: 32, h: 96 },
+    { tile: 'road', top: 128, h: 32 },
+    // Worn where people and horses go (the road, the fair, the smithy), plain grass again further down.
+    { tile: 'trodden', top: 160, h: 96 },
+    { tile: 'grass', top: 256, h: 32 },
+  ],
   fill: 'grass',
-  // Where the Dnipro ends: its bank (sand lip on the 2:1 waterline, boulders, reeds) — row ends from the world's river.
-  decals: [{ sprite: 'bank', x: 324, ground: 0 }],
-  // The suburb's focal object until M2-08 builds on it: a roadside cross with a рушник by the road.
-  props: [{ sprite: 'cross', x: 150, ground: 124 }],
+  decals: [
+    // Where the Dnipro ends: its bank (sand lip on the 2:1 waterline, boulders, reeds) — row ends from the world's river.
+    { sprite: 'bank', x: 324, ground: 0 },
+    // The fair's trodden square under the stalls (from the first stall).
+    { sprite: 'square', x: 150, ground: 226, plot: { building: 'fair', from: 1 } },
+  ],
+  props: [
+    // The crane well between the tavern and the road's bend; the roadside cross (M2-01) now stands toward the Sich.
+    { sprite: 'well', x: 214, ground: 108 },
+    { sprite: 'cross', x: 268, ground: 124 },
+    TAVERN,
+    FAIR,
+    SMITHY,
+  ],
   walkers: [],
   foreground: [
     { sprite: 'plant.grass', x: 40, ground: 380, amp: 1, phase: 0.3 },
     { sprite: 'plant.grass', x: 190, ground: 381, amp: 1, phase: 0.75 },
     { sprite: 'plant.reeds', x: 320, ground: 379, amp: 1, phase: 0.55 },
   ],
-  // Puddles in the road's ruts.
+  // Puddles in the road's ruts and on the fair's square.
   puddles: [
     { x: 40, ground: 144, w: 10 },
     { x: 120, ground: 138, w: 8 },
     { x: 205, ground: 150, w: 12 },
     { x: 290, ground: 142, w: 9 },
     { x: 350, ground: 148, w: 8 },
+    { x: 118, ground: 232, w: 12 },
+    { x: 196, ground: 222, w: 9 },
   ],
   fireflies: { x0: 0, x1: 384, top: 40, bottom: 300 },
   groundHaze: true,
@@ -828,9 +997,6 @@ export function composeWorld(
  * one place — a tier sprite or this list — so each art task deletes its lines here.
  */
 export const TIER_ART_PENDING: Readonly<Partial<Record<PlotBuilding, string>>> = {
-  smithy: 'M2-08',
-  tavern: 'M2-08',
-  fair: 'M2-08',
   kurins: 'M2-09',
   maidan: 'M2-09',
   walls: 'M2-09',

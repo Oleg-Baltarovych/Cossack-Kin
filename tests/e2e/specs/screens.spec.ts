@@ -700,6 +700,43 @@ test.describe('M2-05 every building at tier N @screens', () => {
     }
 });
 
+test.describe('M2-08 the suburb @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+
+  // The zone at its anchor (state=showcase: smithy, tavern and fair at tier III) at the 6 time keys, in rain and fog;
+  // the forge's light pool lies in front of the smithy at night.
+  for (const [hhmm, weather] of [
+    ...SKY_KEY_TIMES.map((t) => [t, 'clear'] as const),
+    ['1300', 'rain'],
+    ['0700', 'fog'],
+  ] as const) {
+    test(`khortytsia suburb ${hhmm} ${weather}: budget, particles ≤ 300, pixel grid`, async ({ page }, testInfo) => {
+      const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+      await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&zone=suburb&weather=${weather}`);
+      const scale = await expectWebGlWithinBudget(page);
+      expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+      const png = await shoot(page, testInfo, `khortytsia-suburb-${hhmm}-${weather}`);
+      expectPixelGrid(png, testInfo, scale, 0);
+      if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
+    });
+  }
+
+  // Smithy, tavern and fair at every tier, day and night.
+  for (const tier of [1, 2, 3, 4, 5, 6] as const) {
+    for (const hhmm of ['1300', '2300'] as const) {
+      test(`tiers ${String(tier)} suburb ${hhmm}: budget, particles ≤ 300, pixel grid`, async ({ page }, testInfo) => {
+        const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+        await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&zone=suburb&state=tiers&tier=${String(tier)}`);
+        const scale = await expectWebGlWithinBudget(page);
+        expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+        const png = await shoot(page, testInfo, `tiers-${String(tier)}-suburb-${hhmm}`);
+        expectPixelGrid(png, testInfo, scale, 0);
+        if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
+      });
+    }
+  }
+});
+
 test.describe('M1-19 the scene follows the game @screens', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
 
