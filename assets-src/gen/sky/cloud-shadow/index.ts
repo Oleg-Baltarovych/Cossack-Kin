@@ -86,7 +86,7 @@ export function drawCloudShadows(kind: 'near' | 'far', { buffer, rampSize }: Gen
 }
 
 const cloudShadow: SpriteGenerator = {
-  atlas: 'khortytsia',
+  atlas: 'sky',
   id: 'cloud-shadow',
   size: CLOUD_SHADOW_TILES.near,
   frames: { idle: 1 },

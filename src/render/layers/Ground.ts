@@ -9,6 +9,7 @@ import { GROUND_TILE, type GroundTile, type Plot, type WorldLayout } from '../..
 import { cullByX } from '../cull.ts';
 import { CLOUD_SHADOW, DAYTIME_PROPS, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
 import { plotShown } from '../scene.ts';
+import type { VisualTiers } from '../../core/selectors.ts';
 import { cloudShadowLevel, emissiveLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
@@ -53,6 +54,9 @@ const TILE_VARIANTS: Readonly<Record<GroundTile, readonly string[]>> = {
   'maidan-end': ['maidan-end'],
   road: ['road'],
   trodden: ['trodden', 'trodden-b', 'trodden-c'],
+  moat: ['moat'],
+  rampart: ['rampart'],
+  ditch: ['ditch'],
 };
 
 /** Deterministic variant pick for the tile at column `col`, world row `row` (no RNG: same scene, same tiles). */
@@ -62,6 +66,24 @@ export function tileFrame(tile: GroundTile, col: number, row: number): string {
   n = Math.imul(n ^ (n >>> 13), 1274126177);
   const pick = variants[((n ^ (n >>> 16)) >>> 0) % variants.length] ?? tile;
   return `ground.${pick}/idle/00`;
+}
+
+/**
+ * A plot band's tile for the game's tiers: `off` while its plot is empty, else the last upgrade the building's tier
+ * reached (`tiers` null = render alone: every plot stands, at its top look), else `on`.
+ */
+export function plotTileTexture<T>(
+  t: {
+    readonly plot: Plot;
+    readonly on: T;
+    readonly off: T;
+    readonly upgrades: readonly { from: number; texture: T }[];
+  },
+  tiers: VisualTiers | null,
+): T {
+  if (!plotShown(t.plot, tiers)) return t.off;
+  const tier = tiers ? tiers[t.plot.building] : Number.POSITIVE_INFINITY;
+  return t.upgrades.reduce((tex, u) => (tier >= u.from ? u.texture : tex), t.on);
 }
 
 export function createGroundLayer({ layout, frame, lessMotion, weather, quality }: GroundLayerOptions): WorldLayer {
@@ -119,7 +141,13 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       return { walker: w, walk, idle, sprite, shadow };
     });
     /** Tiles of plot bands (the maidan, the rampart): `on` while the plot stands, `off` while it is empty. */
-    const plotTiles: { sprite: Sprite; plot: Plot; on: Texture; off: Texture }[] = [];
+    const plotTiles: {
+      sprite: Sprite;
+      plot: Plot;
+      on: Texture;
+      off: Texture;
+      upgrades: { from: number; texture: Texture }[];
+    }[] = [];
     /** The last, cut shore tile where the river's nearest row ends (owned: destroyed on resize and dispose). */
     let shoreEnd: Texture | null = null;
     let viewW = 0;
@@ -151,7 +179,13 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
               tiles.addChild(tile);
               // A plot band swaps its tiles while the plot is empty (M1-19 art review).
               if (band.plot)
-                plotTiles.push({ sprite: tile, plot: band.plot, on: texture, off: at(band.alt ?? segment.fill) });
+                plotTiles.push({
+                  sprite: tile,
+                  plot: band.plot,
+                  on: texture,
+                  off: at(band.alt ?? segment.fill),
+                  upgrades: (band.upgrades ?? []).map((u) => ({ from: u.from, texture: at(u.tile) })),
+                });
             }
           }
         }
@@ -210,7 +244,7 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       update: ({ seconds, ambient, cycle, scene, camX }) => {
         // Plots follow the game (M1-19): a building's props stand while its visual tier is in their range.
         for (const { decal, sprite } of placedDecals) sprite.visible = plotShown(decal.plot, scene.tiers);
-        for (const t of plotTiles) t.sprite.texture = plotShown(t.plot, scene.tiers) ? t.on : t.off;
+        for (const t of plotTiles) t.sprite.texture = plotTileTexture(t, scene.tiers);
         // Day-only life (bees) is out by day and never under «менше руху».
         const daylight = !lessMotion && emissiveLevel(cycle) < DAYTIME_PROPS.maxEmissive;
         for (const { prop, sprite, shadow, anim } of placed) {

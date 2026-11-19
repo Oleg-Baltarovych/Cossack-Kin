@@ -90,6 +90,24 @@ describe('poolLook (M2-08)', () => {
     expect(poolLook({ sprite: 'tyn' }, null)).toBeNull();
   });
 
+  it('throws no pool for noPool (a tier whose shared emissive layer is dark, M2-09) or without a mask', () => {
+    expect(poolLook({ sprite: 'treasury.t1', noPool: true }, 80)).toBeNull();
+    expect(poolLook({ sprite: 'treasury.t3' }, null)).toBeNull();
+  });
+
+  it("uses a prop's poolRx over the mask share, and window pools sit on the pivot (dx 0)", () => {
+    expect(poolLook({ sprite: 'treasury.t3', poolRx: 9 }, 80)).toMatchObject({ rx: 9, dx: 0, fire: false });
+  });
+
+  it("carries a fire light's dx (the watchtower beacon) and 0 for fires on the pivot", () => {
+    expect(poolLook({ sprite: 'watchtower.t4' }, 48)).toMatchObject({
+      dx: FIRE_LIGHTS['watchtower.t4'].dx,
+      below: FIRE_LIGHTS['watchtower.t4'].below,
+      fire: true,
+    });
+    expect(poolLook({ sprite: 'campfire' }, null)?.dx).toBe(0);
+  });
+
   it("takes a tier part's poolRx through the world layout (the tavern's pool fits its wall, not its frame)", () => {
     const taverns = KHORTYTSIA_WORLD.props.filter((p) => p.sprite.startsWith('tavern.'));
     expect(taverns).toHaveLength(6);

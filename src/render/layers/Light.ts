@@ -147,8 +147,8 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       sprite.anchor.set(0.5);
       night.addChild(sprite);
       // A fire's pool centres on the flames; a window pool lies on the ground in front of the wall.
-      const { fire, below } = look;
-      return [{ prop, sprite, fire, seed, below, alpha: look.alpha }];
+      const { fire, below, dx } = look;
+      return [{ prop, sprite, fire, seed, below, dx, alpha: look.alpha }];
     });
     // A firefly at its blink peak: the lit px with a dim + of 4 neighbours (1/4), white so the tint colours it.
     const flyPeakBuf = cpuTexture(
@@ -336,7 +336,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
           for (const p of pools) {
             // A window pool only in front of a building that stands (M1-19).
             p.sprite.visible = plotShown(p.prop.plot, scene.tiers);
-            p.sprite.position.set(p.prop.x + offset, horizon + p.prop.ground + p.below);
+            p.sprite.position.set(p.prop.x + p.dx + offset, horizon + p.prop.ground + p.below);
             const f = p.fire ? flicker(seconds, p.seed) : flicker(seconds * 0.25, p.seed, 0.125);
             p.sprite.alpha = Math.round(p.alpha * poolLevel * f * 8) / 8;
           }

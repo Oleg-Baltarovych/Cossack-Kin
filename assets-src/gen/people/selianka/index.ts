@@ -145,7 +145,7 @@ export function womanStamps(pose: Pose, head: Mask, back: readonly Stamp[], fron
 }
 
 const selianka: SpriteGenerator = {
-  atlas: 'khortytsia',
+  atlas: 'people',
   id: 'selianka',
   size: { w: W, h: H },
   frames: { idle: IDLE.length, walk: WALK.length },

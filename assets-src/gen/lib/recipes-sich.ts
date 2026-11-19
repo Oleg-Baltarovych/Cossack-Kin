@@ -169,3 +169,24 @@ export function opening(
   }
   for (let x = r.x - 1; x <= r.x + r.w; x++) plot.set(x, r.y + r.h, 'wood', 4);
 }
+
+/**
+ * Курінний знак: a painted board `w`×`h` at (x, y) — a 1-px wood 1 frame, a crimson 3 field, the emblem's px in gold
+ * (`[dx, dy, shade]` inside the frame, from (1, 1); shade defaults to gold 4).
+ */
+export function kurinSign(
+  plot: Plot,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  emblem: readonly (readonly [number, number, number?])[],
+): void {
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      const edge = r === 0 || r === h - 1 || c === 0 || c === w - 1;
+      plot.set(x + c, y + r, edge ? 'wood' : 'crimson', edge ? 1 : 3);
+    }
+  }
+  for (const [dx, dy, shade] of emblem) plot.set(x + dx, y + dy, 'gold', shade ?? 4);
+}

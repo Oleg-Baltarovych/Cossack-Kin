@@ -219,6 +219,9 @@ export function buildAtlases(generators: readonly SpriteGenerator[], palette: Pa
   const problems: string[] = [];
   const atlases = new Map<string, FrameImage[]>();
   const seen = new Set<string>();
+  // The game atlases form one frame namespace (render/atlases.ts `frameLookup`, the M2-09 split): a name may live in
+  // one of them only. Debug atlases are dev-only and looked up by atlas, so they stay out of it.
+  const shippedOwner = new Map<string, string>();
   for (const gen of generators) {
     for (const frame of renderGenerator(gen, palette, problems)) {
       const key = `${gen.atlas}:${frame.name}`;
@@ -227,6 +230,13 @@ export function buildAtlases(generators: readonly SpriteGenerator[], palette: Pa
         continue;
       }
       seen.add(key);
+      if (!DEBUG_ATLASES.includes(gen.atlas)) {
+        const owner = shippedOwner.get(frame.name);
+        if (owner !== undefined && owner !== gen.atlas) {
+          problems.push(`frame ${frame.name} is in atlases ${owner} and ${gen.atlas} (one frame namespace)`);
+        }
+        shippedOwner.set(frame.name, gen.atlas);
+      }
       const list = atlases.get(gen.atlas) ?? [];
       list.push(frame);
       atlases.set(gen.atlas, list);

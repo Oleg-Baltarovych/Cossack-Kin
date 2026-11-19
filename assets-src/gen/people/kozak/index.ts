@@ -240,7 +240,7 @@ function stamps(pose: Pose, head: 'hat' | 'bare'): Stamp[] {
 }
 
 const kozak: SpriteGenerator = {
-  atlas: 'khortytsia',
+  atlas: 'people',
   id: 'kozak',
   size: { w: W, h: H },
   frames: { idle: IDLE.length, walk: WALK.length },

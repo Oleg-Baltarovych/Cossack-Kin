@@ -44,6 +44,12 @@ function baroqueRadius(t: number): number {
 }
 
 /**
+ * Dome sheathing (plan M2-09): `wood` ґонт (tier I), `tin` (stone 2–5, a stone 6 rim and glint, no weathering) or
+ * `gilt` (gold 1–4, a gold 5 rim and glint). The ґонт scale bands and the sun-side rim stay in every skin.
+ */
+export type DomeSkin = 'wood' | 'tin' | 'gilt';
+
+/**
  * Баня: the baroque profile `w` px wide (1–2 px wider than its drum each side), `h` tall, on row `base`, centred on
  * `cx`. ґонт scales in 2-row bands offset by half a scale, a scale's lower edge one step darker. Body shade from the
  * profile normal, wood 1 (shade) … wood 4 (lit) — a step below the walls, so the domes separate from the logs; on the
@@ -51,7 +57,15 @@ function baroqueRadius(t: number): number {
  * golden hour catches. Weathering: straight 1-px vertical runs of 3 rows on the shaded right side and the lower bulge
  * (stone 3; stone 4 where lit), never the top 2 bands. Returns the tip row.
  */
-export function pearDome(plot: Plot, cx: number, base: number, w: number, h: number, seed: number): number {
+export function pearDome(
+  plot: Plot,
+  cx: number,
+  base: number,
+  w: number,
+  h: number,
+  seed: number,
+  skin: DomeSkin = 'wood',
+): number {
   const half = w / 2;
   const inside = (x: number, y: number): boolean => {
     if (y < base - h || y >= base) return false;
@@ -84,7 +98,13 @@ export function pearDome(plot: Plot, cx: number, base: number, w: number, h: num
       const runRow = Math.floor((base - py) / 3);
       const weathered =
         band < bands - 2 && (s > 0.15 || t < 0.35) && px % 4 === 1 && hash(px * 31 + runRow, seed) < 0.18 && !rim;
-      if (shoulder) plot.set(px, py, 'gold', 4);
+      if (skin === 'tin') plot.set(px, py, 'stone', shoulder || shade === 6 ? 6 : shade + 1);
+      // Gilt (art-director M2-09): the body never below gold 2 (gold 1 went navy under the night grade), the sun-side
+      // rim a cool 1-px stone 5 line — the sheen by day, the moon's rim at night.
+      else if (skin === 'gilt') {
+        if (shade === 6 && !shoulder) plot.set(px, py, 'stone', 5);
+        else plot.set(px, py, 'gold', shoulder ? 5 : Math.max(2, shade));
+      } else if (shoulder) plot.set(px, py, 'gold', 4);
       else if (weathered) plot.set(px, py, 'stone', lit > 0.55 ? 4 : 3);
       else plot.set(px, py, 'wood', shade);
     }
@@ -92,12 +112,22 @@ export function pearDome(plot: Plot, cx: number, base: number, w: number, h: num
   return tip;
 }
 
-/** Ліхтар + маківка: a 4-row lantern drum `w` wide on row `base` and a small baroque cupola on it. Returns the tip. */
-export function lanternTop(plot: Plot, cx: number, base: number, seed: number): number {
-  for (let y = base - 4; y < base; y++) {
+/**
+ * Ліхтар + маківка: a `rows`-row lantern drum 4 wide on row `base` and a small baroque cupola (`skin`) on it. Returns
+ * the tip.
+ */
+export function lanternTop(
+  plot: Plot,
+  cx: number,
+  base: number,
+  seed: number,
+  rows = 4,
+  skin: DomeSkin = 'wood',
+): number {
+  for (let y = base - rows; y < base; y++) {
     for (let x = cx - 2; x < cx + 2; x++) plot.set(x, y, 'wood', x < cx - 1 ? 5 : x < cx ? 3 : 2);
   }
-  return pearDome(plot, cx, base - 4, 7, 7, seed);
+  return pearDome(plot, cx, base - rows, 7, 7, seed, skin);
 }
 
 /**

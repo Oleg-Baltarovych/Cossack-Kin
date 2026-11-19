@@ -23,9 +23,11 @@ let configured = false;
 const isSpritesheet = (value: unknown): value is Spritesheet => value instanceof Spritesheet;
 
 function parseIndex(json: unknown): AtlasEntry[] {
+  // Untrusted JSON: the cast only names the field to read; its value stays `unknown` and is checked below.
   const list = typeof json === 'object' && json !== null ? (json as { atlases?: unknown }).atlases : undefined;
   if (!Array.isArray(list)) throw new Error('atlases/index.json: missing "atlases" list');
   return list.map((raw: unknown, i) => {
+    // Same: every field stays `unknown` until the typeof checks below narrow it.
     const e = (typeof raw === 'object' && raw !== null ? raw : {}) as Partial<Record<keyof AtlasEntry, unknown>>;
     if (
       typeof e.name !== 'string' ||
@@ -50,15 +52,85 @@ export async function loadAtlases(): Promise<Atlases> {
   if (!response.ok) throw new Error(`atlases/index.json: HTTP ${String(response.status)} — run \`pnpm sprites\``);
   const entries = parseIndex(await response.json()).filter((e) => __CK_DEBUG__ || !e.debug);
 
-  const atlases = new Map<string, Spritesheet>();
-  await Promise.all(
-    entries.map(async (entry) => {
-      const sheet: unknown = await Assets.load(`${ATLAS_DIR}${entry.json}`);
-      if (!isSpritesheet(sheet)) throw new Error(`atlas "${entry.name}" is not a spritesheet`);
-      atlases.set(entry.name, sheet);
-    }),
-  );
+  const urls = new Map(entries.map((e) => [e.name, `${ATLAS_DIR}${e.json}`]));
+  const atlases = await loadSheets(urls, {
+    load: async (url) => {
+      const sheet: unknown = await Assets.load(url);
+      if (!isSpritesheet(sheet)) throw new Error(`atlas "${url}" is not a spritesheet`);
+      return sheet;
+    },
+    unload: (url) => Assets.unload(url),
+  });
+  ATLAS_URLS.set(atlases, [...urls.values()]);
   return atlases;
+}
+
+/** The URLs each loaded atlas set came from (what `Assets.unload` takes). */
+const ATLAS_URLS = new WeakMap<Atlases, readonly string[]>();
+
+/**
+ * Releases a loaded atlas set (its sheets and textures in Pixi's cache): the world app's teardown and the paths where
+ * loading succeeded but the start failed afterwards (LUTs, renderer). Fire-and-forget — nothing waits on it.
+ */
+export function unloadAtlases(atlases: Atlases): void {
+  const urls = ATLAS_URLS.get(atlases) ?? [];
+  ATLAS_URLS.delete(atlases);
+  if (urls.length > 0) void Assets.unload([...urls]).catch(() => undefined);
+}
+
+/** How sheets are fetched and released (Pixi `Assets` in the game; a fake in unit tests). */
+export interface SheetLoader<T> {
+  readonly load: (url: string) => Promise<T>;
+  readonly unload: (url: string) => Promise<void>;
+}
+
+/**
+ * Loads every `name → url` sheet. If any fails, the ones that did load are unloaded again (no leaked textures from a
+ * partial load) and the first error is thrown.
+ */
+export async function loadSheets<T>(
+  urls: ReadonlyMap<string, string>,
+  loader: SheetLoader<T>,
+): Promise<Map<string, T>> {
+  const list = [...urls];
+  const results = await Promise.allSettled(list.map(([, url]) => loader.load(url)));
+  const failed = results.find((r) => r.status === 'rejected');
+  if (failed) {
+    await Promise.allSettled(
+      results.flatMap((r, i) => (r.status === 'fulfilled' ? [loader.unload(list[i]?.[1] ?? '')] : [])),
+    );
+    throw failed.reason;
+  }
+  const out = new Map<string, T>();
+  results.forEach((r, i) => {
+    const name = list[i]?.[0];
+    if (r.status === 'fulfilled' && name !== undefined) out.set(name, r.value);
+  });
+  return out;
+}
+
+/**
+ * The atlases the world draws from (plan M2-09 split, SPEC §12.4): the land's own (buildings, ground, props), the
+ * people shared by every land, and the sky (clouds, cloud shadows). Pixi batches several textures per draw call, so
+ * mixing them in one Y-sorted container costs no extra draw calls (measured in M2-01 and M2-09).
+ */
+export const WORLD_ATLASES = ['khortytsia', 'people', 'sky'] as const;
+
+/**
+ * One frame lookup over several atlases: frame names are unique across them (`pnpm sprites` checks it), so a scene
+ * asks by name only. Throws for a missing atlas or a name found twice.
+ */
+export function frameLookup(atlases: Atlases, names: readonly string[]): ReadonlyMap<string, Texture> {
+  const out = new Map<string, Texture>();
+  for (const atlas of names) {
+    const sheet = atlases.get(atlas);
+    if (!sheet) throw new Error(`atlas "${atlas}" is not loaded — run \`pnpm sprites\``);
+    for (const [name, texture] of Object.entries(sheet.textures)) {
+      if (out.has(name)) throw new Error(`frame "${name}" is in more than one world atlas`);
+      out.set(name, texture);
+    }
+  }
+  return out;
 }
 
 /** Frame texture by name; a missing atlas or frame is a build/content bug, so it throws. */

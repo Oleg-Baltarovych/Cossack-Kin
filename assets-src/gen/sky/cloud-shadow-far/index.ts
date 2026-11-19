@@ -3,7 +3,7 @@ import { CLOUD_SHADOW_TILES, drawCloudShadows } from '../cloud-shadow/index.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 
 const cloudShadowFar: SpriteGenerator = {
-  atlas: 'khortytsia',
+  atlas: 'sky',
   id: 'cloud-shadow-far',
   size: CLOUD_SHADOW_TILES.far,
   frames: { idle: 1 },

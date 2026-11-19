@@ -85,7 +85,7 @@ export const DIVCHYNA_OUTFITS: Readonly<Record<string, Outfit>> = {
 };
 
 const divchyna: SpriteGenerator = {
-  atlas: 'khortytsia',
+  atlas: 'people',
   id: 'divchyna',
   size: { w: W, h: WOMAN_H },
   frames: { idle: IDLE.length, walk: WALK.length },

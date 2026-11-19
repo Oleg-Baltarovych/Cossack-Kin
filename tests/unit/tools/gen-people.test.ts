@@ -2,10 +2,10 @@
 // walk frames differ from each other (it is an animation, not one pose), palette swaps change only colours.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import kozak, { KOZAK_GROUND, KOZAK_OUTFITS } from '../../../assets-src/gen/khortytsia/kozak/index.ts';
-import divchyna, { DIVCHYNA_OUTFITS } from '../../../assets-src/gen/khortytsia/divchyna/index.ts';
-import selianka, { SELIANKA_GROUND, SELIANKA_OUTFITS } from '../../../assets-src/gen/khortytsia/selianka/index.ts';
-import selianyn, { SELIANYN_OUTFITS } from '../../../assets-src/gen/khortytsia/selianyn/index.ts';
+import kozak, { KOZAK_GROUND, KOZAK_OUTFITS } from '../../../assets-src/gen/people/kozak/index.ts';
+import divchyna, { DIVCHYNA_OUTFITS } from '../../../assets-src/gen/people/divchyna/index.ts';
+import selianka, { SELIANKA_GROUND, SELIANKA_OUTFITS } from '../../../assets-src/gen/people/selianka/index.ts';
+import selianyn, { SELIANYN_OUTFITS } from '../../../assets-src/gen/people/selianyn/index.ts';
 import { checkMask, paintDoll, type Outfit } from '../../../assets-src/gen/lib/doll.ts';
 import { loadPalette, type Palette } from '../../../assets-src/gen/lib/palette.ts';
 import { Plot } from '../../../assets-src/gen/lib/plot.ts';

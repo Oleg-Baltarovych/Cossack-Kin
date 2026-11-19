@@ -111,6 +111,8 @@ export interface PoolLook {
   readonly color: ColorRef;
   readonly alpha: number;
   readonly below: number;
+  /** Pool centre right of the pivot (logical px). */
+  readonly dx: number;
   readonly fire: boolean;
 }
 
@@ -118,12 +120,16 @@ const isFire = (sprite: string): sprite is keyof typeof FIRE_LIGHTS => sprite in
 
 /**
  * The pool a prop throws at night: a fire's (`FIRE_LIGHTS`, by sprite id), a window's in front of a prop whose atlas
- * has an `@emissive` frame `maskWidth` px wide (`poolRx` when the prop sets it), or none.
+ * has an `@emissive` frame `maskWidth` px wide (`poolRx` when the prop sets it), or none — also for `noPool`, a
+ * tier whose shared emissive layer is dark (the treasury before its lantern).
  */
-export function poolLook(prop: Pick<Prop, 'sprite' | 'poolRx'>, maskWidth: number | null): PoolLook | null {
-  if (isFire(prop.sprite)) return { ...FIRE_LIGHTS[prop.sprite], fire: true };
-  if (maskWidth === null) return null;
+export function poolLook(prop: Pick<Prop, 'sprite' | 'poolRx' | 'noPool'>, maskWidth: number | null): PoolLook | null {
+  if (isFire(prop.sprite)) {
+    const light = FIRE_LIGHTS[prop.sprite];
+    return { ...light, dx: light.dx ?? 0, fire: true };
+  }
+  if (maskWidth === null || prop.noPool === true) return null;
   const rx = prop.poolRx ?? Math.max(WINDOW_POOL.minRx, Math.round(maskWidth * WINDOW_POOL.rxShare));
   const { ry, color, alpha, below } = WINDOW_POOL;
-  return { rx, ry, color, alpha, below, fire: false };
+  return { rx, ry, color, alpha, below, dx: 0, fire: false };
 }

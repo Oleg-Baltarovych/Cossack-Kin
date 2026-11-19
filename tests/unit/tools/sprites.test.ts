@@ -374,6 +374,22 @@ describe('buildAtlases', () => {
   });
 });
 
+describe('one frame namespace over the game atlases (M2-09 split)', () => {
+  it('rejects a frame name in two game atlases, allows it in a debug atlas', () => {
+    const build = (): unknown =>
+      buildAtlases(
+        [
+          { ...swatch, atlas: 'people' },
+          { ...swatch, atlas: 'sky' },
+        ],
+        palette,
+      );
+    expect(build).toThrow(SpriteBuildError);
+    expect(build).toThrow('is in atlases people and sky');
+    expect(buildAtlases([swatch, { ...swatch, atlas: 'sky' }], palette).map((a) => a.name)).toEqual(['debug', 'sky']);
+  });
+});
+
 describe('atlasIndex', () => {
   it('lists every atlas and flags debug-only ones', () => {
     const atlases = buildAtlases([swatch, { ...swatch, atlas: 'khortytsia' }], palette);

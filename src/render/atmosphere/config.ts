@@ -387,8 +387,13 @@ export const CLOUDS: readonly CloudPlacement[] = [
   { variant: 'c3', x: 120, y: 0.74, speed: 0.8 },
   { variant: 'c4', x: 180, y: 0.8, speed: 0.7 },
 ];
-/** Clouds lower than this share of the sky are far away: squashed vertically and see-through toward the sky. */
-export const LOW_CLOUD = { below: 0.65, scaleY: 0.7, alpha: 0.7 } as const;
+/**
+ * Clouds lower than this share of the sky are far away: squashed vertically and see-through toward the sky.
+ * `scaleY` = p/q with p even and q odd (12/17 ≈ 0.7): a row's sample point (j + ½)·q/p is then never on a texel edge,
+ * so nearest sampling never hits a tie that UV rounding — i.e. the atlas layout — decides (M2-09: 0.7 = 7/10 tied
+ * every 7th row and flipped those rows when the clouds moved to the `sky` atlas).
+ */
+export const LOW_CLOUD = { below: 0.65, scaleY: 12 / 17, alpha: 0.7 } as const;
 
 /**
  * Per-key cloud look (blended like the sky). `brightness` multiplies the cloud before the LUT (dark masses at dusk and
@@ -627,15 +632,21 @@ export interface FireLight {
   readonly color: ColorRef;
   /** Ground offset of the pool's centre from the prop's pivot row, logical px (negative = up, behind the pivot). */
   readonly below: number;
+  /** Horizontal offset of the pool's centre from the pivot (a fire off the sprite's axis: the beacon), default 0. */
+  readonly dx?: number;
 }
 /**
- * Fire props (by sprite id) and their pools: the campfire's wide pool centred on the flames (ART-16, ART-BIBLE §8.3)
- * and the smithy's forge (M2-08) — smaller, in front of the open bay. Every other prop with an `@emissive` frame gets
+ * Fire props (by sprite id) and their pools: the campfire's wide pool centred on the flames (ART-16, ART-BIBLE §8.3),
+ * the watchtower's beacon (M2-09) and the smithy's forge (M2-08) — smaller, in front of the open bay. Every other prop with an `@emissive` frame gets
  * a flat `WINDOW_POOL`.
  */
-export const FIRE_LIGHTS: Readonly<Record<'campfire' | 'forge', FireLight>> = {
+export const FIRE_LIGHTS: Readonly<Record<'campfire' | 'forge' | 'watchtower.t3' | 'watchtower.t4', FireLight>> = {
   campfire: { rx: 46, ry: 20, alpha: 0.6, color: ['gold', 2], below: -4 },
   forge: { rx: 30, ry: 12, alpha: 0.5, color: ['gold', 2], below: -2 },
+  // The watchtower's beacon (M2-09): a small warm halo round the basket high on the tower (generator
+  // `watchtowerBeacon`, unit-tested); it replaces the slits' window pool.
+  'watchtower.t3': { rx: 12, ry: 9, alpha: 0.45, color: ['gold', 2], below: -79, dx: 17 },
+  'watchtower.t4': { rx: 12, ry: 9, alpha: 0.45, color: ['gold', 2], below: -82, dx: 19 },
 };
 /**
  * Window light spilling on the ground in front of every building with a night mask: a flat ellipse `rxShare` × the

@@ -5,6 +5,7 @@ import { castShadow, compose } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import { thatchRoof } from '../../lib/recipes.ts';
 import { logWall, opening } from '../../lib/recipes-sich.ts';
+import { softenThatch } from '../../lib/recipes-suburb.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 
 const W = 112;
@@ -64,6 +65,8 @@ const kurin: SpriteGenerator = {
     }
     const roof = new Plot();
     thatchRoof(roof, { seed: 'kurin', ...ROOF });
+    // Thatch ≤ 4 like every later roof (M2-09, M2-08 rule): 5–6 strokes read as frost under the night grade.
+    softenThatch(roof);
     compose(buffer, [body.part(2, 2, glow), roof.part(1, 1)], rampSize, {
       light: false,
       occlusion: false,
