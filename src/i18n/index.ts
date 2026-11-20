@@ -115,6 +115,22 @@ export function formatBig(value: Big, lang: Lang, format: NumberFormat): string 
   return `${mantissa(m2, decimal)}e${String(e)}`;
 }
 
+/** Most characters a button price may take: icon + this many Press Start 2P glyphs fit a 360-px row (plan M2-14). */
+export const PRICE_MAX_CHARS = 8;
+
+/**
+ * A price on a button (plan M2-14): the player's own format, compact — uk words without the space («1,23млрд»), K/M/B…
+ * otherwise — so the HUD and the buttons read alike. A form longer than PRICE_MAX_CHARS (the long uk words past
+ * трлн, a long exponent) falls back to the K/M/B letters, then to the mantissa without decimals: always one line.
+ */
+export function formatPrice(value: Big, lang: Lang, format: NumberFormat): string {
+  const own = formatBig(value, lang, format).replace(' ', '');
+  if (own.length <= PRICE_MAX_CHARS) return own;
+  const letters = formatBig(value, lang, 'short');
+  if (letters.length <= PRICE_MAX_CHARS) return letters;
+  return letters.replace(/[.,]\d+/, '');
+}
+
 // --- tiers -------------------------------------------------------------------------------------------------------
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'] as const;

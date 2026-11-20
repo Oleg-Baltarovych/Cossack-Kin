@@ -20,7 +20,7 @@ import {
 } from './modifiers.ts';
 import type { GameEvent } from './events.ts';
 import type { GameState } from './state.ts';
-import { canHire, gloryRate, hireCost } from './systems/army.ts';
+import { gloryRate, hireLimit, INFANTRY } from './systems/army.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
 import { PLOT_VARIANTS, VARIANT_SALT, type VariantPlot } from '../content/variants.ts';
 import { pickStable } from './rng.ts';
@@ -173,7 +173,9 @@ export function sichRowView(state: GameState, id: SichBuildingId, mode: BuyMode)
 }
 
 export interface HireView {
-  /** Ducats for the next Cossack (one at a time: the buy-amount picker does not apply to hiring in M1). */
+  /** Cossacks the button hires (the shared buy-amount picker applies, M2-14); at the food limit 0. */
+  readonly count: number;
+  /** Ducats for those `count` Cossacks. */
   readonly price: Big;
   readonly cossacks: number;
   readonly maxCossacks: number;
@@ -181,17 +183,22 @@ export interface HireView {
   readonly blocked: 'kharch' | 'ducats' | null;
 }
 
-export function hireView(state: GameState): HireView {
-  const check = canHire(state, 1, state.time.lastSeen);
+/**
+ * The hire button of `mode`: the same offer as a building's button (`offer`), with the food limit as the cap. The UI
+ * dispatches `{ type: 'hire', n: count }` exactly when `blocked` is null.
+ */
+export function hireView(state: GameState, mode: BuyMode): HireView {
+  const have = state.army.infantry;
   const mods = collectModifiers(state, state.time.lastSeen);
-  const price = check.ok ? check.cost : hireCost(state.army.infantry, villageOf(state).scale, mods.costMult);
+  const scale = villageOf(state).scale;
+  const o = offer(INFANTRY, have, hireLimit(state), state.currencies.ducats, scale, mode, mods.costMult);
   return {
-    price,
-    cossacks: state.army.infantry,
+    count: o.count,
+    price: o.price,
+    cossacks: have,
     maxCossacks: maxCossacks(state),
     kharchPerCossack: FOOD.kharchPerCossack,
-    // n = 1 is a whole positive count, so the only refusals left are food and money.
-    blocked: check.ok ? null : check.reason === 'kharch' ? 'kharch' : 'ducats',
+    blocked: o.count === 0 ? 'kharch' : o.affordable ? null : 'ducats',
   };
 }
 

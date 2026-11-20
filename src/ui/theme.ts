@@ -44,11 +44,13 @@ export function uiScale(cssW: number, cssH: number, dpr: number): UiScale {
   return { px, fontS: (small * FONT_EM_PX) / ratio, fontM: (medium * FONT_EM_PX) / ratio, tap };
 }
 
-/** Keeps `--px`, `--font-s` and `--font-m` on `root` in step with the viewport; returns the stop function. */
+/** Keeps `--px` (+ unitless `--px-n`), `--font-s` and `--font-m` on `root` in step with the viewport; returns the stop function. */
 export function trackScale(root: HTMLElement, win: Window = window): () => void {
   const apply = (): void => {
     const s = uiScale(win.innerWidth, win.innerHeight, win.devicePixelRatio);
     root.style.setProperty('--px', `${String(s.px)}px`);
+    // The same as a bare number, for `transform: scale()` (UI icons, M2-14).
+    root.style.setProperty('--px-n', String(s.px));
     root.style.setProperty('--font-s', `${String(s.fontS)}px`);
     root.style.setProperty('--font-m', `${String(s.fontM)}px`);
     root.style.setProperty('--tap', `${String(s.tap)}px`);

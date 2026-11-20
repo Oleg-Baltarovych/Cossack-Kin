@@ -9,6 +9,8 @@ import { farmRowView, hireView, sichRowView, type BuyBlock } from '../../core/se
 import type { GameState } from '../../core/state.ts';
 import { sameView, useAct, useGame } from '../hooks/useGame.ts';
 import { useText, type Text } from '../hooks/useText.ts';
+import type { Big } from '../../core/big.ts';
+import { Icon } from './Icon.tsx';
 import styles from './Rows.module.css';
 
 function blockText(text: Text, blocked: Exclude<BuyBlock, 'locked'> | 'kharch'): string | null {
@@ -24,6 +26,17 @@ function unlockText(text: Text, u: SichUnlock): string | null {
     case 'land':
       return text.t('ui.unlock.land', { land: u.land });
   }
+}
+
+/** A button's price: the currency's icon and the compact number on one line (plan M2-14); `null` = nothing to buy. */
+function priceTag(text: Text, icon: 'ducat' | 'glory', value: Big | null): ReactNode {
+  if (value === null) return text.t('ui.price.none');
+  return (
+    <span className={styles.price}>
+      <Icon id={icon} fallback={text.t(icon === 'ducat' ? 'ui.price.ducatsAbbr' : 'ui.price.gloryAbbr')} />
+      <span>{text.short(value)}</span>
+    </span>
+  );
 }
 
 /** Placeholders a template's params are filled with, then swapped for whole tokens (private-use marks, never text). */
@@ -49,7 +62,8 @@ interface RowProps {
   readonly note: string | null;
   /** A locked building: its note is the unlock condition, set apart from «not enough». */
   readonly locked?: boolean;
-  readonly price: string;
+  /** The button's face (icon + compact number); its accessible name is `buyLabel`. */
+  readonly price: ReactNode;
   readonly buyLabel: string;
   readonly disabled: boolean;
   readonly onBuy: () => void;
@@ -90,6 +104,7 @@ function Row({
         <div className={styles.info}>{info}</div>
         {note !== null && (
           <p id={noteId} className={locked ? styles.locked : styles.note}>
+            {locked && <Icon id="lock" />}
             {note}
           </p>
         )}
@@ -150,7 +165,7 @@ export const FarmRow = memo(function FarmRow({
         </>
       }
       note={blockText(text, v.blocked)}
-      price={price}
+      price={priceTag(text, 'ducat', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
       disabled={v.blocked !== null}
       onBuy={() => {
@@ -183,7 +198,7 @@ export const SichRow = memo(function SichRow({
       info={<span className={styles.desc}>{text.t(v.descKey)}</span>}
       note={v.blocked === 'locked' ? unlockText(text, v.unlock) : blockText(text, v.blocked)}
       locked={v.blocked === 'locked'}
-      price={price}
+      price={priceTag(text, 'glory', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
       disabled={v.blocked !== null}
       onBuy={() => {
@@ -196,23 +211,33 @@ export const SichRow = memo(function SichRow({
   );
 });
 
-/** Hiring goes one Cossack at a time in M1: the buy-amount picker does not apply, and the row says so. */
-export const HireRow = memo(function HireRow() {
-  const v = useGame(hireView, sameView);
+/**
+ * The hire row (plan M2-14): the shared ×1/×10/×25/Max picker applies — the selector says how many the button hires
+ * and for how much, and the button sends exactly that count (enabled ⇔ the reducer accepts it, tested on selectors).
+ */
+export const HireRow = memo(function HireRow({ mode }: { readonly mode: BuyMode }) {
+  const select = useCallback((s: GameState) => hireView(s, mode), [mode]);
+  const v = useGame(select, sameView);
   const act = useAct();
   const text = useText();
-  const price = text.t('ui.price.ducats', { value: text.num(v.price) });
+  const full = v.blocked === 'kharch';
+  const price = full ? text.t('ui.price.none') : text.t('ui.price.ducats', { value: text.num(v.price) });
   return (
     <Row
       name={text.t('ui.hire.name')}
-      level={text.t('ui.hud.cossacks', { count: v.cossacks, max: v.maxCossacks })}
-      info={<span className={styles.desc}>{text.t('ui.hire.desc', { kharch: v.kharchPerCossack })}</span>}
+      level={text.t('ui.hire.level', { count: v.cossacks, max: v.maxCossacks })}
+      info={
+        <>
+          <span className={styles.desc}>{text.t('ui.hire.desc', { kharch: v.kharchPerCossack })}</span>
+          {!full && <span className={styles.count}>{text.t('ui.hire.count', { count: v.count })}</span>}
+        </>
+      }
       note={blockText(text, v.blocked)}
-      price={price}
-      buyLabel={text.t('ui.hire.button', { price })}
+      price={priceTag(text, 'ducat', full ? null : v.price)}
+      buyLabel={full ? text.t('ui.hire.buttonFull') : text.t('ui.hire.button', { count: v.count, price })}
       disabled={v.blocked !== null}
       onBuy={() => {
-        act({ type: 'hire', n: 1 });
+        act({ type: 'hire', n: v.count });
       }}
     />
   );

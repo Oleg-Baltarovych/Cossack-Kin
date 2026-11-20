@@ -72,9 +72,24 @@
   "ui.unlock.land": "Відкриється в {land}-му краї",
   "ui.price.ducats": "{value} дук.",
   "ui.price.glory": "{value} слави",
-  "ui.hire.name": "Найняти козака",
-  "ui.hire.desc": "Козаки здобувають славу. Наймаються по одному; кожному треба {kharch} харчу.",
-  "ui.hire.button": "Найняти козака за {price}",
+  "ui.price.ducatsAbbr": "дук.",
+  "ui.price.gloryAbbr": "сл.",
+  "ui.hire.name": "Найм козаків",
+  "ui.hire.level": "{count}/{max}",
+  "ui.hire.desc": "Здобувають славу. Кожному — {kharch} харчу.",
+  "ui.hire.button": {
+    "one": "Найняти {count} козака за {price}",
+    "few": "Найняти {count} козаків за {price}",
+    "many": "Найняти {count} козаків за {price}",
+    "other": "Найняти {count} козака за {price}"
+  },
+  "ui.hire.buttonFull": "Найняти козака: бракує харчу",
+  "ui.hire.count": {
+    "one": "+{count} козак",
+    "few": "+{count} козаки",
+    "many": "+{count} козаків",
+    "other": "+{count} козака"
+  },
   "ui.settings.title": "Налаштування",
   "ui.settings.lang": "Мова",
   "lang.uk": "Українська",

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Big } from '../../../src/core/big.ts';
-import { formatBig, formatDuration, romanTier, t } from '../../../src/i18n/index.ts';
+import { formatBig, formatDuration, formatPrice, PRICE_MAX_CHARS, romanTier, t } from '../../../src/i18n/index.ts';
 import enTable from '../../../src/i18n/locales/en.json';
 import ukTable from '../../../src/i18n/locales/uk.json';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
@@ -140,5 +140,27 @@ describe('tier banner (M2-12)', () => {
     expect([1, 2, 3, 4, 5, 6].map(romanTier)).toEqual(['I', 'II', 'III', 'IV', 'V', 'VI']);
     expect(t('uk', 'ui.tier.reached', { name: 'Пасіка', tier: romanTier(2) })).toBe('Пасіка — тір II');
     expect(t('en', 'ui.tier.reached', { name: 'Apiary', tier: romanTier(5) })).toBe('Apiary — tier V');
+  });
+});
+
+describe('formatPrice: button prices (M2-14 review)', () => {
+  it('reads like the HUD: uk words without the space, en and the short format K/M/B', () => {
+    expect(formatPrice(Big.from(950), 'uk', 'words')).toBe('950');
+    expect(formatPrice(Big.from(10_500), 'uk', 'words')).toBe('10,5тис.');
+    expect(formatPrice(Big.from(2.5e9), 'uk', 'words')).toBe('2,5млрд');
+    expect(formatPrice(Big.from(1.23e12), 'uk', 'words')).toBe('1,23трлн');
+    expect(formatPrice(Big.from(10_500), 'uk', 'short')).toBe('10,5K');
+    expect(formatPrice(Big.from(10_500), 'en', 'words')).toBe('10.5K');
+  });
+
+  it('never takes more than PRICE_MAX_CHARS, however large the price', () => {
+    for (const s of ['1.23e15', '4.56e21', '7.89e33', '1.23e308', '9.87e1234', '5e99999'])
+      for (const lang of LANGS)
+        for (const format of ['words', 'short'] as const) {
+          const out = formatPrice(big(s), lang, format);
+          expect(out.length, `${s} ${lang} ${format} → ${out}`).toBeLessThanOrEqual(PRICE_MAX_CHARS);
+        }
+    // Past трлн the uk words are too long for a button: the letters stand in.
+    expect(formatPrice(big('1.23e15'), 'uk', 'words')).toBe('1,23Qa');
   });
 });

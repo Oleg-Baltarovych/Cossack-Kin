@@ -1,0 +1,25 @@
+/* One 16×16 UI icon (assets-src/gen/ui/icon): whole logical px, nearest-neighbour scaling. */
+.icon {
+  display: inline-block;
+  flex: none;
+  width: calc(16 * var(--px));
+  height: calc(16 * var(--px));
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+/* The 16×16 frame at 1 css px per atlas px, scaled up to one logical px per atlas px (whole device px). */
+.sprite {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  transform: scale(var(--px-n, 1));
+  transform-origin: 0 0;
+}
+
+/* The atlas never came: a price keeps its currency as short text instead. */
+.fallback {
+  flex: none;
+}
