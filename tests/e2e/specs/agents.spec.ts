@@ -25,10 +25,12 @@ test.describe('M2-16 agents', () => {
   test('stats.agents counts the pool by role within the Q11 budgets', async ({ page }) => {
     await gotoReady(page, '/?time=13:00&freeze=6&seed=1&zone=farm');
     const { agents, drawCalls } = await readStats(page);
+    // People: every spawn is on the scene. Food carts (M2-20) come and go: those on the road count (≤ 3).
+    const people = KHORTYTSIA_WORLD.agents.filter((a) => a.role !== 'cart');
     const expected = Object.fromEntries(
-      ROLES.map((r) => [r, KHORTYTSIA_WORLD.agents.filter((a) => a.role === r).length]),
+      ROLES.filter((r) => r !== 'cart').map((r) => [r, people.filter((a) => a.role === r).length]),
     );
-    expect(agents).toEqual({ total: KHORTYTSIA_WORLD.agents.length, ...expected });
+    expect(agents).toEqual({ total: people.length + agents.cart, cart: agents.cart, ...expected });
     for (const r of ROLES) expect(agents[r], r).toBeLessThanOrEqual(AGENT_BUDGET[r]);
     expect(drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
   });

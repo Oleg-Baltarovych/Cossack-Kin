@@ -48,7 +48,7 @@ import { createWorldLayers, type WorldLayer } from './layers/index.ts';
 import { createAgents } from './agents/sim.ts';
 import { createAgentDriver, stepCap } from './agents/driver.ts';
 import { LINEUP, lineupPoses } from './debug/lineup.ts';
-import type { AgentCounts } from './agents/sim.ts';
+import type { AgentContext, AgentCounts } from './agents/sim.ts';
 import { AGENT_BUDGET } from '../content/agents.ts';
 import { propFrames } from './layers/Ground.ts';
 import { horizonY } from './layers/Layer.ts';
@@ -249,6 +249,13 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       (ctx) => createAgents(layout.paths, layout.agents, AGENT_BUDGET, seed, ctx),
       stepCap(settings.frozenAt !== null),
     );
+    /** The agents' context, rewritten in place each frame (the pool reads it during `advance`, never keeps it). */
+    const agentCtx: { -readonly [K in keyof AgentContext]-?: AgentContext[K] } = {
+      minutes: 0,
+      tiers: null,
+      cossacks: undefined,
+      cartPeriodS: undefined,
+    };
     const worldFrames = frameLookup(atlases, WORLD_ATLASES);
     const findFrame = (name: string): Texture | null => worldFrames.get(name) ?? null;
     const sceneFrame = (name: string): Texture => {
@@ -440,11 +447,11 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const ambient = lessMotion ? 0 : seconds;
       // People walk on `seconds`, not `ambient`: «менше руху» stills shake, parallax and big tweens (SPEC §6.8), not
       // walking.
-      agents.advance(seconds, {
-        minutes,
-        tiers: scene.tiers,
-        ...(scene.cossacks === undefined ? {} : { cossacks: scene.cossacks }),
-      });
+      agentCtx.minutes = minutes;
+      agentCtx.tiers = scene.tiers;
+      agentCtx.cossacks = scene.cossacks;
+      agentCtx.cartPeriodS = scene.cartPeriodS;
+      agents.advance(seconds, agentCtx);
       // A finished work spell sparks a glint over the worker (M2-18, decoration only — never the coin; at most
       // `perFrame` at once after a catch-up). Not under `?freeze`: its one jump finishes many spells, and a glint in
       // mid-air would make the shot depend on real time.

@@ -22,6 +22,8 @@
 // The frame path steps in place (`stepInPlace`, `writePoses`: no allocation per tick but on a new step of the routine);
 // `stepAgents`/`agentPoses` are the pure copies for tests and tools.
 import {
+  CART_PERIOD,
+  CART_TRIP,
   COSSACK_ANIMS,
   COSSACK_DAY,
   GUARD_ANIMS,
@@ -40,6 +42,8 @@ import {
   type AgentSpawn,
   type AgentSprite,
   type BasicAnim,
+  type CartSpawn,
+  type CartSprite,
   type CossackAnim,
   type CossackSpawn,
   type GirlSprite,
@@ -91,7 +95,12 @@ export interface AgentContext {
    * Cossacks the army has on the scene (core `populationView`, M2-19): the first that many Cossacks with a duty are
    * there; absent = no game, all of them.
    */
-  readonly cossacks?: number;
+  readonly cossacks?: number | undefined;
+  /**
+   * Seconds between food carts leaving the farm (core `populationView`, M2-20); `null` = no food, no carts; absent =
+   * no game: the busiest traffic (`CART_PERIOD.minS`).
+   */
+  readonly cartPeriodS?: number | null | undefined;
 }
 
 /** Noon, every building standing: the context for tests and tools. */
@@ -140,7 +149,8 @@ const RANK_ANIM: Readonly<Record<DrillPhase, CossackAnim | 'idle'>> = {
 };
 
 /** What an arriving walk turns into. */
-type Errand = 'rest' | 'work' | 'chat' | 'night' | 'indoors' | 'rank' | 'lead' | 'post' | 'haunt' | 'leave';
+type Errand =
+  'rest' | 'work' | 'chat' | 'night' | 'indoors' | 'rank' | 'lead' | 'post' | 'haunt' | 'leave' | 'unload' | 'depot';
 
 /** What an agent is doing (villager and Cossack states included; a wanderer stands, rests, walks and goes indoors). */
 export type Activity =
@@ -172,7 +182,11 @@ export type Activity =
   /** The otaman at his stand before the ranks: speaking or watching, by the drill clock. */
   | { readonly kind: 'lead' }
   /** A guard at his post: on the spear by day, a torch at night. */
-  | { readonly kind: 'post'; readonly anim: 'watch' | 'torch' };
+  | { readonly kind: 'post'; readonly anim: 'watch' | 'torch' }
+  /** A food cart waiting beyond the world's edge for its turn (M2-20): out of sight, no pose. */
+  | { readonly kind: 'depot' }
+  /** A cart stopped short of the gate, unloading (still full), then standing turned (empty) before the way back. */
+  | { readonly kind: 'unload' | 'turn'; ticksLeft: number };
 
 /** One agent; mutated in place by `stepInPlace` (treat as read-only outside this module). */
 export interface Agent {
@@ -223,6 +237,18 @@ export interface AgentPool {
   readonly done: WorkDoneLog;
   /** Ticks the pool has been stepped: the clock the maidan drills by (M2-19). */
   ticks: number;
+  /** The food carts' timetable (M2-20). */
+  readonly carts: CartSchedule;
+}
+
+/**
+ * When the next food cart may leave (pool tick; `null` before the first) and whose turn it is (index among the pool's
+ * carts). One departure per period: after each, `next` moves on by the period of that moment, so a live change of the
+ * period never bunches carts or skips one; while every cart is out, the departure waits for the first one back.
+ */
+export interface CartSchedule {
+  next: number | null;
+  turn: number;
 }
 
 interface PoseBase {
@@ -242,7 +268,8 @@ type Look =
   | { sprite: KozakSprite; anim: BasicAnim | CossackAnim }
   | { sprite: OtamanSprite; anim: BasicAnim | OtamanAnim }
   | { sprite: GuardSprite; anim: BasicAnim | GuardAnim }
-  | { sprite: GirlSprite; anim: BasicAnim };
+  | { sprite: GirlSprite; anim: BasicAnim }
+  | { sprite: CartSprite; anim: BasicAnim };
 
 /**
  * A person this frame. Each sprite family has its own animations beyond walk/idle — the villagers' work set (M2-17),
@@ -341,7 +368,8 @@ function walk(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void
 /** A walk whose way closed: a villager or a Cossack plans afresh, a wanderer rests and picks another goal. */
 function replan(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
   const spawn = agent.spawn;
-  if (spawn.routine === 'villager') plan(ctx, pool, agent, spawn, t);
+  if (spawn.routine === 'cart') homeward(ctx, pool, agent, spawn, t);
+  else if (spawn.routine === 'villager') plan(ctx, pool, agent, spawn, t);
   else if (spawn.routine === 'cossack') duty(ctx, pool, agent, spawn, t);
   else rest(agent, restTicks(spawn));
 }
@@ -356,6 +384,10 @@ function arrive(ctx: AgentContext, pool: AgentPool, agent: Agent, then: Errand, 
   const spawn = agent.spawn;
   if (spawn.routine === 'cossack') {
     cossackArrive(ctx, pool, agent, spawn, then, t);
+    return;
+  }
+  if (spawn.routine === 'cart') {
+    cartArrive(agent, then);
     return;
   }
   const day = workingHours(ctx.minutes);
@@ -620,6 +652,8 @@ function misplaced(ctx: AgentContext, graph: PathGraph, agent: Agent, spawn: Cos
     work: 'work',
     chat: 'chat',
     leave: 'absent',
+    unload: 'unload',
+    depot: 'depot',
   };
   return want[goal.then] !== kind;
 }
@@ -705,6 +739,120 @@ function placeCossack(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: C
   if (a.kind === 'rest') a.ticksLeft = Math.floor(roll(agent) * a.ticksLeft);
 }
 
+// ── food carts (M2-20) ───────────────────────────────────────────────────────────────────────────────────────────
+
+/** Ticks between departures for `ctx` (null: no food, no carts; no game: the busiest). */
+function cartPeriodTicks(ctx: AgentContext): number | null {
+  const s = ctx.cartPeriodS === undefined ? CART_PERIOD.minS : ctx.cartPeriodS;
+  return s === null ? null : Math.max(1, Math.round(s * TICK_HZ));
+}
+
+/**
+ * The timetable at tick `t`: when a departure is due, the first cart waiting in its depot from the one whose turn it
+ * is (round the pool's carts, so never more out than the pool has: ≤ the budget) sets off, the turn passes to the
+ * cart after it and the next departure is one period on. None waiting: it waits. No food: nothing leaves.
+ */
+function dispatch(ctx: AgentContext, pool: AgentPool, carts: number, t: number): void {
+  const p = cartPeriodTicks(ctx);
+  const sched = pool.carts;
+  if (p === null || carts === 0) return;
+  sched.next ??= t;
+  if (t < sched.next) return;
+  for (let k = 0; k < carts; k++) {
+    const want = (sched.turn + k) % carts;
+    let index = 0;
+    for (const agent of pool.agents) {
+      if (agent.spawn.routine !== 'cart') continue;
+      if (index++ !== want) continue;
+      if (agent.activity.kind !== 'depot') break;
+      setOut(ctx, pool, agent, agent.spawn, t);
+      sched.turn = (want + 1) % carts;
+      sched.next = t + p;
+      return;
+    }
+  }
+}
+
+/** Carts in the pool (the timetable goes round them). */
+function cartCount(pool: AgentPool): number {
+  let n = 0;
+  for (const agent of pool.agents) if (agent.spawn.routine === 'cart') n += 1;
+  return n;
+}
+
+/** One tick of the carts, all together (they share the timetable): departures first, then each cart's step. */
+function cartsTick(ctx: AgentContext, pool: AgentPool, carts: number, t: number): void {
+  dispatch(ctx, pool, carts, t);
+  for (const agent of pool.agents) if (agent.spawn.routine === 'cart') tick(ctx, pool, agent, t);
+}
+
+/** Sets off along `path`; homeward from its second node (it stands beside the gate: never a step toward it). */
+function drive(
+  ctx: AgentContext,
+  pool: AgentPool,
+  agent: Agent,
+  path: readonly string[] | null,
+  then: Errand,
+  dx: number,
+  t: number,
+): void {
+  if (!path) {
+    setActivity(agent, { kind: 'depot' });
+    return;
+  }
+  const next = then === 'depot' && path.length > 1 ? 1 : 0;
+  setActivity(agent, { kind: 'walk', path, next, then, dx, gait: 'walk' });
+  walk(ctx, pool, agent, t);
+}
+
+/** Out of the depot, full, toward the gate: it stops `CART_TRIP.reach` px short of it, so the oxen never pass it. */
+function setOut(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: CartSpawn, t: number): void {
+  atNode(pool.graph, agent, spawn.depot.at, spawn.depot.dx);
+  const path = findPath(pool.graph, spawn.depot.at, spawn.gate, 'cart', (n) => nodeOpen(ctx, n));
+  drive(ctx, pool, agent, path, 'unload', -CART_TRIP.reach, t);
+}
+
+/** Back west, empty, to the depot beyond the world's edge. */
+function homeward(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: CartSpawn, t: number): void {
+  const path = findPath(pool.graph, agent.at, spawn.depot.at, 'cart', (n) => nodeOpen(ctx, n));
+  drive(ctx, pool, agent, path, 'depot', spawn.depot.dx, t);
+}
+
+function cartArrive(agent: Agent, then: Errand): void {
+  setActivity(
+    agent,
+    then === 'unload' ? { kind: 'unload', ticksLeft: span(agent, CART_TRIP.unloadS) } : { kind: 'depot' },
+  );
+}
+
+function cartTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: CartSpawn, t: number): void {
+  const a = agent.activity;
+  switch (a.kind) {
+    case 'depot':
+      // Waits for its turn (`dispatch`).
+      return;
+    case 'walk':
+      walk(ctx, pool, agent, t);
+      return;
+    case 'unload':
+    case 'turn':
+      if (a.ticksLeft > 0) {
+        a.ticksLeft -= 1;
+        agent.animTicks += 1;
+      } else if (a.kind === 'unload') {
+        setActivity(agent, { kind: 'turn', ticksLeft: Math.round(CART_TRIP.turnS * TICK_HZ) });
+      } else {
+        homeward(ctx, pool, agent, spawn, t);
+      }
+      return;
+    default:
+      setActivity(agent, { kind: 'depot' });
+  }
+}
+
+/** Whether a cart is loaded now (on the way to the gate, or unloading there). */
+const cartFull = (a: Activity): boolean => a.kind === 'unload' || (a.kind === 'walk' && a.then === 'unload');
+
 // ── wanderers ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** A wanderer picks its next open goal and starts toward it (this tick); rests again when none is open. */
@@ -755,6 +903,7 @@ function wanderTick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number)
 function tick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
   const spawn = agent.spawn;
   if (spawn.routine === 'villager') villagerTick(ctx, pool, agent, spawn, t);
+  else if (spawn.routine === 'cart') cartTick(ctx, pool, agent, spawn, t);
   else if (spawn.routine === 'cossack') cossackTick(ctx, pool, agent, spawn, t);
   else wanderTick(ctx, pool, agent, t);
 }
@@ -762,7 +911,13 @@ function tick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void
 /** Steps every agent of `pool` by `ticks` fixed steps, in place; `pool.done` then holds that step's finished work. */
 export function stepInPlace(pool: AgentPool, ticks: number, ctx: AgentContext): void {
   pool.done.count = 0;
-  for (const agent of pool.agents) for (let i = 0; i < ticks; i++) tick(ctx, pool, agent, pool.ticks + i);
+  // People step on their own (each reads only itself and the clock); the carts tick together, tick by tick.
+  for (const agent of pool.agents) {
+    if (agent.spawn.routine === 'cart') continue;
+    for (let i = 0; i < ticks; i++) tick(ctx, pool, agent, pool.ticks + i);
+  }
+  const carts = cartCount(pool);
+  if (carts > 0) for (let i = 0; i < ticks; i++) cartsTick(ctx, pool, carts, pool.ticks + i);
   pool.ticks += ticks;
 }
 
@@ -778,6 +933,11 @@ function place(ctx: AgentContext, pool: AgentPool, agent: Agent): void {
   };
   if (spawn.routine === 'cossack') {
     placeCossack(ctx, pool, agent, spawn, pool.ticks);
+    return;
+  }
+  if (spawn.routine === 'cart') {
+    at(spawn.depot.at, spawn.depot.dx);
+    setActivity(agent, { kind: 'depot' });
     return;
   }
   const night = !workingHours(ctx.minutes);
@@ -841,6 +1001,7 @@ export function createAgents(
       slots: Array.from({ length: MAX_WORK_DONE }, () => ({ x: 0, ground: 0, building: 'field' as const })),
     },
     ticks: 0,
+    carts: { next: null, turn: 0 },
   };
   let enlist = 0;
   for (const [i, spawn] of spawns.entries()) {
@@ -858,7 +1019,7 @@ export function createAgents(
       sprite: spawn.sprite,
       spawn,
       goals,
-      offset: spawn.routine === 'wander' ? 0 : spotOffset(i),
+      offset: spawn.routine === 'wander' || spawn.routine === 'cart' ? 0 : spotOffset(i),
       enlist: spawn.routine === 'cossack' ? enlist++ : -1,
       reviewed: -1,
       at: home.id,
@@ -874,6 +1035,11 @@ export function createAgents(
     for (let k = 0; k < Math.round(spawn.phase * TICK_HZ); k++) tick(ctx, pool, agent, k);
     pool.agents.push(agent);
   }
+  // The carts run their history before the pool's clock starts (ticks −warm … −1): the first frame finds them on the
+  // road.
+  const carts = cartCount(pool);
+  const warm = Math.round(CART_TRIP.warmS * TICK_HZ);
+  if (carts > 0) for (let k = 0; k < warm; k++) cartsTick(ctx, pool, carts, k - warm);
   // Work finished while running agents ahead is not news.
   pool.done.count = 0;
   return pool;
@@ -885,6 +1051,7 @@ export const clonePool = (pool: AgentPool): AgentPool => ({
   agents: pool.agents.map((a) => ({ ...a, activity: { ...a.activity } })),
   done: { count: pool.done.count, slots: pool.done.slots.map((s) => ({ ...s })) },
   ticks: pool.ticks,
+  carts: { ...pool.carts },
 });
 
 /** The pool `ticks` fixed steps later (a new pool; the old one is untouched). */
@@ -950,10 +1117,40 @@ function writePose(a: Agent, slot: PoseSlot, t: number): void {
   slot.anim = anim;
 }
 
+/** A cart's driver's pose id: negative, so it never meets an agent's (spawn index) id. */
+export const driverId = (cartId: number): number => -1 - cartId;
+
+/**
+ * A cart's two poses (M2-20): the cart, drawn in the direction of its load (full east, empty west — `facing` stays 1,
+ * never mirrored), and its driver at the oxen's left shoulder (`CART_TRIP.driver`), walking or standing with them.
+ */
+function writeCart(a: Agent, spawn: CartSpawn, cart: PoseSlot, driver: PoseSlot): void {
+  const full = cartFull(a.activity);
+  const dir = full ? 1 : -1;
+  const anim = a.activity.kind === 'walk' ? 'walk' : 'idle';
+  const { frames, fps } = personAnim(anim);
+  const frame = cycleFrame(a.animTicks, fps, frames);
+  cart.id = a.id;
+  cart.x = Math.round(a.x);
+  cart.ground = Math.round(a.y) + (full ? 0 : CART_TRIP.lane);
+  cart.facing = 1;
+  cart.frame = frame;
+  cart.sprite = full ? 'viz.full' : 'viz.empty';
+  cart.anim = anim;
+  driver.id = driverId(a.id);
+  driver.x = cart.x + dir * CART_TRIP.driver.ahead;
+  driver.ground = cart.ground - dir * CART_TRIP.driver.aside;
+  driver.facing = dir;
+  driver.frame = frame;
+  driver.sprite = spawn.driver;
+  driver.anim = anim;
+}
+
 const emptySlot = (): PoseSlot => ({ id: -1, sprite: 'kozak.a', x: 0, ground: 0, facing: 1, anim: 'idle', frame: 0 });
 
 /** Whether an agent is out of sight: gone indoors, or a Cossack the army does not have. */
-const unseen = (a: Agent): boolean => a.activity.kind === 'indoors' || a.activity.kind === 'absent';
+const unseen = (a: Agent): boolean =>
+  a.activity.kind === 'indoors' || a.activity.kind === 'absent' || a.activity.kind === 'depot';
 
 /**
  * Writes whole-px poses into `out` (slots reused) and returns it: one per agent in sight, in pool order — an agent
@@ -964,9 +1161,16 @@ export function writePoses(pool: AgentPool, out: PoseSlot[]): readonly AgentPose
   for (const a of pool.agents) {
     if (unseen(a)) continue;
     const slot = out[n] ?? emptySlot();
-    writePose(a, slot, pool.ticks);
     out[n] = slot;
     n += 1;
+    if (a.spawn.routine === 'cart') {
+      const driver = out[n] ?? emptySlot();
+      out[n] = driver;
+      n += 1;
+      writeCart(a, a.spawn, slot, driver);
+    } else {
+      writePose(a, slot, pool.ticks);
+    }
   }
   out.length = n;
   return out;
@@ -986,7 +1190,7 @@ export function workingCount(pool: AgentPool): number {
 export function agentCounts(pool: AgentPool): AgentCounts {
   const counts = { total: 0, villager: 0, cossack: 0, visitor: 0, cart: 0 };
   for (const a of pool.agents) {
-    if (a.activity.kind === 'absent') continue;
+    if (a.activity.kind === 'absent' || a.activity.kind === 'depot') continue;
     counts.total += 1;
     counts[a.role] += 1;
   }

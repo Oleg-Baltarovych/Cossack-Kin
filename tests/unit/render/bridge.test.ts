@@ -280,6 +280,7 @@ describe('the army walks into the scene (M2-19)', () => {
       minutes: 12 * 60,
       tiers: scene?.tiers ?? null,
       ...(scene?.cossacks === undefined ? {} : { cossacks: scene.cossacks }),
+      ...(scene?.cartPeriodS === undefined ? {} : { cartPeriodS: scene.cartPeriodS }),
     });
     const pool = createAgents(KHORTYTSIA_WORLD.paths, KHORTYTSIA_WORLD.agents, AGENT_BUDGET, 1, ctx(before));
     const ids = (): number[] => agentPoses(pool).map((p) => p.id);
