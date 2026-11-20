@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PACING } from '../../../src/content/pacing.ts';
 import { Big } from '../../../src/core/big.ts';
@@ -27,12 +30,24 @@ describe('simulate (M1-14, SPEC §12.3)', () => {
     expect(renderReport([a], evaluate([a]))).toBe(renderReport([b], evaluate([b])));
   });
 
-  it('60 days of play simulate in under 10 s', () => {
-    const t = performance.now();
-    const r = simulate({ seed: 3, days: 60 });
-    expect(performance.now() - t).toBeLessThan(10_000);
-    expect(r.sessions).toHaveLength(60 * PACING.sessionsPerDay);
-  }, 20_000);
+  it('60 days of play simulate in under 10 s (plain node, as `pnpm balance` runs it)', () => {
+    // Measured in a child `node`, not in this worker: Vitest's module runner makes the hot core calls ~2.5× slower
+    // (3.3 s in node vs 8.2 s here), and a parallel `pnpm test` on a throttled laptop pushed that past 10 s.
+    // CPU time of the simulating thread, so other test workers competing for cores do not count.
+    const sim = pathToFileURL(resolve('tools/lib/balance/sim.ts')).href;
+    const code = [
+      `const { simulate } = await import(${JSON.stringify(sim)});`,
+      'const t = process.threadCpuUsage();',
+      'const r = simulate({ seed: 3, days: 60 });',
+      'const { user, system } = process.threadCpuUsage(t);',
+      'console.log(JSON.stringify({ ms: (user + system) / 1000, sessions: r.sessions.length }));',
+    ].join('\n');
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+    const run = JSON.parse(out.trim().split('\n').at(-1) ?? '{}') as { ms?: unknown; sessions?: unknown };
+    expect(run.sessions).toBe(60 * PACING.sessionsPerDay);
+    expect(typeof run.ms).toBe('number');
+    expect(run.ms).toBeLessThan(10_000);
+  }, 30_000);
 });
 
 describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {
