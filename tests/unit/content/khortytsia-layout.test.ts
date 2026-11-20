@@ -22,11 +22,6 @@ const zone = (id: string): { x0: number; x1: number } => {
 };
 
 describe('khortytsia farm layout', () => {
-  it('horizon follows ART-BIBLE §2 (40–45 % of the view)', () => {
-    expect(W.horizonRatio).toBeGreaterThanOrEqual(0.4);
-    expect(W.horizonRatio).toBeLessThanOrEqual(0.45);
-  });
-
   it('ground rows of every zone start at the horizon, are contiguous and whole 32-px tiles tall', () => {
     for (const scene of [KHORTYTSIA_FARM, KHORTYTSIA_SUBURB, KHORTYTSIA_SICH]) {
       let top = 0;

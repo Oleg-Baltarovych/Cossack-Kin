@@ -462,8 +462,6 @@ export interface River {
 
 /** The whole settlement as one continuous world (plan M2-01, §0 «Неперервний світ»): world x everywhere. */
 export interface WorldLayout {
-  /** Horizon as a share of the view height (ART-BIBLE §2: 40–45 %; the bottom sheet covers the lowest ~25 %). */
-  readonly horizonRatio: number;
   /** World width in logical px (the camera's range). */
   readonly width: number;
   /** Left to right, edge to edge. */
@@ -1268,7 +1266,7 @@ export const KHORTYTSIA_SICH: ZoneScene = {
 
 /** Places zones edge to edge from x = 0: zone-local x → world x (foreground x by the foreground's parallax). */
 export function composeWorld(
-  base: Pick<WorldLayout, 'horizonRatio' | 'river' | 'farPlanes'>,
+  base: Pick<WorldLayout, 'river' | 'farPlanes'>,
   zones: readonly { readonly id: ZoneId; readonly scene: ZoneScene }[],
 ): WorldLayout {
   let x0 = 0;
@@ -1316,7 +1314,6 @@ export const TIER_ART_PENDING: Readonly<Partial<Record<PlotBuilding, string>>> =
  */
 export const KHORTYTSIA_WORLD: WorldLayout = composeWorld(
   {
-    horizonRatio: 0.42,
     // The Dnipro between the far bank and the settlement: it covers the far meadow row but the near bank below it.
     river: { x0: 0, x1: KHORTYTSIA_FARM.width + KHORTYTSIA_SUBURB.width, rows: 26, taper: 50, rocks: [6, 14, 21] },
     // The far plane layer (parallax 0.2) is ~695 px wide on a 400 px view, the mid layer (0.5) ~1140 px. The M-ART

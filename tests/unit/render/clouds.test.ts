@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { CLOUD_SHADOW_LEVELS, CLOUDS, EMISSIVE_LEVELS, sailFps } from '../../../src/render/atmosphere/config.ts';
+import {
+  CLOUD_SHADOW_LEVELS,
+  CLOUDS,
+  EMISSIVE_LEVELS,
+  LOW_CLOUD,
+  sailFps,
+} from '../../../src/render/atmosphere/config.ts';
 import { dayCycle } from '../../../src/render/atmosphere/dayCycle.ts';
 import { cloudShadowLevel, emissiveLevel, keyLevel } from '../../../src/render/atmosphere/emissive.ts';
 import { cloudLook, cloudX } from '../../../src/render/layers/Clouds.ts';
+import { horizonY } from '../../../src/render/layers/Layer.ts';
+import { computeViewport, worldTargetSize } from '../../../src/render/viewport.ts';
 
 const cloud = { variant: 'c2', x: 100, y: 0.4, speed: 2 } as const;
 
@@ -75,5 +83,34 @@ describe('sailFps (ART-13 wind)', () => {
     expect(sailFps(0.5)).toBeGreaterThan(sailFps(0.2));
     expect(sailFps(5)).toBe(10);
     expect(sailFps(-1)).toBe(2);
+  });
+});
+
+describe('clouds and the HUD (M2-29 framing review)', () => {
+  /** Cloud frame (assets-src/gen/sky/cloud): 44 rows, pivot on the base row 39 → 39 rows above it, 5 below. */
+  const ABOVE = 39;
+  const BELOW = 5;
+  /** HUD bottom as a share of the screen, measured on each phone (e2e framing.spec, state=showcase). */
+  const PHONES = [
+    { w: 390, h: 844, dpr: 3, hud: 0.114 },
+    { w: 360, h: 800, dpr: 3, hud: 0.121 },
+    { w: 412, h: 915, dpr: 3.5, hud: 0.117 },
+  ] as const;
+
+  it('no cloud is sliced by the HUD edge at the default framing: wholly under the HUD or wholly below it', () => {
+    for (const p of PHONES) {
+      const viewH = worldTargetSize(computeViewport(p.w, p.h, p.dpr)).height;
+      const hud = Math.ceil(viewH * p.hud);
+      for (const c of CLOUDS) {
+        const scaleY = c.y > LOW_CLOUD.below ? LOW_CLOUD.scaleY : 1;
+        const base = Math.round(horizonY(viewH) * c.y);
+        const top = base - Math.ceil(ABOVE * scaleY);
+        const bottom = base + Math.ceil(BELOW * scaleY);
+        expect(
+          bottom <= hud || top >= hud,
+          `${c.variant} on ${String(p.w)}: rows ${String(top)}–${String(bottom)}, HUD ${String(hud)}`,
+        ).toBe(true);
+      }
+    }
   });
 });

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   cameraBounds,
   clampCamX,
+  framedY,
+  horizonRow,
   layerOffset,
   levelView,
   revealY,
@@ -9,6 +11,7 @@ import {
   split,
 } from '../../../src/render/camera.ts';
 import { computeViewport, worldTargetSize } from '../../../src/render/viewport.ts';
+import { horizonY } from '../../../src/render/layers/Layer.ts';
 
 // Plan §0 / M0-04: the world moves by whole logical px inside worldRT; the remainder becomes a
 // whole number of device px applied to the upscale sprite.
@@ -158,5 +161,62 @@ describe('revealY (M2-13: a tapped building clears the opened sheet)', () => {
   });
   it('does nothing at the normal level (no vertical room)', () => {
     expect(revealY({ ...base, maxY: 0, camY: 0, top: 380, bottom: 450 })).toBe(0);
+  });
+});
+
+describe('horizonRow (M2-29: the default framing puts the horizon at a share of the world window)', () => {
+  const f = { windowTop: 0.1, windowBottom: 0.7, horizon: 0.35 };
+
+  it('places the horizon at `horizon` of the window between the HUD and the sheet, on a whole row', () => {
+    // 0.1 + 0.35 × 0.6 = 0.31 of 845 rows = 261.95
+    expect(horizonRow(845, f)).toBe(262);
+    expect(horizonRow(100, { windowTop: 0, windowBottom: 1, horizon: 0.42 })).toBe(42);
+  });
+
+  it('moves with the window: a taller HUD or a lower sheet top lowers the horizon', () => {
+    expect(horizonRow(800, { ...f, windowTop: 0.2 })).toBeGreaterThan(horizonRow(800, f));
+    expect(horizonRow(800, { ...f, windowBottom: 0.9 })).toBeGreaterThan(horizonRow(800, f));
+  });
+
+  it('stays inside the frame for any size or framing, tiny frames included', () => {
+    for (let viewH = 0; viewH <= 50; viewH += 1) {
+      for (const g of [
+        f,
+        { windowTop: 0, windowBottom: 1, horizon: 1 },
+        { windowTop: 0.9, windowBottom: 2, horizon: 2 },
+      ]) {
+        const row = horizonRow(viewH, g);
+        expect(Number.isInteger(row)).toBe(true);
+        expect(row).toBeGreaterThanOrEqual(0);
+        expect(row).toBeLessThanOrEqual(viewH);
+      }
+    }
+    expect(horizonRow(10, { windowTop: -1, windowBottom: 0, horizon: 0.5 })).toBe(0);
+  });
+
+  it('the default framing lowers the horizon from the old 42 % of the reference frame (390×844@3)', () => {
+    const viewH = worldTargetSize(computeViewport(390, 844, 3)).height;
+    expect(horizonY(viewH) / viewH).toBeLessThan(0.34);
+  });
+
+  it('frames odd sizes on whole rows (worldTargetSize stays integer, e.g. 413×901@2.75)', () => {
+    const size = worldTargetSize(computeViewport(413, 901, 2.75));
+    expect(Number.isInteger(size.width) && Number.isInteger(size.height)).toBe(true);
+    expect(Number.isInteger(horizonY(size.height))).toBe(true);
+  });
+});
+
+describe('framedY (M2-29: the closer level framed on its own window)', () => {
+  const window = { windowTop: 0.1, windowBottom: 1, horizon: 0.4 };
+
+  it('puts the horizon row at the framing share of the closer screen (rows of the normal frame)', () => {
+    // 0.1 + 0.4 × 0.9 = 0.46 of 600 rows = 276 rows above the horizon → y = 300 − 276
+    expect(framedY({ horizon: 300, rows: 600, maxY: 200 }, window)).toBe(24);
+  });
+
+  it('clamps to [0, maxY] in whole rows', () => {
+    expect(framedY({ horizon: 100, rows: 600, maxY: 200 }, window)).toBe(0);
+    expect(framedY({ horizon: 800, rows: 600, maxY: 200 }, window)).toBe(200);
+    expect(framedY({ horizon: 300.4, rows: 601, maxY: 0 }, window)).toBe(0);
   });
 });

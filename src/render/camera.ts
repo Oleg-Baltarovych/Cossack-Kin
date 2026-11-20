@@ -51,6 +51,46 @@ export function levelView(
 }
 
 /**
+ * Default framing (M2-29, owner 2026-11-20): what the normal level shows above and below the horizon. The DOM UI covers
+ * the top of the frame (HUD) and its bottom (the sheet, half open by default); the horizon row is put at share
+ * `horizon` of the world window left between them. All shares are of the frame height.
+ */
+export interface Framing {
+  /** Top of the world window: the HUD's bottom edge. */
+  readonly windowTop: number;
+  /** Bottom of the world window: the half sheet's top edge. */
+  readonly windowBottom: number;
+  /** Horizon within the window (0 = its top, 1 = its bottom). */
+  readonly horizon: number;
+}
+
+/** Where the horizon falls under `f`, as a share of the screen height. */
+function horizonShare(f: Framing): number {
+  return f.windowTop + f.horizon * (f.windowBottom - f.windowTop);
+}
+
+/**
+ * Horizon row of a `viewH`-row frame under `f` (whole rows: the sky and the ground meet on the row grid), always inside
+ * the frame [0, viewH].
+ */
+export function horizonRow(viewH: number, f: Framing): number {
+  return Math.min(viewH, Math.max(0, Math.round(viewH * horizonShare(f))));
+}
+
+/**
+ * Closer level's own framing (M2-29 review): the camera y (rows of the normal frame above the screen) that shows the
+ * normal frame's `horizon` row at the framing share of a closer screen `rows` rows tall (normal-frame rows); whole rows,
+ * clamped to [0, maxY].
+ */
+export function framedY(
+  o: { readonly horizon: number; readonly rows: number; readonly maxY: number },
+  f: Framing,
+): number {
+  const y = Math.round(o.horizon - o.rows * horizonShare(f));
+  return Math.min(o.maxY, Math.max(0, y));
+}
+
+/**
  * Closer level (M2-03 review, art-director): rows to move the sky band down so the shown disc (sun, else moon; centre
  * row `discRow` of the band, `null` = none) stays in the window that starts at row `camY` — translation only, whole
  * rows, at most `camY` (the normal frame's sky never moves), never pushing the disc closer than `margin` to `horizon`.
