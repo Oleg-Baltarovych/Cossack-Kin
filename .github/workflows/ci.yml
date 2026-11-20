@@ -7,6 +7,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Nightly full e2e incl. the @screens matrices (skipped when main had no commits in the last 24 h).
+  schedule:
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       update_snapshots:
@@ -18,12 +21,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # event_name: the nightly run must not cancel (or be cancelled by) a push run on main.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   check:
     name: Check, build
+    if: github.event_name != 'schedule' # the nightly run is the e2e matrix only
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -63,11 +68,82 @@ jobs:
         if: steps.audit_full.outcome == 'failure'
         run: echo "::warning title=pnpm audit::high/critical advisories in dev dependencies — see the 'pnpm audit (all deps, non-blocking)' step"
 
-  # e2e split per phone project, the 390×844 project (all @screens matrices run there) further into shards: Playwright
+  # Every push/PR: the functional e2e only (no @screens matrices, no @perf) — one job, a few minutes. The @screens
+  # matrices are 225 of ~245 tests and took ~85 runner-minutes per push (private repo: limited Actions minutes);
+  # they run nightly and on manual dispatch in `e2e-full` below.
+  e2e:
+    name: e2e (functional)
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04 # pinned: screenshot baselines depend on the OS image (fonts, SwiftShader)
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      # Ubuntu package mirrors sometimes time out while fetching Chromium's font deps (run 44522096633: apt exit
+      # 100 in 2 of 6 jobs). Retry the whole install a few times before failing the job.
+      - name: Install Playwright Chromium (with retries)
+        run: |
+          for attempt in 1 2 3; do
+            pnpm exec playwright install --with-deps chromium && exit 0
+            echo "::warning title=playwright install::attempt $attempt failed, retrying in 20 s"
+            sleep 20
+          done
+          exit 1
+
+      - name: e2e (functional)
+        run: |
+          if [ -z "$(find tests/e2e/__screenshots__ -name '*.png' -print -quit 2>/dev/null)" ]; then
+            pnpm e2e --grep-invert "@screens|@perf" --ignore-snapshots
+          else
+            pnpm e2e --grep-invert "@screens|@perf" --update-snapshots=none
+          fi
+
+      - name: Upload e2e reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-reports-functional
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Scheduled runs only when main moved in the last 24 h (26 h window: scheduled starts drift) (no minutes spent on a quiet day).
+  recent:
+    name: Commits in the last 24 h
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.log.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 50
+          persist-credentials: false
+      - id: log
+        run: |
+          if [ -n "$(git log --since='26 hours ago' --format=%H -1)" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; fi
+
+  # Full e2e (nightly / manual dispatch): split per phone project, the 390×844 project (all @screens matrices run there) further into shards: Playwright
   # shards an ordered list, so plain --shard=N/4 gave shard 1 almost every 390-only test and it hit 30 min (run
   # 44502063892) while other shards finished in 2–4 min. Each job builds its own test bundle via playwright webServer.
-  e2e:
-    name: e2e (${{ matrix.project }} ${{ matrix.shard }})
+  e2e-full:
+    name: e2e full (${{ matrix.project }} ${{ matrix.shard }})
+    needs: [recent]
+    # always(): `recent` is skipped on dispatch; run on dispatch, or on schedule when main changed.
+    if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && needs.recent.outputs.changed == 'true'))
     runs-on: ubuntu-26.04 # pinned: screenshot baselines depend on the OS image (fonts, SwiftShader)
     timeout-minutes: 30
     strategy:
@@ -144,6 +220,7 @@ jobs:
 
   secrets:
     name: Secret scan (gitleaks)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     # gitleaks CLI from a pinned release, verified by SHA-256, instead of gitleaks/gitleaks-action: the action
