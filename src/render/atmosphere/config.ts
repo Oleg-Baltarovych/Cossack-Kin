@@ -2,7 +2,7 @@
 // imports — so `assets-src/luts/gen.ts` (Node, tools project) reads the same numbers as render.
 // Colors are palette references `[ramp, index]` (index 0 = darkest), resolved by the consumer.
 import type { RampName } from '../palette.ts';
-import { TIER_CELEBRATION_MS } from '../../content/juice.ts';
+import { SHEET, TIER_CELEBRATION_MS } from '../../content/juice.ts';
 import { FOREGROUND_PARALLAX } from '../../content/villages/khortytsia.layout.ts';
 
 export type ColorRef = readonly [RampName, number];
@@ -146,7 +146,7 @@ export const SKY_LOOKS: Readonly<Record<SkyKeyId, SkyLook>> = {
     top: 0,
     horizon: 2,
     baseMax: 2,
-    curve: 1.2,
+    curve: 1.8,
     glow: 0.1,
     glowHeight: 0.1,
     streaks: 0.06,
@@ -384,7 +384,8 @@ export interface CloudPlacement {
 export const CLOUDS: readonly CloudPlacement[] = [
   { variant: 'c1', x: 30, y: 0.13, speed: 1.6 },
   { variant: 'c5', x: 250, y: 0.24, speed: 1.4 },
-  { variant: 'c2', x: 400, y: 0.4, speed: 1.1 },
+  // c2 below the HUD edge (M2-29 framing: c1/c5 lie wholly under the HUD in game, c2 wholly below it — clouds.test).
+  { variant: 'c2', x: 400, y: 0.56, speed: 1.1 },
   { variant: 'c3', x: 120, y: 0.74, speed: 0.8 },
   { variant: 'c4', x: 180, y: 0.8, speed: 0.7 },
 ];
@@ -969,6 +970,25 @@ export const CAMERA = {
   wheelZoomPx: 50,
   /** Closer level (M2-03 review): rows kept between the sun/moon disc centre and the window edge or the horizon. */
   skyDiscMarginPx: 12,
+} as const;
+
+/**
+ * Default framing (M2-29 «Хвости M2-15» (1), owner 2026-11-20; camera.ts `horizonRow`): the horizon at 35 % of the
+ * world window between the HUD and the half-open sheet, so the village — not the sky — fills the screen. `windowTop`
+ * is the HUD's height share, a measured constant (e2e framing.spec checks the result on every phone): 11.4 % on 390×844,
+ * 12.1 % on 360×800, 11.7 % on 412×915. Safe-area insets are ignored (none on the reference phones; a notch would push
+ * the HUD — and the window — down, so re-measure then). The window's bottom is the sheet's half state. Resulting horizon
+ * ≈ 32 % of the frame (it was 42 %).
+ *
+ * `closer`: the closer zoom level's start (`?zoom=1`, camera.ts `framedY`) frames the sheet-less window — HUD bottom to
+ * the screen bottom — so the village fills the screen instead of the plain ground under it. Pinch and ctrl+wheel keep
+ * the world point under the fingers / cursor instead.
+ */
+export const FRAMING = {
+  windowTop: 0.117,
+  windowBottom: 1 - SHEET.halfRatio,
+  horizon: 0.35,
+  closer: { windowTop: 0.117, windowBottom: 1, horizon: 0.35 },
 } as const;
 
 /**

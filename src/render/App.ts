@@ -23,7 +23,7 @@ import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
 import { createGrading, gradeCycle, loadLuts } from './atmosphere/grading.ts';
 import { frame, frameLookup, loadAtlases, unloadAtlases, WORLD_ATLASES, type Atlases } from './atlases.ts';
-import { layerOffset, levelView, revealY, skyShift, split } from './camera.ts';
+import { framedY, layerOffset, levelView, revealY, skyShift, split } from './camera.ts';
 import { skyPixel } from './atmosphere/skyPaint.ts';
 import {
   cancel,
@@ -54,7 +54,7 @@ import { rampColor, rampCss } from './palette.ts';
 import { DEFAULT_SCENE, type SceneState } from './scene.ts';
 import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
-import { AUTO_QUALITY, CAMERA, PLOT_TAP } from './atmosphere/config.ts';
+import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_TAP } from './atmosphere/config.ts';
 import { plotAt, plotSpan } from './plotHit.ts';
 import { propTargets } from './plotTargets.ts';
 import { createCoinFx } from './fx/coins.ts';
@@ -357,8 +357,12 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       lessMotion,
     });
     if (settings.zoom === 1) {
-      // About the screen centre of the `cam`/`zone` framing.
-      motion = zoomTo(motion, 1, { x: vp.deviceW / 2 / vp.scale, y: vp.deviceH / 2 / vp.scale }, cameraView());
+      // x about the screen centre of the `cam`/`zone` framing; y = the closer level's own framing (M2-29 review).
+      const view = cameraView();
+      motion = zoomTo(motion, 1, { x: vp.deviceW / 2 / vp.scale, y: vp.deviceH / 2 / vp.scale }, view);
+      const rows = vp.deviceH / view.levels[1].scale;
+      const y = framedY({ horizon: horizonY(target.height), rows, maxY: view.levels[1].maxY }, FRAMING.closer);
+      motion = setY(motion, y, view);
       // Before the first frame (stats, a tap): the camera as it will be drawn.
       const s = vp.scale + motion.level;
       lastCam = { ...split(motion.x, s), scale: s, y: Math.round(motion.y), level: motion.level };

@@ -4,8 +4,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
-import { CLOUDS } from '../../../src/render/atmosphere/config.ts';
-import { split } from '../../../src/render/camera.ts';
+import { CLOUDS, FRAMING } from '../../../src/render/atmosphere/config.ts';
+import { framedY, split } from '../../../src/render/camera.ts';
+import { horizonY } from '../../../src/render/layers/Layer.ts';
 import { validateState } from '../../../src/core/state.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { decodePng, encodePng, type RgbaImage } from '../../../tools/lib/png.ts';
@@ -175,6 +176,11 @@ const luma = (c: number): number => 0.2126 * ((c >> 16) & 0xff) + 0.7152 * ((c >
 const rgbAt = (data: Uint8Array, i: number): number =>
   ((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0);
 
+/** Horizon row (default framing, M2-29) as a share of a `deviceH`-px shot at `scale` (frame = whole rows + 1 spare). */
+function horizonShare(deviceH: number, scale: number): number {
+  return (horizonY(Math.ceil(deviceH / scale) + 1) * scale) / deviceH;
+}
+
 /** Tallest cloud frame (assets-src/gen/sky/cloud: 44 rows, pivot on the base row 40). */
 const CLOUD_RISE = 41;
 /**
@@ -185,7 +191,7 @@ function expectSkyOnPalette(png: Buffer, scale: number): void {
   const { width, height, data } = decodePng(png);
   const palette = new Set(PALETTE_COLORS);
   const off = new Set<string>();
-  const skyRows = (height / scale) * KHORTYTSIA_WORLD.horizonRatio;
+  const skyRows = horizonY(Math.ceil(height / scale) + 1);
   const firstCloudRow = Math.min(...CLOUDS.map((c) => Math.round(skyRows * c.y))) - CLOUD_RISE;
   const rows = Math.floor(Math.max(4, firstCloudRow - 1) * scale);
   for (let i = 0; i < rows * width * 4; i += 4) {
@@ -228,7 +234,7 @@ function bandLuma(png: Buffer, y0: number, y1: number): number {
 const FAR_PLANE_ROWS = 60;
 function expectGroundDarkerThanHorizon(png: Buffer, scale: number): void {
   const { height } = decodePng(png);
-  const horizon = KHORTYTSIA_WORLD.horizonRatio;
+  const horizon = horizonShare(height, scale);
   const above = (FAR_PLANE_ROWS * scale) / height;
   const sky = bandLuma(png, height * (horizon - above - 0.02), height * (horizon - above));
   const ground = bandLuma(png, height * (horizon + 0.01), height * (horizon + 0.03));
@@ -288,7 +294,7 @@ test.describe('ART-07 clouds @screens', () => {
     }
     const [a, b] = shots.map((s) => decodePng(s));
     if (!a || !b) throw new Error('missing shots');
-    const horizon = Math.round(a.height * KHORTYTSIA_WORLD.horizonRatio);
+    const horizon = Math.round(a.height * horizonShare(a.height, 3)); // 390×844 only: scale 3
     const changed = (y0: number, y1: number): number => {
       let n = 0;
       for (let y = y0; y < y1; y++) {
@@ -416,7 +422,7 @@ test.describe('ART-14 vegetation and wind @screens', () => {
     }
     // Leaning plants change some px; nothing above the land moves (sky, clouds and sails are the same frame).
     expect(changed).toBeGreaterThan(0);
-    expect(topRow).toBeGreaterThan(still.height * 0.42);
+    expect(topRow).toBeGreaterThan(still.height * horizonShare(still.height, 3));
   });
 });
 
@@ -488,8 +494,9 @@ test.describe('M2-01 continuous world: zone seams @screens', () => {
 });
 
 test.describe('M2-03 closer zoom level @screens', () => {
-  // `?zoom=1` = the closer level about the screen centre: scale + 1, a window of the normal frame (camera y > 0); the
-  // sky band moves down just enough to keep the sun/moon in the window. Every phone: day + night at the farm and the
+  // `?zoom=1` = the closer level, x about the screen centre: scale + 1, a window of the normal frame framed on its own
+  // (`FRAMING.closer`, M2-29: horizon at 35 % of the HUD-to-bottom window — camera y ≈ 0 on the reference phones); with
+  // camera y > 0 the sky band moves down just enough to keep the sun/moon in the window. Every phone: day + night at the farm and the
   // world's right edge (cam past the end, clamped); 390 only: the morning sun and the Sich's evening light shafts.
   const CASES = [
     { name: 'farm-0700', zone: 'farm', hhmm: '0700', cam: null, phones: '390' },
@@ -510,7 +517,15 @@ test.describe('M2-03 closer zoom level @screens', () => {
       const stats = await readStats(page);
       expect(stats.zoom).toBe(1);
       expect(scale).toBe(normal.scale + 1);
-      expect(stats.camY).toBeGreaterThan(0);
+      const deviceH = Math.floor(
+        (testInfo.project.use.viewport?.height ?? 0) * (testInfo.project.use.deviceScaleFactor ?? 1),
+      );
+      const normalRows = Math.ceil(deviceH / normal.scale);
+      const closerY = framedY(
+        { horizon: horizonY(normalRows + 1), rows: deviceH / scale, maxY: normalRows - Math.ceil(deviceH / scale) },
+        FRAMING.closer,
+      );
+      expect(stats.camY).toBe(closerY);
       expect(stats.drawCalls).toBe(normal.drawCalls); // the same worldRT, only a closer window of it
       const file = `khortytsia-${name}-clear-zoom1`;
       const png = await shoot(page, testInfo, file);
@@ -549,7 +564,7 @@ test.describe('ART-18 «менше руху» @screens', () => {
   const skyRows = async (page: Page, url: string): Promise<Buffer> => {
     await gotoReady(page, url);
     const png = decodePng(await page.screenshot({ scale: 'device' }));
-    const rows = Math.floor(png.height * KHORTYTSIA_WORLD.horizonRatio) - 4;
+    const rows = Math.floor(png.height * horizonShare(png.height, 3)) - 4;
     return Buffer.from(png.data.subarray(0, rows * png.width * 4));
   };
 

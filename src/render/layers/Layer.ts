@@ -1,6 +1,7 @@
 // World layer contract (SPEC §6.2). Each layer owns one Container inside worldRT.
 import { Container } from 'pixi.js';
-import { KHORTYTSIA_WORLD } from '../../content/villages/khortytsia.layout.ts';
+import { FRAMING } from '../atmosphere/config.ts';
+import { horizonRow } from '../camera.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import type { SceneState } from '../scene.ts';
 import type { Quality } from '../settings.ts';
@@ -109,9 +110,7 @@ export function contentWidth(parallax: number, size: LayerSize): number {
   return Math.ceil(size.worldW * parallax + size.viewW * (1 - parallax) - 1e-9);
 }
 
-/** Horizon as a share of the view height (scene layout, ART-BIBLE §2); sky above, ground rows below. */
-export const HORIZON_RATIO = KHORTYTSIA_WORLD.horizonRatio;
-
+/** Horizon row of the frame (default framing, ART-BIBLE §2): sky above, ground rows below. */
 export function horizonY(viewH: number): number {
-  return Math.round(viewH * HORIZON_RATIO);
+  return horizonRow(viewH, FRAMING);
 }
