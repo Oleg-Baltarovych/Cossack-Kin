@@ -6,7 +6,16 @@
 //
 // The frame path steps in place (`stepInPlace`, `writePoses`: no allocation per tick but on a new walk or rest);
 // `stepAgents`/`agentPoses` are the pure copies for tests and tools.
-import type { AgentRole, AgentSpawn, AgentSprite, PathGraph } from '../../content/agents.ts';
+import {
+  VILLAGER_ANIMS,
+  type AgentRole,
+  type AgentSpawn,
+  type AgentSprite,
+  type BasicAnim,
+  type PathGraph,
+  type PersonAnim,
+  type VillagerSprite,
+} from '../../content/agents.ts';
 import type { VisualTiers } from '../../core/selectors.ts';
 import { checkGraph, findPath, mayEnter, nodeOf } from './graph.ts';
 
@@ -17,6 +26,13 @@ export const WALK_FRAMES = 6;
 export const WALK_FPS = 10;
 export const IDLE_FRAMES = 4;
 export const IDLE_FPS = 6;
+
+/** Frame count and rate of a person animation (walk/idle above; the villager set from content, M2-17). */
+export function personAnim(anim: PersonAnim): { readonly frames: number; readonly fps: number } {
+  if (anim === 'walk') return { frames: WALK_FRAMES, fps: WALK_FPS };
+  if (anim === 'idle') return { frames: IDLE_FRAMES, fps: IDLE_FPS };
+  return VILLAGER_ANIMS[anim];
+}
 
 /** What every step may read (M2-18 schedules by the time of day and the buildings standing); unused by the skeleton. */
 export interface AgentContext {
@@ -65,21 +81,31 @@ export interface AgentPool {
   readonly agents: Agent[];
 }
 
-export interface AgentPose {
+interface PoseBase {
   readonly id: number;
-  readonly sprite: AgentSprite;
   /** World x of the pivot, whole px. */
   readonly x: number;
   /** Pivot row below the horizon, whole px (also the Y-sort key). */
   readonly ground: number;
   /** 1 = facing right (as drawn), −1 = mirrored. */
   readonly facing: 1 | -1;
-  readonly anim: 'walk' | 'idle';
   readonly frame: number;
 }
 
-/** A pose slot reused frame to frame (`writePoses`). */
-export type PoseSlot = { -readonly [K in keyof AgentPose]: AgentPose[K] };
+/**
+ * A person this frame. Only villager sprites have the work / talk / sit / cheer frames (M2-17), so a Cossack or a girl
+ * can only be posed walking or standing — a pose naming a frame that does not exist does not type-check.
+ */
+export type AgentPose = PoseBase &
+  (
+    | { readonly sprite: VillagerSprite; readonly anim: PersonAnim }
+    | { readonly sprite: Exclude<AgentSprite, VillagerSprite>; readonly anim: BasicAnim }
+  );
+
+/** A pose slot reused frame to frame (`writePoses`): the skeleton writes walk/idle only, valid for every sprite. */
+export type PoseSlot = { -readonly [K in keyof PoseBase]: PoseBase[K] } & (
+  { sprite: VillagerSprite; anim: BasicAnim } | { sprite: Exclude<AgentSprite, VillagerSprite>; anim: BasicAnim }
+);
 
 export type AgentCounts = { readonly total: number } & Readonly<Record<AgentRole, number>>;
 

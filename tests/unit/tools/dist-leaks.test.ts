@@ -16,6 +16,7 @@ describe('findLeaks', () => {
     ['template key', 'q.get(`freeze`)', 'debug param key "freeze"'],
     ['zoom param read', 'zoom:r(`zoom`,Zt),still:r(`still`,Ft)', 'debug param key "zoom"'],
     ['tier param read', 'let n=t.get(`tier`);', 'debug param key "tier"'],
+    ['lineup param read', 'lineup:r(`lineup`,Ft)', 'debug param key "lineup"'],
     ['location.search', 'Bt(window.location.search,"test")', 'URL query parsing (debug params)'],
     ['URLSearchParams', 'new URLSearchParams(e)', 'URL query parsing (debug params)'],
     ['warn format', 'console.warn("debug param %s=%o is invalid; using default %o",e,t,n)', 'debug param warning'],

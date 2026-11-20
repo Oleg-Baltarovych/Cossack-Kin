@@ -35,6 +35,8 @@ export interface DebugParams {
   readonly zoom: ZoomLevel;
   /** «Менше руху»: still plants. */
   readonly still: boolean;
+  /** Every villager animation in two rows instead of the agents (M2-17 review shots). */
+  readonly lineup: boolean;
 }
 
 export const DEBUG_DEFAULTS: DebugParams = {
@@ -49,6 +51,7 @@ export const DEBUG_DEFAULTS: DebugParams = {
   cam: null,
   zoom: 0,
   still: false,
+  lineup: false,
 };
 
 type Parser<T> = (raw: string) => T | undefined;
@@ -128,6 +131,7 @@ export function parseDebugParams(search: string, mode: string): DebugParams {
     cam: read('cam', parseCam),
     zoom: read('zoom', parseZoom),
     still: read('still', parseFlag),
+    lineup: read('lineup', parseFlag),
   };
 }
 
@@ -150,5 +154,6 @@ export function toRenderSettings(params: DebugParams): RenderSettings {
     camX: params.cam,
     zoom: params.zoom,
     lessMotion: params.still,
+    lineup: params.lineup,
   };
 }

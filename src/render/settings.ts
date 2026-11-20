@@ -35,6 +35,8 @@ export interface RenderSettings {
   readonly zoom: ZoomLevel;
   /** «Менше руху» (SPEC §6.3, §6.8): plants stand upright (ART-14). The settings screen drives it from M2. */
   readonly lessMotion: boolean;
+  /** Dev/test: the villager animation lineup replaces the agents (`?lineup`, render/debug/lineup.ts). */
+  readonly lineup: boolean;
 }
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
@@ -49,4 +51,5 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   camX: null,
   zoom: 0,
   lessMotion: false,
+  lineup: false,
 };

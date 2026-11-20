@@ -47,6 +47,7 @@ import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } fr
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
 import { createAgents } from './agents/sim.ts';
 import { createAgentDriver, stepCap } from './agents/driver.ts';
+import { LINEUP, lineupPoses } from './debug/lineup.ts';
 import type { AgentCounts } from './agents/sim.ts';
 import { AGENT_BUDGET } from '../content/agents.ts';
 import { propFrames } from './layers/Ground.ts';
@@ -318,6 +319,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     const anchorX = (zone: ZoneId): number => WORLD.zones.find((z) => z.id === zone)?.anchorX ?? 0;
     // Camera (M2-02): drag, inertia, glides — pure motion state (camera/motion.ts), stepped once per frame.
     let motion = createMotion(settings.camX ?? anchorX(settings.zone));
+    /** `?lineup` stands from the start camera's left edge (dev/test). */
+    const lineupX = Math.round(motion.x);
     let lessMotion = settings.lessMotion;
     const zoneListeners = new Set<(zone: ZoneId) => void>();
     let zone: ZoneId | null = null;
@@ -425,7 +428,11 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const frameInfo = {
         minutes,
         seconds,
-        agents: agents.poses(),
+        // Dev/test `?lineup`: the villager animation set in two rows at the start camera (M2-17 review shots).
+        agents:
+          __CK_DEBUG__ && settings.lineup
+            ? lineupPoses(lineupX, LINEUP.ground, seconds, agents.counts().total)
+            : agents.poses(),
         ambient,
         cycle,
         camX: cam.worldPx,

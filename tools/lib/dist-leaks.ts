@@ -37,6 +37,8 @@ export const FORBIDDEN: readonly (readonly [string, RegExp])[] = [
   ['debug param key "zoom"', /(["'`])zoom\1/g],
   // query.get("tier") of `?state=tiers&tier=N` (M2-05); the game's `tier` fields are unquoted property names.
   ['debug param key "tier"', /(["'`])tier\1/g],
+  // read("lineup", …) (M2-17): the villager animation lineup is dev/test only.
+  ['debug param key "lineup"', /(["'`])lineup\1/g],
   ['URL query parsing (debug params)', /location\.search|URLSearchParams/g],
   ['debug param warning', /debug param/g],
   // window.__CK__ (render stats) and window.__CK_GAME__ (game state for e2e, M1-18).

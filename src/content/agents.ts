@@ -48,17 +48,47 @@ export interface PathGraph<Id extends string = string> {
   readonly edges: readonly PathEdge<Id>[];
 }
 
-/** Person sprites (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/idle/00`). */
-export type PersonSprite =
-  | 'kozak.a'
-  | 'kozak.b'
-  | 'kozak.c'
-  | 'selianka.a'
-  | 'selianka.b'
-  | 'divchyna.a'
-  | 'divchyna.b'
-  | 'selianyn.a'
-  | 'selianyn.b';
+/** The village bodies with the work set (M2-17): 4 outfits each (SPEC §6.4: 4–6 clothing variants). */
+export const VILLAGER_SPRITES = [
+  'selianka.a',
+  'selianka.b',
+  'selianka.c',
+  'selianka.d',
+  'selianyn.a',
+  'selianyn.b',
+  'selianyn.c',
+  'selianyn.d',
+] as const;
+export type VillagerSprite = (typeof VILLAGER_SPRITES)[number];
+
+/** Person sprites (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/<anim>/NN`). */
+export type PersonSprite = 'kozak.a' | 'kozak.b' | 'kozak.c' | 'divchyna.a' | 'divchyna.b' | VillagerSprite;
+
+/**
+ * Villager animations beyond walk/idle (M2-17, SPEC §6.4), frames `<VillagerSprite>/<anim>/<nn>` in the `people` atlas,
+ * for the FSM (M2-18) to pick: `work-<building>` at the five workplaces (field: the man mows with a scythe, the woman
+ * reaps with a sickle; apiary: honeycombs into a pail; smithy: the man at the anvil, the woman at the bellows; potter:
+ * seated at the kick wheel; fair: offering a jug over a basket), `talk`, `sit` (on a stool, by the fire at night),
+ * `cheer`. The generators declare the same frame counts (tests/unit/tools/gen-people.test.ts).
+ */
+export const VILLAGER_ANIMS = {
+  'work-field': { frames: 6, fps: 8 },
+  'work-apiary': { frames: 4, fps: 8 },
+  'work-smithy': { frames: 4, fps: 8 },
+  'work-potter': { frames: 4, fps: 8 },
+  'work-fair': { frames: 4, fps: 8 },
+  talk: { frames: 2, fps: 4 },
+  sit: { frames: 2, fps: 2 },
+  cheer: { frames: 4, fps: 10 },
+} as const;
+export type VillagerAnim = keyof typeof VILLAGER_ANIMS;
+/** What every person sprite has frames for. */
+export type BasicAnim = 'walk' | 'idle';
+/** Every animation a person pose can show (only villager sprites have the `VillagerAnim` frames). */
+export type PersonAnim = BasicAnim | VillagerAnim;
+
+export const isVillagerSprite = (sprite: AgentSprite): sprite is VillagerSprite =>
+  (VILLAGER_SPRITES as readonly string[]).includes(sprite);
 
 /** Every agent sprite stem; carts and visitors (M2-20/21) widen it. */
 export type AgentSprite = PersonSprite;
