@@ -6,7 +6,15 @@
 // threshold there. Villagers may walk up to it, never past it: every node inside is Cossack-only (plan AC2, Q11).
 // A node with a `building` is open only while that building stands (M2-18): the potter's yard, the fair square, the
 // work spots — nobody works at an empty plot.
-import type { AgentSpawn, CossackNight, GuardSprite, KozakSprite, PathEdge, ZonePaths } from '../agents.ts';
+import type {
+  AgentSpawn,
+  CossackNight,
+  GuardSprite,
+  KozakSprite,
+  PathEdge,
+  VillagerSprite,
+  ZonePaths,
+} from '../agents.ts';
 
 export type KhortytsiaNode =
   | 'farm.road.w'
@@ -328,6 +336,28 @@ const SICH_COSSACKS: readonly AgentSpawn<KhortytsiaNode>[] = [
   guard('vartovyi.b', 'sich.post.e3', -1),
 ];
 
+/**
+ * The food carts (plan M2-20): three slots, waiting beyond the world's west edge (72 px left of the road's first node:
+ * the cart and its driver are out of sight there), driving the road at row 146 through the farm and the suburb to the
+ * Sich gate and back. Oxen walk at the drivers' pace (18 px/s, the village men's stride).
+ */
+const cartSlot = (driver: VillagerSprite): AgentSpawn<KhortytsiaNode> => ({
+  routine: 'cart',
+  role: 'cart',
+  sprite: 'viz.full',
+  home: 'farm.road.w',
+  depot: { at: 'farm.road.w', dx: -72, facing: 1 },
+  gate: 'sich.gate',
+  driver,
+  speed: 18,
+  phase: 0,
+});
+const FOOD_CARTS: readonly AgentSpawn<KhortytsiaNode>[] = [
+  cartSlot('selianyn.c'),
+  cartSlot('selianyn.b'),
+  cartSlot('selianyn.d'),
+];
+
 /** Every villager's door: the khata stands from the start, so whoever has no night spot standing goes in there. */
 const HOME = 'farm.khata';
 
@@ -465,4 +495,5 @@ export const KHORTYTSIA_AGENTS: readonly AgentSpawn<KhortytsiaNode>[] = [
     phase: 7,
   },
   ...SICH_COSSACKS,
+  ...FOOD_CARTS,
 ];

@@ -16,7 +16,7 @@ import {
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { windLookAt } from '../../../src/core/systems/village-mechanics/wind.ts';
 import { applyAction } from '../../../src/core/actions.ts';
-import { AGENT_BUDGET } from '../../../src/content/agents.ts';
+import { AGENT_BUDGET, CART_PERIOD } from '../../../src/content/agents.ts';
 
 const T0 = 1_763_400_000_000;
 
@@ -312,5 +312,33 @@ describe('populationView (plan M2-19, Q11)', () => {
     const { state } = applyAction(s, { type: 'hire', n: 1 }, T0);
     expect(state.army.infantry).toBe(4);
     expect(populationView(state).cossacks).toBe(4);
+  });
+});
+
+describe('populationView: food carts (plan M2-20, SPEC §3.0 «харч»)', () => {
+  const period = (levels: Partial<GameState['village']['levels']>): number | null =>
+    populationView(makeState({ levels })).cartPeriodS;
+
+  it('sends no cart while the farm grows no food (kharch 0)', () => {
+    expect(period({})).toBeNull();
+    expect(period({ potter: 30 })).toBeNull();
+  });
+
+  it('more kharch sends carts more often: a shorter period', () => {
+    const few = period({ field: 20 });
+    const more = period({ field: 20, garden: 10 });
+    expect(few).not.toBeNull();
+    expect(more).not.toBeNull();
+    expect(more ?? Infinity).toBeLessThan(few ?? 0);
+  });
+
+  it('the period is clamped to the content limits', () => {
+    expect(period({ field: 1 })).toBe(CART_PERIOD.maxS);
+    expect(period({ field: 200, garden: 200, apiary: 200, windmill: 200 })).toBe(CART_PERIOD.minS);
+    for (const levels of [{ field: 5 }, { field: 40 }, { field: 60, apiary: 10 }]) {
+      const p = period(levels) ?? NaN;
+      expect(p).toBeGreaterThanOrEqual(CART_PERIOD.minS);
+      expect(p).toBeLessThanOrEqual(CART_PERIOD.maxS);
+    }
   });
 });

@@ -24,7 +24,7 @@ import { gloryRate, hireLimit, INFANTRY } from './systems/army.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
 import { PLOT_VARIANTS, VARIANT_SALT, type VariantPlot } from '../content/variants.ts';
 import { pickStable } from './rng.ts';
-import { AGENT_BUDGET } from '../content/agents.ts';
+import { AGENT_BUDGET, CART_PERIOD } from '../content/agents.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -224,10 +224,19 @@ export function visualTiers(state: GameState): VisualTiers {
 export interface PopulationView {
   /** Cossacks walking the scene: one per hired infantryman, up to the scene budget (the rest stay abstract). */
   readonly cossacks: number;
+  /**
+   * Seconds between food carts leaving the farm for the Sich gate (plan M2-20): shorter with more kharch, within the
+   * content limits; `null` while the farm grows no food (no carts).
+   */
+  readonly cartPeriodS: number | null;
 }
 
 export function populationView(state: GameState): PopulationView {
-  return { cossacks: Math.min(state.army.infantry, AGENT_BUDGET.cossack) };
+  const food = kharch(state);
+  return {
+    cossacks: Math.min(state.army.infantry, AGENT_BUDGET.cossack),
+    cartPeriodS: food <= 0 ? null : Math.min(CART_PERIOD.maxS, Math.max(CART_PERIOD.minS, CART_PERIOD.kharchS / food)),
+  };
 }
 
 /** Cosmetic variant per plot (plan M2-10, SPEC §2.6): which add-on set of the layout each plot shows. */

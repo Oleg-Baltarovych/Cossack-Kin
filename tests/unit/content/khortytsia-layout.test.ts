@@ -61,8 +61,9 @@ describe('khortytsia farm layout', () => {
 describe('khortytsia sich layout (ART-11)', () => {
   it('is all Cossacks (no women on the Sich), stays inside the world and has the gate and towers on the rampart', () => {
     const s = KHORTYTSIA_SICH;
-    // People on the graph (M2-16): whoever starts or walks to a Sich node is a Cossack.
-    const sichNodes = new Set(s.paths.nodes.map((n) => n.id));
+    // People on the graph (M2-16): whoever starts or walks to a Sich node past the gate is a Cossack (the gate is open
+    // to all: villagers stop there, food carts unload there, M2-20).
+    const sichNodes = new Set(s.paths.nodes.filter((n) => n.kind !== 'gate').map((n) => n.id));
     for (const a of W.agents.filter((q) => spawnNodes(q).some((n) => sichNodes.has(n)))) {
       expect(/^(kozak|otaman|vartovyi)\./.test(a.sprite), a.sprite).toBe(true);
     }
@@ -187,9 +188,16 @@ describe('the continuous world (M2-01)', () => {
 
   it('women never stand in the Sich and nothing of a zone leaves it', () => {
     const sich = zone('sich');
-    // Only Cossacks walk the Sich's inside: a woman's sprite is always a villager, a Cossack's a Cossack.
-    for (const a of W.agents)
-      expect(a.role, a.sprite).toBe(/^(kozak|otaman|vartovyi)\./.test(a.sprite) ? 'cossack' : 'villager');
+    // Only Cossacks walk the Sich's inside: a woman's sprite is always a villager, a Cossack's a Cossack (a food cart,
+    // M2-20, is a cart).
+    for (const a of W.agents) {
+      const role = /^(kozak|otaman|vartovyi)\./.test(a.sprite)
+        ? 'cossack'
+        : a.sprite.startsWith('viz.')
+          ? 'cart'
+          : 'villager';
+      expect(a.role, a.sprite).toBe(role);
+    }
     for (const n of W.paths.nodes.filter((q) => q.x >= sich.x0 && q.kind !== 'gate')) {
       expect(n.only, n.id).toEqual(['cossack']);
     }

@@ -17,6 +17,11 @@ export interface SceneState {
   /** Cossacks the army has on the scene (core `populationView`, M2-19); absent = no game: every Cossack walks. */
   readonly cossacks?: number;
   /**
+   * Seconds between food carts leaving the farm (core `populationView`, M2-20); `null` = no food, no carts; absent =
+   * no game: the busiest traffic.
+   */
+  readonly cartPeriodS?: number | null;
+  /**
    * Buildings popping in right now (plan M2-12, Q5): their props are drawn at this scale about their pivots, in whole
    * px. Set by render/fx/build.ts for one frame at a time, never by the bridge.
    */

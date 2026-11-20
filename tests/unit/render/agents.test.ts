@@ -16,6 +16,8 @@ import {
 import { createAgentDriver, MAX_CATCH_UP_S, stepCap } from '../../../src/render/agents/driver.ts';
 
 const W = KHORTYTSIA_WORLD;
+/** The people (one pose each, on the graph); the carts and their drivers have their own tests (carts.test.ts). */
+const PEOPLE = W.agents.filter((a) => a.routine !== 'cart');
 
 /** A straight road a—b, 60 px long on row 100, and a Cossack-only node c behind b. */
 const LINE: PathGraph = {
@@ -92,8 +94,8 @@ describe('agents (plan M2-16)', () => {
 
   it('keeps every agent on the graph: each pose lies on an edge (or a node) it may use', () => {
     const nodes = new Map(W.paths.nodes.map((n) => [n.id, n]));
-    let pool = createAgents(W.paths, W.agents, AGENT_BUDGET, 11);
-    expect(agentPoses(pool)).toHaveLength(W.agents.length);
+    let pool = createAgents(W.paths, PEOPLE, AGENT_BUDGET, 11);
+    expect(agentPoses(pool)).toHaveLength(PEOPLE.length);
     for (let i = 0; i < 300; i++) {
       pool = stepAgents(pool, 17);
       for (const [k, pose] of agentPoses(pool).entries()) {
@@ -181,14 +183,14 @@ describe('agents (plan M2-16)', () => {
 });
 
 describe('agent driver (render clock → whole ticks)', () => {
-  const fresh = (graph: PathGraph = W.paths, spawns: readonly AgentSpawn[] = W.agents) =>
+  const fresh = (graph: PathGraph = W.paths, spawns: readonly AgentSpawn[] = PEOPLE) =>
     createAgents(graph, spawns, AGENT_BUDGET, 5);
 
   it('steps to round(seconds × TICK_HZ) ticks, so a frozen frame equals one run of that many ticks', () => {
     const live = createAgentDriver(() => fresh(), stepCap(false));
     for (const s of [0, 0.016, 0.05, 0.3]) live.advance(s, NOON);
     expect(live.poses()).toEqual(agentPoses(stepAgents(fresh(), seconds(0.3))));
-    expect(live.poses()).toHaveLength(W.agents.length);
+    expect(live.poses()).toHaveLength(PEOPLE.length);
     expect(live.poses()).not.toEqual(agentPoses(fresh()));
     const frozen = createAgentDriver(() => fresh(), stepCap(true));
     frozen.advance(0.3, NOON);

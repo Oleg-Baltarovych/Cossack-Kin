@@ -13,14 +13,15 @@ import { decodePng, encodePng, type RgbaImage } from '../../../tools/lib/png.ts'
 import { gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
+import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
 
 /**
  * Frame budget (SPEC §12.4 caps the game at 30): the scene measured 5 before ART-09; the water adds 2 passes (ART-09:
  * mirror into waterRT, row strips back onto worldRT); light shafts with their dust add 2 while a low sun shines
  * (ART-10, additive). Per-tier budgets are set in ART-18. M2-11: boats are drawn over the water in their own graded
- * container — its filter pass adds 2 while a boat is on screen (night farm/suburb 9 → 11). Raise only with the reason here.
+ * container — its filter pass adds 2 while a boat is on screen (night farm/suburb 9 → 11). Raise only with the reason here
+ * (the number: helpers/budgets.ts, shared with the other world-shot specs).
  */
-const MAX_DRAW_CALLS = 11;
 const SCENE = '/?seed=1&freeze&time=13:00';
 const CAM = 10.5;
 const COMPARE_BASELINES = process.platform === 'linux';
@@ -455,7 +456,7 @@ test.describe('ART-17 rain and fog @screens', () => {
       await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&zone=${zone}&weather=${weather}`);
       const scale = await expectWebGlWithinBudget(page);
       const stats = await readStats(page);
-      expect(stats.particles).toBeLessThanOrEqual(300);
+      expect(stats.particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
       const png = await shoot(page, testInfo, `khortytsia-${zone}-${hhmm}-${weather}`);
       expectPixelGrid(png, testInfo, scale, 0);
     });
@@ -485,7 +486,7 @@ test.describe('M2-01 continuous world: zone seams @screens', () => {
         await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&${at}&weather=${weather}`);
         const scale = await expectWebGlWithinBudget(page);
         const stats = await readStats(page);
-        expect(stats.particles).toBeLessThanOrEqual(300);
+        expect(stats.particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
         const png = await shoot(page, testInfo, `khortytsia-seam-${name}-${hhmm}-${weather}`);
         expectPixelGrid(png, testInfo, scale, 0);
       });
@@ -708,7 +709,7 @@ test.describe('M2-05 every building at tier N @screens', () => {
             `/?time=${time}&freeze&seed=1&cam=${String(cam)}&weather=${weather}&state=tiers&tier=${String(tier)}`,
           );
           const scale = await expectWebGlWithinBudget(page);
-          expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+          expect((await readStats(page)).particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
           const png = await shoot(page, testInfo, `tiers-${String(tier)}-${view}-${hhmm}-${weather}`);
           expectPixelGrid(png, testInfo, scale, 0);
           if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
@@ -731,7 +732,7 @@ test.describe('M2-08 the suburb @screens', () => {
       const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
       await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&zone=suburb&weather=${weather}`);
       const scale = await expectWebGlWithinBudget(page);
-      expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+      expect((await readStats(page)).particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
       const png = await shoot(page, testInfo, `khortytsia-suburb-${hhmm}-${weather}`);
       expectPixelGrid(png, testInfo, scale, 0);
       if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
@@ -745,7 +746,7 @@ test.describe('M2-08 the suburb @screens', () => {
         const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
         await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&zone=suburb&state=tiers&tier=${String(tier)}`);
         const scale = await expectWebGlWithinBudget(page);
-        expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+        expect((await readStats(page)).particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
         const png = await shoot(page, testInfo, `tiers-${String(tier)}-suburb-${hhmm}`);
         expectPixelGrid(png, testInfo, scale, 0);
         if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
@@ -824,7 +825,7 @@ test.describe('M2-09 the Sich by tier @screens', () => {
             `/?time=${time}&freeze=1.3&seed=1&${at}&weather=${weather}&state=tiers&tier=${String(tier)}`,
           );
           const scale = await expectWebGlWithinBudget(page);
-          expect((await readStats(page)).particles).toBeLessThanOrEqual(300);
+          expect((await readStats(page)).particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
           const png = await shoot(page, testInfo, `tiers-${String(tier)}-sich-${view}-${hhmm}-${weather}`);
           expectPixelGrid(png, testInfo, scale, 0);
           if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
@@ -880,7 +881,7 @@ test.describe('M2-11 building life: smoke, pennants, boats @screens', () => {
       await gotoReady(page, `/?time=23:00&freeze=1.3&seed=1&zone=suburb&weather=rain&quality=high&state=${state}`);
       const stats = await readStats(page);
       expect(stats.particles).toBeGreaterThan(0);
-      expect(stats.particles).toBeLessThanOrEqual(300);
+      expect(stats.particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
       expect(stats.drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
     });
   }

@@ -137,7 +137,7 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
 
     /** Agent sprites by agent id (M2-16): made on an agent's first pose, destroyed when it leaves the pool. */
     interface Person {
-      readonly stem: AgentSprite;
+      stem: AgentSprite;
       /** Frames by animation, looked up on first use (walk/idle for everyone, the villager set, M2-17). */
       readonly anims: Map<PersonAnim, { readonly body: Texture[]; readonly shadow: Texture[] }>;
       readonly sprite: Sprite;
@@ -149,7 +149,15 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
     const person = (id: number, stem: AgentSprite): Person => {
       const known = persons.get(id);
       if (known?.stem === stem) return known;
-      if (known) drop(id, known);
+      if (known) {
+        // Same agent, another look (a cart unloaded: `viz.full` → `viz.empty`): keep the sprites, swap the frames.
+        const [entity = stem, variant = ''] = stem.split('.');
+        known.stem = stem;
+        known.anims.clear();
+        known.sprite.texture = frame(`${stem}/idle/00`);
+        known.shadow.texture = frame(`${entity}.${variant}@shadow/idle/00`);
+        return known;
+      }
       const [entity = stem, variant = ''] = stem.split('.');
       const sprite = new Sprite({ texture: frame(`${stem}/idle/00`), roundPixels: true });
       const shadow = new Sprite({ texture: frame(`${entity}.${variant}@shadow/idle/00`), roundPixels: true });

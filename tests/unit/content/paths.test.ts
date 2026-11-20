@@ -130,6 +130,8 @@ describe('khortytsia night spots (art-director M2-18)', () => {
 
   it('a villager whose night spot is not standing goes in at a door that always stands', () => {
     for (const a of KHORTYTSIA_WORLD.agents) {
+      // A food cart's home is the road node its depot hangs off (M2-20), not a door.
+      if (a.routine === 'cart') continue;
       const door = a.routine === 'wander' ? a.indoors : a.home;
       if (door === undefined) continue;
       const node = G.nodes.find((n) => n.id === door);

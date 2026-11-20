@@ -17,6 +17,14 @@ export const AGENT_BUDGET: Readonly<Record<AgentRole, number>> = {
   cart: 3,
 };
 
+/**
+ * How often a food cart leaves the farm for the Sich (plan M2-20, SPEC §3.0 «харч», §6.4): every `kharchS / kharch` s,
+ * clamped to [minS, maxS] — more food, more carts; none while the farm grows no food. Cosmetic: the period only paces
+ * the carts on the road (at most `AGENT_BUDGET.cart` at once), it moves nothing in the economy. `minS` keeps three
+ * departures longer than a round trip (`CART_TRIP`: ≈ 140 s), so carts do not bunch at the farm. Гіпотеза.
+ */
+export const CART_PERIOD = { kharchS: 7500, minS: 50, maxS: 240 } as const;
+
 /** What a node of the path graph is: a door, a work spot, a campfire, the Sich gate, or a plain waypoint. */
 export type PoiKind = 'door' | 'work' | 'campfire' | 'gate' | 'way';
 
@@ -157,8 +165,18 @@ export const isCossackAnim = (anim: PersonAnim): anim is CossackAnim => anim in 
 export const isOtamanAnim = (anim: PersonAnim): anim is OtamanAnim => anim in OTAMAN_ANIMS;
 export const isGuardAnim = (anim: PersonAnim): anim is GuardAnim => anim in GUARD_ANIMS;
 
-/** Every agent sprite stem; carts and visitors (M2-20/21) widen it. */
-export type AgentSprite = PersonSprite;
+/**
+ * Food carts (M2-20, `people` atlas `viz.<load>`): a pair of oxen and a віз, loaded on the way to the Sich gate, empty
+ * on the way back. Each load is drawn facing its own way (full east, empty west; light top-left, never mirrored) and
+ * has the person set walk 6@10 / idle 4@6.
+ */
+export const CART_SPRITES = ['viz.full', 'viz.empty'] as const;
+export type CartSprite = (typeof CART_SPRITES)[number];
+export const isCartSprite = (sprite: AgentSprite): sprite is CartSprite =>
+  (CART_SPRITES as readonly string[]).includes(sprite);
+
+/** Every agent sprite stem; visitors (M2-21) widen it. */
+export type AgentSprite = PersonSprite | CartSprite;
 
 interface SpawnBase<Id extends string> {
   /**
@@ -292,7 +310,49 @@ export interface GuardSpawn<Id extends string = string> extends CossackBase<Id> 
  */
 export type CossackSpawn<Id extends string = string> = RankSpawn<Id> | FreeSpawn<Id> | OtamanSpawn<Id> | GuardSpawn<Id>;
 
-export type AgentSpawn<Id extends string = string> = WanderSpawn<Id> | VillagerSpawn<Id> | CossackSpawn<Id>;
+/**
+ * A food cart (M2-20): waits at its `depot` beyond the world's west edge (out of sight; `home` is the road node the
+ * depot hangs off) for its turn — one cart every `populationView(state).cartPeriodS` s, the turns going round the carts
+ * of the pool (≤ `AGENT_BUDGET.cart`), so never more out at once — then drives the road east, full, to stop
+ * `CART_TRIP.reach` px short of the `gate` (never past it), unloads, turns and drives back empty to the depot. Its
+ * `driver` (a village body) walks at the oxen's left shoulder.
+ */
+export interface CartSpawn<Id extends string = string> extends SpawnBase<Id> {
+  readonly routine: 'cart';
+  readonly role: 'cart';
+  readonly sprite: CartSprite;
+  /** Where it waits: `dx` px beside `home` (beyond the world's edge). */
+  readonly depot: Spot<Id>;
+  readonly gate: Id;
+  readonly driver: VillagerSprite;
+}
+
+export type AgentSpawn<Id extends string = string> =
+  WanderSpawn<Id> | VillagerSpawn<Id> | CossackSpawn<Id> | CartSpawn<Id>;
+
+/**
+ * A cart's trip (plan M2-20), cosmetic: `reach` = px from the cart's pivot to the leading ox's nose (the generator's
+ * `VIZ_REACH`; the cart stops that far before the gate), seconds unloading at the gate [min, max] (seeded per cart),
+ * seconds standing turned before the way back, `warmS` = the carts' history run at creation so the first frame finds
+ * them on the road (≥ a round trip), and the driver's place: `ahead` px forward of the pivot at the oxen's shoulder,
+ * `aside` rows to their left (behind them going east, in front coming back); `lane` = rows nearer the viewer the empty
+ * cart keeps, so teams passing each other do not overlap on one row.
+ */
+export const CART_TRIP = {
+  reach: 32,
+  unloadS: [6, 10],
+  turnS: 2,
+  warmS: 300,
+  driver: { ahead: 14, aside: 3 },
+  lane: 2,
+} as const satisfies {
+  readonly reach: number;
+  readonly unloadS: readonly [number, number];
+  readonly turnS: number;
+  readonly warmS: number;
+  readonly driver: { readonly ahead: number; readonly aside: number };
+  readonly lane: number;
+};
 
 /**
  * The Sich's day (plan M2-19, SPEC §6.4), cosmetic: the same hours as the villagers' (guards light their torches when
@@ -337,6 +397,7 @@ export const VILLAGER_DAY = {
 export function spawnNodes<Id extends string>(s: AgentSpawn<Id>): readonly Id[] {
   if (s.routine === 'wander') return [s.home, ...s.goals, ...(s.indoors === undefined ? [] : [s.indoors])];
   if (s.routine === 'villager') return [s.home, ...s.work, ...s.chat, s.night.at];
+  if (s.routine === 'cart') return [s.home, s.depot.at, s.gate];
   switch (s.duty) {
     case 'rank':
       return [s.home, s.rank.at, ...s.haunts, ...(s.night.anim === 'indoors' ? [] : [s.night.at])];
