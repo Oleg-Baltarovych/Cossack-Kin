@@ -21,19 +21,31 @@ interface Live {
   born: number;
 }
 
-export function createCoinFx(frames: readonly Texture[], lessMotion: boolean): CoinFx {
+/** How a rising sprite moves: life (s), rise (px), frame rate, fade start (share of life), pool size, still frame. */
+export interface RiseLook {
+  readonly life: number;
+  readonly stillLife: number;
+  readonly rise: number;
+  readonly spinFps: number;
+  readonly fadeFrom: number;
+  readonly max: number;
+  readonly stillFrame: number;
+}
+
+/** A pool of rising sprites: the tap coin (`COIN`), or the work glint (M2-18, `WORK_GLINT`). */
+export function createCoinFx(frames: readonly Texture[], lessMotion: boolean, look: RiseLook = COIN): CoinFx {
   const first = frames[0];
   if (!first) throw new Error('coins: no coin frames');
   const container = new Container({ label: 'coins' });
   const claim = claimParticles();
-  const pool: Live[] = Array.from({ length: COIN.max }, () => {
+  const pool: Live[] = Array.from({ length: look.max }, () => {
     const sprite = new Sprite({ texture: first, roundPixels: true });
     sprite.anchor.set(0.5);
     sprite.visible = false;
     container.addChild(sprite);
     return { sprite, x: 0, y: 0, born: -Infinity };
   });
-  const life = lessMotion ? COIN.stillLife : COIN.life;
+  const life = lessMotion ? look.stillLife : look.life;
   const alive = (c: Live, now: number): boolean => now - c.born < life;
 
   return {
@@ -55,12 +67,12 @@ export function createCoinFx(frames: readonly Texture[], lessMotion: boolean): C
         live += 1;
         const t = (now - c.born) / life;
         // Ease-out rise in whole px; the spin steps through the 4 frames.
-        const rise = lessMotion ? 0 : Math.round(COIN.rise * (1 - (1 - t) * (1 - t)));
-        const frame = lessMotion ? 0 : Math.floor((now - c.born) * COIN.spinFps) % frames.length;
+        const rise = lessMotion ? 0 : Math.round(look.rise * (1 - (1 - t) * (1 - t)));
+        const frame = lessMotion ? look.stillFrame : Math.floor((now - c.born) * look.spinFps) % frames.length;
         c.sprite.texture = frames[frame] ?? c.sprite.texture;
         c.sprite.position.set(c.x, c.y - rise);
         // Fades in whole quarters over the last part of its life (no sub-step alpha shimmer).
-        const fade = t < COIN.fadeFrom ? 1 : 1 - (t - COIN.fadeFrom) / (1 - COIN.fadeFrom);
+        const fade = t < look.fadeFrom ? 1 : 1 - (t - look.fadeFrom) / (1 - look.fadeFrom);
         c.sprite.alpha = Math.max(0, Math.round(fade * 4) / 4);
         c.sprite.visible = c.sprite.alpha > 0;
       }

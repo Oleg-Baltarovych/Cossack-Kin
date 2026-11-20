@@ -14,6 +14,7 @@ import {
   celebrationStart,
   confettiPieces,
   dustPuffs,
+  knocksBetween,
   scaffoldSize,
   STANDARD_FRAMES,
   type FxPiece,
@@ -79,6 +80,8 @@ export function createBuildFx(
   frame: (name: string) => Texture,
   lessMotion: boolean,
   horizon: () => number,
+  /** Called once per scaffold stage as it goes up (the builders' knocking, M2-18): the audio hook (M7). */
+  onKnock: (building: PlotBuilding) => void = () => undefined,
 ): BuildFx {
   const world = new Container({ label: 'build' });
   const top = new Container({ label: 'build-top' });
@@ -108,7 +111,10 @@ export function createBuildFx(
   const glintFrames = frames(frame, 'standard@emissive', STANDARD_FRAMES);
 
   // One running sequence per building at a time (a second purchase restarts nothing: levels only go up).
-  const builds = new Map<PlotBuilding, { start: number; scaffold: Sprite; dust: Sprite[]; confetti: Sprite[] }>();
+  const builds = new Map<
+    PlotBuilding,
+    { start: number; scaffold: Sprite; dust: Sprite[]; confetti: Sprite[]; knockedMs: number }
+  >();
   const parties = new Map<PlotBuilding, { start: number; flash: Sprite; standard: Sprite; glint: Sprite }>();
   const claim = claimParticles();
 
@@ -126,6 +132,7 @@ export function createBuildFx(
       if (!scaffold) return;
       builds.set(building, {
         start: nowMs,
+        knockedMs: -1,
         scaffold,
         dust: lessMotion ? [] : pool(world, dustFrames, BUILD.dust),
         confetti: lessMotion ? [] : pool(top, confettiFrames, BUILD.confetti),
@@ -154,6 +161,8 @@ export function createBuildFx(
       for (const [building, b] of builds) {
         const site = sites.get(building);
         const f = buildFrame(nowMs - b.start, lessMotion);
+        for (let k = knocksBetween(b.knockedMs, nowMs - b.start); k > 0; k--) onKnock(building);
+        b.knockedMs = nowMs - b.start;
         if (!site || f.kind === 'done') {
           dispose([b.scaffold, ...b.dust, ...b.confetti]);
           builds.delete(building);

@@ -115,6 +115,8 @@ test.describe('M2-12 construction and tiers', () => {
       expect((await readStats(page)).particles).toBeGreaterThan(idle); // the confetti is flying
       await step(SCAFFOLD_MS + 400, '5-confetti');
       await step(SCAFFOLD_MS + BUILD.confettiMs + SETTLE_MS, '6-built');
+      // The builders knocked once per scaffold stage (M2-18: the hook the audio will play, M7).
+      expect((await readStats(page)).knocks).toBe(3);
 
       // Every stage shows something new: nothing, three scaffolds, the popping building, confetti, the field.
       for (let i = 0; i < frames.length; i++) {

@@ -2,7 +2,7 @@
 // tier look like, frame by frame, as pure functions of the ms since the event (real time, so `?freeze` shots step with
 // Playwright's clock). Cosmetic only: the level is already in the state when this starts — render/bridge.ts merely
 // reacts to `BuildingUpgraded` 0 → 1 and `TierReached`. Seeded hashes (no Math.random), whole px.
-// M2-16 hooks the builders' knocking onto the scaffold stage changes (a stub until the agents exist).
+// The builders knock as each scaffold stage goes up (`knocksBetween`, M2-18): a hook for the audio (M7).
 import { BUILD } from '../atmosphere/config.ts';
 
 /** The scaffold stands this long (3 stages) before the building is revealed. */
@@ -112,4 +112,14 @@ export function celebrationFrame(ms: number, lessMotion: boolean): CelebrationFr
 /** When a tier celebration starts: at `now`, or when the same building's running construction reveals it. */
 export function celebrationStart(now: number, constructionStart: number | null): number {
   return constructionStart === null ? now : Math.max(now, constructionStart + SCAFFOLD_MS);
+}
+
+/** Scaffold stages that went up in (`fromMs`, `toMs`] since the build began (their starts: 0, stageMs, 2·stageMs). */
+export function knocksBetween(fromMs: number, toMs: number): number {
+  let n = 0;
+  for (let stage = 0; stage < 3; stage++) {
+    const at = stage * BUILD.stageMs;
+    if (fromMs < at && at <= toMs) n += 1;
+  }
+  return n;
 }

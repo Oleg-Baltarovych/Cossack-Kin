@@ -59,7 +59,7 @@ import { rampColor, rampCss } from './palette.ts';
 import { DEFAULT_SCENE, type SceneState } from './scene.ts';
 import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
-import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_TAP } from './atmosphere/config.ts';
+import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_TAP, WORK_GLINT } from './atmosphere/config.ts';
 import { plotAt, plotSpan } from './plotHit.ts';
 import { propTargets } from './plotTargets.ts';
 import { createCoinFx } from './fx/coins.ts';
@@ -110,6 +110,12 @@ export interface WorldApp {
   zoom(): ZoomLevel;
   /** Agents alive on the world by role (M2-16; debug stats). */
   agentCounts(): AgentCounts;
+  /** Villagers in a work animation this frame (M2-18; debug stats). */
+  working(): number;
+  /** Scaffold stages gone up since start, the builders' knocks (M2-18; debug stats, the M7 audio hook). */
+  knocks(): number;
+  /** The newest work glint: world x and age in ms (M2-18; debug stats, e2e finds one on screen). */
+  lastGlint(): { readonly x: number; readonly ageMs: number } | null;
   /** The seed of the cosmetic RNG and the agents (`?seed`, else random per session). */
   readonly seed: number;
   /**
@@ -235,9 +241,12 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     const layout = WORLD;
     // One seed for the cosmetic RNG and the agents (`?seed` in dev/test, else random): frozen frames repeat.
     const seed = settings.seed ?? Math.floor(Math.random() * 2 ** 32);
-    // People on the path graph (M2-16): a pure pool stepped in whole ticks on the animation clock, never game state.
+    // People on the path graph (M2-16, M2-18): a pure pool stepped in whole ticks on the animation clock, never game
+    // state; made on the first frame, so villagers start where that hour and the buildings standing put them. Made
+    // once per world: a resize (`applyViewport`) only re-lays the layers and never touches the driver, so nobody
+    // jumps; there is one land today — switching lands (M5) must tear the world down and build a new one.
     const agents = createAgentDriver(
-      createAgents(layout.paths, layout.agents, AGENT_BUDGET, seed),
+      (ctx) => createAgents(layout.paths, layout.agents, AGENT_BUDGET, seed, ctx),
       stepCap(settings.frozenAt !== null),
     );
     const worldFrames = frameLookup(atlases, WORLD_ATLASES);
@@ -289,12 +298,32 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       settings.lessMotion,
     );
     worldTop.addChild(coins.container);
+    // The work-done glint over a villager (M2-18): its own look, never the coin (it is no income).
+    const glints = createCoinFx(
+      Array.from({ length: 4 }, (_, i) => sceneFrame(`glint/idle/${String(i).padStart(2, '0')}`)),
+      settings.lessMotion,
+      WORK_GLINT,
+    );
+    worldTop.addChild(glints.container);
+    /** The newest work glint (world x, birth ms): debug stats only. */
+    let lastGlint: { x: number; bornMs: number } | null = null;
     disposers.push(() => {
       coins.destroy();
+      glints.destroy();
     });
     // Construction and tier juice (M2-12): scaffolds, dust and the standard graded right over the ground layer;
     // confetti and the flash after the grade, like the coins.
-    const build = createBuildFx(layout, sceneFrame, settings.lessMotion, () => horizonY(target.height));
+    // The builders' knocks (M2-18): counted for the debug stats until the audio (M7) plays them.
+    let knocks = 0;
+    const build = createBuildFx(
+      layout,
+      sceneFrame,
+      settings.lessMotion,
+      () => horizonY(target.height),
+      () => {
+        knocks += 1;
+      },
+    );
     const groundLayer = layers.find((l) => l.id === 'ground');
     graded.addChildAt(
       build.world,
@@ -412,6 +441,19 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       // People walk on `seconds`, not `ambient`: «менше руху» stills shake, parallax and big tweens (SPEC §6.8), not
       // walking.
       agents.advance(seconds, { minutes, tiers: scene.tiers });
+      // A finished work spell sparks a glint over the worker (M2-18, decoration only — never the coin; at most
+      // `perFrame` at once after a catch-up). Not under `?freeze`: its one jump finishes many spells, and a glint in
+      // mid-air would make the shot depend on real time.
+      if (settings.frozenAt === null) {
+        const done = agents.done();
+        const y0 = horizonY(target.height) - WORK_GLINT.lift;
+        for (let i = 0; i < Math.min(done.count, WORK_GLINT.perFrame); i++) {
+          const d = done.slots[i];
+          if (!d) continue;
+          glints.spawn(d.x, y0 + d.ground, performance.now() / 1000);
+          lastGlint = { x: d.x, bornMs: performance.now() };
+        }
+      }
       const cycle = dayCycle(minutes);
       // The scene as it looks this frame: a building under scaffolding still empty, a popping one scaled (M2-12).
       const shown = build.present(scene, performance.now(), emissiveLevel(cycle));
@@ -456,12 +498,14 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       post.container.x = layerOffset(cam.worldPx, post.parallax);
       coins.container.x = layerOffset(cam.worldPx, 1);
+      glints.container.x = coins.container.x;
       build.top.x = coins.container.x;
       build.world.x = coins.container.x;
       boats.update(frameInfo.ambient, frameInfo.cycle, cam.worldPx, target.width);
       boats.container.x = layerOffset(cam.worldPx, 1);
       boats.film.x = boats.container.x;
       coins.update(performance.now() / 1000);
+      glints.update(performance.now() / 1000);
       upscale.scale.set(lv.scale);
       upscale.x = -cam.fracDevicePx;
       upscale.y = -camY * lv.scale;
@@ -661,6 +705,9 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       camY: () => lastCam.y,
       zoom: () => lastCam.level,
       agentCounts: () => agents.counts(),
+      working: () => agents.working(),
+      knocks: () => knocks,
+      lastGlint: () => (lastGlint ? { x: lastGlint.x, ageMs: performance.now() - lastGlint.bornMs } : null),
       seed,
       onZoneChange: (listener) => {
         zoneListeners.add(listener);

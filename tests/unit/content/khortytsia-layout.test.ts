@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { spawnNodes } from '../../../src/content/agents.ts';
 import {
   FOREGROUND_PARALLAX,
   GROUND_TILE,
@@ -62,7 +63,7 @@ describe('khortytsia sich layout (ART-11)', () => {
     const s = KHORTYTSIA_SICH;
     // People on the graph (M2-16): whoever starts or walks to a Sich node is a Cossack.
     const sichNodes = new Set(s.paths.nodes.map((n) => n.id));
-    for (const a of W.agents.filter((q) => [q.home, ...q.goals].some((n) => sichNodes.has(n)))) {
+    for (const a of W.agents.filter((q) => spawnNodes(q).some((n) => sichNodes.has(n)))) {
       expect(a.sprite.startsWith('kozak'), a.sprite).toBe(true);
     }
     for (const p of sceneProps(s.props)) {

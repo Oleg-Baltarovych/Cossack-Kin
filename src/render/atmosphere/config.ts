@@ -902,7 +902,32 @@ export const AUTO_QUALITY = { start: 'med', warmup: 1, window: 3, high: 57, low:
  * A ducat from a tap: rises `rise` logical px over `life` s (ease-out), spins at `spinFps` through its 4 frames, fades
  * after `fadeFrom` of its life. `max` in the air at once (10 taps/s cap × life). «Менше руху»: still, `stillLife` s.
  */
-export const COIN = { life: 0.7, stillLife: 0.4, rise: 14, spinFps: 12, fadeFrom: 0.55, max: 8 } as const;
+export const COIN = {
+  life: 0.7,
+  stillLife: 0.4,
+  rise: 14,
+  spinFps: 12,
+  fadeFrom: 0.55,
+  max: 8,
+  stillFrame: 0,
+} as const;
+/**
+ * The work-done cue (plan M2-18, review): a tool glint (`glint`, 4 frames: point → star → point) born `lift` px above
+ * the worker's feet as a spell of work ends — decoration of a building that stands, deliberately unlike the tap coin
+ * (no disc, no gold, no amount, nothing read from the economy). At most `perFrame` start in one frame (a catch-up
+ * after a hitch finishes several spells at once); `max` in the air.
+ */
+export const WORK_GLINT = {
+  life: 0.9,
+  stillLife: 0.5,
+  rise: 6,
+  spinFps: 8,
+  fadeFrom: 0.6,
+  max: 4,
+  stillFrame: 2,
+  lift: 30,
+  perFrame: 3,
+} as const;
 
 // --- Construction and tier juice (M2-12, SPEC §6.5/§6.7, plan Q5) ------------------------------------------------
 /**

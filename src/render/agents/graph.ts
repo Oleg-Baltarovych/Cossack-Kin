@@ -56,8 +56,17 @@ const allows = (only: readonly AgentRole[] | undefined, role: AgentRole): boolea
 /** Whether `role` may stand on `node`. */
 export const mayEnter = (node: PathNode, role: AgentRole): boolean => allows(node.only, role);
 
-/** Node ids from `from` to `to` (both included) over nodes and edges `role` may use; `null` when there is none. */
-export function findPath(graph: PathGraph, from: string, to: string, role: AgentRole): string[] | null {
+/**
+ * Node ids from `from` to `to` (both included) over nodes and edges `role` may use and, past the start, nodes `open`
+ * lets through (M2-18: a node of a building that does not stand); `null` when there is none.
+ */
+export function findPath(
+  graph: PathGraph,
+  from: string,
+  to: string,
+  role: AgentRole,
+  open: (node: PathNode) => boolean = () => true,
+): string[] | null {
   const { nodes, next } = indexOf(graph);
   const start = nodes.get(from);
   const goal = nodes.get(to);
@@ -69,7 +78,7 @@ export function findPath(graph: PathGraph, from: string, to: string, role: Agent
     for (const link of next.get(id) ?? []) {
       if (cameFrom.has(link.to) || !allows(link.only, role)) continue;
       const node = nodes.get(link.to);
-      if (!node || !mayEnter(node, role)) continue;
+      if (!node || !mayEnter(node, role) || !open(node)) continue;
       cameFrom.set(link.to, id);
       queue.push(link.to);
     }

@@ -14,6 +14,10 @@ export interface WorldStats {
   readonly cam: number;
   readonly camY: number;
   readonly zoom: number;
+  /** Villagers in a work animation (M2-18) and the builders' knocks so far (scaffold stages gone up). */
+  readonly working: number;
+  readonly knocks: number;
+  readonly glint: { readonly x: number; readonly ageMs: number } | null;
   /** Agents alive on the world by role (M2-16). */
   readonly agents: {
     readonly total: number;
@@ -63,6 +67,9 @@ export async function readStats(page: Page): Promise<WorldStats> {
           camY: s.camY,
           zoom: s.zoom,
           agents: { ...s.agents },
+          working: s.working,
+          knocks: s.knocks,
+          glint: s.glint,
         }
       : null;
   });
