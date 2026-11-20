@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import confetti from '../../../assets-src/gen/khortytsia/confetti/index.ts';
 import dust from '../../../assets-src/gen/khortytsia/dust/index.ts';
 import flash from '../../../assets-src/gen/khortytsia/flash/index.ts';
+import glint, { GLINT_FRAMES } from '../../../assets-src/gen/khortytsia/glint/index.ts';
 import scaffold, { SCAFFOLD_LOOKS } from '../../../assets-src/gen/khortytsia/scaffold/index.ts';
 import standard from '../../../assets-src/gen/khortytsia/standard/index.ts';
 import { loadPalette } from '../../../assets-src/gen/lib/palette.ts';
@@ -89,12 +90,34 @@ describe('construction sprites (M2-12)', () => {
   });
 
   it('every frame is binary alpha and within the prop budget (≤ 16 colours)', () => {
-    for (const gen of [scaffold, standard, dust, confetti, flash]) {
+    for (const gen of [scaffold, standard, dust, confetti, flash, glint]) {
       for (const f of render(gen).filter((x) => !x.name.includes('@'))) {
         for (let i = 0; i < f.image.width * f.image.height; i++) expect([0, 255]).toContain(alpha(f, i));
         expect(colours(f), f.name).toBeLessThanOrEqual(16);
         expect(opaque(f), f.name).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+describe('work glint (plan M2-18 review: the work-done cue must not read as a coin)', () => {
+  it('twinkles: grows from a point to a 4-point star and back, in neutral light px (no gold, no round disc)', () => {
+    const frames = render(glint).filter((x) => !x.name.includes('@'));
+    expect(frames).toHaveLength(GLINT_FRAMES);
+    const sizes = frames.map(opaque);
+    expect(sizes[0]).toBe(1);
+    const peak = sizes.indexOf(Math.max(...sizes));
+    expect(peak).toBeGreaterThan(0);
+    expect(peak).toBeLessThan(GLINT_FRAMES - 1);
+    for (const f of frames) {
+      // A star, not a disc: no opaque px in any corner of a 2×2 block off the cross (corners stay clear).
+      for (const [x, y] of [
+        [0, 0],
+        [4, 0],
+        [0, 4],
+        [4, 4],
+      ] as const)
+        expect(alpha(f, y * f.image.width + x), f.name).toBe(0);
     }
   });
 });

@@ -10,6 +10,7 @@ import {
   celebrationStart,
   confettiPieces,
   dustPuffs,
+  knocksBetween,
   popSize,
   scaffoldSize,
   SCAFFOLD_MS,
@@ -157,5 +158,15 @@ describe('flash frames', () => {
       ).length;
     expect(span(1)).toBeGreaterThan(span(0));
     expect(span(2)).toBeGreaterThan(0);
+  });
+});
+
+describe('knocksBetween (plan M2-18: the builders knock as each scaffold stage goes up)', () => {
+  it('counts the stage starts in (from, to]: one per stage, three in all, none after the reveal', () => {
+    expect(knocksBetween(-1, 0)).toBe(1);
+    expect(knocksBetween(0, BUILD.stageMs - 1)).toBe(0);
+    expect(knocksBetween(0, BUILD.stageMs)).toBe(1);
+    expect(knocksBetween(-1, SCAFFOLD_MS * 10)).toBe(3);
+    expect(knocksBetween(BUILD.stageMs * 2, SCAFFOLD_MS * 10)).toBe(0);
   });
 });

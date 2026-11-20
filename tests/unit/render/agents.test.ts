@@ -30,6 +30,7 @@ const LINE: PathGraph = {
   ],
 };
 const walker: AgentSpawn = {
+  routine: 'wander',
   role: 'villager',
   sprite: 'selianka.a',
   home: 'a',
@@ -97,19 +98,20 @@ describe('agents (plan M2-16)', () => {
       pool = stepAgents(pool, 17);
       for (const [k, pose] of agentPoses(pool).entries()) {
         const role = pool.agents[k]?.role ?? 'villager';
+        const offset = pool.agents[k]?.offset ?? 0;
         const onEdge = W.paths.edges.some(([p, q]) => {
           const a = nodes.get(p);
           const b = nodes.get(q);
           if (!a || !b) return false;
           if ([a, b].some((n) => n.only && !n.only.includes(role))) return false;
-          // Whole-px pose within 1 px of the segment a—b.
+          // Whole-px pose within 1 px of the segment a—b (plus the px it stands beside a shared spot, M2-18).
           const dx = b.x - a.x;
           const dy = b.ground - a.ground;
           const t = Math.max(
             0,
             Math.min(1, ((pose.x - a.x) * dx + (pose.ground - a.ground) * dy) / (dx * dx + dy * dy)),
           );
-          return Math.hypot(a.x + t * dx - pose.x, a.ground + t * dy - pose.ground) <= 1;
+          return Math.hypot(a.x + t * dx - pose.x, a.ground + t * dy - pose.ground) <= 1 + Math.abs(offset);
         });
         expect(onEdge, `agent ${String(k)} at ${String(pose.x)},${String(pose.ground)}`).toBe(true);
       }
@@ -179,26 +181,26 @@ describe('agent driver (render clock → whole ticks)', () => {
     createAgents(graph, spawns, AGENT_BUDGET, 5);
 
   it('steps to round(seconds × TICK_HZ) ticks, so a frozen frame equals one run of that many ticks', () => {
-    const live = createAgentDriver(fresh(), stepCap(false));
+    const live = createAgentDriver(() => fresh(), stepCap(false));
     for (const s of [0, 0.016, 0.05, 0.3]) live.advance(s, NOON);
     expect(live.poses()).toEqual(agentPoses(stepAgents(fresh(), seconds(0.3))));
     expect(live.poses()).toHaveLength(W.agents.length);
     expect(live.poses()).not.toEqual(agentPoses(fresh()));
-    const frozen = createAgentDriver(fresh(), stepCap(true));
+    const frozen = createAgentDriver(() => fresh(), stepCap(true));
     frozen.advance(0.3, NOON);
     frozen.advance(0.3, NOON);
     expect(frozen.poses()).toEqual(live.poses());
   });
 
   it('a frozen clock steps any jump in full: ?freeze=100 is a run of 6000 ticks', () => {
-    const frozen = createAgentDriver(fresh(), stepCap(true));
+    const frozen = createAgentDriver(() => fresh(), stepCap(true));
     frozen.advance(100, NOON);
     expect(frozen.ticks()).toBe(seconds(100));
     expect(frozen.poses()).toEqual(agentPoses(stepAgents(fresh(), seconds(100))));
   });
 
   it('a live clock catches up at most MAX_CATCH_UP_S of a long gap and skips the rest', () => {
-    const live = createAgentDriver(fresh(LINE, [walker]), stepCap(false));
+    const live = createAgentDriver(() => fresh(LINE, [walker]), stepCap(false));
     live.advance(0, NOON);
     live.advance(3600, NOON);
     expect(live.ticks()).toBe(seconds(MAX_CATCH_UP_S));
@@ -210,7 +212,7 @@ describe('agent driver (render clock → whole ticks)', () => {
   });
 
   it('reuses its pose array and slots frame to frame', () => {
-    const live = createAgentDriver(fresh(), stepCap(false));
+    const live = createAgentDriver(() => fresh(), stepCap(false));
     live.advance(0.1, NOON);
     const a = live.poses();
     const first = a[0];

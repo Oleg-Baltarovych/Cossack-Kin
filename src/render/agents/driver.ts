@@ -8,12 +8,14 @@ import {
   agentCounts,
   stepInPlace,
   TICK_HZ,
+  workingCount,
   writePoses,
   type AgentContext,
   type AgentCounts,
   type AgentPool,
   type AgentPose,
   type PoseSlot,
+  type WorkDoneLog,
 } from './sim.ts';
 
 /** Longest stretch a live clock steps in one frame (s); the rest of a longer gap is skipped. */
@@ -23,24 +25,40 @@ export const MAX_CATCH_UP_S = 3;
 export const stepCap = (frozen: boolean): number => (frozen ? Infinity : MAX_CATCH_UP_S * TICK_HZ);
 
 export interface AgentDriver {
-  /** Steps the pool to the clock's `seconds` (at most `cap` ticks); a clock that went back is ignored. */
+  /**
+   * Steps the pool to the clock's `seconds` (at most `cap` ticks); a clock that went back is ignored. The first call
+   * makes the pool with that frame's context, so the people start where its hour and its buildings put them.
+   */
   advance(seconds: number, ctx: AgentContext): void;
-  /** This frame's poses (the array and its slots are reused frame to frame). */
+  /** This frame's poses (the array and its slots are reused frame to frame); none before the first `advance`. */
   poses(): readonly AgentPose[];
+  /** The work spells finished by the last `advance` (the log is reused; empty when it stepped nothing). */
+  done(): WorkDoneLog;
   counts(): AgentCounts;
+  /** Villagers at a work spot now (debug stats). */
+  working(): number;
   /** Ticks the pool has been stepped (skipped time excluded). */
   ticks(): number;
 }
 
-/** Takes ownership of `pool` (it is stepped in place). */
-export function createAgentDriver(pool: AgentPool, cap: number): AgentDriver {
+const NO_COUNTS: AgentCounts = { total: 0, villager: 0, cossack: 0, visitor: 0, cart: 0 };
+const NO_DONE: WorkDoneLog = { count: 0, slots: [] };
+
+/** Makes its pool with `make` on the first `advance` and owns it (it is stepped in place). */
+export function createAgentDriver(make: (ctx: AgentContext) => AgentPool, cap: number): AgentDriver {
+  let pool: AgentPool | null = null;
   let clockTicks = 0;
   let poolTicks = 0;
   const slots: PoseSlot[] = [];
-  let poses = writePoses(pool, slots);
+  let poses: readonly AgentPose[] = [];
   return {
     advance: (seconds, ctx) => {
       const target = Math.round(seconds * TICK_HZ);
+      if (!pool) {
+        pool = make(ctx);
+        poses = writePoses(pool, slots);
+      }
+      pool.done.count = 0;
       if (target <= clockTicks) return;
       const n = Math.min(target - clockTicks, cap);
       clockTicks = target;
@@ -49,7 +67,9 @@ export function createAgentDriver(pool: AgentPool, cap: number): AgentDriver {
       poses = writePoses(pool, slots);
     },
     poses: () => poses,
-    counts: () => agentCounts(pool),
+    done: () => pool?.done ?? NO_DONE,
+    counts: () => (pool ? agentCounts(pool) : NO_COUNTS),
+    working: () => (pool ? workingCount(pool) : 0),
     ticks: () => poolTicks,
   };
 }
