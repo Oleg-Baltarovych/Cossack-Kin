@@ -33,6 +33,8 @@ export interface DebugStats {
 export interface DebugHandle {
   readonly stats: DebugStats;
   readonly settings: RenderSettings;
+  /** The building a tap at this client (CSS px) point would hit (M2-13; e2e finds a building to tap with it). */
+  readonly plotAt: (clientX: number, clientY: number) => string | null;
 }
 
 declare global {
@@ -64,7 +66,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     camY: world.camY(),
     zoom: world.zoom(),
   };
-  window.__CK__ = { stats, settings };
+  window.__CK__ = { stats, settings, plotAt: (x, y) => world.plotAtClient(x, y) };
 
   let frameStart = 0;
   // HIGH runs before the world render (NORMAL) and the stage render (LOW); UTILITY runs after both.

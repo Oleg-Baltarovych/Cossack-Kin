@@ -61,7 +61,8 @@ export function connectWorld(
   // The point of the last tap: the coin of the `Tapped` it causes pops there.
   let lastTap: WorldTap | null = null;
   const offTap = world.onTap((tap) => {
-    lastTap = tap;
+    // A tap on a building opens its row (SPEC §3.3) and earns nothing: no coin.
+    lastTap = tap.building ? null : tap;
   });
   const offEvents = game.onEvent((e) => {
     switch (e.type) {

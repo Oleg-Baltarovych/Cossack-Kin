@@ -7,6 +7,13 @@
   border-bottom: var(--px) solid var(--c-wood-1);
 }
 
+/* The row of a building just tapped in the world (M2-13): lit with a gold rim, like the selected tab — not by colour
+   alone: the sheet also scrolls to it. */
+.lit {
+  background: var(--c-wood-1);
+  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--c-gold-4);
+}
+
 .text {
   flex: 1;
   min-width: 0;
@@ -67,7 +74,7 @@
 .buy {
   flex: none;
   width: calc(112 * var(--px));
-  min-height: 44px;
+  min-height: var(--tap, 44px);
   padding: calc(3 * var(--px));
   font: inherit;
   line-height: 1.4;
@@ -95,4 +102,9 @@
 .buy:focus-visible {
   outline: var(--px) solid var(--c-plaster-6);
   outline-offset: var(--px);
+}
+
+/* One income rate: its number and unit never split over two lines. */
+.rate {
+  white-space: nowrap;
 }

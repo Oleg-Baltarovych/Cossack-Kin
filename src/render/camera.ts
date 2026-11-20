@@ -84,3 +84,23 @@ export function layerOffset(worldPx: number, parallax: number): number {
 function withoutNegativeZero(n: number): number {
   return Object.is(n, -0) ? 0 : n;
 }
+
+/**
+ * Bottom sheet (M2-13): the camera y (rows of the normal frame above the screen) that keeps a tapped building's ground
+ * row `bottom` plus `margin` rows above the sheet's top edge `sheetTop` (device px from the canvas top) at a level of
+ * `scale` device px per row. Moves only when needed and only up to the building's `top` row (it never leaves the top of
+ * the screen) and within [0, maxY] — at the normal level (maxY 0) nothing moves. Whole rows (the row grid).
+ */
+export function revealY(o: {
+  readonly camY: number;
+  readonly maxY: number;
+  readonly scale: number;
+  readonly sheetTop: number;
+  readonly top: number;
+  readonly bottom: number;
+  readonly margin: number;
+}): number {
+  const needed = Math.ceil(o.bottom + o.margin - o.sheetTop / o.scale);
+  if (needed <= o.camY) return o.camY;
+  return Math.max(0, Math.min(o.maxY, needed, Math.floor(o.top)));
+}

@@ -10,6 +10,7 @@ import {
   move,
   press,
   release,
+  setY,
   skipCentre,
   step,
   zoomTo,
@@ -268,6 +269,14 @@ describe('camera motion: glide (tabs, double tap)', () => {
   it('skipCentre (a double tap on a building, M2-13) keeps the camera', () => {
     const { m } = tapRun(createMotion(600), 304, [0, 150]);
     expect(step(skipCentre(m), 2000, VIEW).x).toBe(600);
+  });
+
+  it('setY (M2-13 reveal) moves the closer view up/down within [0, maxY] and keeps x; the normal level stays at 0', () => {
+    const closer = { ...createMotion(600), level: 1 as const };
+    expect(setY(closer, 54, VIEW)).toMatchObject({ x: 600, y: 54 });
+    expect(setY(closer, 9999, VIEW).y).toBe(CLOSER.maxY);
+    expect(setY(closer, -5, VIEW).y).toBe(0);
+    expect(setY(createMotion(600), 54, VIEW).y).toBe(0);
   });
 
   it('«менше руху»: the double-tap centring is a jump at the end of the window', () => {

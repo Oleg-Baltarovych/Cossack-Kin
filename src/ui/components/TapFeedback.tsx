@@ -30,6 +30,8 @@ export function TapFeedback({ world }: { world: WorldApp | null }) {
     if (!world) return;
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const off = world.onTap((tap) => {
+      // A building opens its row in the sheet instead (SPEC §3.3, GameUi): only open ground earns.
+      if (tap.building) return;
       const tapped = act({ type: 'tap' }).find((e) => e.type === 'Tapped');
       if (!tapped) return;
       const id = (nextId += 1);

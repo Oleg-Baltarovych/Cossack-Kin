@@ -23,7 +23,7 @@ import { dayCycle } from './atmosphere/dayCycle.ts';
 import { emissiveLevel } from './atmosphere/emissive.ts';
 import { createGrading, gradeCycle, loadLuts } from './atmosphere/grading.ts';
 import { frame, frameLookup, loadAtlases, unloadAtlases, WORLD_ATLASES, type Atlases } from './atlases.ts';
-import { layerOffset, levelView, skyShift, split } from './camera.ts';
+import { layerOffset, levelView, revealY, skyShift, split } from './camera.ts';
 import { skyPixel } from './atmosphere/skyPaint.ts';
 import {
   cancel,
@@ -35,6 +35,8 @@ import {
   move,
   press,
   release,
+  setY,
+  skipCentre,
   step,
   zoomTo,
   type CameraView,
@@ -43,6 +45,7 @@ import {
 import { zoneAt } from './zones.ts';
 import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } from './clock.ts';
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
+import { propFrames } from './layers/Ground.ts';
 import { horizonY } from './layers/Layer.ts';
 import { createWater } from './water.ts';
 import { createBoats } from './boats.ts';
@@ -51,7 +54,9 @@ import { rampColor, rampCss } from './palette.ts';
 import { DEFAULT_SCENE, type SceneState } from './scene.ts';
 import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
-import { AUTO_QUALITY, CAMERA } from './atmosphere/config.ts';
+import { AUTO_QUALITY, CAMERA, PLOT_TAP } from './atmosphere/config.ts';
+import { plotAt, plotSpan } from './plotHit.ts';
+import { propTargets } from './plotTargets.ts';
 import { createCoinFx } from './fx/coins.ts';
 import { createBuildFx } from './fx/build.ts';
 import type { PlotBuilding } from '../content/villages/khortytsia.layout.ts';
@@ -62,12 +67,16 @@ const WORLD = KHORTYTSIA_WORLD;
 /** SPEC §9.2: 30 fps idle / 60 interactive — fixed at 60 until the interaction-driven switch (M2). */
 export const TARGET_FPS = 60;
 
-/** A tap on the world: client (CSS) px for DOM feedback, ground-space logical px for the scene. */
+/**
+ * A tap on the world: client (CSS) px for DOM feedback, ground-space logical px for the scene, and the building drawn
+ * there (M2-13, SPEC §3.3: a tap on a building opens its row instead of earning; `null` = open ground).
+ */
 export interface WorldTap {
   readonly clientX: number;
   readonly clientY: number;
   readonly x: number;
   readonly y: number;
+  readonly building: PlotBuilding | null;
 }
 
 export interface WorldApp {
@@ -106,6 +115,13 @@ export interface WorldApp {
   setLessMotion(on: boolean): void;
   /** What the game shows (plots by tier, wind); render/bridge.ts sets it from store events (M1-19). */
   setScene(scene: SceneState): void;
+  /** The building drawn at a client (CSS px) point in the last frame, or `null` (the same test a tap makes). */
+  plotAtClient(clientX: number, clientY: number): PlotBuilding | null;
+  /**
+   * The bottom sheet opened on `building`'s row (M2-13) with its top edge at client y `sheetTop`: at the closer zoom
+   * level the camera moves up just enough that the building stays above the sheet; at the normal level nothing moves.
+   */
+  reveal(building: PlotBuilding, sheetTop: number): void;
   /** Calls `listener` for every tap on the world (not a drag; both taps of a double tap); returns the unsubscribe. */
   onTap(listener: (tap: WorldTap) => void): () => void;
   /** A tap coin at ground-space px (render/bridge.ts on the core's `Tapped`). */
@@ -292,6 +308,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     let zone: ZoneId | null = null;
     let settled = true;
     let scene: SceneState = DEFAULT_SCENE;
+    // The scene drawn in the last frame (a building under scaffolding is still empty there): what a tap hits.
+    let drawn: SceneState = DEFAULT_SCENE;
     // The camera of the last frame: a tap is read in the frame the player saw.
     let lastCam = { ...split(motion.x, vp.scale), scale: vp.scale, y: 0, level: motion.level };
     // Quality (ART-18): a fixed `?quality`, else auto — start at AUTO_QUALITY.start and let the fps probe pick once.
@@ -372,6 +390,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const cycle = dayCycle(minutes);
       // The scene as it looks this frame: a building under scaffolding still empty, a popping one scaled (M2-12).
       const shown = build.present(scene, performance.now(), emissiveLevel(cycle));
+      drawn = shown;
       // Closer level: the sky band moves down just enough to keep the shown disc in the window (art-director, M2-03).
       const skyH = horizonY(target.height);
       const disc = cycle.sun.y > 0 ? cycle.sun : cycle.moon.y > 0 ? cycle.moon : null;
@@ -463,6 +482,25 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const scale = vp.scale + motion.level;
       return { x: ((clientX - rect.left) * dpr) / scale, y: ((clientY - rect.top) * dpr) / scale };
     };
+    // Hit-test targets of the drawn props (M2-13), laid out for the current horizon row (rebuilt after a resize).
+    let targets: { horizon: number; list: ReturnType<typeof propTargets> } | null = null;
+    const targetsNow = (): ReturnType<typeof propTargets> => {
+      const horizon = horizonY(target.height);
+      if (targets?.horizon !== horizon)
+        targets = {
+          horizon,
+          list: propTargets(layout, horizon, (p) =>
+            sceneFrame(p.animate ? `${p.sprite}/idle/00` : propFrames(p.sprite).base),
+          ),
+        };
+      return targets.list;
+    };
+    /** Ground-space px of a screen logical point in the frame on screen. */
+    const groundAt = (p: { x: number; y: number }): { x: number; y: number } => ({
+      x: Math.floor(p.x + lastCam.fracDevicePx / lastCam.scale + lastCam.worldPx),
+      y: Math.floor(p.y + lastCam.y),
+    });
+    const hit = (g: { x: number; y: number }) => plotAt(targetsNow(), g, drawn, PLOT_TAP.slopPx);
     const pointer = (e: PointerEvent): PointerSample => ({
       id: e.pointerId,
       ...screenAt(e.clientX, e.clientY),
@@ -494,12 +532,11 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       motion = r.motion;
       if (!r.tap) return;
       // Ground-space px of the frame on screen: the same sample plus that frame's camera.
-      const tap: WorldTap = {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        x: Math.floor(p.x + lastCam.fracDevicePx / lastCam.scale + lastCam.worldPx),
-        y: Math.floor(p.y + lastCam.y),
-      };
+      const g = groundAt(p);
+      const building = hit(g);
+      // A (double) tap on a building opens its row: the camera stays (M2-02 hook).
+      if (building) motion = skipCentre(motion);
+      const tap: WorldTap = { clientX: e.clientX, clientY: e.clientY, ...g, building };
       for (const l of [...tapListeners]) l(tap);
     };
     // The OS took the pointer (scroll, system gesture) or the capture was lost: no tap, no inertia.
@@ -605,6 +642,25 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       },
       setScene: (next) => {
         scene = next;
+      },
+      plotAtClient: (clientX, clientY) => hit(groundAt(screenAt(clientX, clientY))),
+      reveal: (building, sheetTop) => {
+        const view = cameraView();
+        const lv = view.levels[motion.level];
+        // Nothing of it drawn (a stale tap) or no vertical room (the normal level): nothing to move.
+        const span = plotSpan(targetsNow(), building, drawn);
+        if (!span || lv.maxY === 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+        const y = revealY({
+          camY: motion.y,
+          maxY: lv.maxY,
+          scale: lv.scale,
+          sheetTop: (sheetTop - rect.top) * dpr,
+          ...span,
+          margin: PLOT_TAP.revealMarginPx,
+        });
+        motion = setY(motion, y, view);
       },
       onTap: (listener) => {
         tapListeners.add(listener);

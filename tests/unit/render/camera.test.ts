@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { cameraBounds, clampCamX, layerOffset, levelView, skyShift, split } from '../../../src/render/camera.ts';
+import {
+  cameraBounds,
+  clampCamX,
+  layerOffset,
+  levelView,
+  revealY,
+  skyShift,
+  split,
+} from '../../../src/render/camera.ts';
 import { computeViewport, worldTargetSize } from '../../../src/render/viewport.ts';
 
 // Plan §0 / M0-04: the world moves by whole logical px inside worldRT; the remainder becomes a
@@ -129,5 +137,26 @@ describe('skyShift', () => {
     expect(skyShift({ camY: 20, discRow: 0, horizon: HORIZON, margin: MARGIN })).toBe(20);
     expect(skyShift({ camY: 211, discRow: 200, horizon: 230, margin: MARGIN })).toBe(230 - MARGIN - 200);
     expect(skyShift({ camY: 211, discRow: 300, horizon: 230, margin: MARGIN })).toBe(0);
+  });
+});
+
+describe('revealY (M2-13: a tapped building clears the opened sheet)', () => {
+  // Closer level at ×4: 1 row = 4 device px; the sheet's top edge 1600 device px from the canvas top (= row 400).
+  const base = { scale: 4, sheetTop: 1600, margin: 4, maxY: 120 };
+  it('keeps the camera when the building already stands above the sheet', () => {
+    expect(revealY({ ...base, camY: 30, top: 300, bottom: 420 })).toBe(30);
+    expect(revealY({ ...base, camY: 0, top: 200, bottom: 396 })).toBe(0);
+  });
+  it('raises the view just enough that its ground row (plus margin) clears the sheet, in whole rows', () => {
+    // bottom 450 + margin 4 − 400 = 54 rows above the screen.
+    expect(revealY({ ...base, camY: 10, top: 380, bottom: 450 })).toBe(54);
+    expect(revealY({ ...base, camY: 10, top: 380, bottom: 450.5, sheetTop: 1601 })).toBe(55);
+  });
+  it('never past the frame (maxY) nor so far that the building top leaves the screen', () => {
+    expect(revealY({ ...base, camY: 0, top: 500, bottom: 600 })).toBe(120);
+    expect(revealY({ ...base, camY: 0, top: 40, bottom: 450 })).toBe(40);
+  });
+  it('does nothing at the normal level (no vertical room)', () => {
+    expect(revealY({ ...base, maxY: 0, camY: 0, top: 380, bottom: 450 })).toBe(0);
   });
 });

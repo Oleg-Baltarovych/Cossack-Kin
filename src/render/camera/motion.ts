@@ -339,9 +339,15 @@ export function jumpTo(m: CameraMotion, x: number, view: CameraView): CameraMoti
   return { ...m, x: clampCamX(x, here(view, m).bounds), mode: STILL, pendingCentre: null };
 }
 
+/** Puts the camera y at `y` rows (clamped to the level's [0, maxY]) at once; x and any motion stay (M2-13 reveal). */
+export function setY(m: CameraMotion, y: number, view: CameraView): CameraMotion {
+  const next = clampY(y, here(view, m));
+  return next === m.y ? m : { ...m, y: next };
+}
+
 /**
- * Drops a scheduled double-tap centring. Hook for M2-13: a double tap on a building opens its sheet instead of moving
- * the camera — the tap listener calls this (through the world) when the tap hit a plot.
+ * Drops a scheduled double-tap centring (M2-13): a (double) tap on a building opens its row instead of moving the
+ * camera — App.ts `onUp` calls this when the released tap hit a plot.
  */
 export function skipCentre(m: CameraMotion): CameraMotion {
   return m.pendingCentre ? { ...m, pendingCentre: null } : m;

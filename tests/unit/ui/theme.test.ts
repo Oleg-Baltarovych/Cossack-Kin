@@ -19,4 +19,19 @@ describe('uiScale (M1-17)', () => {
     expect(s.fontS).toBeCloseTo(32 / 3, 9);
     expect(s.fontM).toBe(16);
   });
+
+  it('tap targets: at least 44 css px and a whole number of logical px', () => {
+    for (const [w, h, dpr] of [
+      [390, 844, 3],
+      [360, 800, 3],
+      [412, 915, 3.5],
+      [390, 844, 2],
+    ] as const) {
+      const s = uiScale(w, h, dpr);
+      expect(s.tap).toBeGreaterThanOrEqual(44);
+      expect(Math.abs(s.tap / s.px - Math.round(s.tap / s.px))).toBeLessThan(1e-9);
+      expect(s.tap - s.px).toBeLessThan(44);
+    }
+    expect(uiScale(412, 915, 3.5).tap).toBeCloseTo((39 * 4) / 3.5, 9);
+  });
 });

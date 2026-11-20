@@ -1,5 +1,7 @@
-// The top HUD (SPEC §6.1): ducats and glory with their income, then the army and the land's state.
-import { memo } from 'react';
+// The top HUD (SPEC §6.1): ducats and glory with their income, then the army and the land's state. Its height (safe
+// area included) is the shared token `--hud-h` on the root (plan M2-13): the tier banner stands under it and the full
+// bottom sheet reaches up to it.
+import { memo, useLayoutEffect, useRef } from 'react';
 import { hudView } from '../../core/selectors.ts';
 import { sameView, useGame } from '../hooks/useGame.ts';
 import { useText } from '../hooks/useText.ts';
@@ -8,8 +10,24 @@ import styles from './Hud.module.css';
 export const Hud = memo(function Hud() {
   const v = useGame(hudView, sameView);
   const { t, num } = useText();
+  const ref = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const root = document.documentElement;
+    const apply = (): void => {
+      root.style.setProperty('--hud-h', `${String(el.offsetHeight)}px`);
+    };
+    apply();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(apply);
+    observer?.observe(el);
+    return () => {
+      observer?.disconnect();
+      root.style.removeProperty('--hud-h');
+    };
+  }, []);
   return (
-    <header className={styles.hud}>
+    <header ref={ref} className={styles.hud}>
       <div className={styles.currencies}>
         <p className={styles.currency}>
           <span className={styles.label}>{t('ui.hud.ducats')}</span>
