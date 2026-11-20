@@ -20,8 +20,8 @@ import { cloudShadowLevel, emissiveLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
 import { riverRowEnd } from '../zones.ts';
-import { IDLE_FRAMES, WALK_FRAMES } from '../agents/sim.ts';
-import type { AgentSprite } from '../../content/agents.ts';
+import { personAnim } from '../agents/sim.ts';
+import type { AgentSprite, PersonAnim } from '../../content/agents.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
 const PARALLAX = 1;
@@ -138,8 +138,8 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
     /** Agent sprites by agent id (M2-16): made on an agent's first pose, destroyed when it leaves the pool. */
     interface Person {
       readonly stem: AgentSprite;
-      readonly walk: Texture[];
-      readonly idle: Texture[];
+      /** Frames by animation, looked up on first use (walk/idle for everyone, the villager set, M2-17). */
+      readonly anims: Map<PersonAnim, { readonly body: Texture[]; readonly shadow: Texture[] }>;
       readonly sprite: Sprite;
       readonly shadow: Sprite;
       seen: number;
@@ -157,15 +157,24 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       shadow.anchor.copyFrom(shadow.texture.defaultAnchor ?? { x: 0.5, y: 1 });
       shadows.addChild(shadow);
       props.addChild(sprite);
-      const made = {
-        stem,
-        walk: frameList(stem, 'walk', WALK_FRAMES),
-        idle: frameList(stem, 'idle', IDLE_FRAMES),
-        sprite,
-        shadow,
-        seen: poseFrame,
-      };
+      const made: Person = { stem, anims: new Map(), sprite, shadow, seen: poseFrame };
       persons.set(id, made);
+      return made;
+    };
+    /** A person's frames of `anim`: walk and idle share the standing contact shadow; a work pose has its own (props). */
+    const personFrames = (p: Person, anim: PersonAnim): { body: Texture[]; shadow: Texture[] } => {
+      const known = p.anims.get(anim);
+      if (known) return known;
+      const [entity = p.stem, variant = ''] = p.stem.split('.');
+      const { frames } = personAnim(anim);
+      const own = anim !== 'walk' && anim !== 'idle';
+      const made = {
+        body: frameList(p.stem, anim, frames),
+        shadow: own
+          ? frameList(`${entity}.${variant}@shadow`, anim, frames)
+          : [frame(`${entity}.${variant}@shadow/idle/00`)],
+      };
+      p.anims.set(anim, made);
       return made;
     };
     function drop(id: number, p: Person): void {
@@ -313,9 +322,12 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
         for (const pose of agents) {
           const p = person(pose.id, pose.sprite);
           p.seen = poseFrame;
-          const { walk, idle, sprite, shadow } = p;
-          const texture = (pose.anim === 'walk' ? walk : idle)[pose.frame];
+          const { sprite, shadow } = p;
+          const frames = personFrames(p, pose.anim);
+          const texture = frames.body[pose.frame];
           if (texture) sprite.texture = texture;
+          const ground = frames.shadow[frames.shadow.length > 1 ? pose.frame : 0];
+          if (ground) shadow.texture = ground;
           const y = horizon + pose.ground;
           sprite.position.set(pose.x, y);
           shadow.position.set(pose.x, y);

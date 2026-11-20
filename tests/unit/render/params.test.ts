@@ -19,7 +19,7 @@ describe('parseDebugParams — valid', () => {
 
   it('parses the full screenshot URL', () => {
     const params = parseDebugParams(
-      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5&zoom=1&still',
+      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5&zoom=1&still&lineup',
       'test',
     );
     expect(params).toEqual({
@@ -34,6 +34,7 @@ describe('parseDebugParams — valid', () => {
       cam: 10.5,
       zoom: 1,
       still: true,
+      lineup: true,
     });
     expect(warn).not.toHaveBeenCalled();
   });

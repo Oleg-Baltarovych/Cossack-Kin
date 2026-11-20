@@ -11,6 +11,8 @@ import { loadPalette, type Palette } from '../../../assets-src/gen/lib/palette.t
 import { Plot } from '../../../assets-src/gen/lib/plot.ts';
 import type { SpriteGenerator } from '../../../assets-src/gen/lib/types.ts';
 import { renderGenerator, type FrameImage } from '../../../tools/lib/sprites/atlas.ts';
+import { colorStats } from '../../../tools/lib/sprites/contact-sheet.ts';
+import { VILLAGER_ANIMS, VILLAGER_SPRITES } from '../../../src/content/agents.ts';
 
 const palette: Palette = loadPalette(JSON.parse(readFileSync('assets-src/palettes/master.json', 'utf8')));
 
@@ -71,18 +73,22 @@ const alphaKey = (f: FrameImage): string =>
     (a) => (a > 0 ? 1 : 0),
   ).join('');
 
+const VILLAGER_FRAMES = Object.fromEntries(Object.entries(VILLAGER_ANIMS).map(([k, v]) => [k, v.frames]));
+const perVariant = (frames: Readonly<Record<string, number>>): number =>
+  Object.values(frames).reduce((a, b) => a + b, 0);
+
 describe.each([
-  { gen: selianka, ground: SELIANKA_GROUND },
-  { gen: kozak, ground: KOZAK_GROUND },
-  { gen: divchyna, ground: SELIANKA_GROUND },
-  { gen: selianyn, ground: KOZAK_GROUND },
-])('$gen.id (ART-06, ART-15)', ({ gen, ground }) => {
+  { gen: selianka, ground: SELIANKA_GROUND, frames: { idle: 4, walk: 6, ...VILLAGER_FRAMES } },
+  { gen: kozak, ground: KOZAK_GROUND, frames: { idle: 4, walk: 6 } },
+  { gen: divchyna, ground: SELIANKA_GROUND, frames: { idle: 4, walk: 6 } },
+  { gen: selianyn, ground: KOZAK_GROUND, frames: { idle: 4, walk: 6, ...VILLAGER_FRAMES } },
+])('$gen.id (ART-06, ART-15, M2-17)', ({ gen, ground, frames: declared }) => {
   const frames = render(gen);
   const base = frames.filter((f) => !f.name.includes('@'));
 
-  it('declares idle 4 and walk 6 frames per variant, each with a ground shadow', () => {
-    expect(gen.frames).toEqual({ idle: 4, walk: 6 });
-    expect(base.length).toBe((gen.variants?.length ?? 1) * 10);
+  it('declares idle 4 and walk 6 frames per variant (+ the villager set), each with a ground shadow', () => {
+    expect(gen.frames).toEqual(declared);
+    expect(base.length).toBe((gen.variants?.length ?? 1) * perVariant(declared));
     expect(frames.filter((f) => f.name.includes('@shadow')).length).toBe(base.length);
   });
 
@@ -119,6 +125,121 @@ describe('the five villagers (ART-15) differ in silhouette, not only in clothes'
   });
 });
 
+describe('villager work set (M2-17): two bodies, four outfits, every animation a readable pose', () => {
+  const bodies = [selianka, selianyn];
+  const all = bodies.flatMap(render);
+  const byName = new Map(all.map((f) => [f.name, f]));
+  const get = (name: string): FrameImage => {
+    const f = byName.get(name);
+    if (!f) throw new Error(`no frame ${name}`);
+    return f;
+  };
+  const nn = (i: number): string => String(i).padStart(2, '0');
+
+  it('every villager sprite has every animation the FSM may pick (content table = generator frames)', () => {
+    for (const stem of VILLAGER_SPRITES) {
+      const [entity = '', variant = ''] = stem.split('.');
+      for (const [anim, { frames }] of Object.entries(VILLAGER_ANIMS)) {
+        for (let i = 0; i < frames; i++) {
+          expect(byName.has(`${stem}/${anim}/${nn(i)}`), `${stem}/${anim}/${nn(i)}`).toBe(true);
+          expect(byName.has(`${entity}.${variant}@shadow/${anim}/${nn(i)}`)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('frame rates follow SPEC §6.4 (work 4–6 @8, talk 2 @4, sit 2 @2, cheer 4 @10)', () => {
+    for (const [anim, { frames, fps }] of Object.entries(VILLAGER_ANIMS)) {
+      if (!anim.startsWith('work-')) continue;
+      expect(frames, anim).toBeGreaterThanOrEqual(4);
+      expect(frames, anim).toBeLessThanOrEqual(6);
+      expect(fps, anim).toBe(8);
+    }
+    expect(VILLAGER_ANIMS.talk).toEqual({ frames: 2, fps: 4 });
+    expect(VILLAGER_ANIMS.sit).toEqual({ frames: 2, fps: 2 });
+    expect(VILLAGER_ANIMS.cheer).toEqual({ frames: 4, fps: 10 });
+  });
+
+  it.each(['selianka', 'selianyn'])(
+    '%s: each animation has its own silhouette (frame 0 differs from idle and from every other one)',
+    (id) => {
+      const shapes = ['idle', ...Object.keys(VILLAGER_ANIMS)].map((anim) => alphaKey(get(`${id}.a/${anim}/00`)));
+      expect(new Set(shapes).size).toBe(shapes.length);
+    },
+  );
+
+  it('animations move: no two consecutive frames are identical', () => {
+    for (const id of ['selianka', 'selianyn'])
+      for (const [anim, { frames }] of Object.entries(VILLAGER_ANIMS))
+        for (let i = 0; i < frames; i++) {
+          const a = get(`${id}.a/${anim}/${nn(i)}`);
+          const b = get(`${id}.a/${anim}/${nn((i + 1) % frames)}`);
+          expect(key(a), `${id} ${anim} ${String(i)}`).not.toBe(key(b));
+        }
+  });
+
+  it('the man and the woman work differently at the field and the smithy (scythe / sickle, anvil / bellows)', () => {
+    for (const anim of ['work-field', 'work-smithy']) {
+      expect(alphaKey(get(`selianka.a/${anim}/00`))).not.toBe(alphaKey(get(`selianyn.a/${anim}/00`)));
+    }
+  });
+
+  it('outfits are palette swaps: same silhouette, different colours, in every animation', () => {
+    for (const id of ['selianka', 'selianyn'])
+      for (const anim of Object.keys(VILLAGER_ANIMS)) {
+        const a = get(`${id}.a/${anim}/00`);
+        for (const v of ['b', 'c', 'd']) {
+          const o = get(`${id}.${v}/${anim}/00`);
+          expect(alphaKey(o), `${id}.${v} ${anim}`).toBe(alphaKey(a));
+          expect(key(o), `${id}.${v} ${anim}`).not.toBe(key(a));
+        }
+      }
+  });
+
+  /** Palette colours a frame uses (opaque px). */
+  const colours = (f: FrameImage): Set<number> => {
+    const out = new Set<number>();
+    for (let i = 0; i < f.image.data.length; i += 4)
+      if ((f.image.data[i + 3] ?? 0) > 0)
+        out.add(((f.image.data[i] ?? 0) << 16) | ((f.image.data[i + 1] ?? 0) << 8) | (f.image.data[i + 2] ?? 0));
+    return out;
+  };
+
+  it('people budget (ART-BIBLE §4): ≤ 6 ramps in every frame; a new outfit is no richer than the approved ones', () => {
+    for (const f of all.filter((x) => !x.name.includes('@'))) {
+      expect(colorStats(f.image, palette).ramps.length, f.name).toBeLessThanOrEqual(6);
+      // The ART-15 villagers were approved at up to 28 colours in a walk frame (selianyn.a); "~24" is the target.
+      if (/\/(idle|walk)\//.test(f.name)) expect(colours(f).size, f.name).toBeLessThanOrEqual(28);
+    }
+  });
+
+  /** Work frames: the person plus tools and props (anvil, wheel, pail, bellows) — the people budget's hard cap. */
+  const WORK_FRAME_COLOURS = 32;
+  /** Shades a work frame may add over the same outfit standing still (steel, light wood, clay, sparks). */
+  const TOOL_COLOURS = 6;
+
+  it(`a work frame stays ≤ ${String(WORK_FRAME_COLOURS)} colours and adds ≤ ${String(TOOL_COLOURS)} over its outfit's idle frame`, () => {
+    for (const stem of VILLAGER_SPRITES) {
+      const still = colours(get(`${stem}/idle/00`));
+      for (const [anim, { frames }] of Object.entries(VILLAGER_ANIMS)) {
+        for (let i = 0; i < frames; i++) {
+          const f = get(`${stem}/${anim}/${nn(i)}`);
+          const own = colours(f);
+          expect(own.size, f.name).toBeLessThanOrEqual(WORK_FRAME_COLOURS);
+          expect([...own].filter((c) => !still.has(c)).length, f.name).toBeLessThanOrEqual(TOOL_COLOURS);
+        }
+      }
+    }
+  });
+
+  it('the canvas is padded evenly to 32 px, so the pivot stays a whole px on the body', () => {
+    for (const gen of bodies) {
+      expect(gen.size.w).toBe(32);
+      expect((gen.anchor?.x ?? 0.5) * gen.size.w).toBe(16);
+    }
+  });
+});
+
 describe('no state symbols in costumes (SPEC §16, art-director ART-19)', () => {
   it('no outfit stacks white shirt / blue belt / red trousers (reads as the Russian tricolour at phone size)', () => {
     const all = {
@@ -130,6 +251,81 @@ describe('no state symbols in costumes (SPEC §16, art-director ART-19)', () => 
     for (const [name, o] of Object.entries(all)) {
       const tricolour = o.shirt.ramp === 'plaster' && o.belt.ramp === 'cloth' && o.lower.ramp === 'crimson';
       expect(tricolour, name).toBe(false);
+    }
+  });
+
+  /** Colour family of a ramp as it reads at phone size. */
+  const FAMILY: Readonly<Record<string, string>> = {
+    plaster: 'white',
+    cloth: 'blue',
+    water: 'blue',
+    sky: 'pink',
+    crimson: 'red',
+    gold: 'yellow',
+    thatch: 'yellow',
+    grass: 'green',
+    foliage: 'green',
+    earth: 'brown',
+    wood: 'brown',
+    stone: 'grey',
+    ink: 'black',
+    skin: 'skin',
+  };
+  /** Top-to-bottom bands of a figure: head cover, shirt / coat, belt, skirt / trousers (equal neighbours merged). */
+  const bands = (o: Outfit): string[] =>
+    [o.hat, o.shirt, o.belt, o.lower]
+      .map((s) => FAMILY[s.ramp] ?? s.ramp)
+      .filter((f, i, list) => i === 0 || list[i - 1] !== f);
+  const FLAGS: readonly (readonly string[])[] = [
+    ['white', 'blue', 'red'],
+    ['blue', 'yellow'],
+  ];
+  const contains = (list: readonly string[], run: readonly string[]): boolean =>
+    list.some((_, i) => run.every((c, k) => list[i + k] === c));
+  const everyone = (): [string, Outfit][] => [
+    ...Object.entries(KOZAK_OUTFITS).map(([k, v]): [string, Outfit] => [`kozak.${k}`, v]),
+    ...Object.entries(SELIANKA_OUTFITS).map(([k, v]): [string, Outfit] => [`selianka.${k}`, v]),
+    ...Object.entries(DIVCHYNA_OUTFITS).map(([k, v]): [string, Outfit] => [`divchyna.${k}`, v]),
+    ...Object.entries(SELIANYN_OUTFITS).map(([k, v]): [string, Outfit] => [`selianyn.${k}`, v]),
+  ];
+
+  it('the band check reads a figure top to bottom (kerchief, shirt, belt, skirt)', () => {
+    expect(bands({ ...outfit, hat: { ramp: 'crimson', tones: [1, 2, 3, 4] } })).toEqual([
+      'red',
+      'white',
+      'red',
+      'blue',
+    ]);
+    expect(
+      contains(
+        bands({
+          ...outfit,
+          belt: { ramp: 'cloth', tones: [0, 1, 2, 3] },
+          lower: { ramp: 'crimson', tones: [1, 2, 3, 4] },
+        }),
+        ['white', 'blue', 'red'],
+      ),
+    ).toBe(true);
+  });
+
+  it('no outfit stacks the Russian (white / blue / red) or the Ukrainian state flag (blue over yellow) top to bottom', () => {
+    for (const [name, o] of everyone())
+      for (const flag of FLAGS) expect(contains(bands(o), flag), `${name} ${flag.join('/')}`).toBe(false);
+  });
+
+  it('clothes are period dyes only: linen, indigo, madder, ochre / straw, green, browns, greys — no sky or water tints', () => {
+    const DYES = new Set(['plaster', 'cloth', 'crimson', 'gold', 'thatch', 'grass', 'earth', 'wood', 'stone']);
+    for (const [name, o] of everyone()) {
+      expect(o.skin.ramp, name).toBe('skin');
+      for (const slot of ['shirt', 'lower', 'accent', 'belt', 'boots', 'hat'] as const)
+        expect(DYES.has(o[slot].ramp), `${name}.${slot} ${o[slot].ramp}`).toBe(true);
+    }
+  });
+
+  it('there are 4–6 villager outfits per body (SPEC §6.4)', () => {
+    for (const set of [SELIANKA_OUTFITS, SELIANYN_OUTFITS]) {
+      expect(Object.keys(set).length).toBeGreaterThanOrEqual(4);
+      expect(Object.keys(set).length).toBeLessThanOrEqual(6);
     }
   });
 });

@@ -83,3 +83,31 @@ test.describe('M2-16 agents on the graph @screens @agents', () => {
     }
   }
 });
+
+/** M2-17: every villager animation on both bodies (`?lineup`, render/debug/lineup.ts) in the farm meadow. */
+test.describe('M2-17 villager animations in the scene @screens @lineup', () => {
+  test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+  const cam = 40;
+  for (const [hhmm, zoom] of [
+    ['1300', 0],
+    ['2300', 0],
+    ['1300', 1],
+    ['2300', 1],
+  ] as const) {
+    test(`lineup ${hhmm}${zoom ? ' closer' : ''}: work, talk, sit, cheer on both bodies`, async ({
+      page,
+    }, testInfo) => {
+      const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+      const closer = zoom ? '&zoom=1' : '';
+      await gotoReady(page, `/?time=${time}&freeze=6.3&seed=1&cam=${String(cam)}&lineup${closer}`);
+      const stats = await readStats(page);
+      expect(stats.drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+      const dir = screensDir();
+      mkdirSync(dir, { recursive: true });
+      const file = `lineup-${hhmm}${zoom ? '-closer' : ''}-${testInfo.project.name}.png`;
+      const png = await page.screenshot({ path: join(dir, file), scale: 'device' });
+      await testInfo.attach(file, { body: png, contentType: 'image/png' });
+      if (!zoom) expectGrid(png, testInfo, stats.scale, cam);
+    });
+  }
+});
