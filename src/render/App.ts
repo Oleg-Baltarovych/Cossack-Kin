@@ -440,7 +440,11 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const ambient = lessMotion ? 0 : seconds;
       // People walk on `seconds`, not `ambient`: «менше руху» stills shake, parallax and big tweens (SPEC §6.8), not
       // walking.
-      agents.advance(seconds, { minutes, tiers: scene.tiers });
+      agents.advance(seconds, {
+        minutes,
+        tiers: scene.tiers,
+        ...(scene.cossacks === undefined ? {} : { cossacks: scene.cossacks }),
+      });
       // A finished work spell sparks a glint over the worker (M2-18, decoration only — never the coin; at most
       // `perFrame` at once after a catch-up). Not under `?freeze`: its one jump finishes many spells, and a glint in
       // mid-air would make the shot depend on real time.
@@ -490,7 +494,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       grading.update(gradeCycle(frameInfo.cycle, settings.weather), minutes);
       post.setEmissive(emissiveLevel(frameInfo.cycle));
-      post.update(frameInfo.ambient, shown);
+      post.update(frameInfo.ambient, shown, frameInfo.agents);
       for (const layer of layers) {
         layer.update(frameInfo);
         layer.container.x = layerOffset(cam.worldPx, layer.parallax);

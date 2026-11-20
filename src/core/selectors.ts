@@ -24,6 +24,7 @@ import { gloryRate, hireLimit, INFANTRY } from './systems/army.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
 import { PLOT_VARIANTS, VARIANT_SALT, type VariantPlot } from '../content/variants.ts';
 import { pickStable } from './rng.ts';
+import { AGENT_BUDGET } from '../content/agents.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -217,6 +218,16 @@ export function visualTiers(state: GameState): VisualTiers {
   }
   // Every farm id of the land and every Sich id was written above.
   return out as VisualTiers;
+}
+
+/** Who lives in the scene (plan M2-19, Q11): what render may show of the game's people. */
+export interface PopulationView {
+  /** Cossacks walking the scene: one per hired infantryman, up to the scene budget (the rest stay abstract). */
+  readonly cossacks: number;
+}
+
+export function populationView(state: GameState): PopulationView {
+  return { cossacks: Math.min(state.army.infantry, AGENT_BUDGET.cossack) };
 }
 
 /** Cosmetic variant per plot (plan M2-10, SPEC §2.6): which add-on set of the layout each plot shows. */

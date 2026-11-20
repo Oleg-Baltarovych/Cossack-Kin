@@ -8,6 +8,8 @@ import { windAt } from '../../../src/core/systems/village-mechanics/wind.ts';
 import type { WorldTap } from '../../../src/render/App.ts';
 import { WIND_STRENGTH } from '../../../src/render/atmosphere/config.ts';
 import { connectWorld, sceneOf } from '../../../src/render/bridge.ts';
+import { AGENT_BUDGET } from '../../../src/content/agents.ts';
+import { agentPoses, createAgents, stepInPlace, type AgentContext } from '../../../src/render/agents/sim.ts';
 import { plotShown, type SceneState } from '../../../src/render/scene.ts';
 import {
   FROZEN_NOW,
@@ -255,5 +257,44 @@ describe('connectWorld follows every change (M1-19 code review)', () => {
     store.dispatch({ type: 'claimReturn' }, T0 + 10);
     store.dispatch({ type: 'hire', n: 1 }, T0 + 20);
     expect(f.scenes).toHaveLength(1);
+  });
+});
+
+describe('the army walks into the scene (M2-19)', () => {
+  it('CossackHired → a scene with one more Cossack, who walks out of the kurin door', () => {
+    const base = rich();
+    const store = createStore({
+      ...base,
+      village: { ...base.village, sichLevels: { ...base.village.sichLevels, kurins: 5, maidan: 1 } },
+      army: { infantry: 2 },
+    });
+    const f = fakeWorld();
+    const hired: number[] = [];
+    store.onEvent((e) => {
+      if (e.type === 'CossackHired') hired.push(e.total);
+    });
+    connectWorld(f.world, store);
+    const before = f.scenes.at(-1);
+    expect(before?.cossacks).toBe(2);
+    const ctx = (scene: SceneState | undefined): AgentContext => ({
+      minutes: 12 * 60,
+      tiers: scene?.tiers ?? null,
+      ...(scene?.cossacks === undefined ? {} : { cossacks: scene.cossacks }),
+    });
+    const pool = createAgents(KHORTYTSIA_WORLD.paths, KHORTYTSIA_WORLD.agents, AGENT_BUDGET, 1, ctx(before));
+    const ids = (): number[] => agentPoses(pool).map((p) => p.id);
+    const seen = new Set(ids());
+
+    store.dispatch({ type: 'hire', n: 1 }, T0 + 100);
+    expect(hired).toEqual([3]);
+    const after = f.scenes.at(-1);
+    expect(after?.cossacks).toBe(3);
+    stepInPlace(pool, 1, ctx(after));
+    const fresh = agentPoses(pool).filter((p) => !seen.has(p.id));
+    expect(fresh).toHaveLength(1);
+    const kurin = KHORTYTSIA_WORLD.paths.nodes.find((n) => n.id === 'sich.kurin');
+    expect(fresh[0]?.anim).toBe('walk');
+    expect(Math.abs((fresh[0]?.x ?? 0) - (kurin?.x ?? -99))).toBeLessThanOrEqual(1);
+    expect(Math.abs((fresh[0]?.ground ?? 0) - (kurin?.ground ?? -99))).toBeLessThanOrEqual(1);
   });
 });

@@ -7,6 +7,7 @@ import {
   farmRowView,
   hireView,
   hudView,
+  populationView,
   sichRowView,
   tierBannerView,
   visibleSichIds,
@@ -15,6 +16,7 @@ import {
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { windLookAt } from '../../../src/core/systems/village-mechanics/wind.ts';
 import { applyAction } from '../../../src/core/actions.ts';
+import { AGENT_BUDGET } from '../../../src/content/agents.ts';
 
 const T0 = 1_763_400_000_000;
 
@@ -294,5 +296,21 @@ describe('tierBannerView (M2-12)', () => {
     >;
     expect(tierBannerView(s, forged)).toBeNull();
     expect(tierBannerView(s, { ...forged, zone: 'sich' })).toBeNull();
+  });
+});
+
+describe('populationView (plan M2-19, Q11)', () => {
+  it('shows one Cossack per hired infantryman, up to the scene budget; the rest stay abstract', () => {
+    expect(populationView(makeState({})).cossacks).toBe(0);
+    expect(populationView(makeState({ infantry: 6 })).cossacks).toBe(6);
+    expect(populationView(makeState({ infantry: AGENT_BUDGET.cossack })).cossacks).toBe(AGENT_BUDGET.cossack);
+    expect(populationView(makeState({ infantry: 40 })).cossacks).toBe(AGENT_BUDGET.cossack);
+  });
+
+  it('a hire shows one more Cossack at once', () => {
+    const s = makeState({ ducats: 1e9, sich: { kurins: 5 }, infantry: 3 });
+    const { state } = applyAction(s, { type: 'hire', n: 1 }, T0);
+    expect(state.army.infantry).toBe(4);
+    expect(populationView(state).cossacks).toBe(4);
   });
 });

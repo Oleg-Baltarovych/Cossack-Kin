@@ -25,6 +25,7 @@ import {
   RAYS,
   POOLS,
   QUALITY_TIERS,
+  TORCH_LIGHT,
 } from '../atmosphere/config.ts';
 import { emissiveLevel } from '../atmosphere/emissive.ts';
 import { fireflies, flicker, paintPool, poolLook } from '../atmosphere/nightLights.ts';
@@ -150,6 +151,20 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       const { fire, below, dx } = look;
       return [{ prop, sprite, fire, seed, below, dx, alpha: look.alpha }];
     });
+    // Guards' torches (M2-19): one pool per guard holding a torch this frame, made on first need and reused.
+    const torchPools: Sprite[] = [];
+    const torchPool = (i: number): Sprite => {
+      const known = torchPools[i];
+      if (known) return known;
+      const sprite = new Sprite({
+        texture: poolTexture(TORCH_LIGHT.rx, TORCH_LIGHT.ry, rampColor(TORCH_LIGHT.color[0], TORCH_LIGHT.color[1])),
+        roundPixels: true,
+      });
+      sprite.anchor.set(0.5);
+      night.addChild(sprite);
+      torchPools[i] = sprite;
+      return sprite;
+    };
     // A firefly at its blink peak: the lit px with a dim + of 4 neighbours (1/4), white so the tint colours it.
     const flyPeakBuf = cpuTexture(
       3,
@@ -308,7 +323,7 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
         applyBudget();
         if (size) rebuild(size);
       },
-      update: ({ minutes, ambient: seconds, cycle, camX, scene, cameraMoving, nowMs, skyY }) => {
+      update: ({ minutes, ambient: seconds, cycle, camX, scene, cameraMoving, nowMs, skyY, agents }) => {
         if (!size || !hazeBuf) return;
         const bucket = `${String(lutBucket(minutes))}:${cycle.keyA}:${cycle.keyB}`;
         if (bucket !== hazeKey) {
@@ -340,6 +355,27 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
             const f = p.fire ? flicker(seconds, p.seed) : flicker(seconds * 0.25, p.seed, 0.125);
             p.sprite.alpha = Math.round(p.alpha * poolLevel * f * 8) / 8;
           }
+        }
+        // Torch pools follow the guards (agent poses, M2-19); seeded per guard so two torches never flicker as one.
+        let torches = 0;
+        if (level > 0.01) {
+          const offset = layerOffset(camX, 1);
+          for (const pose of agents) {
+            if (pose.anim !== 'torch' || torches >= TORCH_LIGHT.max) continue;
+            const sprite = torchPool(torches);
+            torches += 1;
+            sprite.visible = true;
+            sprite.position.set(
+              pose.x + (TORCH_LIGHT.dx ?? 0) * pose.facing + offset,
+              horizon + pose.ground + TORCH_LIGHT.below,
+            );
+            const f = flicker(seconds, TORCH_LIGHT.seedBase + pose.id);
+            sprite.alpha = Math.round(TORCH_LIGHT.alpha * poolLevel * f * 8) / 8;
+          }
+        }
+        for (let i = torches; i < torchPools.length; i++) {
+          const sprite = torchPools[i];
+          if (sprite) sprite.visible = false;
         }
         // Fireflies of each zone's area on screen (M2-01): one shared pool; an area gets the tier's limit per
         // FIREFLIES.span px of its width (the M-ART farm: all of it), so the density holds across a zone edge.

@@ -92,6 +92,9 @@ export function installGameDebug(store: GameStore): () => void {
  * Every plot at the tier the M-ART scene was made at: the potter's khata III (level 25), the windmill; in the Sich the
  * second kurin, cannon and tower and the belfry (Sich tier II = level 10). The church needs every farm building at 25.
  */
+/** The host of `showcase` and `tiers` (≥ the 16 the scene shows, plan Q11). */
+const SHOWCASE_ARMY = 40;
+
 function showcase(s: GameState): GameState {
   const farm = Object.fromEntries(Object.keys(s.village.levels).map((id) => [id, 25]));
   const sich = Object.fromEntries(Object.keys(s.village.sichLevels).map((id) => [id, id === 'cannonry' ? 0 : 10]));
@@ -103,7 +106,7 @@ function showcase(s: GameState): GameState {
       levels: { ...s.village.levels, ...farm },
       sichLevels: { ...s.village.sichLevels, ...sich },
     },
-    army: { infantry: 40 },
+    army: { infantry: SHOWCASE_ARMY },
   };
 }
 
@@ -126,6 +129,8 @@ function atTier(s: GameState, n: number): GameState {
       levels: { ...s.village.levels, ...farm },
       sichLevels: { ...s.village.sichLevels, ...sich },
     },
+    // A full host on the scene (M2-19): the Sich's people at the tier shown — its guards, both fires — as with `showcase`.
+    army: { infantry: n === 0 ? 0 : SHOWCASE_ARMY },
   };
 }
 

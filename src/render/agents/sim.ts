@@ -1,33 +1,59 @@
-// The agents (plan M2-16 skeleton, M2-18 villager FSM; SPEC §6.4): people walking a land's path graph. Deterministic —
-// whole fixed ticks in, a seeded RNG per agent (mulberry32), no clock or Math.random. The poses are a function of the
-// seed, the context the pool was made with and the whole history of steps — how many ticks each step took and the
-// context (time of day, visual tiers) it saw — not of the current time and tiers alone: a tier that changes between
-// two steps changes what follows (tested). `?freeze` frames repeat because a frozen frame is one step from creation.
-// Cosmetic only: render state, never GameState; the context is read, never written.
+// The agents (plan M2-16 skeleton, M2-18 villager FSM, M2-19 Cossacks; SPEC §6.4): people walking a land's path graph.
+// Deterministic — whole fixed ticks in, a seeded RNG per agent (mulberry32), no clock or Math.random. The poses are a
+// function of the seed, the context the pool was made with and the whole history of steps — how many ticks each step
+// took and the context (time of day, visual tiers, the army) it saw — not of the current time and tiers alone: a tier
+// that changes between two steps changes what follows (tested). `?freeze` frames repeat because a frozen frame is one
+// step from creation. Cosmetic only: render state, never GameState; the context is read, never written.
 //
-// Two routines (content `AgentSpawn`): `wander` walks its goals in turn or at random and rests between (Cossacks until
-// M2-19, the girls, who go indoors after hours); `villager` lives a day — idle → walk to a work spot whose building
-// stands → work there → walk to a chat spot → talk → idle → …, and outside the working hours (content `VILLAGER_DAY`)
-// goes to its night spot: outside a door or the forge, or indoors (out of sight, no pose) when that spot does not
-// stand. Nodes tied to a building are open only while it stands (visual tier ≥ 1): nobody walks through (re-checked
-// node by node while walking) or works at an empty plot.
-// At creation a villager is put straight where the hour finds it (at work, by its door), so a first frame — and a
-// `?freeze` shot — already shows the village's day or night.
+// Three routines (content `AgentSpawn`): `wander` walks its goals in turn or at random and rests between (the girls,
+// who go indoors after hours); `villager` lives a day — idle → walk to a work spot whose building stands → work there →
+// walk to a chat spot → talk → idle → …, and outside the working hours (content `VILLAGER_DAY`) goes to its night spot:
+// outside a door or the forge, or indoors (out of sight, no pose) when that spot does not stand; `cossack` (M2-19) has a
+// duty — the ranks drill in step on the maidan by one clock for the whole pool (`pool.ticks`, content
+// `COSSACK_DAY.drill`) facing the otaman, who speaks and then marches the front; free Cossacks idle from haunt to haunt
+// (the suburb's tavern, smithy, fair); at night both sit by a Sich fire with a pipe or go into the kurin; guards keep
+// their posts by the towers (spear by day, torch at night). Only the first `AgentContext.cossacks` Cossacks with a duty
+// are on the scene (the army's count); one more hired walks out of the kurin door. Nodes tied to a building are open only
+// while it stands (visual tier ≥ the node's `from`, default 1): nobody walks through (re-checked node by node while
+// walking), works, drills or stands guard at an empty plot.
+// At creation an agent is put straight where the hour finds it (at work, in the ranks, by its door), so a first frame —
+// and a `?freeze` shot — already shows the village's day or night.
 //
 // The frame path steps in place (`stepInPlace`, `writePoses`: no allocation per tick but on a new step of the routine);
 // `stepAgents`/`agentPoses` are the pure copies for tests and tools.
 import {
+  COSSACK_ANIMS,
+  COSSACK_DAY,
+  GUARD_ANIMS,
+  OTAMAN_ANIMS,
   VILLAGER_ANIMS,
   VILLAGER_DAY,
+  isCossackAnim,
+  isGuardAnim,
+  isGuardSprite,
+  isKozakSprite,
+  isOtamanAnim,
+  isOtamanSprite,
+  isVillagerAnim,
   isVillagerSprite,
   type AgentRole,
   type AgentSpawn,
   type AgentSprite,
   type BasicAnim,
+  type CossackAnim,
+  type CossackSpawn,
+  type GirlSprite,
+  type GuardAnim,
+  type GuardSprite,
+  type KozakSprite,
   type NodeBuilding,
+  type OtamanAnim,
+  type OtamanSprite,
   type PathGraph,
   type PathNode,
   type PersonAnim,
+  type Spot,
+  type VillagerAnim,
   type VillagerSpawn,
   type VillagerSprite,
   type WorkAnim,
@@ -45,19 +71,27 @@ export const IDLE_FPS = 6;
 /** Finished work spells kept per step (a frozen jump finishes many; the cosmetic «+» needs only the last few). */
 export const MAX_WORK_DONE = 16;
 
-/** Frame count and rate of a person animation (walk/idle above; the villager set from content, M2-17). */
+/** Frame count and rate of a person animation (walk/idle above; the villager and Cossack sets from content). */
 export function personAnim(anim: PersonAnim): { readonly frames: number; readonly fps: number } {
   if (anim === 'walk') return { frames: WALK_FRAMES, fps: WALK_FPS };
   if (anim === 'idle') return { frames: IDLE_FRAMES, fps: IDLE_FPS };
-  return VILLAGER_ANIMS[anim];
+  if (isVillagerAnim(anim)) return VILLAGER_ANIMS[anim];
+  if (isCossackAnim(anim)) return COSSACK_ANIMS[anim];
+  if (isOtamanAnim(anim)) return OTAMAN_ANIMS[anim];
+  return GUARD_ANIMS[anim];
 }
 
-/** What every step reads: the time of day (working hours) and the buildings standing (open nodes). */
+/** What every step reads: the time of day (working hours), the buildings standing (open nodes) and the army. */
 export interface AgentContext {
   /** Time of day, minutes after midnight. */
   readonly minutes: number;
   /** Visual tier per building; `null` = no game attached (everything stands). */
   readonly tiers: VisualTiers | null;
+  /**
+   * Cossacks the army has on the scene (core `populationView`, M2-19): the first that many Cossacks with a duty are
+   * there; absent = no game, all of them.
+   */
+  readonly cossacks?: number;
 }
 
 /** Noon, every building standing: the context for tests and tools. */
@@ -66,17 +100,52 @@ export const NOON: AgentContext = { minutes: 12 * 60, tiers: null };
 /** Whether villagers are at work at `minutes` (content `VILLAGER_DAY`). */
 export const workingHours = (minutes: number): boolean => minutes >= VILLAGER_DAY.from && minutes < VILLAGER_DAY.until;
 
-/** Whether `node` is open in `ctx`: no building of its own, no game, or its building stands. */
+/** Whether the Sich keeps its day (drill, haunts; content `COSSACK_DAY`) at `minutes`; else the night (fires, torches). */
+export const cossackHours = (minutes: number): boolean => minutes >= COSSACK_DAY.from && minutes < COSSACK_DAY.until;
+
+/** Whether `node` is open in `ctx`: no building of its own, no game, or its building stands (at its `from` tier). */
 export const nodeOpen = (ctx: AgentContext, node: PathNode): boolean =>
-  node.building === undefined || ctx.tiers === null || ctx.tiers[node.building] >= 1;
+  node.building === undefined || ctx.tiers === null || ctx.tiers[node.building] >= (node.from ?? 1);
+
+/** A step of the drill cycle (content `COSSACK_DAY.drill`). */
+export type DrillPhase = keyof typeof COSSACK_DAY.drill;
+const DRILL_STEPS: readonly DrillPhase[] = ['speak', 'cheer', 'drill', 'ease'];
+/** Ticks of each drill step and of the whole cycle. */
+const DRILL_TICKS: readonly number[] = DRILL_STEPS.map((p) => Math.round(COSSACK_DAY.drill[p] * TICK_HZ));
+const DRILL_CYCLE = DRILL_TICKS.reduce((a, b) => a + b, 0);
+
+/** Index of the drill step at pool tick `t` and the ticks since it began (one clock for the whole maidan). */
+function drillAt(t: number, into: 'step' | 'ticks'): number {
+  let left = ((t % DRILL_CYCLE) + DRILL_CYCLE) % DRILL_CYCLE;
+  for (let i = 0; i < DRILL_TICKS.length; i++) {
+    const len = DRILL_TICKS[i] ?? 0;
+    if (left < len) return into === 'step' ? i : left;
+    left -= len;
+  }
+  return 0;
+}
+
+/** The drill step at pool tick `t`. */
+export const drillPhase = (t: number): DrillPhase => DRILL_STEPS[drillAt(t, 'step')] ?? 'speak';
+
+/** Which drill cycle `t` is in (the otaman marches the front once per cycle). */
+const drillCycle = (t: number): number => Math.floor(t / DRILL_CYCLE);
+
+/** What a rank Cossack shows at each drill step. */
+const RANK_ANIM: Readonly<Record<DrillPhase, CossackAnim | 'idle'>> = {
+  speak: 'idle',
+  cheer: 'cheer',
+  drill: 'drill',
+  ease: 'idle',
+};
 
 /** What an arriving walk turns into. */
-type Errand = 'rest' | 'work' | 'chat' | 'night' | 'indoors';
+type Errand = 'rest' | 'work' | 'chat' | 'night' | 'indoors' | 'rank' | 'lead' | 'post' | 'haunt' | 'leave';
 
-/** What an agent is doing (villager states included; a wanderer stands, rests, walks and goes indoors). */
+/** What an agent is doing (villager and Cossack states included; a wanderer stands, rests, walks and goes indoors). */
 export type Activity =
   | { readonly kind: 'stand' }
-  /** Idle where it stands (a wanderer's rest, a villager's pause between chat and work). */
+  /** Idle where it stands (a wanderer's rest, a villager's pause, a free Cossack at a haunt). */
   | { readonly kind: 'rest'; ticksLeft: number }
   /**
    * `path` from the node it left to its goal; `next` = index of the node it walks to; `then` = what it does on
@@ -88,12 +157,22 @@ export type Activity =
       next: number;
       readonly then: Errand;
       readonly dx: number;
+      /** The otaman's review step along the ranks (M2-19), else a plain walk. */
+      readonly gait: 'walk' | 'march';
     }
   | { readonly kind: 'work'; ticksLeft: number; readonly anim: WorkAnim; readonly spot: string }
   | { readonly kind: 'chat'; ticksLeft: number }
-  | { readonly kind: 'night'; readonly anim: 'sit' | 'talk' | 'idle' }
+  | { readonly kind: 'night'; readonly anim: 'sit' | 'talk' | 'idle' | 'sit-smoke' }
   /** Gone in at a door for the night: out of sight, no pose. */
-  | { readonly kind: 'indoors' };
+  | { readonly kind: 'indoors' }
+  /** A Cossack the army does not have now (M2-19): not on the scene, no pose. */
+  | { readonly kind: 'absent' }
+  /** In his place in the ranks: the drill clock picks the animation. */
+  | { readonly kind: 'rank' }
+  /** The otaman at his stand before the ranks: speaking or watching, by the drill clock. */
+  | { readonly kind: 'lead' }
+  /** A guard at his post: on the spear by day, a torch at night. */
+  | { readonly kind: 'post'; readonly anim: 'watch' | 'torch' };
 
 /** One agent; mutated in place by `stepInPlace` (treat as read-only outside this module). */
 export interface Agent {
@@ -106,6 +185,10 @@ export interface Agent {
   readonly goals: readonly string[];
   /** Px beside a shared spot (chat, night) this agent stands at; the sign is the side, it faces the spot's middle. */
   readonly offset: number;
+  /** Place among the Cossacks with a duty (on the scene while < `AgentContext.cossacks`); −1 for everyone else. */
+  readonly enlist: number;
+  /** The otaman: the drill cycle whose front he marched last (−1 before the first). */
+  reviewed: number;
   /** The last node reached. */
   at: string;
   /** Index into `goals` of the goal picked last (`cycle` order); −1 before the first. */
@@ -138,6 +221,8 @@ export interface AgentPool {
   readonly graph: PathGraph;
   readonly agents: Agent[];
   readonly done: WorkDoneLog;
+  /** Ticks the pool has been stepped: the clock the maidan drills by (M2-19). */
+  ticks: number;
 }
 
 interface PoseBase {
@@ -151,20 +236,23 @@ interface PoseBase {
   readonly frame: number;
 }
 
+/** Which animations each person sprite family has frames for (M2-17 villagers, M2-19 Cossacks). */
+type Look =
+  | { sprite: VillagerSprite; anim: BasicAnim | VillagerAnim }
+  | { sprite: KozakSprite; anim: BasicAnim | CossackAnim }
+  | { sprite: OtamanSprite; anim: BasicAnim | OtamanAnim }
+  | { sprite: GuardSprite; anim: BasicAnim | GuardAnim }
+  | { sprite: GirlSprite; anim: BasicAnim };
+
 /**
- * A person this frame. Only villager sprites have the work / talk / sit / cheer frames (M2-17), so a Cossack or a girl
- * can only be posed walking or standing — a pose naming a frame that does not exist does not type-check.
+ * A person this frame. Each sprite family has its own animations beyond walk/idle — the villagers' work set (M2-17),
+ * the Cossacks' drill / pipe / cheer, the otaman's speak / march, the guards' watch / torch (M2-19) — so a pose naming
+ * a frame that does not exist does not type-check.
  */
-export type AgentPose = PoseBase &
-  (
-    | { readonly sprite: VillagerSprite; readonly anim: PersonAnim }
-    | { readonly sprite: Exclude<AgentSprite, VillagerSprite>; readonly anim: BasicAnim }
-  );
+export type AgentPose = PoseBase & Readonly<Look>;
 
 /** A pose slot reused frame to frame (`writePoses`). */
-export type PoseSlot = { -readonly [K in keyof PoseBase]: PoseBase[K] } & (
-  { sprite: VillagerSprite; anim: PersonAnim } | { sprite: Exclude<AgentSprite, VillagerSprite>; anim: BasicAnim }
-);
+export type PoseSlot = { -readonly [K in keyof PoseBase]: PoseBase[K] } & Look;
 
 export type AgentCounts = { readonly total: number } & Readonly<Record<AgentRole, number>>;
 
@@ -205,19 +293,28 @@ const rest = (agent: Agent, ticks: number): void => {
 const restTicks = (spawn: AgentSpawn): number =>
   Math.max(1, Math.round((spawn.routine === 'wander' ? spawn.rest : 0) * TICK_HZ));
 
+/** The pause before trying again (no goal open, no way there): by routine. */
+const pauseTicks = (agent: Agent): number =>
+  agent.spawn.routine === 'villager'
+    ? span(agent, VILLAGER_DAY.idleS)
+    : agent.spawn.routine === 'cossack'
+      ? span(agent, COSSACK_DAY.hauntS)
+      : restTicks(agent.spawn);
+
 /**
  * Moves `speed / TICK_HZ` px along its path (to `dx` beside the last node); on reaching the end, arrives. A node ahead
  * that closed since the path was found (its building gone: a reset, a new land) is never entered: the agent picks
  * again from the last node it reached.
  */
-function walk(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
+function walk(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
+  const { graph } = pool;
   const a = agent.activity;
   if (a.kind !== 'walk') return;
   let left = agent.spawn.speed / TICK_HZ;
   while (left > 0 && a.next < a.path.length) {
     const node = nodeOf(graph, a.path[a.next] ?? '');
     if (a.next > 0 && !nodeOpen(ctx, node)) {
-      replan(ctx, graph, agent);
+      replan(ctx, pool, agent, t);
       return;
     }
     const tx = node.x + (a.next === a.path.length - 1 ? a.dx : 0);
@@ -237,14 +334,16 @@ function walk(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
       left = 0;
     }
   }
-  if (a.next >= a.path.length) arrive(ctx, graph, agent, a.then);
+  if (a.next >= a.path.length) arrive(ctx, pool, agent, a.then, t);
   else agent.animTicks += 1;
 }
 
-/** A walk whose way closed: a villager plans afresh, a wanderer rests and picks another goal. */
-function replan(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
-  if (agent.spawn.routine === 'villager') plan(ctx, graph, agent, agent.spawn);
-  else rest(agent, restTicks(agent.spawn));
+/** A walk whose way closed: a villager or a Cossack plans afresh, a wanderer rests and picks another goal. */
+function replan(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
+  const spawn = agent.spawn;
+  if (spawn.routine === 'villager') plan(ctx, pool, agent, spawn, t);
+  else if (spawn.routine === 'cossack') duty(ctx, pool, agent, spawn, t);
+  else rest(agent, restTicks(spawn));
 }
 
 /** Turns to face a shared spot's middle (the left one faces right). */
@@ -253,8 +352,12 @@ function faceSpot(agent: Agent): void {
 }
 
 /** What an agent does at the end of a walk. One whose errand no longer fits the hour idles a moment. */
-function arrive(ctx: AgentContext, graph: PathGraph, agent: Agent, then: Errand): void {
+function arrive(ctx: AgentContext, pool: AgentPool, agent: Agent, then: Errand, t: number): void {
   const spawn = agent.spawn;
+  if (spawn.routine === 'cossack') {
+    cossackArrive(ctx, pool, agent, spawn, then, t);
+    return;
+  }
   const day = workingHours(ctx.minutes);
   if (then === 'indoors' && !day) {
     setActivity(agent, { kind: 'indoors' });
@@ -264,7 +367,7 @@ function arrive(ctx: AgentContext, graph: PathGraph, agent: Agent, then: Errand)
     rest(agent, restTicks(spawn));
     return;
   }
-  const node = nodeOf(graph, agent.at);
+  const node = nodeOf(pool.graph, agent.at);
   if (then === 'work' && day && node.work !== undefined && nodeOpen(ctx, node)) {
     setActivity(agent, { kind: 'work', ticksLeft: span(agent, VILLAGER_DAY.workS), anim: node.work, spot: node.id });
   } else if (then === 'chat' && day) {
@@ -279,20 +382,31 @@ function arrive(ctx: AgentContext, graph: PathGraph, agent: Agent, then: Errand)
 }
 
 /** Sets off toward `target` (this tick), or arrives at once when it is already there; idles when it cannot get there. */
-function goTo(ctx: AgentContext, graph: PathGraph, agent: Agent, target: string, then: Errand, dx: number): void {
-  const path = findPath(graph, agent.at, target, agent.role, (n) => nodeOpen(ctx, n));
+function goTo(
+  ctx: AgentContext,
+  pool: AgentPool,
+  agent: Agent,
+  target: string,
+  then: Errand,
+  dx: number,
+  t: number,
+): void {
+  const path = findPath(pool.graph, agent.at, target, agent.role, (n) => nodeOpen(ctx, n));
   if (!path) {
-    rest(agent, agent.spawn.routine === 'villager' ? span(agent, VILLAGER_DAY.idleS) : restTicks(agent.spawn));
+    rest(agent, pauseTicks(agent));
     return;
   }
   // From index 0: an agent stopped beside a node (or turned back mid-edge) first returns to it — 0 px when it is there.
-  setActivity(agent, { kind: 'walk', path, next: 0, then, dx });
-  walk(ctx, graph, agent);
+  setActivity(agent, { kind: 'walk', path, next: 0, then, dx, gait: 'walk' });
+  walk(ctx, pool, agent, t);
 }
 
 /** Ids of `ids` that are open in `ctx`. */
 const openOf = (ctx: AgentContext, graph: PathGraph, ids: readonly string[]): string[] =>
   ids.filter((id) => nodeOpen(ctx, nodeOf(graph, id)));
+
+/** Whether a spot's node is open in `ctx`. */
+const spotOpen = (ctx: AgentContext, graph: PathGraph, spot: Spot): boolean => nodeOpen(ctx, nodeOf(graph, spot.at));
 
 /** Where a villager spends the night: outside its night spot while that stands, else indoors at home. */
 function nightPlace(
@@ -306,24 +420,24 @@ function nightPlace(
 }
 
 /** A villager's next step: its night place after hours, else a work spot that stands, else a chat, else a pause. */
-function plan(ctx: AgentContext, graph: PathGraph, agent: Agent, spawn: VillagerSpawn): void {
+function plan(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, t: number): void {
   if (!workingHours(ctx.minutes)) {
-    const night = nightPlace(ctx, graph, spawn);
-    goTo(ctx, graph, agent, night.at, night.then, night.dx);
+    const night = nightPlace(ctx, pool.graph, spawn);
+    goTo(ctx, pool, agent, night.at, night.then, night.dx, t);
     return;
   }
-  const work = pick(agent, openOf(ctx, graph, spawn.work));
-  if (work !== undefined) goTo(ctx, graph, agent, work, 'work', 0);
-  else chat(ctx, graph, agent, spawn);
+  const work = pick(agent, openOf(ctx, pool.graph, spawn.work));
+  if (work !== undefined) goTo(ctx, pool, agent, work, 'work', 0, t);
+  else chat(ctx, pool, agent, spawn, t);
 }
 
 /** Off to talk at one of its open chat spots (another than where it stands, when it has one); else a pause. */
-function chat(ctx: AgentContext, graph: PathGraph, agent: Agent, spawn: VillagerSpawn): void {
-  const open = openOf(ctx, graph, spawn.chat);
+function chat(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, t: number): void {
+  const open = openOf(ctx, pool.graph, spawn.chat);
   const away = open.filter((id) => id !== agent.at);
   const target = pick(agent, away.length > 0 ? away : open);
   if (target === undefined) rest(agent, span(agent, VILLAGER_DAY.idleS));
-  else goTo(ctx, graph, agent, target, 'chat', agent.offset);
+  else goTo(ctx, pool, agent, target, 'chat', agent.offset, t);
 }
 
 function recordDone(done: WorkDoneLog, agent: Agent, building: NodeBuilding): void {
@@ -335,28 +449,27 @@ function recordDone(done: WorkDoneLog, agent: Agent, building: NodeBuilding): vo
   done.count += 1;
 }
 
-function villagerTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn): void {
-  const { graph } = pool;
+function villagerTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, t: number): void {
   const a = agent.activity;
   const day = workingHours(ctx.minutes);
   switch (a.kind) {
     case 'walk':
-      walk(ctx, graph, agent);
+      walk(ctx, pool, agent, t);
       return;
     case 'rest':
-      if (a.ticksLeft <= 0) plan(ctx, graph, agent, spawn);
+      if (a.ticksLeft <= 0) plan(ctx, pool, agent, spawn, t);
       else {
         a.ticksLeft -= 1;
         agent.animTicks += 1;
       }
       return;
     case 'work': {
-      const spot = nodeOf(graph, a.spot);
+      const spot = nodeOf(pool.graph, a.spot);
       if (!day || !nodeOpen(ctx, spot)) {
-        plan(ctx, graph, agent, spawn);
+        plan(ctx, pool, agent, spawn, t);
       } else if (a.ticksLeft <= 0) {
         if (spot.building !== undefined) recordDone(pool.done, agent, spot.building);
-        chat(ctx, graph, agent, spawn);
+        chat(ctx, pool, agent, spawn, t);
       } else {
         a.ticksLeft -= 1;
         agent.animTicks += 1;
@@ -372,17 +485,232 @@ function villagerTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: V
       return;
     case 'night':
     case 'indoors':
-      if (day) plan(ctx, graph, agent, spawn);
+      if (day) plan(ctx, pool, agent, spawn, t);
       else agent.animTicks += 1;
       return;
-    case 'stand':
+    default:
       agent.animTicks += 1;
   }
 }
 
+// ── Cossacks (M2-19) ────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Whether the army has this Cossack on the scene now. */
+const enlisted = (ctx: AgentContext, agent: Agent): boolean =>
+  agent.enlist < 0 || ctx.cossacks === undefined || agent.enlist < ctx.cossacks;
+
+/** A free Cossack (or a rank one without a maidan) off to another open haunt; a pause when none is open. */
+function haunt(ctx: AgentContext, pool: AgentPool, agent: Agent, haunts: readonly string[], t: number): void {
+  const open = openOf(ctx, pool.graph, haunts);
+  const away = open.filter((id) => id !== agent.at);
+  const target = pick(agent, away.length > 0 ? away : open);
+  if (target === undefined || target === agent.at) rest(agent, span(agent, COSSACK_DAY.hauntS));
+  else goTo(ctx, pool, agent, target, 'haunt', agent.offset, t);
+}
+
+/** The node and errand a Cossack is bound for now (by the hour and what stands), and px beside it. */
+function cossackGoal(
+  ctx: AgentContext,
+  graph: PathGraph,
+  spawn: CossackSpawn,
+): { readonly at: string; readonly then: Errand; readonly dx: number } | 'haunt' {
+  const day = cossackHours(ctx.minutes);
+  const home = { at: spawn.home, then: 'indoors', dx: 0 } as const;
+  switch (spawn.duty) {
+    case 'guard':
+      return spotOpen(ctx, graph, spawn.post) ? { at: spawn.post.at, then: 'post', dx: spawn.post.dx } : home;
+    case 'otaman':
+      return day && spotOpen(ctx, graph, spawn.stand) ? { at: spawn.stand.at, then: 'lead', dx: spawn.stand.dx } : home;
+    case 'rank':
+    case 'free': {
+      if (!day) {
+        const n = spawn.night;
+        return n.anim !== 'indoors' && spotOpen(ctx, graph, n) ? { at: n.at, then: 'night', dx: n.dx } : home;
+      }
+      if (spawn.duty === 'rank' && spotOpen(ctx, graph, spawn.rank))
+        return { at: spawn.rank.at, then: 'rank', dx: spawn.rank.dx };
+      return 'haunt';
+    }
+  }
+}
+
+/** A Cossack's next step: where his duty, the hour and the buildings standing send him. */
+function duty(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: CossackSpawn, t: number): void {
+  const goal = cossackGoal(ctx, pool.graph, spawn);
+  if (goal === 'haunt')
+    haunt(ctx, pool, agent, spawn.duty === 'otaman' || spawn.duty === 'guard' ? [] : spawn.haunts, t);
+  else goTo(ctx, pool, agent, goal.at, goal.then, goal.dx, t);
+}
+
+/** A guard's animation at his post: the torch after dark. */
+const postAnim = (ctx: AgentContext): 'watch' | 'torch' => (cossackHours(ctx.minutes) ? 'watch' : 'torch');
+
+function cossackArrive(
+  ctx: AgentContext,
+  pool: AgentPool,
+  agent: Agent,
+  spawn: CossackSpawn,
+  then: Errand,
+  t: number,
+): void {
+  if (then === 'leave') {
+    // Back in the kurin: the army no longer has him (or, re-hired on the way, he turns out again next tick).
+    setActivity(agent, enlisted(ctx, agent) ? { kind: 'rest', ticksLeft: 0 } : { kind: 'absent' });
+    return;
+  }
+  const goal = cossackGoal(ctx, pool.graph, spawn);
+  // Bound elsewhere now (the hour turned, a building fell while it walked): off again, after a breath.
+  const due = goal === 'haunt' ? 'haunt' : goal.then;
+  if (then !== due) {
+    rest(agent, 1);
+    return;
+  }
+  switch (then) {
+    case 'post':
+      if (spawn.duty === 'guard') agent.facing = spawn.post.facing;
+      setActivity(agent, { kind: 'post', anim: postAnim(ctx) });
+      return;
+    case 'lead':
+      if (spawn.duty === 'otaman') agent.facing = spawn.stand.facing;
+      setActivity(agent, { kind: 'lead' });
+      // Arriving mid-drill does not start another march this cycle.
+      agent.reviewed = drillPhase(t) === 'drill' ? drillCycle(t) : agent.reviewed;
+      return;
+    case 'rank':
+      if (spawn.duty === 'rank') agent.facing = spawn.rank.facing;
+      setActivity(agent, { kind: 'rank' });
+      return;
+    case 'night':
+      if ((spawn.duty === 'rank' || spawn.duty === 'free') && spawn.night.anim !== 'indoors') {
+        agent.facing = spawn.night.facing;
+        setActivity(agent, { kind: 'night', anim: spawn.night.anim });
+      }
+      return;
+    case 'indoors':
+      setActivity(agent, { kind: 'indoors' });
+      return;
+    default:
+      faceSpot(agent);
+      rest(agent, span(agent, COSSACK_DAY.hauntS));
+  }
+}
+
+/** The otaman sets off along the front (stand → review nodes → stand) in the review step. */
+function march(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: CossackSpawn, t: number): void {
+  if (spawn.duty !== 'otaman') return;
+  agent.reviewed = drillCycle(t);
+  const path = [spawn.stand.at, ...spawn.review, spawn.stand.at];
+  setActivity(agent, { kind: 'walk', path, next: 0, then: 'lead', dx: spawn.stand.dx, gait: 'march' });
+  walk(ctx, pool, agent, t);
+}
+
+/** Whether a Cossack where he is (at a duty place, indoors) should be somewhere else now. */
+function misplaced(ctx: AgentContext, graph: PathGraph, agent: Agent, spawn: CossackSpawn): boolean {
+  const goal = cossackGoal(ctx, graph, spawn);
+  const kind = agent.activity.kind;
+  if (goal === 'haunt') return kind !== 'rest';
+  const want: Readonly<Record<Errand, Activity['kind']>> = {
+    post: 'post',
+    lead: 'lead',
+    rank: 'rank',
+    night: 'night',
+    indoors: 'indoors',
+    rest: 'rest',
+    haunt: 'rest',
+    work: 'work',
+    chat: 'chat',
+    leave: 'absent',
+  };
+  return want[goal.then] !== kind;
+}
+
+/** Puts a Cossack at his home door (a hire walks out of the kurin). */
+function atNode(graph: PathGraph, agent: Agent, id: string, dx: number): void {
+  const node = nodeOf(graph, id);
+  agent.at = id;
+  agent.x = node.x + dx;
+  agent.y = node.ground;
+}
+
+function cossackTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: CossackSpawn, t: number): void {
+  const a = agent.activity;
+  if (!enlisted(ctx, agent)) {
+    // The army lost him (a reset, a new land): he walks back into the kurin, then is gone — never popped mid-drill.
+    if (a.kind === 'absent') return;
+    if (a.kind === 'indoors') setActivity(agent, { kind: 'absent' });
+    else if (a.kind === 'walk' && a.then === 'leave') walk(ctx, pool, agent, t);
+    else goTo(ctx, pool, agent, spawn.home, 'leave', 0, t);
+    return;
+  }
+  if (a.kind === 'walk' && a.then === 'leave') {
+    // Re-hired on his way out: back to his duty from where he is.
+    duty(ctx, pool, agent, spawn, t);
+    return;
+  }
+  switch (a.kind) {
+    case 'absent':
+      // Hired: out of the kurin door, off to his duty.
+      atNode(pool.graph, agent, spawn.home, 0);
+      duty(ctx, pool, agent, spawn, t);
+      return;
+    case 'walk':
+      walk(ctx, pool, agent, t);
+      return;
+    case 'rest':
+      if (a.ticksLeft <= 0) duty(ctx, pool, agent, spawn, t);
+      else {
+        a.ticksLeft -= 1;
+        agent.animTicks += 1;
+      }
+      return;
+    case 'lead':
+      if (misplaced(ctx, pool.graph, agent, spawn)) duty(ctx, pool, agent, spawn, t);
+      else if (drillPhase(t) === 'drill' && agent.reviewed !== drillCycle(t)) march(ctx, pool, agent, spawn, t);
+      else agent.animTicks += 1;
+      return;
+    case 'post':
+      if (misplaced(ctx, pool.graph, agent, spawn)) duty(ctx, pool, agent, spawn, t);
+      else if (a.anim !== postAnim(ctx)) setActivity(agent, { kind: 'post', anim: postAnim(ctx) });
+      else agent.animTicks += 1;
+      return;
+    default:
+      if (misplaced(ctx, pool.graph, agent, spawn)) duty(ctx, pool, agent, spawn, t);
+      else agent.animTicks += 1;
+  }
+}
+
+/**
+ * Puts a Cossack where the hour finds him: in the ranks, at the stand, at his post, by the fire, at a haunt (part way
+ * through his idle there) or indoors; one the army does not have is absent.
+ */
+function placeCossack(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: CossackSpawn, t: number): void {
+  if (!enlisted(ctx, agent)) {
+    setActivity(agent, { kind: 'absent' });
+    return;
+  }
+  const goal = cossackGoal(ctx, pool.graph, spawn);
+  if (goal !== 'haunt') {
+    atNode(pool.graph, agent, goal.at, goal.dx);
+    cossackArrive(ctx, pool, agent, spawn, goal.then, t);
+    return;
+  }
+  const at = pick(agent, openOf(ctx, pool.graph, spawn.duty === 'rank' || spawn.duty === 'free' ? spawn.haunts : []));
+  if (at === undefined) {
+    rest(agent, span(agent, COSSACK_DAY.hauntS));
+    return;
+  }
+  atNode(pool.graph, agent, at, agent.offset);
+  cossackArrive(ctx, pool, agent, spawn, 'haunt', t);
+  const a = agent.activity;
+  if (a.kind === 'rest') a.ticksLeft = Math.floor(roll(agent) * a.ticksLeft);
+}
+
+// ── wanderers ───────────────────────────────────────────────────────────────────────────────────────────────────────
+
 /** A wanderer picks its next open goal and starts toward it (this tick); rests again when none is open. */
-function depart(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
+function depart(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
   const { goals } = agent;
+  const { graph } = pool;
   let target: string | undefined;
   if (agent.spawn.routine === 'wander' && agent.spawn.order === 'cycle') {
     for (let tries = 0; tries < goals.length && target === undefined; tries++) {
@@ -400,10 +728,10 @@ function depart(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
     rest(agent, restTicks(agent.spawn));
     return;
   }
-  goTo(ctx, graph, agent, target, 'rest', 0);
+  goTo(ctx, pool, agent, target, 'rest', 0, t);
 }
 
-function wanderTick(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
+function wanderTick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
   const a = agent.activity;
   const spawn = agent.spawn;
   const door = spawn.routine === 'wander' && !workingHours(ctx.minutes) ? spawn.indoors : undefined;
@@ -412,65 +740,71 @@ function wanderTick(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
     else agent.animTicks += 1;
   } else if (door !== undefined && !(a.kind === 'walk' && a.then === 'indoors')) {
     // After hours a wanderer with a door goes in (few walkers at night, art-director M2-18).
-    goTo(ctx, graph, agent, door, 'indoors', 0);
+    goTo(ctx, pool, agent, door, 'indoors', 0, t);
   } else if (a.kind === 'walk') {
-    walk(ctx, graph, agent);
+    walk(ctx, pool, agent, t);
   } else if (a.kind === 'rest' && a.ticksLeft <= 0) {
-    depart(ctx, graph, agent);
+    depart(ctx, pool, agent, t);
   } else {
     if (a.kind === 'rest') a.ticksLeft -= 1;
     agent.animTicks += 1;
   }
 }
 
-function tick(ctx: AgentContext, pool: AgentPool, agent: Agent): void {
-  if (agent.spawn.routine === 'villager') villagerTick(ctx, pool, agent, agent.spawn);
-  else wanderTick(ctx, pool.graph, agent);
+/** One tick of `agent`; `t` = the pool's clock at this tick (the drill). */
+function tick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
+  const spawn = agent.spawn;
+  if (spawn.routine === 'villager') villagerTick(ctx, pool, agent, spawn, t);
+  else if (spawn.routine === 'cossack') cossackTick(ctx, pool, agent, spawn, t);
+  else wanderTick(ctx, pool, agent, t);
 }
 
 /** Steps every agent of `pool` by `ticks` fixed steps, in place; `pool.done` then holds that step's finished work. */
 export function stepInPlace(pool: AgentPool, ticks: number, ctx: AgentContext): void {
   pool.done.count = 0;
-  for (const agent of pool.agents) for (let i = 0; i < ticks; i++) tick(ctx, pool, agent);
+  for (const agent of pool.agents) for (let i = 0; i < ticks; i++) tick(ctx, pool, agent, pool.ticks + i);
+  pool.ticks += ticks;
 }
 
 /**
  * Puts an agent where the hour finds it: a villager at its night place, at an open work spot, at a chat spot, or idle
- * at home; a wanderer with a door indoors after hours (else it stays at home, as made).
+ * at home; a Cossack at his duty (`placeCossack`); a wanderer with a door indoors after hours (else it stays at home).
  */
-function place(ctx: AgentContext, graph: PathGraph, agent: Agent): void {
+function place(ctx: AgentContext, pool: AgentPool, agent: Agent): void {
   const spawn = agent.spawn;
+  const { graph } = pool;
   const at = (id: string, dx: number): void => {
-    const node = nodeOf(graph, id);
-    agent.at = id;
-    agent.x = node.x + dx;
-    agent.y = node.ground;
+    atNode(graph, agent, id, dx);
   };
+  if (spawn.routine === 'cossack') {
+    placeCossack(ctx, pool, agent, spawn, pool.ticks);
+    return;
+  }
   const night = !workingHours(ctx.minutes);
   if (spawn.routine === 'wander') {
     if (night && spawn.indoors !== undefined) {
       at(spawn.indoors, 0);
-      arrive(ctx, graph, agent, 'indoors');
+      arrive(ctx, pool, agent, 'indoors', pool.ticks);
     }
     return;
   }
   if (night) {
     const n = nightPlace(ctx, graph, spawn);
     at(n.at, n.dx);
-    arrive(ctx, graph, agent, n.then);
+    arrive(ctx, pool, agent, n.then, pool.ticks);
     return;
   }
   const work = pick(agent, openOf(ctx, graph, spawn.work));
   const talk = work === undefined ? pick(agent, openOf(ctx, graph, spawn.chat)) : undefined;
   if (work !== undefined) {
     at(work, 0);
-    arrive(ctx, graph, agent, 'work');
+    arrive(ctx, pool, agent, 'work', pool.ticks);
     // Part way through its spell, so the village does not down tools at once.
     const a = agent.activity;
     if (a.kind === 'work') a.ticksLeft = Math.floor(roll(agent) * a.ticksLeft);
   } else if (talk !== undefined) {
     at(talk, agent.offset);
-    arrive(ctx, graph, agent, 'chat');
+    arrive(ctx, pool, agent, 'chat', pool.ticks);
   } else {
     rest(agent, span(agent, VILLAGER_DAY.idleS));
   }
@@ -484,10 +818,11 @@ const spotOffset = (id: number): number => {
 };
 
 /**
- * The pool for `spawns` on `graph` at the context `ctx` (the hour and the buildings of the first frame): spawns past a
- * role's budget (plan Q11) are left out (the first ones in order are kept); a wanderer starts at its home and keeps
- * only the goals it can reach from there, a villager starts where the hour finds it; each is run `phase` s ahead.
- * `seed` seeds every agent. A spawn whose home is unknown or closed to its role is a content bug: it throws.
+ * The pool for `spawns` on `graph` at the context `ctx` (the hour, the buildings and the army of the first frame):
+ * spawns past a role's budget (plan Q11) are left out (the first ones in order are kept); a wanderer starts at its home
+ * and keeps only the goals it can reach from there, a villager or a Cossack starts where the hour finds it; each is run
+ * `phase` s ahead. `seed` seeds every agent. A spawn whose home is unknown or closed to its role is a content bug: it
+ * throws.
  */
 export function createAgents(
   graph: PathGraph,
@@ -505,7 +840,9 @@ export function createAgents(
       count: 0,
       slots: Array.from({ length: MAX_WORK_DONE }, () => ({ x: 0, ground: 0, building: 'field' as const })),
     },
+    ticks: 0,
   };
+  let enlist = 0;
   for (const [i, spawn] of spawns.entries()) {
     const home = nodeOf(graph, spawn.home);
     if (!mayEnter(home, spawn.role))
@@ -521,7 +858,9 @@ export function createAgents(
       sprite: spawn.sprite,
       spawn,
       goals,
-      offset: spawn.routine === 'villager' ? spotOffset(i) : 0,
+      offset: spawn.routine === 'wander' ? 0 : spotOffset(i),
+      enlist: spawn.routine === 'cossack' ? enlist++ : -1,
+      reviewed: -1,
       at: home.id,
       goal: -1,
       x: home.x,
@@ -531,8 +870,8 @@ export function createAgents(
       animTicks: 0,
       rng: (seed ^ Math.imul(i + 1, 0x9e3779b9)) >>> 0,
     };
-    if (!still) place(ctx, graph, agent);
-    for (let t = Math.round(spawn.phase * TICK_HZ); t > 0; t--) tick(ctx, pool, agent);
+    if (!still) place(ctx, pool, agent);
+    for (let k = 0; k < Math.round(spawn.phase * TICK_HZ); k++) tick(ctx, pool, agent, k);
     pool.agents.push(agent);
   }
   // Work finished while running agents ahead is not news.
@@ -545,6 +884,7 @@ export const clonePool = (pool: AgentPool): AgentPool => ({
   graph: pool.graph,
   agents: pool.agents.map((a) => ({ ...a, activity: { ...a.activity } })),
   done: { count: pool.done.count, slots: pool.done.slots.map((s) => ({ ...s })) },
+  ticks: pool.ticks,
 });
 
 /** The pool `ticks` fixed steps later (a new pool; the old one is untouched). */
@@ -562,51 +902,69 @@ export const workDone = (pool: AgentPool): readonly WorkDone[] =>
 
 const cycleFrame = (ticks: number, fps: number, frames: number): number => Math.floor((ticks * fps) / TICK_HZ) % frames;
 
-/** The animation an activity shows. */
-function animOf(a: Activity): PersonAnim {
+/** The animation an activity shows (`t` = the pool's clock: the drill) and the ticks its frames count from. */
+function animOf(a: Activity, animTicks: number, t: number): { readonly anim: PersonAnim; readonly ticks: number } {
   switch (a.kind) {
     case 'walk':
-      return 'walk';
+      return { anim: a.gait, ticks: animTicks };
     case 'work':
-      return a.anim;
+      return { anim: a.anim, ticks: animTicks };
     case 'chat':
-      return 'talk';
+      return { anim: 'talk', ticks: animTicks };
     case 'night':
-      return a.anim;
+    case 'post':
+      return { anim: a.anim, ticks: animTicks };
+    case 'rank':
+      return { anim: RANK_ANIM[drillPhase(t)], ticks: drillAt(t, 'ticks') };
+    case 'lead':
+      return drillPhase(t) === 'speak'
+        ? { anim: 'speak', ticks: drillAt(t, 'ticks') }
+        : { anim: 'idle', ticks: animTicks };
     default:
-      return 'idle';
+      return { anim: 'idle', ticks: animTicks };
   }
 }
 
-function writePose(a: Agent, slot: PoseSlot): void {
-  const anim = animOf(a.activity);
+/** Whether `sprite` has frames for `anim` (each family its own set beyond walk/idle). */
+function hasFrames(sprite: AgentSprite, anim: PersonAnim): boolean {
+  if (anim === 'walk' || anim === 'idle') return true;
+  if (isVillagerSprite(sprite)) return isVillagerAnim(anim);
+  if (isKozakSprite(sprite)) return isCossackAnim(anim);
+  if (isOtamanSprite(sprite)) return isOtamanAnim(anim);
+  if (isGuardSprite(sprite)) return isGuardAnim(anim);
+  return false;
+}
+
+function writePose(a: Agent, slot: PoseSlot, t: number): void {
+  const { anim, ticks } = animOf(a.activity, a.animTicks, t);
+  // Each routine reaches only its sprites' animations (content); a broken pairing is a bug, never a missing frame.
+  if (!hasFrames(a.sprite, anim)) throw new Error(`agent ${String(a.id)}: ${a.sprite} has no "${anim}" frames`);
   slot.id = a.id;
   slot.x = Math.round(a.x);
   slot.ground = Math.round(a.y);
   slot.facing = a.facing;
   const { frames, fps } = personAnim(anim);
-  slot.frame = cycleFrame(a.animTicks, fps, frames);
-  // Only a villager routine reaches the villager animations, and only villager sprites have that routine (content).
-  if (anim === 'walk' || anim === 'idle' || isVillagerSprite(a.sprite)) {
-    slot.sprite = a.sprite;
-    slot.anim = anim;
-  } else {
-    throw new Error(`agent ${String(a.id)}: ${a.sprite} has no "${anim}" frames`);
-  }
+  slot.frame = cycleFrame(ticks, fps, frames);
+  slot.sprite = a.sprite;
+  // `hasFrames` above checked the pairing the `Look` union describes.
+  slot.anim = anim;
 }
 
 const emptySlot = (): PoseSlot => ({ id: -1, sprite: 'kozak.a', x: 0, ground: 0, facing: 1, anim: 'idle', frame: 0 });
 
+/** Whether an agent is out of sight: gone indoors, or a Cossack the army does not have. */
+const unseen = (a: Agent): boolean => a.activity.kind === 'indoors' || a.activity.kind === 'absent';
+
 /**
  * Writes whole-px poses into `out` (slots reused) and returns it: one per agent in sight, in pool order — an agent
- * indoors has none (layers drop its sprite by id and make it again when it comes out).
+ * indoors or absent has none (layers drop its sprite by id and make it again when it comes out).
  */
 export function writePoses(pool: AgentPool, out: PoseSlot[]): readonly AgentPose[] {
   let n = 0;
   for (const a of pool.agents) {
-    if (a.activity.kind === 'indoors') continue;
+    if (unseen(a)) continue;
     const slot = out[n] ?? emptySlot();
-    writePose(a, slot);
+    writePose(a, slot, pool.ticks);
     out[n] = slot;
     n += 1;
   }
@@ -624,9 +982,13 @@ export function workingCount(pool: AgentPool): number {
   return n;
 }
 
-/** Agents in the pool by role (`__CK__.stats.agents`). */
+/** Agents on the scene by role (`__CK__.stats.agents`): a Cossack the army does not have is not counted. */
 export function agentCounts(pool: AgentPool): AgentCounts {
-  const counts = { total: pool.agents.length, villager: 0, cossack: 0, visitor: 0, cart: 0 };
-  for (const a of pool.agents) counts[a.role] += 1;
+  const counts = { total: 0, villager: 0, cossack: 0, visitor: 0, cart: 0 };
+  for (const a of pool.agents) {
+    if (a.activity.kind === 'absent') continue;
+    counts.total += 1;
+    counts[a.role] += 1;
+  }
   return counts;
 }

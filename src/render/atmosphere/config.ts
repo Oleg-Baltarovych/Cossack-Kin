@@ -651,6 +651,16 @@ export const FIRE_LIGHTS: Readonly<Record<'campfire' | 'forge' | 'watchtower.t3'
   'watchtower.t4': { rx: 12, ry: 9, alpha: 0.45, color: ['gold', 2], below: -82, dx: 19 },
 };
 /**
+ * A guard's torch (M2-19): a small warm pool on the rampart round his feet, centred `dx` px toward the torch hand
+ * (mirrored with the guard), flickering like a fire. One per guard holding a torch (≤ `max`: the scene's guard posts).
+ */
+export const TORCH_LIGHT: FireLight & {
+  /** Flicker seeds `seedBase + agent id`: clear of the props' seeds (their index in the zone), one per guard. */
+  readonly seedBase: number;
+  /** Torch pools at most (the scene's guard posts, content test): a budget guard for the light layer. */
+  readonly max: number;
+} = { rx: 13, ry: 6, alpha: 0.5, color: ['gold', 2], below: 0, dx: 3, seedBase: 1000, max: 4 };
+/**
  * Window light spilling on the ground in front of every building with a night mask: a flat ellipse `rxShare` × the
  * sprite width wide (at least `minRx`; a prop's `poolRx` overrides), `ry` rows tall, `below` rows under the pivot; a
  * slow candle flicker.

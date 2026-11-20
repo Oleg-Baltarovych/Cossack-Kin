@@ -98,7 +98,11 @@ describe('agents (plan M2-16)', () => {
       pool = stepAgents(pool, 17);
       for (const [k, pose] of agentPoses(pool).entries()) {
         const role = pool.agents[k]?.role ?? 'villager';
-        const offset = pool.agents[k]?.offset ?? 0;
+        const agent = pool.agents[k];
+        // Px beside a shared spot (M2-18), or beside his node in the ranks (a rear file, M2-19).
+        const offset =
+          Math.abs(agent?.offset ?? 0) +
+          (agent?.spawn.routine === 'cossack' && agent.spawn.duty === 'rank' ? Math.abs(agent.spawn.rank.dx) : 0);
         const onEdge = W.paths.edges.some(([p, q]) => {
           const a = nodes.get(p);
           const b = nodes.get(q);
