@@ -1,10 +1,12 @@
-/* Bottom panel (SPEC §6.1): about 40 % of the screen, the world stays visible above it. */
+/* Bottom sheet (SPEC §6.1, plan M2-13): collapsed (the bar), half, full (up to the HUD). Collapsed and half heights
+   come from Panel.tsx (measured, inline); these are the fallbacks before the first measure. */
 .panel {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 42%;
+  box-sizing: border-box;
+  height: 30%;
   display: flex;
   flex-direction: column;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -12,16 +14,86 @@
   border-top: var(--px) solid var(--c-ink-0);
   box-shadow: inset 0 var(--px) 0 var(--c-wood-2);
   color: var(--c-plaster-5);
+  transition: height var(--sheet-ms, 180ms) ease-out;
+}
+
+.panel[data-state='full'] {
+  height: calc(100% - var(--hud-h, 0px));
+}
+
+/* The finger moves it; «менше руху» snaps without a tween. */
+.panel[data-dragging] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    transition: none;
+  }
+}
+
+:global([data-motion='reduced']) .panel {
+  transition: none;
+}
+
+/* The bar: tabs and the open/close button; a drag on it moves the sheet (no page scroll, no pull-to-refresh). */
+.bar {
+  position: relative;
+  display: flex;
+  flex: none;
+  touch-action: none;
+}
+
+/* A grip mark: the bar can be pulled. */
+.bar::before {
+  content: '';
+  position: absolute;
+  top: calc(2 * var(--px));
+  left: 50%;
+  width: calc(16 * var(--px));
+  height: var(--px);
+  margin-left: calc(-8 * var(--px));
+  background: var(--c-wood-2);
+  pointer-events: none;
 }
 
 .tabs {
   display: flex;
+  flex: 1;
+}
+
+.toggle {
+  position: relative;
   flex: none;
+  width: var(--tap, 44px);
+  min-height: var(--tap, 44px);
+  background: var(--c-wood-1);
+  border: none;
+  border-bottom: var(--px) solid var(--c-ink-0);
+  border-left: var(--px) solid var(--c-ink-0);
+  cursor: pointer;
+}
+
+/* A pixel chevron: up while the sheet can grow, down when full. */
+.toggle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: calc(-2 * var(--px)) 0 0 calc(-4 * var(--px));
+  border-left: calc(4 * var(--px)) solid transparent;
+  border-right: calc(4 * var(--px)) solid transparent;
+  border-bottom: calc(4 * var(--px)) solid var(--c-thatch-5);
+}
+
+.panel[data-state='full'] .toggle::after {
+  border-bottom: none;
+  border-top: calc(4 * var(--px)) solid var(--c-thatch-5);
 }
 
 .tab {
   flex: 1;
-  min-height: 44px;
+  min-height: var(--tap, 44px);
   font: inherit;
   color: var(--c-plaster-3);
   background: var(--c-wood-1);
@@ -49,6 +121,11 @@
   flex-direction: column;
 }
 
+/* Collapsed: the list is out of the page (no focus, no screen reader). */
+.body[hidden] {
+  display: none;
+}
+
 .modes {
   display: flex;
   flex: none;
@@ -58,7 +135,7 @@
 
 .mode {
   flex: 1;
-  min-height: 44px;
+  min-height: var(--tap, 44px);
   font: inherit;
   color: var(--c-plaster-4);
   background: var(--c-wood-1);
@@ -73,6 +150,7 @@
 }
 
 .tab:focus-visible,
+.toggle:focus-visible,
 .mode:focus-visible {
   outline: var(--px) solid var(--c-plaster-6);
   outline-offset: calc(-2 * var(--px));

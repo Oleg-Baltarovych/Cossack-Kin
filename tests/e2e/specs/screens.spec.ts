@@ -649,7 +649,8 @@ test.describe('M1-17 UI list @screens', () => {
     await gotoReady(page, '/?time=13:00&freeze&seed=1&state=fresh&ui=1');
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     await expect(page.getByText('Рів. 1', { exact: true })).toBeVisible();
-    await expect(page.getByText('+0,5/с', { exact: true })).toBeVisible();
+    // The HUD's income (the row shows the same rate as its own token since M2-13).
+    await expect(page.getByRole('banner').getByText('+0,5/с', { exact: true })).toBeVisible();
   });
 });
 

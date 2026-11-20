@@ -970,3 +970,13 @@ export const CAMERA = {
   /** Closer level (M2-03 review): rows kept between the sun/moon disc centre and the window edge or the horizon. */
   skyDiscMarginPx: 12,
 } as const;
+
+/**
+ * Tap on a building (plan M2-13, SPEC §3.3): a miss within `slopPx` logical px of a building's drawn px still opens its
+ * row (Chebyshev rings, nearest first). When its row opens in the bottom sheet at the closer zoom level, the camera
+ * moves up just enough that the building's ground row stands `revealMarginPx` rows above the sheet's top edge.
+ */
+export const PLOT_TAP = {
+  slopPx: 2,
+  revealMarginPx: 4,
+} as const;

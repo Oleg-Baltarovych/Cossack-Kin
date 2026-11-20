@@ -85,7 +85,7 @@ describe('building rows (M1-17)', () => {
     expect(within(list).queryByText('Пушкарня')).toBeNull();
   });
 
-  it('tabs take the camera to their zone (M2-02): click and arrow keys; «Ще» has no zone', () => {
+  it('tabs take the camera to their zone (M2-02) when chosen (click / Enter / Space); «Ще» has no zone', () => {
     const zones: string[] = [];
     mount(
       createStore(makeState()),
@@ -96,12 +96,16 @@ describe('building rows (M1-17)', () => {
       />,
     );
     fireEvent.click(screen.getByRole('tab', { name: 'Січ' }));
+    // Manual activation (M2-13): arrows only move the focus.
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Січ' }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Ще' }), { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Хутір' }));
+    expect(zones).toEqual(['sich']);
+    fireEvent.click(screen.getByRole('tab', { name: 'Хутір' }));
     expect(zones).toEqual(['sich', 'farm']);
   });
 
-  it('Home/End jump to the first and last tab; the tab panel is focusable', () => {
+  it('Home/End move the focus to the first and last tab (roving tabindex); the tab panel is focusable', () => {
     const zones: string[] = [];
     mount(
       createStore(makeState()),
@@ -112,11 +116,12 @@ describe('building rows (M1-17)', () => {
       />,
     );
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Хутір' }), { key: 'End' });
-    expect(screen.getByRole('tab', { name: 'Ще' }).getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Ще' }));
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Ще' }), { key: 'Home' });
+    expect(screen.getByRole('tab', { name: 'Ще' }).tabIndex).toBe(0);
     expect(screen.getByRole('tab', { name: 'Хутір' }).getAttribute('aria-selected')).toBe('true');
-    expect(zones).toEqual(['farm']);
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Ще' }), { key: 'Home' });
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Хутір' }));
+    expect(zones).toEqual([]);
     expect(screen.getByRole('tabpanel').tabIndex).toBe(0);
   });
 

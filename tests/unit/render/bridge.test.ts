@@ -31,7 +31,8 @@ function fakeWorld() {
     coins,
     built,
     celebrated,
-    tapAt: (x: number, y: number) => tap?.({ clientX: 0, clientY: 0, x, y }),
+    tapAt: (x: number, y: number, building: WorldTap['building'] = null) =>
+      tap?.({ clientX: 0, clientY: 0, x, y, building }),
     world: {
       setScene: (s: SceneState) => scenes.push(s),
       onTap: (l: (t: WorldTap) => void) => {
@@ -111,6 +112,19 @@ describe('connectWorld (M1-19)', () => {
       store.dispatch({ type: 'tap' }, T0 + 1000 + i);
     }
     expect(f.coins).toHaveLength(11);
+  });
+
+  it('a tap on a building (M2-13) pops no coin, even if a Tapped follows from elsewhere', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    f.tapAt(120, 300, 'windmill');
+    store.dispatch({ type: 'tap' }, T0 + 100);
+    expect(f.coins).toEqual([]);
+    // The next ground tap pops its own coin where it was.
+    f.tapAt(40, 280);
+    store.dispatch({ type: 'tap' }, T0 + 200);
+    expect(f.coins).toEqual([[40, 280]]);
   });
 
   it('the wind follows the game: storm bends, calm stills (render WIND_STRENGTH)', () => {

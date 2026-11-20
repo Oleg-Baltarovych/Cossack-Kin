@@ -8,7 +8,7 @@ import type { WorldApp } from '../render/index.ts';
 import { BootNotice } from './components/BootNotice.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
-import { Panel } from './components/Panel.tsx';
+import { Panel, type Reveal } from './components/Panel.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
 import { TapFeedback } from './components/TapFeedback.tsx';
 import { TierBanner } from './components/TierBanner.tsx';
@@ -65,12 +65,26 @@ export function App({ game }: { game: Game }) {
 function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notice'] }) {
   const away = useGame((s) => s.returnReport !== null);
   const [noticeOpen, setNoticeOpen] = useState(notice !== 'none');
+  // A tap on a building opens its row in the sheet (SPEC §3.3, M2-13); a tap on open ground earns (TapFeedback).
+  const [reveal, setReveal] = useState<Reveal | null>(null);
+  useEffect(
+    () =>
+      world?.onTap((tap) => {
+        if (tap.building) setReveal({ building: tap.building });
+      }),
+    [world],
+  );
   return (
     <div className={styles.ui}>
       <TapFeedback world={world} />
       <div className={styles.layer} inert={away || noticeOpen}>
         <Hud />
-        <Panel onZone={(zone) => world?.focusZone(zone)} zoneSource={world?.onZoneChange} />
+        <Panel
+          onZone={(zone) => world?.focusZone(zone)}
+          zoneSource={world?.onZoneChange}
+          reveal={reveal}
+          onReveal={(building, sheetTop) => world?.reveal(building, sheetTop)}
+        />
       </div>
       <TierBanner />
       {/* The save notice first: the return window waits under it. */}

@@ -1,7 +1,7 @@
 // Building rows (SPEC §6.1; plan M1-17): what a level costs, what it gives, and — when the button is off — why.
 // Each row reads only its own view, so a tick that changes the ducats re-renders a row only when its price,
 // affordability or income did change. Names, prices and reasons all come from the core's selectors.
-import { memo, useCallback, useId, type ReactNode } from 'react';
+import { Fragment, memo, useCallback, useId, type ReactNode } from 'react';
 import type { SichBuildingId, SichUnlock } from '../../content/sich.ts';
 import type { FarmBuildingId } from '../../content/villages/khortytsia.ts';
 import type { BuyMode } from '../../core/economy.ts';
@@ -26,6 +26,22 @@ function unlockText(text: Text, u: SichUnlock): string | null {
   }
 }
 
+/** Placeholders a template's params are filled with, then swapped for whole tokens (private-use marks, never text). */
+const SLOT = ['\u{E000}0\u{E000}', '\u{E000}1\u{E000}'] as const;
+const SLOT_SPLIT = /\u{E000}(\d)\u{E000}/u;
+
+/** «+5,88 тис./с» as one unbreakable token: a narrow row must not leave the unit alone on the next line. */
+function rate(text: Text, value: Parameters<Text['num']>[0]): ReactNode {
+  return <span className={styles.rate}>{text.t('ui.hud.perSec', { value: text.num(value) })}</span>;
+}
+
+/** `template` with its SLOT placeholders replaced by `nodes` (the word order stays the translation's). */
+function withSlots(template: string, nodes: readonly ReactNode[]): ReactNode {
+  return template
+    .split(SLOT_SPLIT)
+    .map((part, i) => <Fragment key={i}>{i % 2 === 1 ? nodes[Number(part)] : part}</Fragment>);
+}
+
 interface RowProps {
   readonly name: string;
   readonly level: string;
@@ -37,12 +53,35 @@ interface RowProps {
   readonly buyLabel: string;
   readonly disabled: boolean;
   readonly onBuy: () => void;
+  /** The building id (the bottom sheet scrolls to `data-building` when its plot is tapped, M2-13). */
+  readonly building?: string;
+  /** Lit for a moment after its building was tapped in the world. */
+  readonly highlighted?: boolean;
+  /** The row of the building just tapped (aria-current), until the player does something else in the sheet. */
+  readonly current?: boolean;
 }
 
-function Row({ name, level, info, note, locked = false, price, buyLabel, disabled, onBuy }: RowProps) {
+function Row({
+  name,
+  level,
+  info,
+  note,
+  locked = false,
+  price,
+  buyLabel,
+  disabled,
+  onBuy,
+  building,
+  highlighted = false,
+  current = false,
+}: RowProps) {
   const noteId = useId();
   return (
-    <li className={styles.row}>
+    <li
+      className={highlighted ? [styles.row, styles.lit].join(' ') : styles.row}
+      data-building={building}
+      aria-current={current ? 'true' : undefined}
+    >
       <div className={styles.text}>
         <p className={styles.head}>
           <span className={styles.name}>{name}</span>
@@ -69,7 +108,19 @@ function Row({ name, level, info, note, locked = false, price, buyLabel, disable
   );
 }
 
-export const FarmRow = memo(function FarmRow({ id, mode }: { id: FarmBuildingId; mode: BuyMode }) {
+interface BuildingRowProps<Id> {
+  readonly id: Id;
+  readonly mode: BuyMode;
+  readonly highlighted?: boolean;
+  readonly current?: boolean;
+}
+
+export const FarmRow = memo(function FarmRow({
+  id,
+  mode,
+  highlighted = false,
+  current = false,
+}: BuildingRowProps<FarmBuildingId>) {
   const select = useCallback((s: GameState) => farmRowView(s, id, mode), [id, mode]);
   const v = useGame(select, sameView);
   const act = useAct();
@@ -85,8 +136,11 @@ export const FarmRow = memo(function FarmRow({ id, mode }: { id: FarmBuildingId;
         <>
           <span className={styles.income}>
             {top
-              ? text.t('ui.row.incomeTop', { now: text.num(v.incomeNow) })
-              : text.t('ui.row.income', { now: text.num(v.incomeNow), after: text.num(v.incomeAfter) })}
+              ? withSlots(text.t('ui.row.incomeTop', { now: SLOT[0] }), [rate(text, v.incomeNow)])
+              : withSlots(text.t('ui.row.income', { now: SLOT[0], after: SLOT[1] }), [
+                  rate(text, v.incomeNow),
+                  rate(text, v.incomeAfter),
+                ])}
           </span>
           {v.nextMilestone && (
             <span className={styles.milestone}>
@@ -102,11 +156,19 @@ export const FarmRow = memo(function FarmRow({ id, mode }: { id: FarmBuildingId;
       onBuy={() => {
         act({ type: 'buyBuilding', id, mode });
       }}
+      building={id}
+      highlighted={highlighted}
+      current={current}
     />
   );
 });
 
-export const SichRow = memo(function SichRow({ id, mode }: { id: SichBuildingId; mode: BuyMode }) {
+export const SichRow = memo(function SichRow({
+  id,
+  mode,
+  highlighted = false,
+  current = false,
+}: BuildingRowProps<SichBuildingId>) {
   const select = useCallback((s: GameState) => sichRowView(s, id, mode), [id, mode]);
   const v = useGame(select, sameView);
   const act = useAct();
@@ -127,6 +189,9 @@ export const SichRow = memo(function SichRow({ id, mode }: { id: SichBuildingId;
       onBuy={() => {
         act({ type: 'buySich', id, mode });
       }}
+      building={id}
+      highlighted={highlighted}
+      current={current}
     />
   );
 });
