@@ -2,6 +2,7 @@
 // Imported only behind `__CK_DEBUG__` (render/index.ts), so none of it reaches the production bundle.
 import { UPDATE_PRIORITY } from 'pixi.js';
 import type { WorldApp } from '../App.ts';
+import type { AgentCounts } from '../agents/sim.ts';
 import { particles } from '../fx/registry.ts';
 import type { RenderSettings } from '../settings.ts';
 import { installDrawCounter } from './drawCounter.ts';
@@ -28,6 +29,10 @@ export interface DebugStats {
   /** Camera y (rows of the normal frame above the screen, whole logical px) and zoom level (M2-03). */
   camY: number;
   zoom: number;
+  /** Agents alive on the world by role (M2-16, plan Q11 budgets). */
+  agents: AgentCounts;
+  /** Seed of the cosmetic RNG and the agents (M2-16 review: a reproducible frame needs it). */
+  seed: number;
 }
 
 export interface DebugHandle {
@@ -65,6 +70,8 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     cam: world.camX(),
     camY: world.camY(),
     zoom: world.zoom(),
+    agents: world.agentCounts(),
+    seed: world.seed,
   };
   window.__CK__ = { stats, settings, plotAt: (x, y) => world.plotAtClient(x, y) };
 
@@ -78,7 +85,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     const now = performance.now();
     const { scale, logicalW, logicalH } = world.viewport();
     Object.assign(stats, { scale, logicalW, logicalH, particles: particles.active, cam: world.camX() });
-    Object.assign(stats, { camY: world.camY(), zoom: world.zoom() });
+    Object.assign(stats, { camY: world.camY(), zoom: world.zoom(), agents: world.agentCounts() });
     stats.quality = settings.quality ?? `auto:${world.quality()}`;
     if (counter) stats.drawCalls = counter.count();
     stats.frames += 1;

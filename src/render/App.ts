@@ -45,6 +45,10 @@ import {
 import { zoneAt } from './zones.ts';
 import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } from './clock.ts';
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
+import { createAgents } from './agents/sim.ts';
+import { createAgentDriver, stepCap } from './agents/driver.ts';
+import type { AgentCounts } from './agents/sim.ts';
+import { AGENT_BUDGET } from '../content/agents.ts';
 import { propFrames } from './layers/Ground.ts';
 import { horizonY } from './layers/Layer.ts';
 import { createWater } from './water.ts';
@@ -103,6 +107,10 @@ export interface WorldApp {
   camY(): number;
   /** The zoom level on screen in the last frame (0 normal, 1 closer; pinch / ctrl+wheel, M2-03). */
   zoom(): ZoomLevel;
+  /** Agents alive on the world by role (M2-16; debug stats). */
+  agentCounts(): AgentCounts;
+  /** The seed of the cosmetic RNG and the agents (`?seed`, else random per session). */
+  readonly seed: number;
   /**
    * Calls `listener` with the zone under the view's centre now and whenever the camera settles in another one
    * (with hysteresis, M2-02: the panel tab follows the camera); returns the unsubscribe function.
@@ -223,8 +231,14 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       graded.filters = [];
       graded.destroy();
     });
-    // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
     const layout = WORLD;
+    // One seed for the cosmetic RNG and the agents (`?seed` in dev/test, else random): frozen frames repeat.
+    const seed = settings.seed ?? Math.floor(Math.random() * 2 ** 32);
+    // People on the path graph (M2-16): a pure pool stepped in whole ticks on the animation clock, never game state.
+    const agents = createAgentDriver(
+      createAgents(layout.paths, layout.agents, AGENT_BUDGET, seed),
+      stepCap(settings.frozenAt !== null),
+    );
     const worldFrames = frameLookup(atlases, WORLD_ATLASES);
     const findFrame = (name: string): Texture | null => worldFrames.get(name) ?? null;
     const sceneFrame = (name: string): Texture => {
@@ -232,6 +246,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       if (!texture) throw new Error(`no world atlas has frame "${name}" — run \`pnpm sprites\``);
       return texture;
     };
+    // The debug swatch (and its atlas) exist only in dev/test builds; production drops both (M0-08 review).
     const post = createPostGrade({
       layout,
       frame: findFrame,
@@ -327,7 +342,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       nowMs: () => performance.now(),
       localMinutes: () => realLocalMinutes(new Date()),
     });
-    const rng = createCosmeticRng(settings.seed ?? Math.floor(Math.random() * 2 ** 32));
+    const rng = createCosmeticRng(seed);
 
     const applyViewport = (): void => {
       vp = measure(host);
@@ -391,6 +406,9 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const minutes = clock.minutesOfDay();
       const seconds = clock.seconds();
       const ambient = lessMotion ? 0 : seconds;
+      // People walk on `seconds`, not `ambient`: «менше руху» stills shake, parallax and big tweens (SPEC §6.8), not
+      // walking.
+      agents.advance(seconds, { minutes, tiers: scene.tiers });
       const cycle = dayCycle(minutes);
       // The scene as it looks this frame: a building under scaffolding still empty, a popping one scaled (M2-12).
       const shown = build.present(scene, performance.now(), emissiveLevel(cycle));
@@ -407,6 +425,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const frameInfo = {
         minutes,
         seconds,
+        agents: agents.poses(),
         ambient,
         cycle,
         camX: cam.worldPx,
@@ -634,6 +653,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       camX: () => lastCam.worldPx + lastCam.fracDevicePx / lastCam.scale,
       camY: () => lastCam.y,
       zoom: () => lastCam.level,
+      agentCounts: () => agents.counts(),
+      seed,
       onZoneChange: (listener) => {
         zoneListeners.add(listener);
         if (zone) listener(zone);

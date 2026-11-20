@@ -14,6 +14,14 @@ export interface WorldStats {
   readonly cam: number;
   readonly camY: number;
   readonly zoom: number;
+  /** Agents alive on the world by role (M2-16). */
+  readonly agents: {
+    readonly total: number;
+    readonly villager: number;
+    readonly cossack: number;
+    readonly visitor: number;
+    readonly cart: number;
+  };
 }
 
 /**
@@ -54,6 +62,7 @@ export async function readStats(page: Page): Promise<WorldStats> {
           cam: s.cam,
           camY: s.camY,
           zoom: s.zoom,
+          agents: { ...s.agents },
         }
       : null;
   });
