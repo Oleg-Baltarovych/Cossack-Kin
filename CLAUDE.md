@@ -27,7 +27,7 @@ No backend in v1.
 - `pnpm exec vitest run tests/unit/render` — run a subset of unit tests
 - `pnpm e2e` — Playwright (builds `--mode test` into `dist-test/`, serves it on :4317); `pnpm e2e --grep @screens` — M0 screenshot matrix (3 phones) → `reports/screens/<date>/`; first time: `pnpm exec playwright install chromium`
 - `PERF=1 pnpm e2e --grep @perf --workers=1` — light-shaft tier measurements (CPU ×4 throttle, live animation) → `reports/perf/<date>/rays.md` and the ART-18 tier table `quality.md` (fps, CPU ms, draw calls, particles); opt-in, not in CI. On battery Windows throttles the CPU: run e2e plugged in (or `--workers=1`)
-- CI: `.github/workflows/ci.yml` runs the same sequence on push to main / PR / manual dispatch, plus gitleaks; Linux screenshot baselines via manual dispatch with `update_snapshots` (procedure in `docs/CONTEXT.md` §6)
+- CI: `.github/workflows/ci.yml` runs the check sequence + functional e2e (no `@screens`/`@perf`) on push to main / PR, plus gitleaks; the full e2e matrix with `@screens` runs nightly (if main changed) and on manual dispatch; Linux screenshot baselines via manual dispatch with `update_snapshots` (procedure in `docs/CONTEXT.md` §6)
 - Planned, not yet wired: `pnpm balance` (M1)
 
 ## Non-negotiable rules
