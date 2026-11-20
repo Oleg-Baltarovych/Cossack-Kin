@@ -5,9 +5,9 @@
 // the ground layer.
 import { Sprite, type Texture } from 'pixi.js';
 import type { WorldLayout } from '../../content/villages/khortytsia.layout.ts';
+import type { AgentSprite } from '../../content/agents.ts';
 import { FOREGROUND, SWAY } from '../atmosphere/config.ts';
 import { foregroundAlpha, SWAY_UPRIGHT, swayFrame, type Rect } from '../sway.ts';
-import { walkerPose } from '../walkers.ts';
 import type { FrameLookup } from './Ground.ts';
 import { createLayer, horizonY, type WorldLayer } from './Layer.ts';
 
@@ -17,10 +17,16 @@ export interface ForegroundLayerOptions {
   readonly lessMotion: boolean;
 }
 
-/** Box of a sprite with `texture` whose anchor sits at (x, y). */
-function box(texture: Texture, x: number, y: number): Rect {
+type MutableRect = { -readonly [K in keyof Rect]: Rect[K] };
+
+/** Box of a sprite with `texture` whose anchor sits at (x, y), written into `out`. */
+function box(texture: Texture, x: number, y: number, out: MutableRect = { x: 0, y: 0, w: 0, h: 0 }): MutableRect {
   const a = texture.defaultAnchor ?? { x: 0.5, y: 1 };
-  return { x: x - a.x * texture.width, y: y - a.y * texture.height, w: texture.width, h: texture.height };
+  out.x = x - a.x * texture.width;
+  out.y = y - a.y * texture.height;
+  out.w = texture.width;
+  out.h = texture.height;
+  return out;
 }
 
 export function createForegroundLayer({ layout, frame, lessMotion }: ForegroundLayerOptions): WorldLayer {
@@ -39,7 +45,17 @@ export function createForegroundLayer({ layout, frame, lessMotion }: ForegroundL
         container.addChild(sprite);
         return { plant, frames, sprite };
       });
-    const walkerTextures = layout.walkers.map((w) => frame(`${w.sprite}/idle/00`));
+    /** People's idle frame by sprite stem (their box), and the boxes reused frame to frame. */
+    const idleFrames = new Map<AgentSprite, Texture>();
+    const idleFrame = (stem: AgentSprite): Texture => {
+      const known = idleFrames.get(stem);
+      if (known) return known;
+      const texture = frame(`${stem}/idle/00`);
+      idleFrames.set(stem, texture);
+      return texture;
+    };
+    const boxes: MutableRect[] = [];
+    const plantBox: MutableRect = { x: 0, y: 0, w: 0, h: 0 };
     let horizon = 0;
 
     return {
@@ -47,17 +63,17 @@ export function createForegroundLayer({ layout, frame, lessMotion }: ForegroundL
         horizon = horizonY(size.viewH);
         for (const { plant, sprite } of plants) sprite.position.set(plant.x, horizon + plant.ground);
       },
-      update: ({ seconds, ambient, camX, scene }) => {
-        // Walkers in this layer's space: the ground scrolls by camX, this layer by camX × parallax.
+      update: ({ agents, ambient, camX, scene }) => {
+        // People in this layer's space: the ground scrolls by camX, this layer by camX × parallax.
         const shift = camX * (FOREGROUND.parallax - 1);
-        const people = layout.walkers.flatMap((w, i) => {
-          const texture = walkerTextures[i];
-          return texture ? [box(texture, walkerPose(w, seconds).x + shift, horizon + w.ground)] : [];
-        });
+        boxes.length = Math.min(boxes.length, agents.length);
+        for (const [i, pose] of agents.entries()) {
+          boxes[i] = box(idleFrame(pose.sprite), pose.x + shift, horizon + pose.ground, boxes[i]);
+        }
         for (const { plant, frames, sprite } of plants) {
           const texture = frames[swayFrame(ambient, plant, scene.wind, lessMotion)];
           if (texture) sprite.texture = texture;
-          sprite.alpha = foregroundAlpha(box(sprite.texture, sprite.x, sprite.y), people);
+          sprite.alpha = foregroundAlpha(box(sprite.texture, sprite.x, sprite.y, plantBox), boxes);
         }
       },
     };

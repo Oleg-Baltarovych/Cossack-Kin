@@ -60,7 +60,11 @@ describe('khortytsia farm layout', () => {
 describe('khortytsia sich layout (ART-11)', () => {
   it('is all Cossacks (no women on the Sich), stays inside the world and has the gate and towers on the rampart', () => {
     const s = KHORTYTSIA_SICH;
-    for (const w of s.walkers) expect(w.sprite.startsWith('kozak')).toBe(true);
+    // People on the graph (M2-16): whoever starts or walks to a Sich node is a Cossack.
+    const sichNodes = new Set(s.paths.nodes.map((n) => n.id));
+    for (const a of W.agents.filter((q) => [q.home, ...q.goals].some((n) => sichNodes.has(n)))) {
+      expect(a.sprite.startsWith('kozak'), a.sprite).toBe(true);
+    }
     for (const p of sceneProps(s.props)) {
       expect(p.x).toBeGreaterThanOrEqual(0);
       expect(p.x).toBeLessThanOrEqual(s.width);
@@ -162,9 +166,11 @@ describe('the continuous world (M2-01)', () => {
       expect(back(inZone(W.decals, x0, x1), x0)).toEqual(scene.decals);
       expect(back(inZone(W.puddles, x0, x1), x0)).toEqual(scene.puddles);
       expect(back(inZone(W.foreground, fg, Math.round(x1 * FOREGROUND_PARALLAX)), fg)).toEqual(scene.foreground);
-      // Walkers by their first end; both ends (leftward walkers too) move by the zone edge.
-      const walkers = W.walkers.filter((w) => w.x0 >= x0 && w.x0 < x1);
-      expect(walkers.map((w) => ({ ...w, x0: w.x0 - x0, x1: w.x1 - x0 }))).toEqual(scene.walkers);
+      // Path nodes (M2-16) move by the zone edge and carry the zone's id.
+      const nodes = W.paths.nodes.filter((n) => n.x >= x0 && n.x < x1);
+      expect(nodes.map(({ zone: z, ...n }) => ({ ...n, x: n.x - x0, z }))).toEqual(
+        scene.paths.nodes.map((n) => ({ ...n, z: id })),
+      );
       const flies = W.fireflies.filter((f) => f.x0 >= x0 && f.x0 < x1);
       expect(flies.map((f) => ({ ...f, x0: f.x0 - x0, x1: f.x1 - x0 }))).toEqual(
         scene.fireflies ? [scene.fireflies] : [],
@@ -180,19 +186,19 @@ describe('the continuous world (M2-01)', () => {
 
   it('women never stand in the Sich and nothing of a zone leaves it', () => {
     const sich = zone('sich');
-    for (const w of W.walkers.filter((q) => Math.max(q.x0, q.x1) >= sich.x0)) {
-      expect(w.sprite.startsWith('kozak'), w.sprite).toBe(true);
+    // Only Cossacks walk the Sich's inside: a woman's sprite is always a villager, a Cossack's a Cossack.
+    for (const a of W.agents) expect(a.role, a.sprite).toBe(a.sprite.startsWith('kozak') ? 'cossack' : 'villager');
+    for (const n of W.paths.nodes.filter((q) => q.x >= sich.x0 && q.kind !== 'gate')) {
+      expect(n.only, n.id).toEqual(['cossack']);
     }
     for (const [id, scene] of SCENES) {
       for (const p of [...scene.props, ...scene.decals, ...scene.puddles]) {
         expect(p.x, `${id} ${String(p.x)}`).toBeGreaterThanOrEqual(0);
         expect(p.x, `${id} ${String(p.x)}`).toBeLessThan(scene.width);
       }
-      for (const w of scene.walkers) {
-        for (const x of [w.x0, w.x1]) {
-          expect(x).toBeGreaterThanOrEqual(0);
-          expect(x).toBeLessThanOrEqual(scene.width);
-        }
+      for (const n of scene.paths.nodes) {
+        expect(n.x, n.id).toBeGreaterThanOrEqual(0);
+        expect(n.x, n.id).toBeLessThan(scene.width);
       }
     }
   });

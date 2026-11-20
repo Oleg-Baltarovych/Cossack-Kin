@@ -11,6 +11,8 @@ import { TIER_LEVELS } from '../economy.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../sich.ts';
 import type { VariantPlot } from '../variants.ts';
 import type { FarmBuildingId } from './khortytsia.ts';
+import type { AgentSpawn, PathGraph, ZonePaths } from '../agents.ts';
+import { FARM_PATHS, KHORTYTSIA_AGENTS, KHORTYTSIA_LINKS, SICH_PATHS, SUBURB_PATHS } from './khortytsia.paths.ts';
 
 /** A building whose level drives what stands on its plot (farm and Sich ids do not overlap). */
 export type PlotBuilding = FarmBuildingId | SichBuildingId;
@@ -303,32 +305,6 @@ export interface Decal {
   readonly plot?: Plot;
 }
 
-/** A person on a scripted route (ART-06 spike; villager FSM and path graph come in M2). */
-export interface Walker {
-  /** Atlas frame stem `<entity>.<variant>` (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/…`). */
-  readonly sprite:
-    | 'kozak.a'
-    | 'kozak.b'
-    | 'kozak.c'
-    | 'selianka.a'
-    | 'selianka.b'
-    | 'divchyna.a'
-    | 'divchyna.b'
-    | 'selianyn.a'
-    | 'selianyn.b';
-  /** Route ends (world x of the pivot); equal ends = stands in idle. */
-  readonly x0: number;
-  readonly x1: number;
-  /** Pivot y below the horizon; also the Y-sort key. */
-  readonly ground: number;
-  /** Logical px per second; matched to the stride so feet do not slide (~2 steps per 0.6 s walk cycle). */
-  readonly speed: number;
-  /** Seconds of idle at each end. */
-  readonly rest: number;
-  /** Seconds added to the clock, so walkers do not move in step. */
-  readonly phase: number;
-}
-
 /**
  * A far landscape plane standing on the horizon (ART-08, SPEC §6.2 layers 2–3), painted on the CPU in the sky's
  * colours: aerial perspective comes from `depth` (chain steps darker than the horizon sky; small = far and hazy).
@@ -413,7 +389,8 @@ export interface ZoneScene {
   readonly decals: readonly Decal[];
   /** Plain props and buildings drawn by tier (`TierSprite`), expanded in place by `composeWorld`. */
   readonly props: readonly SceneProp[];
-  readonly walkers: readonly Walker[];
+  /** The zone's part of the path graph (plan M2-16; khortytsia.paths.ts), zone-local px. */
+  readonly paths: ZonePaths;
   /** Plant clumps on the foreground layer, back to front. */
   readonly foreground: readonly ForegroundPlant[];
   /** Puddles shown in the rain (ART-17). */
@@ -474,7 +451,10 @@ export interface WorldLayout {
   readonly props: readonly Prop[];
   /** The buildings drawn by tier, world x (the tier table; their props are in `props`). */
   readonly tierSprites: readonly TierSprite[];
-  readonly walkers: readonly Walker[];
+  /** The walkable graph (plan M2-16): every zone's nodes in world x plus the links between zones. */
+  readonly paths: PathGraph;
+  /** The scene's people on the graph (render/agents/, cosmetic). */
+  readonly agents: readonly AgentSpawn[];
   readonly foreground: readonly ForegroundPlant[];
   readonly puddles: readonly Puddle[];
   readonly fireflies: readonly FireflyArea[];
@@ -745,17 +725,7 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     { sprite: 'plant.reeds', x: 660, ground: 381, amp: 1, phase: 0.1 },
     { sprite: 'plant.grass', x: 750, ground: 379, amp: 1, phase: 0.8 },
   ],
-  walkers: [
-    // A Cossack walking the road; a woman between the two yards; the farmer (селянин, бриль and свита) resting on
-    // the grass in front of khata I's fence (not over the wattle: brown on brown); a girl with a вінок crossing the
-    // front field (ART-15).
-    { sprite: 'kozak.a', x0: 40, x1: 340, ground: 146, speed: 22, rest: 3, phase: 0 },
-    { sprite: 'selianka.a', x0: 230, x1: 150, ground: 198, speed: 20, rest: 4, phase: 0.4 },
-    // A woman tending the sunflowers at the near edge: she passes behind the foreground clumps (they thin out over her).
-    { sprite: 'selianka.b', x0: 24, x1: 110, ground: 300, speed: 14, rest: 5, phase: 0 },
-    { sprite: 'selianyn.a', x0: 160, x1: 160, ground: 128, speed: 0, rest: 0, phase: 0.2 },
-    { sprite: 'divchyna.a', x0: 110, x1: 236, ground: 232, speed: 18, rest: 3, phase: 1.2 },
-  ],
+  paths: FARM_PATHS,
   // Puddles in the ruts of the path and the trodden yards (rain only).
   puddles: [
     // Along the path ruts (the wettest ground), then the two trodden yards.
@@ -983,7 +953,7 @@ export const KHORTYTSIA_SUBURB: ZoneScene = {
     SMITHY,
     ...SUBURB_VARIANTS,
   ],
-  walkers: [],
+  paths: SUBURB_PATHS,
   foreground: [
     { sprite: 'plant.grass', x: 40, ground: 380, amp: 1, phase: 0.3 },
     { sprite: 'plant.grass', x: 190, ground: 381, amp: 1, phase: 0.75 },
@@ -1239,12 +1209,7 @@ export const KHORTYTSIA_SICH: ZoneScene = {
     // Gathered for building, by the fire: the first Sich is a camp (art-director M1-19).
     { sprite: 'logpile', x: 226, ground: 186 },
   ],
-  walkers: [
-    { sprite: 'kozak.a', x0: 150, x1: 250, ground: 226, speed: 22, rest: 3, phase: 0 },
-    { sprite: 'kozak.b', x0: 222, x1: 222, ground: 96, speed: 0, rest: 0, phase: 0.3 },
-    // The young Cossack (bare head, оселедець) crossing the maidan (ART-15).
-    { sprite: 'kozak.c', x0: 330, x1: 30, ground: 150, speed: 20, rest: 5, phase: 1.1 },
-  ],
+  paths: SICH_PATHS,
   // Puddles on the trodden maidan (rain only).
   puddles: [
     { x: 150, ground: 122, w: 14 },
@@ -1266,7 +1231,10 @@ export const KHORTYTSIA_SICH: ZoneScene = {
 
 /** Places zones edge to edge from x = 0: zone-local x → world x (foreground x by the foreground's parallax). */
 export function composeWorld(
-  base: Pick<WorldLayout, 'river' | 'farPlanes'>,
+  base: Pick<WorldLayout, 'river' | 'farPlanes' | 'agents'> & {
+    /** Path edges between zones (node ids are world-wide). */
+    readonly links: PathGraph['edges'];
+  },
   zones: readonly { readonly id: ZoneId; readonly scene: ZoneScene }[],
 ): WorldLayout {
   let x0 = 0;
@@ -1277,8 +1245,9 @@ export function composeWorld(
   });
   const shift = <T extends { readonly x: number }>(items: readonly T[], dx: number): T[] =>
     items.map((item) => ({ ...item, x: item.x + dx }));
+  const { links, ...rest } = base;
   return {
-    ...base,
+    ...rest,
     width: x0,
     zones: placed.map(({ id, scene, x0: z }) => ({ id, x0: z, x1: z + scene.width, anchorX: z })),
     segments: placed.map(({ scene, x0: z }) => ({
@@ -1291,7 +1260,10 @@ export function composeWorld(
     decals: placed.flatMap(({ scene, x0: z }) => shift(scene.decals, z)),
     props: placed.flatMap(({ scene, x0: z }) => shift(sceneProps(scene.props), z)),
     tierSprites: placed.flatMap(({ scene, x0: z }) => shift(scene.props.filter(isTierSprite), z)),
-    walkers: placed.flatMap(({ scene, x0: z }) => scene.walkers.map((w) => ({ ...w, x0: w.x0 + z, x1: w.x1 + z }))),
+    paths: {
+      nodes: placed.flatMap(({ id, scene, x0: z }) => scene.paths.nodes.map((n) => ({ ...n, x: n.x + z, zone: id }))),
+      edges: [...placed.flatMap(({ scene }) => scene.paths.edges), ...links],
+    },
     foreground: placed.flatMap(({ scene, fg }) => shift(scene.foreground, fg)),
     puddles: placed.flatMap(({ scene, x0: z }) => shift(scene.puddles, z)),
     boats: placed.flatMap(({ scene, x0: z }) => shift(scene.boats ?? [], z)),
@@ -1316,6 +1288,8 @@ export const KHORTYTSIA_WORLD: WorldLayout = composeWorld(
   {
     // The Dnipro between the far bank and the settlement: it covers the far meadow row but the near bank below it.
     river: { x0: 0, x1: KHORTYTSIA_FARM.width + KHORTYTSIA_SUBURB.width, rows: 26, taper: 50, rocks: [6, 14, 21] },
+    links: KHORTYTSIA_LINKS,
+    agents: KHORTYTSIA_AGENTS,
     // The far plane layer (parallax 0.2) is ~695 px wide on a 400 px view, the mid layer (0.5) ~1140 px. The M-ART
     // features come first (the farm's frames); the rest fill the pan to the Sich — no «Січ за Дніпром» silhouette now
     // that the Sich stands in the same world (plan Q3): bluffs and the rapids' low granite ridges instead.

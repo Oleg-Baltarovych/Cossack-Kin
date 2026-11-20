@@ -5,6 +5,7 @@ import { horizonRow } from '../camera.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import type { SceneState } from '../scene.ts';
 import type { Quality } from '../settings.ts';
+import type { AgentPose } from '../agents/sim.ts';
 
 export type LayerId = 'sky' | 'clouds' | 'far' | 'mid' | 'ground' | 'foreground' | 'fx' | 'light';
 
@@ -21,6 +22,8 @@ export interface LayerFrame {
   readonly minutes: number;
   /** Animation time in seconds (pinned under `?freeze`): people walk on it. */
   readonly seconds: number;
+  /** The agents' poses this frame (render/agents/, stepped on `seconds`), in pool order. */
+  readonly agents: readonly AgentPose[];
   /**
    * Time for atmospheric motion — clouds, water, sails, sway, fire, rain, stars, particles (ART-18): `seconds`, or 0
    * under «менше руху» (a still frame).

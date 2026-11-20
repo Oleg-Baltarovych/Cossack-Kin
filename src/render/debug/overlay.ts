@@ -16,6 +16,8 @@ export function formatStats(stats: DebugStats): string {
     `scale x${String(stats.scale)}`,
     `view  ${String(stats.logicalW)}x${String(stats.logicalH)}`,
     `qual  ${stats.quality}`,
+    `seed  ${String(stats.seed)}`,
+    `agent ${String(stats.agents.total)} (v${String(stats.agents.villager)} c${String(stats.agents.cossack)})`,
   ].join('\n');
 }
 

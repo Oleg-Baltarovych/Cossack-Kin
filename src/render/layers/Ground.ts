@@ -2,8 +2,8 @@
 // khortytsia.layout.ts, `ground.<tile>` 64×32 frames of the `khortytsia` atlas; grass picks one of its seeded
 // variants per tile), then flat decals (yards), then the props' `@shadow` frames, then the props themselves Y-sorted by
 // their pivot (SPEC §6.2), then the cloud shadows over everything (ART-07: one tiled overlay scrolling with the wind,
-// opacity by time of day), with the scripted walkers (render/walkers.ts) sorted among them and re-posed every frame. All sprites come from one atlas texture, so the
-// whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
+// opacity by time of day), with the agents on the path graph (render/agents/, M2-16) sorted among them and re-posed
+// every frame. All sprites come from one atlas texture, so the whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
 import {
   GROUND_TILE,
@@ -20,7 +20,8 @@ import { cloudShadowLevel, emissiveLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
 import { riverRowEnd } from '../zones.ts';
-import { IDLE_FRAMES, WALK_FRAMES, walkerPose } from '../walkers.ts';
+import { IDLE_FRAMES, WALK_FRAMES } from '../agents/sim.ts';
+import type { AgentSprite } from '../../content/agents.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
 const PARALLAX = 1;
@@ -134,18 +135,44 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       return { prop: p, sprite, shadow, anim };
     });
 
-    const walkers = layout.walkers.map((w) => {
-      const [entity = w.sprite, variant = ''] = w.sprite.split('.');
-      const walk = frameList(w.sprite, 'walk', WALK_FRAMES);
-      const idle = frameList(w.sprite, 'idle', IDLE_FRAMES);
-      const sprite = new Sprite({ texture: frame(`${w.sprite}/idle/00`), roundPixels: true });
+    /** Agent sprites by agent id (M2-16): made on an agent's first pose, destroyed when it leaves the pool. */
+    interface Person {
+      readonly stem: AgentSprite;
+      readonly walk: Texture[];
+      readonly idle: Texture[];
+      readonly sprite: Sprite;
+      readonly shadow: Sprite;
+      seen: number;
+    }
+    const persons = new Map<number, Person>();
+    let poseFrame = 0;
+    const person = (id: number, stem: AgentSprite): Person => {
+      const known = persons.get(id);
+      if (known?.stem === stem) return known;
+      if (known) drop(id, known);
+      const [entity = stem, variant = ''] = stem.split('.');
+      const sprite = new Sprite({ texture: frame(`${stem}/idle/00`), roundPixels: true });
       const shadow = new Sprite({ texture: frame(`${entity}.${variant}@shadow/idle/00`), roundPixels: true });
       sprite.anchor.copyFrom(sprite.texture.defaultAnchor ?? { x: 0.5, y: 1 });
       shadow.anchor.copyFrom(shadow.texture.defaultAnchor ?? { x: 0.5, y: 1 });
       shadows.addChild(shadow);
       props.addChild(sprite);
-      return { walker: w, walk, idle, sprite, shadow };
-    });
+      const made = {
+        stem,
+        walk: frameList(stem, 'walk', WALK_FRAMES),
+        idle: frameList(stem, 'idle', IDLE_FRAMES),
+        sprite,
+        shadow,
+        seen: poseFrame,
+      };
+      persons.set(id, made);
+      return made;
+    };
+    function drop(id: number, p: Person): void {
+      persons.delete(id);
+      p.sprite.destroy();
+      p.shadow.destroy();
+    }
     /** Tiles of plot bands (the maidan, the rampart): `on` while the plot stands, `off` while it is empty. */
     const plotTiles: {
       sprite: Sprite;
@@ -247,7 +274,7 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       setQuality: (q) => {
         shadowsOn = QUALITY_TIERS[q].cloudShadows;
       },
-      update: ({ seconds, ambient, cycle, scene, camX }) => {
+      update: ({ agents, ambient, cycle, scene, camX }) => {
         // Plots follow the game (M1-19): a building's props stand while its visual tier is in their range.
         for (const { decal, sprite } of placedDecals)
           sprite.visible = plotShown(decal.plot, scene.tiers, scene.variants);
@@ -282,17 +309,21 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
         const scroll = (speed: number, w: number): number => Math.round((((ambient * speed) % w) + w) % w);
         nearShadows.x = scroll(CLOUD_SHADOW.speed, nearTexture.width);
         farShadows.x = scroll(CLOUD_SHADOW.speed * CLOUD_SHADOW.farSpeed, farTexture.width);
-        for (const { walker, walk, idle, sprite, shadow } of walkers) {
-          const pose = walkerPose(walker, seconds);
+        poseFrame += 1;
+        for (const pose of agents) {
+          const p = person(pose.id, pose.sprite);
+          p.seen = poseFrame;
+          const { walk, idle, sprite, shadow } = p;
           const texture = (pose.anim === 'walk' ? walk : idle)[pose.frame];
           if (texture) sprite.texture = texture;
-          const y = horizon + walker.ground;
+          const y = horizon + pose.ground;
           sprite.position.set(pose.x, y);
           shadow.position.set(pose.x, y);
           // Mirrored about the pivot column; the anchor keeps the feet on the same px.
           sprite.scale.x = pose.facing;
           sprite.zIndex = y;
         }
+        for (const [id, p] of persons) if (p.seen !== poseFrame) drop(id, p);
         // The world is ~5 screens wide (M2-01): only what overlaps the view (+ margin) is drawn.
         const x0 = camX - CULL_MARGIN;
         const x1 = camX + viewW + CULL_MARGIN;
