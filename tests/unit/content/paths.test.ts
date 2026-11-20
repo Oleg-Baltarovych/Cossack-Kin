@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AGENT_BUDGET, NIGHT_SPOT_CAP, spawnNodes, VILLAGER_DAY, type AgentRole } from '../../../src/content/agents.ts';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
+import { TORCH_LIGHT } from '../../../src/render/atmosphere/config.ts';
 
 const G = KHORTYTSIA_WORLD.paths;
 const ids = new Set(G.nodes.map((n) => n.id));
@@ -129,11 +130,90 @@ describe('khortytsia night spots (art-director M2-18)', () => {
 
   it('a villager whose night spot is not standing goes in at a door that always stands', () => {
     for (const a of KHORTYTSIA_WORLD.agents) {
-      const door = a.routine === 'villager' ? a.home : a.indoors;
+      const door = a.routine === 'wander' ? a.indoors : a.home;
       if (door === undefined) continue;
       const node = G.nodes.find((n) => n.id === door);
       expect(node?.kind, `${a.sprite} → ${door}`).toBe('door');
       expect(node?.building, door).toBeUndefined();
     }
+  });
+});
+
+describe('khortytsia Cossacks (plan M2-19)', () => {
+  const node = (id: string) => G.nodes.find((n) => n.id === id);
+  const cossacks = KHORTYTSIA_WORLD.agents.filter((a) => a.routine === 'cossack');
+  const edge = (a: string, b: string): boolean =>
+    G.edges.some(([p, q]) => (p === a && q === b) || (p === b && q === a));
+
+  it('the Sich has the whole budget of Cossacks with a duty: one otaman, ranks, free Cossacks and guards', () => {
+    expect(cossacks).toHaveLength(AGENT_BUDGET.cossack);
+    const duties = cossacks.map((c) => c.duty);
+    expect(duties.filter((d) => d === 'otaman')).toHaveLength(1);
+    for (const d of ['rank', 'free', 'guard'] as const)
+      expect(duties.filter((x) => x === d).length, d).toBeGreaterThan(1);
+    // A small army (6, the `mid` preset) already shows a drill: the otaman and three ranks come first.
+    const first = cossacks.slice(0, 6).map((c) => c.duty);
+    expect(first.filter((d) => d === 'rank').length).toBeGreaterThanOrEqual(3);
+    expect(first).toContain('otaman');
+  });
+
+  it('every Cossack lives in the kurin (a hire walks out of its door)', () => {
+    for (const c of cossacks) expect(node(c.home)).toMatchObject({ kind: 'door', zone: 'sich' });
+  });
+
+  it('the ranks stand in distinct places on the maidan, facing the otaman, who faces them', () => {
+    const otaman = cossacks.find((c) => c.duty === 'otaman');
+    if (otaman?.duty !== 'otaman') throw new Error('no otaman');
+    const stand = node(otaman.stand.at);
+    const places = new Set<string>();
+    for (const c of cossacks) {
+      if (c.duty !== 'rank') continue;
+      const at = node(c.rank.at);
+      expect(at?.building, c.rank.at).toBe('maidan');
+      const x = (at?.x ?? 0) + c.rank.dx;
+      expect(c.rank.facing, c.rank.at).toBe(x < (stand?.x ?? 0) ? 1 : -1);
+      places.add(`${c.rank.at}:${String(c.rank.dx)}`);
+    }
+    expect(places.size).toBe(cossacks.filter((c) => c.duty === 'rank').length);
+    expect(otaman.stand.facing).toBe(-1);
+    // The review walks the graph: stand → review nodes → stand, one edge at a time.
+    const walk = [otaman.stand.at, ...otaman.review, otaman.stand.at];
+    for (let i = 1; i < walk.length; i++) expect(edge(walk[i - 1] ?? '', walk[i] ?? ''), walk[i]).toBe(true);
+  });
+
+  it("free Cossacks idle at the suburb's tavern, smithy and fair (they may leave the Sich)", () => {
+    for (const c of cossacks) {
+      if (c.duty !== 'free') continue;
+      const buildings = c.haunts.map((h) => node(h)?.building);
+      for (const b of ['tavern', 'smithy', 'fair'] as const) expect(buildings, c.sprite).toContain(b);
+    }
+  });
+
+  it('at a fire place at night two at most: one with a pipe, one standing 3–4 px beside him, facing the fire', () => {
+    const at = new Map<string, { dx: number; anim: string; facing: number }[]>();
+    for (const c of cossacks) {
+      if ((c.duty !== 'rank' && c.duty !== 'free') || c.night.anim === 'indoors') continue;
+      expect(node(c.night.at)?.kind, c.night.at).toBe('campfire');
+      const list = at.get(c.night.at) ?? [];
+      list.push({ dx: c.night.dx, anim: c.night.anim, facing: c.night.facing });
+      at.set(c.night.at, list);
+    }
+    for (const [id, people] of at) {
+      expect(people.length, id).toBeLessThanOrEqual(NIGHT_SPOT_CAP.perSide);
+      const [a, b] = people;
+      if (!a || !b) continue;
+      expect([a.anim, b.anim].sort(), id).toEqual(['idle', 'sit-smoke']);
+      expect(Math.abs(a.dx - b.dx), id).toBeGreaterThanOrEqual(NIGHT_SPOT_CAP.pairGap[0]);
+      expect(Math.abs(a.dx - b.dx), id).toBeLessThanOrEqual(NIGHT_SPOT_CAP.pairGap[1]);
+      expect(a.facing, id).toBe(b.facing);
+    }
+  });
+
+  it('guards keep distinct posts by the towers, each open only while its tower stands', () => {
+    const posts = cossacks.flatMap((c) => (c.duty === 'guard' ? [c.post.at] : []));
+    expect(new Set(posts).size).toBe(posts.length);
+    for (const p of posts) expect(['special', 'walls'], p).toContain(node(p)?.building);
+    // Torch budget guard: the light layer draws at most TORCH_LIGHT.max torch pools.
+    expect(posts.length).toBeLessThanOrEqual(TORCH_LIGHT.max);
   });
 });

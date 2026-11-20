@@ -1,11 +1,12 @@
 // The render bridge (SPEC §9.2, rules/render.md; plan M1-19): the only place render meets the game. It reads the
 // state through core selectors and reacts to store events — never dispatches, never writes state (render must not
 // import core/actions.ts; ESLint `imports[render-actions]`). On connect and on every event it recomputes the plots' tiers,
-// their cosmetic variants (M2-10, from the seed) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
+// their cosmetic variants (M2-10, from the seed), the Cossacks the army has (M2-19: `CossackHired` → one more walks out
+// of the kurin) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
 // M2-12: `BuildingUpgraded` 0 → 1 builds the plot on screen (scaffold → pop → confetti), `TierReached` celebrates it
 // (flash, rising standard) — the level is already in the state; the animation never holds the economy back.
 import { villageOf } from '../core/modifiers.ts';
-import { plotVariants, visualTiers, type PlotVariants, type VisualTiers } from '../core/selectors.ts';
+import { plotVariants, populationView, visualTiers, type PlotVariants, type VisualTiers } from '../core/selectors.ts';
 import type { GameState } from '../core/state.ts';
 import type { GameStore } from '../core/store.ts';
 import { windAt } from '../core/systems/village-mechanics/wind.ts';
@@ -31,6 +32,7 @@ export function sceneOf(
     tiers: tiersOf(state),
     variants: variantsOf(state),
     wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen, villageOf(state))],
+    cossacks: populationView(state).cossacks,
   };
 }
 
@@ -52,7 +54,12 @@ export function connectWorld(
   const refresh = (): void => {
     const next = sceneOf(game.getState(), tiersOf, variantsOf);
     // A new object only when something shows differently: the layers compare nothing, they just read it.
-    if (next.wind === scene.wind && sameRecord(next.tiers, scene.tiers) && sameRecord(next.variants, scene.variants))
+    if (
+      next.wind === scene.wind &&
+      next.cossacks === scene.cossacks &&
+      sameRecord(next.tiers, scene.tiers) &&
+      sameRecord(next.variants, scene.variants)
+    )
       return;
     scene = next;
     world.setScene(scene);

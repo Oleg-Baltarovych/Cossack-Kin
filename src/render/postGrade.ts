@@ -15,6 +15,8 @@ import { claimParticles } from './fx/registry.ts';
 import type { Quality } from './settings.ts';
 import { propFrames } from './layers/Ground.ts';
 import { horizonY, type LayerSize } from './layers/Layer.ts';
+import type { AgentPose } from './agents/sim.ts';
+import { GUARD_ANIMS, GUARD_SPRITES } from '../content/agents.ts';
 import { rampColor } from './palette.ts';
 
 /** Left edge of the swatch in logical px (visible at camera 0 on every M0 phone). */
@@ -42,8 +44,8 @@ export interface PostGrade {
   /** 0..1 emissive opacity. */
   setEmissive(level: number): void;
   /** Cycles animated emissive frames and moves the sparks (ambient seconds, 0 under «менше руху»); hides the night
-   * masks of props whose plot is empty (M1-19). */
-  update(seconds: number, scene: SceneState): void;
+   * masks of props whose plot is empty (M1-19); lays the guards' torch flames over their poses (M2-19). */
+  update(seconds: number, scene: SceneState, agents: readonly AgentPose[]): void;
   /** Sparks per fire by tier (ART-18). */
   setQuality(quality: Quality): void;
   destroy(): void;
@@ -77,6 +79,19 @@ export function createPostGrade({ layout, frame, swatch, quality, lessMotion }: 
       return s;
     }),
   );
+  // Guards' torch flames (M2-19): the `<guard>@emissive/torch/NN` frame over each pose holding a torch, looked up once
+  // per guard sprite at creation (no names built per frame); sprites made on first need and reused; mirrored with the
+  // guard about the same pivot.
+  const torchFrames = new Map<string, readonly (Texture | null)[]>(
+    GUARD_SPRITES.map((g) => [
+      g,
+      Array.from({ length: GUARD_ANIMS.torch.frames }, (_, i) =>
+        frame(`${g}@emissive/torch/${String(i).padStart(2, '0')}`),
+      ),
+    ]),
+  );
+  const torchSprites: Sprite[] = [];
+  const torchFrame = (sprite: string, index: number): Texture | null => torchFrames.get(sprite)?.[index] ?? null;
   const claim = claimParticles();
   let sparkLimit = 0;
   const setQuality = (q: Quality): void => {
@@ -104,8 +119,30 @@ export function createPostGrade({ layout, frame, swatch, quality, lessMotion }: 
       emissive.visible = level > 0.01;
       emissive.alpha = Math.min(1, Math.max(0, level));
     },
-    update: (seconds, scene) => {
+    update: (seconds, scene, agents) => {
       if (!emissive.visible) return;
+      let lit = 0;
+      for (const pose of agents) {
+        if (pose.anim !== 'torch') continue;
+        const texture = torchFrame(pose.sprite, pose.frame);
+        if (!texture) continue;
+        let s = torchSprites[lit];
+        if (!s) {
+          s = new Sprite({ texture, roundPixels: true });
+          emissive.addChild(s);
+          torchSprites[lit] = s;
+        }
+        lit += 1;
+        s.texture = texture;
+        s.anchor.copyFrom(texture.defaultAnchor ?? { x: 0.5, y: 1 });
+        s.visible = true;
+        s.position.set(pose.x, horizon + pose.ground);
+        s.scale.x = pose.facing;
+      }
+      for (let i = lit; i < torchSprites.length; i++) {
+        const s = torchSprites[i];
+        if (s) s.visible = false;
+      }
       for (const { prop, sprite, frames, fps } of masks) {
         sprite.visible = plotShown(prop.plot, scene.tiers, scene.variants);
         if (frames.length < 2 || fps <= 0) continue;
@@ -113,7 +150,10 @@ export function createPostGrade({ layout, frame, swatch, quality, lessMotion }: 
         if (texture) sprite.texture = texture;
       }
       fires.forEach((fire, f) => {
-        const list = sparks(seconds, { x: fire.x, y: horizon + fire.ground - FIRE_TOP });
+        // A fire whose plot is empty (the second fire before maidan IV) throws no sparks (M2-19 review: an orphan
+        // spark trail over the empty maidan).
+        const lit = plotShown(fire.plot, scene.tiers, scene.variants);
+        const list = lit ? sparks(seconds, { x: fire.x, y: horizon + fire.ground - FIRE_TOP }) : [];
         sparkSprites[f]?.forEach((s, i) => {
           const spark = list[i];
           s.visible = spark !== undefined && i < sparkLimit;

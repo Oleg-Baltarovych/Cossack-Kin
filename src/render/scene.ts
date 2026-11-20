@@ -14,6 +14,8 @@ export interface SceneState {
   readonly variants: PlotVariants | null;
   /** Wind strength 0..1 for sails and sway. */
   readonly wind: number;
+  /** Cossacks the army has on the scene (core `populationView`, M2-19); absent = no game: every Cossack walks. */
+  readonly cossacks?: number;
   /**
    * Buildings popping in right now (plan M2-12, Q5): their props are drawn at this scale about their pivots, in whole
    * px. Set by render/fx/build.ts for one frame at a time, never by the bridge.

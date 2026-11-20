@@ -12,7 +12,17 @@ import { Plot } from '../../../assets-src/gen/lib/plot.ts';
 import type { SpriteGenerator } from '../../../assets-src/gen/lib/types.ts';
 import { renderGenerator, type FrameImage } from '../../../tools/lib/sprites/atlas.ts';
 import { colorStats } from '../../../tools/lib/sprites/contact-sheet.ts';
-import { VILLAGER_ANIMS, VILLAGER_SPRITES } from '../../../src/content/agents.ts';
+import otaman, { OTAMAN_GROUND, OTAMAN_OUTFIT } from '../../../assets-src/gen/people/otaman/index.ts';
+import vartovyi, { VARTOVYI_GROUND, VARTOVYI_OUTFITS } from '../../../assets-src/gen/people/vartovyi/index.ts';
+import {
+  COSSACK_ANIMS,
+  GUARD_ANIMS,
+  KOZAK_SPRITES,
+  GUARD_SPRITES,
+  OTAMAN_ANIMS,
+  VILLAGER_ANIMS,
+  VILLAGER_SPRITES,
+} from '../../../src/content/agents.ts';
 
 const palette: Palette = loadPalette(JSON.parse(readFileSync('assets-src/palettes/master.json', 'utf8')));
 
@@ -73,13 +83,17 @@ const alphaKey = (f: FrameImage): string =>
     (a) => (a > 0 ? 1 : 0),
   ).join('');
 
+function framesOf(t: Readonly<Record<string, { readonly frames: number }>>): Record<string, number> {
+  return Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v.frames]));
+}
 const VILLAGER_FRAMES = Object.fromEntries(Object.entries(VILLAGER_ANIMS).map(([k, v]) => [k, v.frames]));
 const perVariant = (frames: Readonly<Record<string, number>>): number =>
   Object.values(frames).reduce((a, b) => a + b, 0);
 
 describe.each([
   { gen: selianka, ground: SELIANKA_GROUND, frames: { idle: 4, walk: 6, ...VILLAGER_FRAMES } },
-  { gen: kozak, ground: KOZAK_GROUND, frames: { idle: 4, walk: 6 } },
+  { gen: kozak, ground: KOZAK_GROUND, frames: { idle: 4, walk: 6, ...framesOf(COSSACK_ANIMS) } },
+  { gen: vartovyi, ground: VARTOVYI_GROUND, frames: { idle: 4, walk: 6, ...framesOf(GUARD_ANIMS) } },
   { gen: divchyna, ground: SELIANKA_GROUND, frames: { idle: 4, walk: 6 } },
   { gen: selianyn, ground: KOZAK_GROUND, frames: { idle: 4, walk: 6, ...VILLAGER_FRAMES } },
 ])('$gen.id (ART-06, ART-15, M2-17)', ({ gen, ground, frames: declared }) => {
@@ -90,6 +104,8 @@ describe.each([
     expect(gen.frames).toEqual(declared);
     expect(base.length).toBe((gen.variants?.length ?? 1) * perVariant(declared));
     expect(frames.filter((f) => f.name.includes('@shadow')).length).toBe(base.length);
+    if (gen.layers?.includes('emissive'))
+      expect(frames.filter((f) => f.name.includes('@emissive')).length).toBe(base.length);
   });
 
   it('every frame stands on its ground row (the soles are the pivot)', () => {
@@ -287,6 +303,8 @@ describe('no state symbols in costumes (SPEC §16, art-director ART-19)', () => 
     ...Object.entries(SELIANKA_OUTFITS).map(([k, v]): [string, Outfit] => [`selianka.${k}`, v]),
     ...Object.entries(DIVCHYNA_OUTFITS).map(([k, v]): [string, Outfit] => [`divchyna.${k}`, v]),
     ...Object.entries(SELIANYN_OUTFITS).map(([k, v]): [string, Outfit] => [`selianyn.${k}`, v]),
+    ...Object.entries(VARTOVYI_OUTFITS).map(([k, v]): [string, Outfit] => [`vartovyi.${k}`, v]),
+    ['otaman.a', OTAMAN_OUTFIT],
   ];
 
   it('the band check reads a figure top to bottom (kerchief, shirt, belt, skirt)', () => {
@@ -326,6 +344,113 @@ describe('no state symbols in costumes (SPEC §16, art-director ART-19)', () => 
     for (const set of [SELIANKA_OUTFITS, SELIANYN_OUTFITS]) {
       expect(Object.keys(set).length).toBeGreaterThanOrEqual(4);
       expect(Object.keys(set).length).toBeLessThanOrEqual(6);
+    }
+  });
+});
+
+describe('the Sich set (M2-19): drill, pipe and cheer; the otaman; the guards with torches', () => {
+  const all = [kozak, otaman, vartovyi].flatMap(render);
+  const byName = new Map(all.map((f) => [f.name, f]));
+  const get = (name: string): FrameImage => {
+    const f = byName.get(name);
+    if (!f) throw new Error(`no frame ${name}`);
+    return f;
+  };
+  const nn = (i: number): string => String(i).padStart(2, '0');
+  const colours = (f: FrameImage): Set<number> => {
+    const out = new Set<number>();
+    for (let i = 0; i < f.image.data.length; i += 4)
+      if ((f.image.data[i + 3] ?? 0) > 0)
+        out.add(((f.image.data[i] ?? 0) << 16) | ((f.image.data[i + 1] ?? 0) << 8) | (f.image.data[i + 2] ?? 0));
+    return out;
+  };
+  const opaque = (f: FrameImage): number =>
+    alphaKey(f)
+      .split('')
+      .filter((c) => c === '1').length;
+  const families = [
+    { stems: KOZAK_SPRITES, anims: COSSACK_ANIMS },
+    { stems: ['otaman.a'], anims: OTAMAN_ANIMS },
+    { stems: GUARD_SPRITES, anims: GUARD_ANIMS },
+  ] as const;
+
+  it('every Cossack sprite has the animations its routine may pick (content tables = generator frames, + shadow)', () => {
+    for (const { stems, anims } of families)
+      for (const stem of stems) {
+        const [entity = '', variant = ''] = stem.split('.');
+        for (const [anim, { frames }] of Object.entries(anims))
+          for (let i = 0; i < frames; i++) {
+            expect(byName.has(`${stem}/${anim}/${nn(i)}`), `${stem}/${anim}/${nn(i)}`).toBe(true);
+            expect(byName.has(`${entity}.${variant}@shadow/${anim}/${nn(i)}`)).toBe(true);
+          }
+      }
+    expect(otaman.frames).toEqual({ idle: 4, walk: 6, ...framesOf(OTAMAN_ANIMS) });
+  });
+
+  it('rates follow the plan (drill 4 @8, sit-smoke 2 @2, cheer as the villagers 4 @10; watch 2 @2, torch 4 @8)', () => {
+    expect(COSSACK_ANIMS).toEqual({
+      drill: { frames: 4, fps: 8 },
+      'sit-smoke': { frames: 2, fps: 2 },
+      cheer: VILLAGER_ANIMS.cheer,
+    });
+    expect(GUARD_ANIMS).toEqual({ watch: { frames: 2, fps: 2 }, torch: { frames: 4, fps: 8 } });
+  });
+
+  it('each animation moves and has its own silhouette; outfits are palette swaps', () => {
+    for (const { stems, anims } of families) {
+      const stem = stems[0];
+      const shapes = ['idle', ...Object.keys(anims)].map((a) => alphaKey(get(`${stem}/${a}/00`)));
+      expect(new Set(shapes).size, stem).toBe(shapes.length);
+      for (const [anim, { frames }] of Object.entries(anims))
+        for (let i = 0; i < frames; i++)
+          expect(key(get(`${stem}/${anim}/${nn(i)}`)), `${stem} ${anim} ${String(i)}`).not.toBe(
+            key(get(`${stem}/${anim}/${nn((i + 1) % frames)}`)),
+          );
+      // Palette swaps of one head (the bare-headed kozak.c has his own silhouette, ART-15).
+      const same = stems.slice(1).filter((o) => alphaKey(get(`${o}/idle/00`)) === alphaKey(get(`${stem}/idle/00`)));
+      expect(same.length, stem).toBeGreaterThanOrEqual(stems.length > 1 ? 1 : 0);
+      for (const other of same)
+        for (const anim of Object.keys(anims)) {
+          expect(alphaKey(get(`${other}/${anim}/00`)), `${other} ${anim}`).toBe(alphaKey(get(`${stem}/${anim}/00`)));
+          expect(key(get(`${other}/${anim}/00`)), `${other} ${anim}`).not.toBe(key(get(`${stem}/${anim}/00`)));
+        }
+    }
+  });
+
+  it('people budget: ≤ 6 ramps (no more than the approved idle), ≤ 32 colours, an action adds ≤ 6 colours over its idle frame', () => {
+    for (const f of all.filter((x) => !x.name.includes('@'))) {
+      const stem = f.name.split('/')[0] ?? '';
+      // kozak.b's idle was approved with 7 ramps (ART-06/19: the ochre sash, the blue шлик): no frame goes past it.
+      const idleRamps = colorStats(get(`${stem}/idle/00`).image, palette).ramps.length;
+      expect(colorStats(f.image, palette).ramps.length, f.name).toBeLessThanOrEqual(Math.max(6, idleRamps));
+      expect(colours(f).size, f.name).toBeLessThanOrEqual(32);
+      const still = colours(get(`${stem}/idle/00`));
+      expect([...colours(f)].filter((c) => !still.has(c)).length, f.name).toBeLessThanOrEqual(6);
+    }
+  });
+
+  it('the otaman is bigger than the rank and file (his own silhouette)', () => {
+    const [o, k] = [get('otaman.a/idle/00'), get('kozak.a/idle/00')];
+    expect(opaque(o)).toBeGreaterThan(opaque(k) * 1.2);
+    expect(lowestRow(o)).toBe(OTAMAN_GROUND);
+  });
+
+  it('only the torch lights the night: an @emissive flame on every torch frame, nothing on the others', () => {
+    for (const v of ['a', 'b'])
+      for (const anim of ['idle', 'walk', 'watch', 'torch']) {
+        const frames = anim === 'torch' ? 4 : anim === 'watch' ? 2 : anim === 'idle' ? 4 : 6;
+        for (let i = 0; i < frames; i++) {
+          const lit = opaque(get(`vartovyi.${v}@emissive/${anim}/${nn(i)}`));
+          if (anim === 'torch') expect(lit, `${v} ${String(i)}`).toBeGreaterThanOrEqual(5);
+          else expect(lit, `${v} ${anim}`).toBe(0);
+        }
+      }
+  });
+
+  it('canvases are padded evenly, so every pivot stays a whole px on the body', () => {
+    for (const gen of [kozak, otaman, vartovyi]) {
+      expect(gen.size.w, gen.id).toBe(32);
+      expect((gen.anchor?.x ?? 0.5) * gen.size.w, gen.id).toBe(16);
     }
   });
 });

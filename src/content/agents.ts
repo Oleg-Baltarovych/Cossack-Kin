@@ -39,6 +39,11 @@ export interface PathNodeSpec<Id extends string = string> {
    * stands (visual tier ≥ 1) — nobody walks to, through or works at an empty plot. Absent = always open.
    */
   readonly building?: NodeBuilding;
+  /**
+   * The building's visual tier from which the node is open (default 1): a guard's post by a wall tower that only rises
+   * with walls II or III (M2-19).
+   */
+  readonly from?: number;
   /** A work spot's animation (kind `work`, with a `building`): what a villager does there. */
   readonly work?: WorkAnim;
 }
@@ -76,8 +81,18 @@ export const VILLAGER_SPRITES = [
 ] as const;
 export type VillagerSprite = (typeof VILLAGER_SPRITES)[number];
 
+/** Rank-and-file Cossacks (ART-06, ART-15): a/b шапка with шлик, c the young one with оселедець. */
+export const KOZAK_SPRITES = ['kozak.a', 'kozak.b', 'kozak.c'] as const;
+export type KozakSprite = (typeof KOZAK_SPRITES)[number];
+/** The otaman (M2-19): one man, his own 20×30 body. */
+export type OtamanSprite = 'otaman.a';
+/** Guards on the Sich's towers (M2-19): two palette swaps. */
+export const GUARD_SPRITES = ['vartovyi.a', 'vartovyi.b'] as const;
+export type GuardSprite = (typeof GUARD_SPRITES)[number];
+export type GirlSprite = 'divchyna.a' | 'divchyna.b';
+
 /** Person sprites (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/<anim>/NN`). */
-export type PersonSprite = 'kozak.a' | 'kozak.b' | 'kozak.c' | 'divchyna.a' | 'divchyna.b' | VillagerSprite;
+export type PersonSprite = KozakSprite | OtamanSprite | GuardSprite | GirlSprite | VillagerSprite;
 
 /**
  * Villager animations beyond walk/idle (M2-17, SPEC §6.4), frames `<VillagerSprite>/<anim>/<nn>` in the `people` atlas,
@@ -97,13 +112,50 @@ export const VILLAGER_ANIMS = {
   cheer: { frames: 4, fps: 10 },
 } as const;
 export type VillagerAnim = keyof typeof VILLAGER_ANIMS;
+
+/**
+ * Cossack animations beyond walk/idle (M2-19, SPEC §6.4): `drill` — the musket drill in the ranks (shoulder, port,
+ * level, recover), `sit-smoke` — seated by the fire with a люлька (pipe), `cheer` — hat raised (the «Слава!» after the
+ * otaman's word).
+ */
+export const COSSACK_ANIMS = {
+  drill: { frames: 4, fps: 8 },
+  'sit-smoke': { frames: 2, fps: 2 },
+  cheer: { frames: 4, fps: 10 },
+} as const;
+export type CossackAnim = keyof typeof COSSACK_ANIMS;
+
+/** The otaman's (M2-19): `speak` — addressing the ranks with the булава, `march` — the review step along the ranks. */
+export const OTAMAN_ANIMS = {
+  speak: { frames: 4, fps: 6 },
+  march: { frames: 6, fps: 10 },
+} as const;
+export type OtamanAnim = keyof typeof OTAMAN_ANIMS;
+
+/** The guards' (M2-19): `watch` — still on the spear by day, `torch` — a burning torch held up at night (@emissive). */
+export const GUARD_ANIMS = {
+  watch: { frames: 2, fps: 2 },
+  torch: { frames: 4, fps: 8 },
+} as const;
+export type GuardAnim = keyof typeof GUARD_ANIMS;
+
 /** What every person sprite has frames for. */
 export type BasicAnim = 'walk' | 'idle';
-/** Every animation a person pose can show (only villager sprites have the `VillagerAnim` frames). */
-export type PersonAnim = BasicAnim | VillagerAnim;
+/** Every animation a person pose can show (each sprite family has its own set beyond walk/idle). */
+export type PersonAnim = BasicAnim | VillagerAnim | CossackAnim | OtamanAnim | GuardAnim;
 
 export const isVillagerSprite = (sprite: AgentSprite): sprite is VillagerSprite =>
   (VILLAGER_SPRITES as readonly string[]).includes(sprite);
+export const isKozakSprite = (sprite: AgentSprite): sprite is KozakSprite =>
+  (KOZAK_SPRITES as readonly string[]).includes(sprite);
+export const isGuardSprite = (sprite: AgentSprite): sprite is GuardSprite =>
+  (GUARD_SPRITES as readonly string[]).includes(sprite);
+export const isOtamanSprite = (sprite: AgentSprite): sprite is OtamanSprite => sprite === 'otaman.a';
+
+export const isVillagerAnim = (anim: PersonAnim): anim is VillagerAnim => anim in VILLAGER_ANIMS;
+export const isCossackAnim = (anim: PersonAnim): anim is CossackAnim => anim in COSSACK_ANIMS;
+export const isOtamanAnim = (anim: PersonAnim): anim is OtamanAnim => anim in OTAMAN_ANIMS;
+export const isGuardAnim = (anim: PersonAnim): anim is GuardAnim => anim in GUARD_ANIMS;
 
 /** Every agent sprite stem; carts and visitors (M2-20/21) widen it. */
 export type AgentSprite = PersonSprite;
@@ -167,7 +219,98 @@ export interface VillagerSpawn<Id extends string = string> extends SpawnBase<Id>
   readonly night: NightSpot<Id>;
 }
 
-export type AgentSpawn<Id extends string = string> = WanderSpawn<Id> | VillagerSpawn<Id>;
+/** A place beside a node: `dx` px off it, facing `facing`. */
+export interface Spot<Id extends string = string> {
+  readonly at: Id;
+  readonly dx: number;
+  readonly facing: 1 | -1;
+}
+
+/**
+ * Where a Cossack spends the night (M2-19): by a Sich fire — smoking a pipe seated, or standing — at most
+ * `NIGHT_SPOT_CAP` to a spot (content test), or `indoors` (in the kurin, out of sight); a fire spot that does not stand
+ * (the second fire before maidan IV) sends him indoors at `home`.
+ */
+export type CossackNight<Id extends string = string> =
+  (Spot<Id> & { readonly anim: 'sit-smoke' | 'idle' }) | { readonly anim: 'indoors' };
+
+interface CossackBase<Id extends string> extends SpawnBase<Id> {
+  readonly routine: 'cossack';
+  readonly role: 'cossack';
+}
+
+/**
+ * A Cossack of the ranks (M2-19): by day at his place in the formation on the maidan (`rank`, facing the otaman),
+ * drilling in step with the others (`COSSACK_DAY.drill`); while the maidan does not stand he idles about his `haunts`
+ * like a free Cossack. At night by a fire.
+ */
+export interface RankSpawn<Id extends string = string> extends CossackBase<Id> {
+  readonly duty: 'rank';
+  readonly sprite: KozakSprite;
+  readonly rank: Spot<Id>;
+  readonly haunts: readonly Id[];
+  readonly night: CossackNight<Id>;
+}
+
+/**
+ * A free Cossack (M2-19): by day from one of his `haunts` to another — the tavern, the smithy, the fair in the suburb
+ * (Cossacks may leave the Sich; villagers may not enter it) — idling a while at each; at night by a fire.
+ */
+export interface FreeSpawn<Id extends string = string> extends CossackBase<Id> {
+  readonly duty: 'free';
+  readonly sprite: KozakSprite;
+  readonly haunts: readonly Id[];
+  readonly night: CossackNight<Id>;
+}
+
+/**
+ * The otaman (M2-19): by day at his `stand` before the ranks (facing them) — speaks, then marches the `review` nodes
+ * along the front and back to the stand while the ranks drill; at night, and while the maidan does not stand, in the
+ * kurin (`home`).
+ */
+export interface OtamanSpawn<Id extends string = string> extends CossackBase<Id> {
+  readonly duty: 'otaman';
+  readonly sprite: OtamanSprite;
+  readonly stand: Spot<Id>;
+  readonly review: readonly Id[];
+}
+
+/**
+ * A guard (M2-19): day and night at his `post` by a tower — leaning on the spear by day, a torch held up at night;
+ * while that tower does not stand he is in the kurin (`home`).
+ */
+export interface GuardSpawn<Id extends string = string> extends CossackBase<Id> {
+  readonly duty: 'guard';
+  readonly sprite: GuardSprite;
+  readonly post: Spot<Id>;
+}
+
+/**
+ * Cossacks with a duty (M2-19). They walk only while the army has them: the scene shows the first
+ * `populationView(state).cossacks` of them in authored order (the rest are not there, no pose); one more hired walks
+ * out of the kurin at `home`.
+ */
+export type CossackSpawn<Id extends string = string> = RankSpawn<Id> | FreeSpawn<Id> | OtamanSpawn<Id> | GuardSpawn<Id>;
+
+export type AgentSpawn<Id extends string = string> = WanderSpawn<Id> | VillagerSpawn<Id> | CossackSpawn<Id>;
+
+/**
+ * The Sich's day (plan M2-19, SPEC §6.4), cosmetic: the same hours as the villagers' (guards light their torches when
+ * the village goes home), the free Cossacks' idle at a haunt [min, max] s, and the drill — one cycle for the whole
+ * maidan, in step: the otaman speaks (`speak` s; the ranks stand), the ranks cheer (`cheer`), they drill while the
+ * otaman marches the front (`drill`), then stand at ease (`ease`).
+ */
+export const COSSACK_DAY = {
+  from: 6 * 60,
+  until: 21 * 60,
+  hauntS: [5, 12],
+  drill: { speak: 6, cheer: 2, drill: 16, ease: 6 },
+} as const satisfies {
+  readonly from: number;
+  readonly until: number;
+  readonly hauntS: readonly [number, number];
+  readonly drill: Readonly<Record<'speak' | 'cheer' | 'drill' | 'ease', number>>;
+};
 
 /**
  * The villagers' timetable (plan M2-18), cosmetic: working hours in minutes after midnight (the dusk key at 21:00
@@ -191,7 +334,17 @@ export const VILLAGER_DAY = {
 };
 
 /** Every node a spawn names (its home, goals or work, chat and night spots). */
-export const spawnNodes = <Id extends string>(s: AgentSpawn<Id>): readonly Id[] =>
-  s.routine === 'wander'
-    ? [s.home, ...s.goals, ...(s.indoors === undefined ? [] : [s.indoors])]
-    : [s.home, ...s.work, ...s.chat, s.night.at];
+export function spawnNodes<Id extends string>(s: AgentSpawn<Id>): readonly Id[] {
+  if (s.routine === 'wander') return [s.home, ...s.goals, ...(s.indoors === undefined ? [] : [s.indoors])];
+  if (s.routine === 'villager') return [s.home, ...s.work, ...s.chat, s.night.at];
+  switch (s.duty) {
+    case 'rank':
+      return [s.home, s.rank.at, ...s.haunts, ...(s.night.anim === 'indoors' ? [] : [s.night.at])];
+    case 'free':
+      return [s.home, ...s.haunts, ...(s.night.anim === 'indoors' ? [] : [s.night.at])];
+    case 'otaman':
+      return [s.home, s.stand.at, ...s.review];
+    case 'guard':
+      return [s.home, s.post.at];
+  }
+}

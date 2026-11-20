@@ -64,7 +64,7 @@ describe('khortytsia sich layout (ART-11)', () => {
     // People on the graph (M2-16): whoever starts or walks to a Sich node is a Cossack.
     const sichNodes = new Set(s.paths.nodes.map((n) => n.id));
     for (const a of W.agents.filter((q) => spawnNodes(q).some((n) => sichNodes.has(n)))) {
-      expect(a.sprite.startsWith('kozak'), a.sprite).toBe(true);
+      expect(/^(kozak|otaman|vartovyi)\./.test(a.sprite), a.sprite).toBe(true);
     }
     for (const p of sceneProps(s.props)) {
       expect(p.x).toBeGreaterThanOrEqual(0);
@@ -188,7 +188,8 @@ describe('the continuous world (M2-01)', () => {
   it('women never stand in the Sich and nothing of a zone leaves it', () => {
     const sich = zone('sich');
     // Only Cossacks walk the Sich's inside: a woman's sprite is always a villager, a Cossack's a Cossack.
-    for (const a of W.agents) expect(a.role, a.sprite).toBe(a.sprite.startsWith('kozak') ? 'cossack' : 'villager');
+    for (const a of W.agents)
+      expect(a.role, a.sprite).toBe(/^(kozak|otaman|vartovyi)\./.test(a.sprite) ? 'cossack' : 'villager');
     for (const n of W.paths.nodes.filter((q) => q.x >= sich.x0 && q.kind !== 'gate')) {
       expect(n.only, n.id).toEqual(['cossack']);
     }
