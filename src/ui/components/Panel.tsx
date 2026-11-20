@@ -99,7 +99,7 @@ function SichList({ mode, marks }: { mode: BuyMode; marks: Marks }) {
   const ids = useGame(visibleSichIds, sameIds);
   return (
     <ul className={styles.list}>
-      <HireRow />
+      <HireRow mode={mode} />
       {ids.map((id) => (
         <SichRow key={id} id={id} mode={mode} highlighted={id === marks.lit} current={id === marks.current} />
       ))}

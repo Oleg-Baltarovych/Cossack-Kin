@@ -70,9 +70,20 @@
   "ui.unlock.land": "Opens in land {land}",
   "ui.price.ducats": "{value} duc.",
   "ui.price.glory": "{value} glory",
-  "ui.hire.name": "Hire a Cossack",
-  "ui.hire.desc": "Cossacks win glory. Hired one at a time; each needs {kharch} food.",
-  "ui.hire.button": "Hire a Cossack for {price}",
+  "ui.price.ducatsAbbr": "duc.",
+  "ui.price.gloryAbbr": "gl.",
+  "ui.hire.name": "Hire Cossacks",
+  "ui.hire.level": "{count}/{max}",
+  "ui.hire.desc": "They win glory. Each eats {kharch} food.",
+  "ui.hire.button": {
+    "one": "Hire {count} Cossack for {price}",
+    "other": "Hire {count} Cossacks for {price}"
+  },
+  "ui.hire.buttonFull": "Hire a Cossack: not enough food",
+  "ui.hire.count": {
+    "one": "+{count} Cossack",
+    "other": "+{count} Cossacks"
+  },
   "ui.settings.title": "Settings",
   "ui.settings.lang": "Language",
   "lang.uk": "Українська",

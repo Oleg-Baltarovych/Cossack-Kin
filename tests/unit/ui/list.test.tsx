@@ -80,7 +80,7 @@ describe('building rows (M1-17)', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Січ' }));
     expect(screen.getByRole('tab', { name: 'Січ' }).getAttribute('aria-selected')).toBe('true');
     const list = screen.getByRole('tabpanel');
-    within(list).getByText('Найняти козака');
+    within(list).getByText('Найм козаків');
     within(list).getByText(/Відкриється, коли всі будівлі хутора матимуть рівень 25/);
     expect(within(list).queryByText('Пушкарня')).toBeNull();
   });

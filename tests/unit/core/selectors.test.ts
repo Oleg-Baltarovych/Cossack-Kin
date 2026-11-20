@@ -162,13 +162,40 @@ describe('sichRowView and visibleSichIds (M1-17)', () => {
   });
 });
 
-describe('hireView (M1-17)', () => {
+describe('hireView (M1-17, M2-14)', () => {
   it('no food → blocked by kharch; food and ducats → the price of the next Cossack', () => {
-    expect(hireView(makeState({ ducats: 1e9 })).blocked).toBe('kharch');
-    const ok = hireView(makeState({ ducats: 1e9, levels: { field: 10 } }));
+    expect(hireView(makeState({ ducats: 1e9 }), 1).blocked).toBe('kharch');
+    const ok = hireView(makeState({ ducats: 1e9, levels: { field: 10 } }), 1);
     expect(ok.blocked).toBeNull();
+    expect(ok.count).toBe(1);
     expect(ok.price.gt(0)).toBe(true);
-    expect(hireView(makeState({ ducats: 1, levels: { field: 10 } })).blocked).toBe('ducats');
+    expect(hireView(makeState({ ducats: 1, levels: { field: 10 } }), 1).blocked).toBe('ducats');
+  });
+
+  it('the picker applies to hiring: ×10 offers ten at their summed price, Max what the ducats cover', () => {
+    const s = makeState({ ducats: 1e9, levels: { field: 200 } });
+    const ten = hireView(s, 10);
+    expect(ten).toMatchObject({ count: 10, blocked: null });
+    const one = hireView(s, 1);
+    expect(ten.price.gt(one.price.mul(10))).toBe(true);
+    const max = hireView(s, 'max');
+    expect(max.blocked).toBeNull();
+    expect(max.count).toBeGreaterThan(10);
+  });
+
+  it('at the food limit every mode offers nothing, blocked by kharch (M2-14 review)', () => {
+    const full = makeState({ ducats: 1e12, levels: { field: 40 }, infantry: 4 });
+    for (const mode of [1, 10, 25, 'max'] as const) {
+      const v = hireView(full, mode);
+      expect(v).toMatchObject({ count: 0, blocked: 'kharch' });
+      expect(v.price.isZero()).toBe(true);
+    }
+  });
+
+  it('a ×10 it cannot pay shows the price of ten, blocked by ducats; Max with no money shows one', () => {
+    const poor = makeState({ ducats: 1, levels: { field: 200 } });
+    expect(hireView(poor, 10)).toMatchObject({ count: 10, blocked: 'ducats' });
+    expect(hireView(poor, 'max')).toMatchObject({ count: 1, blocked: 'ducats' });
   });
 });
 
@@ -196,9 +223,29 @@ describe('selectors agree with the reducer (M1-17 review)', () => {
           expect(!r.events.some((e) => e.type === 'ActionRejected'), `${id} ×${String(mode)}`).toBe(v.blocked === null);
         }
       }
-      const h = hireView(s);
-      const r = applyAction(s, { type: 'hire', n: 1 }, s.time.lastSeen);
-      expect(!r.events.some((e) => e.type === 'ActionRejected')).toBe(h.blocked === null);
+    }
+  });
+
+  it('a hire button the UI shows as on is accepted for its count, one shown off is refused (M2-14)', () => {
+    const hireStates = [
+      ...states,
+      makeState({ ducats: 3e4, levels: { field: 30 } }), // food for 3: ×10 hires the rest
+      makeState({ ducats: 1e12, levels: { field: 40 }, infantry: 4 }), // at the food limit
+      makeState({ ducats: 2e5, levels: { field: 400 }, infantry: 12 }),
+    ];
+    for (const s of hireStates) {
+      for (const mode of modes) {
+        const h = hireView(s, mode);
+        const r = applyAction(s, { type: 'hire', n: h.count }, s.time.lastSeen);
+        const accepted = !r.events.some((e) => e.type === 'ActionRejected');
+        expect(accepted, `hire ×${String(mode)}`).toBe(h.blocked === null);
+        if (accepted) {
+          expect(r.state.army.infantry).toBe(h.cossacks + h.count);
+          const paid = s.currencies.ducats.sub(r.state.currencies.ducats).toNumber();
+          // Ducats − price on a 1e12 balance loses the low digits: compare to 6 places.
+          expect(paid / h.price.toNumber()).toBeCloseTo(1, 6);
+        }
+      }
     }
   });
 

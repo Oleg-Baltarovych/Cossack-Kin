@@ -638,7 +638,7 @@ test.describe('M1-17 UI list @screens', () => {
         await expect(page.getByRole('tab', { name: 'Хутір' })).toHaveAttribute('aria-selected', 'true');
         await shoot(page, testInfo, `ui-${preset}-farm-${hhmm}`);
         await page.getByRole('tab', { name: 'Січ' }).click();
-        await expect(page.getByText('Найняти козака')).toBeVisible();
+        await expect(page.getByText('Найм козаків')).toBeVisible();
         await cameraSettled(page, 0);
         await shoot(page, testInfo, `ui-${preset}-sich-${hhmm}`);
       });

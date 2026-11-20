@@ -65,10 +65,31 @@
   color: var(--c-sky-6);
 }
 
-/* An unlock condition: cool and quiet, unlike the warm «not enough». The text itself says which it is. */
+/* An unlock condition: cool and quiet, unlike the warm «not enough». The text itself says which it is; the lock icon
+   stands before it. */
 .locked {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--px));
   color: var(--c-stone-5);
+}
+
+/* How many Cossacks the hire button hires under the picker (M2-14). */
+.count {
+  color: var(--c-gold-4);
+}
+
+/* A button's price: the currency icon and the compact number, never split over two lines (M2-14). */
+.price {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(2 * var(--px));
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .buy {
@@ -93,7 +114,7 @@
 }
 
 .buy:disabled {
-  color: var(--c-stone-6);
+  color: var(--c-plaster-6);
   background: var(--c-stone-2);
   box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1);
   cursor: default;
