@@ -17,7 +17,8 @@ import { createAgentDriver, MAX_CATCH_UP_S, stepCap } from '../../../src/render/
 
 const W = KHORTYTSIA_WORLD;
 /** The people (one pose each, on the graph); the carts and their drivers have their own tests (carts.test.ts). */
-const PEOPLE = W.agents.filter((a) => a.routine !== 'cart');
+// Carts and visitors come and go on their own timetables (carts.test.ts, visitors.test.ts).
+const PEOPLE = W.agents.filter((a) => a.routine !== 'cart' && a.routine !== 'visitor');
 
 /** A straight road a—b, 60 px long on row 100, and a Cossack-only node c behind b. */
 const LINE: PathGraph = {

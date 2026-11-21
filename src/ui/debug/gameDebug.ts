@@ -160,6 +160,9 @@ export function showcaseTiers(s: GameState): VisualTiers {
 /** `?state=showcase` only: no cosmetic plot variants (plan M2-10) — the M-ART frames were judged without them. */
 export const noVariants = (): null => null;
 
+/** `?state=showcase` only: no visitors (plan M2-21) — the M-ART scene, and the people shots taken on it, stay as judged. */
+export const noVisitors = (): null => null;
+
 /** The state of `preset` at `now` with `seed` (`tier`: the visual tier of `state=tiers`). */
 export function presetState(preset: Preset, seed: number, now: number, tier = TOP_TIER): GameState {
   if (preset === 'away') return applyOffline(presetState('mid', seed, now - AWAY_MS), now).state;

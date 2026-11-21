@@ -56,8 +56,10 @@ describe('khortytsia path graph content (plan M2-16)', () => {
       expect(a.speed >= 0 && a.phase >= 0).toBe(true);
       if (a.routine === 'wander') expect(a.rest).toBeGreaterThanOrEqual(0);
     }
+    // Visitors (M2-21) have one spawn per kind and come one visit at a time: their budget counts poses
+    // (tests/unit/render/visitors.test.ts), not spawns.
     for (const role of Object.keys(counts) as AgentRole[])
-      expect(counts[role], role).toBeLessThanOrEqual(AGENT_BUDGET[role]);
+      if (role !== 'visitor') expect(counts[role], role).toBeLessThanOrEqual(AGENT_BUDGET[role]);
   });
 });
 
@@ -130,8 +132,8 @@ describe('khortytsia night spots (art-director M2-18)', () => {
 
   it('a villager whose night spot is not standing goes in at a door that always stands', () => {
     for (const a of KHORTYTSIA_WORLD.agents) {
-      // A food cart's home is the road node its depot hangs off (M2-20), not a door.
-      if (a.routine === 'cart') continue;
+      // A food cart's or a visitor's home is the road node its depot / entry hangs off (M2-20, M2-21), not a door.
+      if (a.routine === 'cart' || a.routine === 'visitor') continue;
       const door = a.routine === 'wander' ? a.indoors : a.home;
       if (door === undefined) continue;
       const node = G.nodes.find((n) => n.id === door);

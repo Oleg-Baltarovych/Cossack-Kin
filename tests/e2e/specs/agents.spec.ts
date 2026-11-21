@@ -25,12 +25,20 @@ test.describe('M2-16 agents', () => {
   test('stats.agents counts the pool by role within the Q11 budgets', async ({ page }) => {
     await gotoReady(page, '/?time=13:00&freeze=6&seed=1&zone=farm');
     const { agents, drawCalls } = await readStats(page);
-    // People: every spawn is on the scene. Food carts (M2-20) come and go: those on the road count (≤ 3).
-    const people = KHORTYTSIA_WORLD.agents.filter((a) => a.role !== 'cart');
+    // People: every spawn is on the scene. Food carts (M2-20) and visitors (M2-21) come and go: those in the village
+    // count — carts on the road (≤ 3), visitors on a visit (agents, one at a time; the чумак's віз is his, not a cart).
+    const comeAndGo: readonly AgentRole[] = ['cart', 'visitor'];
+    const people = KHORTYTSIA_WORLD.agents.filter((a) => !comeAndGo.includes(a.role));
     const expected = Object.fromEntries(
-      ROLES.filter((r) => r !== 'cart').map((r) => [r, people.filter((a) => a.role === r).length]),
+      ROLES.filter((r) => !comeAndGo.includes(r)).map((r) => [r, people.filter((a) => a.role === r).length]),
     );
-    expect(agents).toEqual({ total: people.length + agents.cart, cart: agents.cart, ...expected });
+    expect(agents).toEqual({
+      total: people.length + agents.cart + agents.visitor,
+      cart: agents.cart,
+      visitor: agents.visitor,
+      ...expected,
+    });
+    expect(agents.visitor).toBeLessThanOrEqual(1);
     for (const r of ROLES) expect(agents[r], r).toBeLessThanOrEqual(AGENT_BUDGET[r]);
     expect(drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
   });
