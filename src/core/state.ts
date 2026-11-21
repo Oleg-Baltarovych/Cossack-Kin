@@ -1,15 +1,16 @@
-// GameState v1 (SPEC §9.3; plan §0, M1-04): only the fields M1 uses — later fields come with a version bump and a
-// migration. Derived values (kharch, defence, tier, wind, «unlocked») are computed, never stored.
+// GameState v2 (SPEC §9.3; plan §0, M1-04, M2-22): v1 + `story` and the quest counters in `stats` — later fields come
+// with a version bump and a migration (save/migrations). Derived values (kharch, defence, tier, wind, «unlocked») are computed, never stored.
 // `validateState` is the gate a save passes through: it takes the JSON form (Big values as strings), rejects anything
 // it does not know, and returns a typed error instead of throwing (rules: save.md, security.md).
 import { FARM, OFFLINE, SICH, START, TAP } from '../content/economy.ts';
 import { SAVE_MAX_EXPONENT } from '../content/numbers.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../content/sich.ts';
+import { STORY_BEAT_IDS, type StoryBeatId } from '../content/story.ts';
 import { FARM_BUILDING_IDS, type FarmBuildingId } from '../content/villages/khortytsia.ts';
 import { Big } from './big.ts';
 import { createRng, type Rng } from './rng.ts';
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 export const LANGS = ['uk', 'en'] as const;
 export const NUMBER_FORMATS = ['words', 'short'] as const;
 export const RETURN_REASONS = ['normal', 'clockBack', 'forwardJump'] as const;
@@ -35,6 +36,19 @@ export interface ReturnReport {
   readonly glory: Big;
 }
 
+/** Monotone counters (SPEC §3.10: quests count from them; story `hired` reads `hires`). */
+export interface Stats {
+  readonly taps: number;
+  /** Buy actions (one per press, whatever the amount). */
+  readonly purchases: number;
+  /** Farm and Sich levels bought, all told. */
+  readonly levelsBought: number;
+  /** Cossacks hired, all told (never lowered by losses). */
+  readonly hires: number;
+  /** Seconds of income earned by taps: each tap adds its income share (TAP.incomeShare). */
+  readonly tapIncomeSec: number;
+}
+
 export interface GameState {
   readonly version: typeof STATE_VERSION;
   /** uint32; the new game's seed comes from the platform layer (crypto), never from the core. */
@@ -51,7 +65,9 @@ export interface GameState {
   readonly village: VillageState;
   readonly army: { readonly infantry: number };
   readonly returnReport: ReturnReport | null;
-  readonly stats: { readonly taps: number; readonly purchases: number };
+  readonly stats: Stats;
+  /** Story beats already fired, in firing order (SPEC §2.5): each fires once. */
+  readonly story: { readonly seen: readonly StoryBeatId[] };
   /** Taps counted in the current second (TAP.maxPerSec, plan Q8): the second's start (ms) and the count so far. */
   readonly tapWindow: { readonly start: number; readonly count: number };
   readonly settings: { readonly lang: Lang; readonly numberFormat: NumberFormat };
@@ -60,6 +76,7 @@ export interface GameState {
 function zeros<K extends string>(ids: readonly K[]): Record<K, number> {
   const out: Partial<Record<K, number>> = {};
   for (const id of ids) out[id] = 0;
+  // Every id of `ids` was set just above, so the partial record is complete.
   return out as Record<K, number>;
 }
 
@@ -81,7 +98,8 @@ export function createInitialState({ seed, now }: { seed: number; now: number })
     },
     army: { infantry: 0 },
     returnReport: null,
-    stats: { taps: 0, purchases: 0 },
+    stats: { taps: 0, purchases: 0, levelsBought: 0, hires: 0, tapIncomeSec: 0 },
+    story: { seen: [] },
     tapWindow: { start: now, count: 0 },
     settings: { lang: START.lang, numberFormat: START.numberFormat },
   };
@@ -139,6 +157,31 @@ function int(value: unknown, path: string, min: number, max: number): number {
   return value;
 }
 
+/** A finite number in [min, max] (not only whole). */
+function real(value: unknown, path: string, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fail('type', path);
+  if (value < min || value > max) fail('range', path);
+  return value;
+}
+
+/**
+ * Beat ids, each at most once. An id this build does not know is dropped, not refused: a renamed or removed beat
+ * must never brick a save (platform review M2-22); its beat, if it still exists under a new id, fires again once.
+ */
+function beats(value: unknown, path: string): StoryBeatId[] {
+  if (!Array.isArray(value)) return fail('type', path);
+  const out: StoryBeatId[] = [];
+  value.forEach((v: unknown, i) => {
+    const at = `${path}.${String(i)}`;
+    if (typeof v !== 'string') fail('type', at);
+    const id = STORY_BEAT_IDS.find((known) => known === v);
+    if (id === undefined) return;
+    if (out.includes(id)) fail('range', at);
+    out.push(id);
+  });
+  return out;
+}
+
 function bool(value: unknown, path: string): boolean {
   if (typeof value !== 'boolean') return fail('type', path);
   return value;
@@ -164,6 +207,7 @@ function levels<K extends string>(value: unknown, path: string, ids: readonly K[
   const o = object(value, path, ids);
   const out: Partial<Record<K, number>> = {};
   for (const id of ids) out[id] = int(o[id], `${path}.${id}`, 0, max);
+  // Every id of `ids` was set just above (or the parse failed), so the partial record is complete.
   return out as Record<K, number>;
 }
 
@@ -193,6 +237,7 @@ const ROOT_KEYS = [
   'army',
   'returnReport',
   'stats',
+  'story',
   'tapWindow',
   'settings',
 ] as const;
@@ -211,7 +256,9 @@ function parse(raw: unknown): GameState {
   const v = object(root['village'], '$.village', ['id', 'levels', 'sichLevels', 'lifetimeDucats', 'mechanic']);
   const m = object(v['mechanic'], '$.village.mechanic', ['kind', 'stormsSurvived']);
   const army = object(root['army'], '$.army', ['infantry']);
-  const stats = object(root['stats'], '$.stats', ['taps', 'purchases']);
+  const infantry = int(army['infantry'], '$.army.infantry', 0, MAX_INT);
+  const stats = object(root['stats'], '$.stats', ['taps', 'purchases', 'levelsBought', 'hires', 'tapIncomeSec']);
+  const story = object(root['story'], '$.story', ['seen']);
   const settings = object(root['settings'], '$.settings', ['lang', 'numberFormat']);
   const tw = object(root['tapWindow'], '$.tapWindow', ['start', 'count']);
   return {
@@ -235,12 +282,17 @@ function parse(raw: unknown): GameState {
         stormsSurvived: int(m['stormsSurvived'], '$.village.mechanic.stormsSurvived', 0, MAX_INT),
       },
     },
-    army: { infantry: int(army['infantry'], '$.army.infantry', 0, MAX_INT) },
+    army: { infantry },
     returnReport: parseReport(root['returnReport']),
     stats: {
       taps: int(stats['taps'], '$.stats.taps', 0, MAX_INT),
       purchases: int(stats['purchases'], '$.stats.purchases', 0, MAX_INT),
+      levelsBought: int(stats['levelsBought'], '$.stats.levelsBought', 0, MAX_INT),
+      // Every Cossack in the army was hired: fewer hires than infantry is a crafted save (losses only lower infantry).
+      hires: int(stats['hires'], '$.stats.hires', infantry, MAX_INT),
+      tapIncomeSec: real(stats['tapIncomeSec'], '$.stats.tapIncomeSec', 0, MAX_INT),
     },
+    story: { seen: beats(story['seen'], '$.story.seen') },
     tapWindow: {
       start: int(tw['start'], '$.tapWindow.start', 0, MAX_DATE_MS),
       count: int(tw['count'], '$.tapWindow.count', 0, TAP.maxPerSec),

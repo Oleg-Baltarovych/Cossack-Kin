@@ -30,10 +30,11 @@ describe('simulate (M1-14, SPEC §12.3)', () => {
     expect(renderReport([a], evaluate([a]))).toBe(renderReport([b], evaluate([b])));
   });
 
-  it('60 days of play simulate in under 10 s (plain node, as `pnpm balance` runs it)', () => {
-    // Measured in a child `node`, not in this worker: Vitest's module runner makes the hot core calls ~2.5× slower
-    // (3.3 s in node vs 8.2 s here), and a parallel `pnpm test` on a throttled laptop pushed that past 10 s.
-    // CPU time of the simulating thread, so other test workers competing for cores do not count.
+  it('60 days of play simulate in a child node, with every session (order-of-magnitude speed guard)', () => {
+    // The real speed budget (10 s of thread CPU) is a gate of `pnpm balance --check`, which runs alone (also in CI):
+    // under a parallel `pnpm test` on a throttled laptop the same run measured 11–14 s (M2-22 review). Here only a
+    // 30 s guard catches an order-of-magnitude slowdown. Measured in a child `node`, not in this worker: Vitest's
+    // module runner makes the hot core calls ~2.5× slower.
     const sim = pathToFileURL(resolve('tools/lib/balance/sim.ts')).href;
     const code = [
       `const { simulate } = await import(${JSON.stringify(sim)});`,
@@ -46,8 +47,8 @@ describe('simulate (M1-14, SPEC §12.3)', () => {
     const run = JSON.parse(out.trim().split('\n').at(-1) ?? '{}') as { ms?: unknown; sessions?: unknown };
     expect(run.sessions).toBe(60 * PACING.sessionsPerDay);
     expect(typeof run.ms).toBe('number');
-    expect(run.ms).toBeLessThan(10_000);
-  }, 30_000);
+    expect(run.ms).toBeLessThan(30_000);
+  }, 60_000);
 });
 
 describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {

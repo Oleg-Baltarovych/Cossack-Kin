@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
 import { FARM, SICH, TAP } from '../../../src/content/economy.ts';
 import { KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
 import { applyAction } from '../../../src/core/actions.ts';
@@ -16,6 +17,8 @@ function rich(ducats: number, glory = 0, farm: Partial<GameState['village']['lev
   const s = createInitialState({ seed: 11, now: T0 });
   return {
     ...s,
+    // Every story beat already seen: beats have their own tests (story.test.ts), these are about the economy.
+    story: { seen: [...STORY_BEAT_IDS] },
     currencies: { ...s.currencies, ducats: Big.from(ducats), glory: Big.from(glory) },
     village: { ...s.village, levels: { ...s.village.levels, ...farm } },
   };
@@ -127,6 +130,18 @@ describe('tapping (M1-10)', () => {
     expect(extra.state.stats.taps).toBe(TAP.maxPerSec);
     expect(extra.events.filter((e) => e.type === 'Tapped' || e.type === 'ActionRejected')).toEqual([]);
     expect(applyAction(s, { type: 'tap' }, T0 + 1000).state.stats.taps).toBe(TAP.maxPerSec + 1);
+  });
+
+  it('a clock stepping back does not open new tap seconds: taps behind lastSeen count in its second (M2-22 review)', () => {
+    let s = rich(0);
+    for (let i = 0; i < TAP.maxPerSec; i++) s = applyAction(s, { type: 'tap' }, T0 + 10).state;
+    // Each step back by 1 ms used to start a fresh second (now < tapWindow.start) with 10 more taps.
+    for (let back = 1; back <= 50; back++) s = applyAction(s, { type: 'tap' }, T0 + 10 - back * 100).state;
+    expect(s.stats.taps).toBe(TAP.maxPerSec);
+    expect(s.stats.tapIncomeSec).toBeCloseTo(TAP.maxPerSec * TAP.incomeShare, 9);
+    expect(s.time.lastSeen).toBe(T0 + 10);
+    // Once the clock passes that second again, taps count as usual.
+    expect(applyAction(s, { type: 'tap' }, T0 + 1010).state.stats.taps).toBe(TAP.maxPerSec + 1);
   });
 });
 

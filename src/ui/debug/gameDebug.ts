@@ -12,6 +12,7 @@ import { TIER_LEVELS } from '../../content/economy.ts';
 import { SICH_BUILDINGS } from '../../content/sich.ts';
 import { Big } from '../../core/big.ts';
 import { createInitialState, LANGS, type GameState, type Lang } from '../../core/state.ts';
+import { dueBeats } from '../../core/systems/story.ts';
 import type { GameStore } from '../../core/store.ts';
 import { tier } from '../../core/economy.ts';
 import { villageOf } from '../../core/modifiers.ts';
@@ -170,9 +171,9 @@ export function presetState(preset: Preset, seed: number, now: number, tier = TO
   if (preset === 'fresh') return s;
   // Nothing built yet, but a purse for the first buildings (e2e: a purchase puts a building on its empty plot).
   if (preset === 'rich') return { ...s, currencies: { ...s.currencies, ducats: Big.from(1e6), glory: Big.from(1e3) } };
-  if (preset === 'showcase') return showcase(s);
-  if (preset === 'tiers') return atTier(s, tier);
-  return {
+  if (preset === 'showcase') return played(showcase(s));
+  if (preset === 'tiers') return played(atTier(s, tier));
+  return played({
     ...s,
     currencies: { ...s.currencies, ducats: Big.from(48_500), glory: Big.from(140) },
     village: {
@@ -181,5 +182,20 @@ export function presetState(preset: Preset, seed: number, now: number, tier = TO
       sichLevels: { ...s.village.sichLevels, kurins: 3, walls: 2, maidan: 1 },
     },
     army: { infantry: 6 },
+  });
+}
+
+/**
+ * A preset of a game already played (M2-22): its Cossacks counted as hired and the story beats it has reached seen,
+ * as the v1 → v2 migration does (levels bought = Σ levels) — the first click must not fire the beats (and their glory) of a past it never had.
+ */
+function played(s: GameState): GameState {
+  const sum = (r: Readonly<Record<string, number>>): number => Object.values(r).reduce((a, b) => a + b, 0);
+  const stats = {
+    ...s.stats,
+    hires: s.army.infantry,
+    levelsBought: sum(s.village.levels) + sum(s.village.sichLevels),
   };
+  const due = dueBeats({ ...s, stats }, s.story.seen).map((b) => b.id);
+  return { ...s, stats, story: { seen: [...s.story.seen, ...due] } };
 }

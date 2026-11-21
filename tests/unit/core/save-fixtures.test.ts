@@ -29,13 +29,30 @@ describe('save fixtures (M1-20, rules/save.md)', () => {
     });
   }
 
-  it('v1 is a real played game: buildings, Sich and Cossacks, and re-encodes to the same payload', () => {
-    const raw = readFileSync(join(DIR, 'v1.json'), 'utf8').trim();
+  for (const file of ['v1.json', 'v2.json']) {
+    it(`${file} is a real played game: buildings, Sich and Cossacks`, () => {
+      const r = decodeSave(readFileSync(join(DIR, file), 'utf8').trim());
+      if (!r.ok) throw new Error(r.reason);
+      expect(Object.values(r.state.village.levels).every((l) => l > 0)).toBe(true);
+      expect(r.state.army.infantry).toBeGreaterThan(0);
+      expect(Object.values(r.state.village.sichLevels).some((l) => l > 0)).toBe(true);
+    });
+  }
+
+  it('the fixture of the current version re-encodes to the same save (nothing lost or added on load)', () => {
+    const raw = readFileSync(join(DIR, `v${String(SAVE_VERSION)}.json`), 'utf8').trim();
     const r = decodeSave(raw);
     if (!r.ok) throw new Error(r.reason);
-    expect(Object.values(r.state.village.levels).every((l) => l > 0)).toBe(true);
-    expect(r.state.army.infantry).toBeGreaterThan(0);
-    expect(Object.values(r.state.village.sichLevels).some((l) => l > 0)).toBe(true);
     expect(encodeSave(r.state, r.seq)).toBe(raw);
+  });
+
+  it('v2 was played with the story: beats fired in play are seen, and the counters ran', () => {
+    const r = decodeSave(readFileSync(join(DIR, 'v2.json'), 'utf8').trim());
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.state.story.seen).toContain('khortytsia.shore');
+    expect(r.state.story.seen).toContain('khortytsia.messenger');
+    expect(r.state.stats.levelsBought).toBeGreaterThan(0);
+    expect(r.state.stats.hires).toBe(r.state.army.infantry);
+    expect(r.state.stats.tapIncomeSec).toBeGreaterThan(0);
   });
 });

@@ -10,12 +10,13 @@
 // report: the income goes straight in. `tick` routes a short gap to `advance` and a long one here, so a long
 // "online" gap cannot bypass the caps.
 import { OFFLINE } from '../content/economy.ts';
-import { advance, type AdvanceResult } from './advance.ts';
+import { advance, integrate, type AdvanceResult } from './advance.ts';
 import { Big } from './big.ts';
 import type { GameEvent } from './events.ts';
 import { collectModifiers } from './modifiers.ts';
 import type { GameState, ReturnReport } from './state.ts';
 import { gloryGain, gloryRate } from './systems/army.ts';
+import { checkStory } from './systems/story.ts';
 
 const MS_PER_SEC = 1000;
 
@@ -70,7 +71,7 @@ export function applyOffline(input: GameState, now: number): AdvanceResult {
   const forwardJump = now > s.time.maxSeen + OFFLINE.forwardJumpCapSec * MS_PER_SEC;
   const countedSec = forwardJump ? mods.offlineCapSec : Math.min(awaySec, mods.offlineCapSec);
   // Integrate only the counted window (the cap comes first: work and events stay bounded for any absence).
-  const counted = advance(s, from + countedSec * MS_PER_SEC).state;
+  const counted = integrate(s, from + countedSec * MS_PER_SEC).state;
   const ducats = counted.currencies.ducats.sub(s.currencies.ducats).mul(mods.offlineMult);
   // Glory has no wind in it: its rate is constant over the absence, so the store cap is rate × min(counted, cap).
   const glory = gloryGain(gloryRate(s, mods), countedSec, mods.gloryCapSec);
@@ -81,8 +82,10 @@ export function applyOffline(input: GameState, now: number): AdvanceResult {
     village: { ...counted.village, lifetimeDucats: s.village.lifetimeDucats },
     time: { ...s.time, lastSeen: now, maxSeen: Math.max(s.time.maxSeen, now) },
   };
+  // Beats due by now fire on the state kept (their rewards go straight in, not into the report).
+  const story = checkStory(restored);
   const r = report(
-    restored,
+    story.state,
     {
       awaySec,
       countedSec,
@@ -92,7 +95,7 @@ export function applyOffline(input: GameState, now: number): AdvanceResult {
     ducats,
     glory,
   );
-  return { state: r.state, events: [...before, ...r.events] };
+  return { state: r.state, events: [...before, ...story.events, ...r.events] };
 }
 
 /** One step of the game loop: a short gap is plain time (`advance`), a long one is an absence (`applyOffline`). */

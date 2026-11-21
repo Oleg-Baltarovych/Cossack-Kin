@@ -4,7 +4,13 @@ import { SAVE_MAX_EXPONENT } from '../../../src/content/numbers.ts';
 import { SICH_BUILDING_IDS } from '../../../src/content/sich.ts';
 import { FARM_BUILDING_IDS } from '../../../src/content/villages/khortytsia.ts';
 import { Big } from '../../../src/core/big.ts';
-import { createInitialState, MAX_DATE_MS, validateState, type GameState } from '../../../src/core/state.ts';
+import {
+  createInitialState,
+  MAX_DATE_MS,
+  STATE_VERSION,
+  validateState,
+  type GameState,
+} from '../../../src/core/state.ts';
 import { createCosmeticRng } from '../../../src/render/clock.ts';
 
 const NOW = 1_763_400_000_000;
@@ -67,6 +73,7 @@ describe('validateState: the save gate (M1-04)', () => {
         ['currencies.ducats', '1.5e42'],
         ['currencies.glory', '12345.5'],
         ['army.infantry', 14],
+        ['stats.hires', 14],
         [
           'returnReport',
           { awaySec: 30000, countedSec: 28800, capped: true, reason: 'normal', ducats: '9e20', glory: '400' },
@@ -131,7 +138,7 @@ describe('validateState: the save gate (M1-04)', () => {
   });
 
   it('rejects a version it does not own (migrations come first) and non-objects', () => {
-    expect(rejects(variant(['version', 2]))).toMatch(/^version at version/);
+    expect(rejects(variant(['version', STATE_VERSION + 1]))).toMatch(/^version at version/);
     expect(rejects(null)).toMatch(/^type at \$/);
     expect(rejects('{}')).toMatch(/^type at \$/);
     expect(rejects([])).toMatch(/^type at \$/);
@@ -162,8 +169,8 @@ describe('validateState: security review (M1-04)', () => {
   });
 
   it('checks the version before the keys: a newer save with new fields reads as "version", not "unknownKey"', () => {
-    expect(reason(variant(['version', 2], ['newField', 1]))).toBe('version at version');
-    expect(reason(variant(['version', 2], ['stats', REMOVE]))).toBe('version at version');
+    expect(reason(variant(['version', STATE_VERSION + 1], ['newField', 1]))).toBe('version at version');
+    expect(reason(variant(['version', STATE_VERSION + 1], ['stats', REMOVE]))).toBe('version at version');
   });
 
   it('keeps the return report self-consistent: counted ≤ away and ≤ the offline ceiling', () => {
@@ -201,6 +208,8 @@ describe('validateState: security review (M1-04)', () => {
       'army.infantry',
       'returnReport',
       'stats.taps',
+      'stats.tapIncomeSec',
+      'story.seen',
       'settings.lang',
       'settings.numberFormat',
       'extra',

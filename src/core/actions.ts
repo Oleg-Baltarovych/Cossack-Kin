@@ -1,6 +1,7 @@
 // Player actions (SPEC §3.2–3.4, §3.8; plan §0, M1-10, Q8). One pure reducer: `applyAction(state, action, now)`
 // first advances time to `now` (income up to the click is earned), then applies the action. A refused action leaves
-// the (advanced) state as it is and adds `ActionRejected` with the reason — never a throw for a player error.
+// the (advanced) state as it is and adds `ActionRejected` with the reason — never a throw for a player error. An
+// accepted action is followed by the story check (M2-22): a beat its trigger now meets fires in the same turn.
 import { FARM, SICH, TAP } from '../content/economy.ts';
 import { SICH_BUILDINGS, type SichBuildingId } from '../content/sich.ts';
 import type { FarmBuildingId } from '../content/villages/khortytsia.ts';
@@ -12,6 +13,7 @@ import { collectModifiers, farmIncomeRate, sichUnlocked, villageOf } from './mod
 import type { GameState, Lang, NumberFormat } from './state.ts';
 import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
+import { checkStory } from './systems/story.ts';
 
 export type Action =
   | { readonly type: 'buyBuilding'; readonly id: FarmBuildingId; readonly mode: BuyMode }
@@ -59,7 +61,7 @@ function buyBuilding(
         ducats: s.currencies.ducats.sub(bulkCost(b, level, n, village.scale, mods.costMult)),
       },
       village: { ...s.village, levels: { ...s.village.levels, [a.id]: to } },
-      stats: { ...s.stats, purchases: s.stats.purchases + 1 },
+      stats: { ...s.stats, purchases: s.stats.purchases + 1, levelsBought: s.stats.levelsBought + n },
     },
     events,
   };
@@ -83,7 +85,7 @@ function buySich(s: GameState, a: Extract<Action, { type: 'buySich' }>): ActionR
       ...s,
       currencies: { ...s.currencies, glory: s.currencies.glory.sub(bulkCost(b, level, n, scale)) },
       village: { ...s.village, sichLevels: { ...s.village.sichLevels, [a.id]: to } },
-      stats: { ...s.stats, purchases: s.stats.purchases + 1 },
+      stats: { ...s.stats, purchases: s.stats.purchases + 1, levelsBought: s.stats.levelsBought + n },
     },
     events,
   };
@@ -98,6 +100,7 @@ function hire(s: GameState, a: Extract<Action, { type: 'hire' }>, now: number): 
       ...s,
       currencies: { ...s.currencies, ducats: s.currencies.ducats.sub(check.cost) },
       army: { infantry: total },
+      stats: { ...s.stats, hires: s.stats.hires + a.n },
     },
     events: [{ type: 'CossackHired', n: a.n, total }],
   };
@@ -116,7 +119,7 @@ function tap(s: GameState, now: number): ActionResult | null {
       ...s,
       currencies: { ...s.currencies, ducats: s.currencies.ducats.add(amount) },
       village: { ...s.village, lifetimeDucats: s.village.lifetimeDucats.add(amount) },
-      stats: { ...s.stats, taps: s.stats.taps + 1 },
+      stats: { ...s.stats, taps: s.stats.taps + 1, tapIncomeSec: s.stats.tapIncomeSec + TAP.incomeShare },
       tapWindow: { start: second.start, count: second.count + 1 },
     },
     events: [{ type: 'Tapped', amount }],
@@ -132,19 +135,22 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
   const advanced = advance(state, now);
   const s = advanced.state;
   const before = advanced.events;
+  // The action's time never runs behind `lastSeen` (a clock set back, or a non-finite `now`): otherwise every step back
+  // would open a fresh tap second (M2-22 review). After `advance`, lastSeen = max(lastSeen, now).
+  const at = s.time.lastSeen;
   let result: ActionResult | RejectReason | null;
   switch (action.type) {
     case 'buyBuilding':
-      result = buyBuilding(s, action, now);
+      result = buyBuilding(s, action, at);
       break;
     case 'buySich':
       result = buySich(s, action);
       break;
     case 'hire':
-      result = hire(s, action, now);
+      result = hire(s, action, at);
       break;
     case 'tap':
-      result = tap(s, now);
+      result = tap(s, at);
       break;
     case 'claimReturn':
       result = claimReturn(s);
@@ -164,5 +170,6 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
   }
   if (result === null) return advanced;
   if (typeof result === 'string') return reject(s, before, action, result);
-  return { state: result.state, events: [...before, ...result.events] };
+  const story = checkStory(result.state);
+  return { state: story.state, events: [...before, ...result.events, ...story.events] };
 }

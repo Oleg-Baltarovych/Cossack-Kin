@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
 import { OFFLINE } from '../../../src/content/economy.ts';
 import { Big } from '../../../src/core/big.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
@@ -11,6 +12,8 @@ function game(ducats = 1e6): GameState {
   const s = createInitialState({ seed: 31, now: T0 });
   return {
     ...s,
+    // Every story beat already seen: beats have their own tests (story.test.ts), these are about the economy.
+    story: { seen: [...STORY_BEAT_IDS] },
     currencies: { ...s.currencies, ducats: Big.from(ducats) },
     village: { ...s.village, levels: { ...s.village.levels, field: 20 } },
   };

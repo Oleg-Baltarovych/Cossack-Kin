@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
 import { KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
 import { advance } from '../../../src/core/advance.ts';
 import { Big } from '../../../src/core/big.ts';
@@ -21,6 +22,8 @@ function midGame(seed: number, now = T0): GameState {
   const s = createInitialState({ seed, now });
   return {
     ...s,
+    // Every story beat already seen: beats have their own tests (story.test.ts), these are about the economy.
+    story: { seen: [...STORY_BEAT_IDS] },
     army: { infantry: 12 },
     village: {
       ...s.village,
