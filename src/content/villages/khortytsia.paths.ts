@@ -6,12 +6,15 @@
 // threshold there. Villagers may walk up to it, never past it: every node inside is Cossack-only (plan AC2, Q11).
 // A node with a `building` is open only while that building stands (M2-18): the potter's yard, the fair square, the
 // work spots — nobody works at an empty plot.
+import { VISITOR_SPRITES } from '../agents.ts';
+import type { VisitorId } from '../visitors.ts';
 import type {
   AgentSpawn,
   CossackNight,
   GuardSprite,
   KozakSprite,
   PathEdge,
+  Spot,
   VillagerSprite,
   ZonePaths,
 } from '../agents.ts';
@@ -49,6 +52,7 @@ export type KhortytsiaNode =
   | 'suburb.tavern.porch'
   | 'suburb.smithy.yard'
   | 'suburb.fair.c'
+  | 'suburb.layby'
   | 'sich.gate'
   | 'sich.maidan.w'
   | 'sich.maidan'
@@ -148,6 +152,8 @@ export const SUBURB_PATHS: ZonePaths<KhortytsiaNode> = {
     { id: 'suburb.tavern.porch', kind: 'way', x: 120, ground: 124, building: 'tavern' },
     { id: 'suburb.smithy.yard', kind: 'way', x: 354, ground: 232, building: 'smithy' },
     { id: 'suburb.fair.c', kind: 'way', x: 214, ground: 254, building: 'fair' },
+    // Where the чумак pulls his віз off the road (M2-21): below the road past the well, clear of the food carts' lane.
+    { id: 'suburb.layby', kind: 'way', x: 300, ground: 170 },
   ],
   edges: [
     ['suburb.road.w', 'suburb.road.tavern'],
@@ -163,6 +169,7 @@ export const SUBURB_PATHS: ZonePaths<KhortytsiaNode> = {
     ['suburb.road.tavern', 'suburb.tavern.porch'],
     ['suburb.road.e', 'suburb.smithy.yard'],
     ['suburb.square', 'suburb.fair.c'],
+    ['suburb.road.well', 'suburb.layby'],
   ],
 };
 
@@ -358,6 +365,54 @@ const FOOD_CARTS: readonly AgentSpawn<KhortytsiaNode>[] = [
   cartSlot('selianyn.d'),
 ];
 
+/**
+ * The visitors (plan M2-21, SPEC §2.6, §6.6): they come along the road from beyond the farm (48 px past its west end,
+ * out of sight) through the farm into the suburb and back the same way — never into the Sich. The кобзар sits and
+ * plays left of the tavern door (by the well while there is no tavern); the лірник stands by the well; the чумак pulls
+ * his віз into the lay-by below the road; the коробейник and the гончар offer their wares at the fair (at the farm's
+ * fence while there is no fair). An old blind bard walks slowly; the чумак keeps the oxen's pace.
+ */
+const ENTRY: Spot<KhortytsiaNode> = { at: 'farm.road.w', dx: -48, facing: 1 };
+const visitor = (
+  id: VisitorId,
+  speed: number,
+  spots: readonly Spot<KhortytsiaNode>[],
+  extra: { stay?: 'play'; cart?: true } = {},
+): AgentSpawn<KhortytsiaNode> => ({
+  routine: 'visitor',
+  role: 'visitor',
+  visitor: id,
+  sprite: VISITOR_SPRITES[id],
+  home: 'farm.road.w',
+  entry: ENTRY,
+  spots,
+  stay: extra.stay ?? 'idle',
+  ...(extra.cart ? { cart: true as const } : {}),
+  speed,
+  phase: 0,
+});
+const VISITORS: readonly AgentSpawn<KhortytsiaNode>[] = [
+  visitor(
+    'kobzar',
+    12,
+    [
+      { at: 'suburb.tavern', dx: -28, facing: 1 },
+      { at: 'suburb.well', dx: -12, facing: 1 },
+    ],
+    { stay: 'play' },
+  ),
+  visitor('lirnyk', 14, [{ at: 'suburb.well', dx: 12, facing: -1 }]),
+  visitor('chumak', 18, [{ at: 'suburb.layby', dx: 0, facing: 1 }], { cart: true }),
+  visitor('korobeinyk', 16, [
+    { at: 'suburb.fair.c', dx: 12, facing: -1 },
+    { at: 'farm.fence', dx: 12, facing: -1 },
+  ]),
+  visitor('hanchar', 16, [
+    { at: 'suburb.square', dx: 24, facing: -1 },
+    { at: 'farm.fence', dx: -12, facing: 1 },
+  ]),
+];
+
 /** Every villager's door: the khata stands from the start, so whoever has no night spot standing goes in there. */
 const HOME = 'farm.khata';
 
@@ -496,4 +551,5 @@ export const KHORTYTSIA_AGENTS: readonly AgentSpawn<KhortytsiaNode>[] = [
   },
   ...SICH_COSSACKS,
   ...FOOD_CARTS,
+  ...VISITORS,
 ];

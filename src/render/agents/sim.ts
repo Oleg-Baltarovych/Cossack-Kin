@@ -27,12 +27,15 @@ import {
   COSSACK_ANIMS,
   COSSACK_DAY,
   GUARD_ANIMS,
+  KOBZAR_ANIMS,
   OTAMAN_ANIMS,
   VILLAGER_ANIMS,
   VILLAGER_DAY,
   isCossackAnim,
   isGuardAnim,
   isGuardSprite,
+  isKobzarAnim,
+  isKobzarSprite,
   isKozakSprite,
   isOtamanAnim,
   isOtamanSprite,
@@ -49,6 +52,8 @@ import {
   type GirlSprite,
   type GuardAnim,
   type GuardSprite,
+  type KobzarAnim,
+  type KobzarSprite,
   type KozakSprite,
   type NodeBuilding,
   type OtamanAnim,
@@ -60,8 +65,11 @@ import {
   type VillagerAnim,
   type VillagerSpawn,
   type VillagerSprite,
+  type VisitorSpawn,
+  type WalkerVisitorSprite,
   type WorkAnim,
 } from '../../content/agents.ts';
+import type { VisitorId } from '../../content/visitors.ts';
 import type { VisualTiers } from '../../core/selectors.ts';
 import { checkGraph, findPath, mayEnter, nodeOf } from './graph.ts';
 
@@ -82,6 +90,7 @@ export function personAnim(anim: PersonAnim): { readonly frames: number; readonl
   if (isVillagerAnim(anim)) return VILLAGER_ANIMS[anim];
   if (isCossackAnim(anim)) return COSSACK_ANIMS[anim];
   if (isOtamanAnim(anim)) return OTAMAN_ANIMS[anim];
+  if (isKobzarAnim(anim)) return KOBZAR_ANIMS[anim];
   return GUARD_ANIMS[anim];
 }
 
@@ -101,6 +110,19 @@ export interface AgentContext {
    * no game: the busiest traffic (`CART_PERIOD.minS`).
    */
   readonly cartPeriodS?: number | null | undefined;
+  /**
+   * The visit going on now (core `visitorAt` on the game's seed and time, M2-21): who and how far into it; `null` or
+   * absent = nobody visiting (no game, the showcase).
+   */
+  readonly visit?: VisitNow | null | undefined;
+}
+
+/** A visit as the agents see it: the visitor, the timetable slot (one route per visit), seconds into it and its length. */
+export interface VisitNow {
+  readonly visitor: VisitorId;
+  readonly slot: number;
+  readonly elapsedS: number;
+  readonly durationS: number;
 }
 
 /** Noon, every building standing: the context for tests and tools. */
@@ -186,7 +208,11 @@ export type Activity =
   /** A food cart waiting beyond the world's edge for its turn (M2-20): out of sight, no pose. */
   | { readonly kind: 'depot' }
   /** A cart stopped short of the gate, unloading (still full), then standing turned (empty) before the way back. */
-  | { readonly kind: 'unload' | 'turn'; ticksLeft: number };
+  | { readonly kind: 'unload' | 'turn'; ticksLeft: number }
+  /** A visitor between visits (M2-21): out of the village, no pose. */
+  | { readonly kind: 'away' }
+  /** A visitor on its visit: walking in, staying (idle or playing), walking out — placed from the visit's time. */
+  | { readonly kind: 'visit'; readonly anim: 'walk' | 'idle' | KobzarAnim; readonly out: boolean };
 
 /** One agent; mutated in place by `stepInPlace` (treat as read-only outside this module). */
 export interface Agent {
@@ -216,6 +242,24 @@ export interface Agent {
   animTicks: number;
   /** mulberry32 state. */
   rng: number;
+  /** A visitor's way in for the current visit (made once per visit); `null` for everyone else and between visits. */
+  route: VisitRoute | null;
+  /**
+   * The timetable slot whose visit this visitor has taken up (route found or none: then it stays away for that slot,
+   * and the path is not searched again); NaN before the first.
+   */
+  routeSlot: number;
+}
+
+/**
+ * A visitor's way from beyond the world's edge to its spot (M2-21): the polyline's points, the distance along it to
+ * each point and the spot's facing. Walking out is the same line backwards.
+ */
+export interface VisitRoute {
+  readonly xs: readonly number[];
+  readonly ys: readonly number[];
+  readonly along: readonly number[];
+  readonly facing: 1 | -1;
 }
 
 /** A finished work spell (plan M2-18): where the cosmetic «+» rises. Nothing about the economy. */
@@ -269,6 +313,8 @@ type Look =
   | { sprite: OtamanSprite; anim: BasicAnim | OtamanAnim }
   | { sprite: GuardSprite; anim: BasicAnim | GuardAnim }
   | { sprite: GirlSprite; anim: BasicAnim }
+  | { sprite: KobzarSprite; anim: BasicAnim | KobzarAnim }
+  | { sprite: WalkerVisitorSprite; anim: BasicAnim }
   | { sprite: CartSprite; anim: BasicAnim };
 
 /**
@@ -899,12 +945,117 @@ function wanderTick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number)
   }
 }
 
+// ── visitors (M2-21) ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const AWAY: Activity = { kind: 'away' };
+const VISIT_IN: Activity = { kind: 'visit', anim: 'walk', out: false };
+const VISIT_OUT: Activity = { kind: 'visit', anim: 'walk', out: true };
+const STAY: Readonly<Record<VisitorSpawn['stay'], Activity>> = {
+  idle: { kind: 'visit', anim: 'idle', out: false },
+  play: { kind: 'visit', anim: 'play', out: false },
+};
+
+/**
+ * The way in for a visit: from the entry beyond the world's edge to the first of the spawn's spots that is open (its
+ * building stands) and reachable for a visitor; `null` when none is (content keeps an always-open last spot).
+ */
+function visitRoute(ctx: AgentContext, graph: PathGraph, spawn: VisitorSpawn): VisitRoute | null {
+  for (const spot of spawn.spots) {
+    const path = findPath(graph, spawn.entry.at, spot.at, 'visitor', (n) => nodeOpen(ctx, n));
+    if (!path) continue;
+    const entry = nodeOf(graph, spawn.entry.at);
+    const xs = [entry.x + spawn.entry.dx];
+    const ys = [entry.ground];
+    for (const id of path) {
+      const n = nodeOf(graph, id);
+      xs.push(n.x);
+      ys.push(n.ground);
+    }
+    xs.push((xs[xs.length - 1] ?? 0) + spot.dx);
+    ys.push(ys[ys.length - 1] ?? 0);
+    const along = [0];
+    for (let i = 1; i < xs.length; i++)
+      along.push((along[i - 1] ?? 0) + Math.hypot((xs[i] ?? 0) - (xs[i - 1] ?? 0), (ys[i] ?? 0) - (ys[i - 1] ?? 0)));
+    return { xs, ys, along, facing: spot.facing };
+  }
+  return null;
+}
+
+/** Puts `agent` `d` px along `route`, facing the way it walks (`back`: toward the entry). */
+function alongRoute(agent: Agent, route: VisitRoute, d: number, back: boolean): void {
+  const last = route.xs.length - 1;
+  let i = 1;
+  while (i < last && (route.along[i] ?? 0) < d) i++;
+  const a0 = route.along[i - 1] ?? 0;
+  const len = (route.along[i] ?? 0) - a0;
+  const k = len > 0 ? Math.min(1, Math.max(0, (d - a0) / len)) : 1;
+  const x0 = route.xs[i - 1] ?? 0;
+  const y0 = route.ys[i - 1] ?? 0;
+  const dx = (route.xs[i] ?? 0) - x0;
+  agent.x = x0 + k * dx;
+  agent.y = y0 + k * ((route.ys[i] ?? 0) - y0);
+  if (dx !== 0) agent.facing = dx > 0 !== back ? 1 : -1;
+}
+
+/** The route's length in px. */
+const routeLength = (route: VisitRoute): number => route.along[route.along.length - 1] ?? 0;
+
+/**
+ * A visitor this frame (M2-21), from the visit alone: away unless the timetable's visit is its own; else walking in
+ * for the time its route takes at its speed, staying at the spot, and walking the route back out over the visit's last
+ * stretch. The same visit time always gives the same pose. Shared activity objects: nothing is allocated but the
+ * route, once per visit.
+ * Day only, cosmetically: a visit is taken up only when first seen in the village's hours (`VILLAGER_DAY`) — a visit
+ * the timetable has at night stays out of sight — and one taken up runs to its end whatever the hour, so nobody
+ * vanishes mid-walk at dusk. (The core timetable is hour-blind: the core has no local time zone until save v2.)
+ */
+function visitorStep(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VisitorSpawn): void {
+  const v = ctx.visit;
+  if (!v || v.visitor !== spawn.visitor || v.elapsedS >= v.durationS) {
+    agent.activity = AWAY;
+    return;
+  }
+  if (agent.routeSlot !== v.slot) {
+    if (!workingHours(ctx.minutes)) {
+      agent.activity = AWAY;
+      return;
+    }
+    agent.routeSlot = v.slot;
+    agent.route = visitRoute(ctx, pool.graph, spawn);
+  }
+  const route = agent.route;
+  if (!route) {
+    agent.activity = AWAY;
+    return;
+  }
+  const length = routeLength(route);
+  const walkS = length / spawn.speed;
+  const e = Math.max(0, v.elapsedS);
+  const leaveS = v.durationS - walkS;
+  if (e < walkS && e < leaveS) {
+    agent.activity = VISIT_IN;
+    alongRoute(agent, route, e * spawn.speed, false);
+    agent.animTicks = Math.round(e * TICK_HZ);
+  } else if (e < leaveS) {
+    agent.activity = STAY[spawn.stay];
+    agent.x = route.xs[route.xs.length - 1] ?? agent.x;
+    agent.y = route.ys[route.ys.length - 1] ?? agent.y;
+    agent.facing = route.facing;
+    agent.animTicks = Math.round((e - walkS) * TICK_HZ);
+  } else {
+    agent.activity = VISIT_OUT;
+    alongRoute(agent, route, Math.max(0, length - (e - leaveS) * spawn.speed), true);
+    agent.animTicks = Math.round((e - leaveS) * TICK_HZ);
+  }
+}
+
 /** One tick of `agent`; `t` = the pool's clock at this tick (the drill). */
 function tick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
   const spawn = agent.spawn;
   if (spawn.routine === 'villager') villagerTick(ctx, pool, agent, spawn, t);
   else if (spawn.routine === 'cart') cartTick(ctx, pool, agent, spawn, t);
   else if (spawn.routine === 'cossack') cossackTick(ctx, pool, agent, spawn, t);
+  else if (spawn.routine === 'visitor') visitorStep(ctx, pool, agent, spawn);
   else wanderTick(ctx, pool, agent, t);
 }
 
@@ -914,7 +1065,9 @@ export function stepInPlace(pool: AgentPool, ticks: number, ctx: AgentContext): 
   // People step on their own (each reads only itself and the clock); the carts tick together, tick by tick.
   for (const agent of pool.agents) {
     if (agent.spawn.routine === 'cart') continue;
-    for (let i = 0; i < ticks; i++) tick(ctx, pool, agent, pool.ticks + i);
+    // A visitor is placed from the visit's time alone: one step, whatever the ticks.
+    if (agent.spawn.routine === 'visitor') visitorStep(ctx, pool, agent, agent.spawn);
+    else for (let i = 0; i < ticks; i++) tick(ctx, pool, agent, pool.ticks + i);
   }
   const carts = cartCount(pool);
   if (carts > 0) for (let i = 0; i < ticks; i++) cartsTick(ctx, pool, carts, pool.ticks + i);
@@ -938,6 +1091,10 @@ function place(ctx: AgentContext, pool: AgentPool, agent: Agent): void {
   if (spawn.routine === 'cart') {
     at(spawn.depot.at, spawn.depot.dx);
     setActivity(agent, { kind: 'depot' });
+    return;
+  }
+  if (spawn.routine === 'visitor') {
+    visitorStep(ctx, pool, agent, spawn);
     return;
   }
   const night = !workingHours(ctx.minutes);
@@ -1008,8 +1165,11 @@ export function createAgents(
     const home = nodeOf(graph, spawn.home);
     if (!mayEnter(home, spawn.role))
       throw new Error(`agent ${spawn.sprite}: home "${home.id}" closed to ${spawn.role}`);
-    if (used[spawn.role] >= budget[spawn.role]) continue;
-    used[spawn.role] += 1;
+    // Visitors come one visit at a time (the core timetable), so every kind has its agent; their budget counts poses.
+    if (spawn.routine !== 'visitor') {
+      if (used[spawn.role] >= budget[spawn.role]) continue;
+      used[spawn.role] += 1;
+    }
     const goals =
       spawn.routine === 'wander' ? spawn.goals.filter((g) => findPath(graph, home.id, g, spawn.role) !== null) : [];
     const still = spawn.routine === 'wander' && (goals.length === 0 || spawn.speed <= 0);
@@ -1019,7 +1179,7 @@ export function createAgents(
       sprite: spawn.sprite,
       spawn,
       goals,
-      offset: spawn.routine === 'wander' || spawn.routine === 'cart' ? 0 : spotOffset(i),
+      offset: spawn.routine === 'wander' || spawn.routine === 'cart' || spawn.routine === 'visitor' ? 0 : spotOffset(i),
       enlist: spawn.routine === 'cossack' ? enlist++ : -1,
       reviewed: -1,
       at: home.id,
@@ -1030,6 +1190,8 @@ export function createAgents(
       activity: still ? { kind: 'stand' } : { kind: 'rest', ticksLeft: 0 },
       animTicks: 0,
       rng: (seed ^ Math.imul(i + 1, 0x9e3779b9)) >>> 0,
+      route: null,
+      routeSlot: NaN,
     };
     if (!still) place(ctx, pool, agent);
     for (let k = 0; k < Math.round(spawn.phase * TICK_HZ); k++) tick(ctx, pool, agent, k);
@@ -1080,6 +1242,7 @@ function animOf(a: Activity, animTicks: number, t: number): { readonly anim: Per
       return { anim: 'talk', ticks: animTicks };
     case 'night':
     case 'post':
+    case 'visit':
       return { anim: a.anim, ticks: animTicks };
     case 'rank':
       return { anim: RANK_ANIM[drillPhase(t)], ticks: drillAt(t, 'ticks') };
@@ -1099,6 +1262,7 @@ function hasFrames(sprite: AgentSprite, anim: PersonAnim): boolean {
   if (isKozakSprite(sprite)) return isCossackAnim(anim);
   if (isOtamanSprite(sprite)) return isOtamanAnim(anim);
   if (isGuardSprite(sprite)) return isGuardAnim(anim);
+  if (isKobzarSprite(sprite)) return isKobzarAnim(anim);
   return false;
 }
 
@@ -1146,11 +1310,41 @@ function writeCart(a: Agent, spawn: CartSpawn, cart: PoseSlot, driver: PoseSlot)
   driver.anim = anim;
 }
 
+/**
+ * The чумак and his віз (M2-21): the food cart's sprites — loaded coming in and while he stays, empty (salt sold)
+ * going out, on the empty carts' lane — the cart at the agent's place (id `driverId`), the чумак at the oxen's
+ * shoulder like a cart's driver (the agent's id).
+ */
+function writeVisitorCart(a: Agent, spawn: VisitorSpawn, cart: PoseSlot, walker: PoseSlot): void {
+  const out = a.activity.kind === 'visit' && a.activity.out;
+  const dir = out ? -1 : 1;
+  const anim = a.activity.kind === 'visit' && a.activity.anim === 'walk' ? 'walk' : 'idle';
+  const { frames, fps } = personAnim(anim);
+  const frame = cycleFrame(a.animTicks, fps, frames);
+  cart.id = driverId(a.id);
+  cart.x = Math.round(a.x);
+  cart.ground = Math.round(a.y) + (out ? CART_TRIP.lane : 0);
+  cart.facing = 1;
+  cart.frame = frame;
+  cart.sprite = out ? 'viz.empty' : 'viz.full';
+  cart.anim = anim;
+  walker.id = a.id;
+  walker.x = cart.x + dir * CART_TRIP.driver.ahead;
+  walker.ground = cart.ground - dir * CART_TRIP.driver.aside;
+  walker.facing = dir;
+  walker.frame = frame;
+  walker.sprite = spawn.sprite;
+  walker.anim = anim;
+}
+
 const emptySlot = (): PoseSlot => ({ id: -1, sprite: 'kozak.a', x: 0, ground: 0, facing: 1, anim: 'idle', frame: 0 });
 
 /** Whether an agent is out of sight: gone indoors, or a Cossack the army does not have. */
 const unseen = (a: Agent): boolean =>
-  a.activity.kind === 'indoors' || a.activity.kind === 'absent' || a.activity.kind === 'depot';
+  a.activity.kind === 'indoors' ||
+  a.activity.kind === 'absent' ||
+  a.activity.kind === 'depot' ||
+  a.activity.kind === 'away';
 
 /**
  * Writes whole-px poses into `out` (slots reused) and returns it: one per agent in sight, in pool order — an agent
@@ -1168,6 +1362,11 @@ export function writePoses(pool: AgentPool, out: PoseSlot[]): readonly AgentPose
       out[n] = driver;
       n += 1;
       writeCart(a, a.spawn, slot, driver);
+    } else if (a.spawn.routine === 'visitor' && a.spawn.cart) {
+      const walker = out[n] ?? emptySlot();
+      out[n] = walker;
+      n += 1;
+      writeVisitorCart(a, a.spawn, slot, walker);
     } else {
       writePose(a, slot, pool.ticks);
     }
@@ -1186,11 +1385,15 @@ export function workingCount(pool: AgentPool): number {
   return n;
 }
 
-/** Agents on the scene by role (`__CK__.stats.agents`): a Cossack the army does not have is not counted. */
+/**
+ * Agents on the scene by role (`__CK__.stats.agents`): a Cossack the army does not have, a cart in its depot and a
+ * visitor between visits are not counted. `visitor` counts visitors in the village (agents: one per visit — the чумак's
+ * віз is part of his visit, not a cart); `AGENT_BUDGET.visitor` bounds their poses (tests/unit/render/visitors.test.ts).
+ */
 export function agentCounts(pool: AgentPool): AgentCounts {
   const counts = { total: 0, villager: 0, cossack: 0, visitor: 0, cart: 0 };
   for (const a of pool.agents) {
-    if (a.activity.kind === 'absent' || a.activity.kind === 'depot') continue;
+    if (a.activity.kind === 'absent' || a.activity.kind === 'depot' || a.activity.kind === 'away') continue;
     counts.total += 1;
     counts[a.role] += 1;
   }

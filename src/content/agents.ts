@@ -2,13 +2,15 @@
 // land's path graph. Data and types only — path finding and stepping live in render/agents/ (cosmetic, never state).
 import type { SichBuildingId } from './sich.ts';
 import type { FarmBuildingId } from './villages/khortytsia.ts';
+import type { VisitorId } from './visitors.ts';
 
 /** Who walks (plan Q11): villagers stay outside the Sich; Cossacks go anywhere; visitors and carts come in M2-20/21. */
 export type AgentRole = 'villager' | 'cossack' | 'visitor' | 'cart';
 
 /**
  * Agents alive at once on the whole world (plan Q11, SPEC §12.4 «селян ≤ 25»): Cossacks beyond 16 stay abstract (UI
- * count only), visitors ≤ 2, food carts ≤ 3.
+ * count only), food carts ≤ 3. Visitors: ≤ 2 poses on the scene — the timetable brings one visitor at a time (M2-21),
+ * and the чумак comes with his віз; every visitor kind has its agent, out of sight between visits.
  */
 export const AGENT_BUDGET: Readonly<Record<AgentRole, number>> = {
   villager: 25,
@@ -99,8 +101,21 @@ export const GUARD_SPRITES = ['vartovyi.a', 'vartovyi.b'] as const;
 export type GuardSprite = (typeof GUARD_SPRITES)[number];
 export type GirlSprite = 'divchyna.a' | 'divchyna.b';
 
+/** The visitors (M2-21), one body each: walk 6@10 and idle 4@6; the кобзар also `play`s his kobza. */
+export const VISITOR_SPRITES = {
+  kobzar: 'kobzar.a',
+  lirnyk: 'lirnyk.a',
+  chumak: 'chumak.a',
+  korobeinyk: 'korobeinyk.a',
+  hanchar: 'hanchar.a',
+} as const satisfies Readonly<Record<VisitorId, string>>;
+export type VisitorSprite = (typeof VISITOR_SPRITES)[VisitorId];
+export type KobzarSprite = typeof VISITOR_SPRITES.kobzar;
+/** Visitors with walk/idle only. */
+export type WalkerVisitorSprite = Exclude<VisitorSprite, KobzarSprite>;
+
 /** Person sprites (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/<anim>/NN`). */
-export type PersonSprite = KozakSprite | OtamanSprite | GuardSprite | GirlSprite | VillagerSprite;
+export type PersonSprite = KozakSprite | OtamanSprite | GuardSprite | GirlSprite | VillagerSprite | VisitorSprite;
 
 /**
  * Villager animations beyond walk/idle (M2-17, SPEC §6.4), frames `<VillagerSprite>/<anim>/<nn>` in the `people` atlas,
@@ -147,10 +162,16 @@ export const GUARD_ANIMS = {
 } as const;
 export type GuardAnim = keyof typeof GUARD_ANIMS;
 
+/** The кобзар's (M2-21, SPEC §6.4): `play` — seated, the kobza on his knee, strumming. */
+export const KOBZAR_ANIMS = {
+  play: { frames: 4, fps: 6 },
+} as const;
+export type KobzarAnim = keyof typeof KOBZAR_ANIMS;
+
 /** What every person sprite has frames for. */
 export type BasicAnim = 'walk' | 'idle';
 /** Every animation a person pose can show (each sprite family has its own set beyond walk/idle). */
-export type PersonAnim = BasicAnim | VillagerAnim | CossackAnim | OtamanAnim | GuardAnim;
+export type PersonAnim = BasicAnim | VillagerAnim | CossackAnim | OtamanAnim | GuardAnim | KobzarAnim;
 
 export const isVillagerSprite = (sprite: AgentSprite): sprite is VillagerSprite =>
   (VILLAGER_SPRITES as readonly string[]).includes(sprite);
@@ -164,6 +185,10 @@ export const isVillagerAnim = (anim: PersonAnim): anim is VillagerAnim => anim i
 export const isCossackAnim = (anim: PersonAnim): anim is CossackAnim => anim in COSSACK_ANIMS;
 export const isOtamanAnim = (anim: PersonAnim): anim is OtamanAnim => anim in OTAMAN_ANIMS;
 export const isGuardAnim = (anim: PersonAnim): anim is GuardAnim => anim in GUARD_ANIMS;
+export const isKobzarAnim = (anim: PersonAnim): anim is KobzarAnim => anim in KOBZAR_ANIMS;
+export const isVisitorSprite = (sprite: AgentSprite): sprite is VisitorSprite =>
+  (Object.values(VISITOR_SPRITES) as readonly string[]).includes(sprite);
+export const isKobzarSprite = (sprite: AgentSprite): sprite is KobzarSprite => sprite === VISITOR_SPRITES.kobzar;
 
 /**
  * Food carts (M2-20, `people` atlas `viz.<load>`): a pair of oxen and a віз, loaded on the way to the Sich gate, empty
@@ -175,7 +200,7 @@ export type CartSprite = (typeof CART_SPRITES)[number];
 export const isCartSprite = (sprite: AgentSprite): sprite is CartSprite =>
   (CART_SPRITES as readonly string[]).includes(sprite);
 
-/** Every agent sprite stem; visitors (M2-21) widen it. */
+/** Every agent sprite stem. */
 export type AgentSprite = PersonSprite | CartSprite;
 
 interface SpawnBase<Id extends string> {
@@ -327,8 +352,27 @@ export interface CartSpawn<Id extends string = string> extends SpawnBase<Id> {
   readonly driver: VillagerSprite;
 }
 
+/**
+ * A visitor (M2-21, SPEC §2.6): out of the village until the core timetable (`visitorAt`) brings its visit; then it
+ * walks in from `entry` (beyond the world's west edge, `home` = the road node it hangs off) to the first of its `spots`
+ * that stands, stays there — the кобзар plays (`stay: 'play'`), the others idle — and walks back out before the visit
+ * ends. Only by day (`VILLAGER_DAY` hours). The чумак (`cart`) drives his віз (the food cart's sprites: loaded coming,
+ * empty — salt sold — going) and walks at the oxen's shoulder. All of it is a function of the visit's elapsed time.
+ */
+export interface VisitorSpawn<Id extends string = string> extends SpawnBase<Id> {
+  readonly routine: 'visitor';
+  readonly role: 'visitor';
+  readonly visitor: VisitorId;
+  readonly sprite: VisitorSprite;
+  readonly entry: Spot<Id>;
+  /** Where it stays, in order of preference; the last one has no building (always open; content test). */
+  readonly spots: readonly Spot<Id>[];
+  readonly stay: 'idle' | KobzarAnim;
+  readonly cart?: true;
+}
+
 export type AgentSpawn<Id extends string = string> =
-  WanderSpawn<Id> | VillagerSpawn<Id> | CossackSpawn<Id> | CartSpawn<Id>;
+  WanderSpawn<Id> | VillagerSpawn<Id> | CossackSpawn<Id> | CartSpawn<Id> | VisitorSpawn<Id>;
 
 /**
  * A cart's trip (plan M2-20), cosmetic: `reach` = px from the cart's pivot to the leading ox's nose (the generator's
@@ -398,6 +442,7 @@ export function spawnNodes<Id extends string>(s: AgentSpawn<Id>): readonly Id[] 
   if (s.routine === 'wander') return [s.home, ...s.goals, ...(s.indoors === undefined ? [] : [s.indoors])];
   if (s.routine === 'villager') return [s.home, ...s.work, ...s.chat, s.night.at];
   if (s.routine === 'cart') return [s.home, s.depot.at, s.gate];
+  if (s.routine === 'visitor') return [s.home, s.entry.at, ...s.spots.map((p) => p.at)];
   switch (s.duty) {
     case 'rank':
       return [s.home, s.rank.at, ...s.haunts, ...(s.night.anim === 'indoors' ? [] : [s.night.at])];

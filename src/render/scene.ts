@@ -22,10 +22,21 @@ export interface SceneState {
    */
   readonly cartPeriodS?: number | null;
   /**
+   * Where the visitors' timetable comes from (M2-21): the game's seed and its clock (core `visitorAt` reads both);
+   * `null` or absent = nobody visits (no game, the showcase). The same object for the bridge's whole life.
+   */
+  readonly visitors?: VisitorFeed | null;
+  /**
    * Buildings popping in right now (plan M2-12, Q5): their props are drawn at this scale about their pivots, in whole
    * px. Set by render/fx/build.ts for one frame at a time, never by the bridge.
    */
   readonly pop?: Readonly<Partial<Record<PlotBuilding, number>>>;
+}
+
+/** The game's seed and a reader of its time (ms, `GameState.time.lastSeen`): read-only, for the visitors. */
+export interface VisitorFeed {
+  readonly seed: number;
+  readonly gameMs: () => number;
 }
 
 export const DEFAULT_SCENE: SceneState = { tiers: null, variants: null, wind: WIND.strength };

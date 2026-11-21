@@ -2,7 +2,7 @@
 // state through core selectors and reacts to store events — never dispatches, never writes state (render must not
 // import core/actions.ts; ESLint `imports[render-actions]`). On connect and on every event it recomputes the plots' tiers,
 // their cosmetic variants (M2-10, from the seed), the Cossacks the army has (M2-19: `CossackHired` → one more walks out
-// of the kurin), the food carts' period (M2-20: from the kharch) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
+// of the kurin), the food carts' period (M2-20: from the kharch), the visitors' seed and clock (M2-21) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
 // M2-12: `BuildingUpgraded` 0 → 1 builds the plot on screen (scaffold → pop → confetti), `TierReached` celebrates it
 // (flash, rising standard) — the level is already in the state; the animation never holds the economy back.
 import { villageOf } from '../core/modifiers.ts';
@@ -12,7 +12,7 @@ import type { GameStore } from '../core/store.ts';
 import { windAt } from '../core/systems/village-mechanics/wind.ts';
 import type { WorldApp, WorldTap } from './App.ts';
 import { WIND_STRENGTH } from './atmosphere/config.ts';
-import type { SceneState } from './scene.ts';
+import type { SceneState, VisitorFeed } from './scene.ts';
 
 /** What render may read from the game: the state and the event stream, nothing that changes either. */
 export type GameView = Pick<GameStore, 'getState' | 'onEvent'>;
@@ -23,13 +23,19 @@ export type TiersOf = (state: GameState) => VisualTiers;
 /** Plot variants of a state: core `plotVariants`, or a dev/test pin (`?state=showcase`: none, the M-ART frames). */
 export type VariantsOf = (state: GameState) => PlotVariants | null;
 
+/** The seed the visitors' timetable runs on (M2-21): the game's, or a dev/test pin (`?state=showcase`: no visitors). */
+export type VisitorsOf = (state: GameState) => number | null;
+const gameSeed: VisitorsOf = (state) => state.seed;
+
 export function sceneOf(
   state: GameState,
   tiersOf: TiersOf = visualTiers,
   variantsOf: VariantsOf = plotVariants,
+  visitors: VisitorFeed | null = null,
 ): SceneState {
   const people = populationView(state);
   return {
+    visitors,
     tiers: tiersOf(state),
     variants: variantsOf(state),
     wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen, villageOf(state))],
@@ -50,11 +56,15 @@ export function connectWorld(
   game: GameView,
   tiersOf: TiersOf = visualTiers,
   variantsOf: VariantsOf = plotVariants,
+  visitorsOf: VisitorsOf = gameSeed,
 ): () => void {
-  let scene = sceneOf(game.getState(), tiersOf, variantsOf);
+  // The visitors' timetable (M2-21): the seed is fixed for a game; time is read from the state each frame by render.
+  const seed = visitorsOf(game.getState());
+  const visitors: VisitorFeed | null = seed === null ? null : { seed, gameMs: () => game.getState().time.lastSeen };
+  let scene = sceneOf(game.getState(), tiersOf, variantsOf, visitors);
   world.setScene(scene);
   const refresh = (): void => {
-    const next = sceneOf(game.getState(), tiersOf, variantsOf);
+    const next = sceneOf(game.getState(), tiersOf, variantsOf, visitors);
     // A new object only when something shows differently: the layers compare nothing, they just read it.
     if (
       next.wind === scene.wind &&

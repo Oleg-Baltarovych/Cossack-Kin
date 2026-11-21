@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { spawnNodes } from '../../../src/content/agents.ts';
+import { isVisitorSprite, spawnNodes } from '../../../src/content/agents.ts';
 import {
   FOREGROUND_PARALLAX,
   GROUND_TILE,
@@ -189,13 +189,15 @@ describe('the continuous world (M2-01)', () => {
   it('women never stand in the Sich and nothing of a zone leaves it', () => {
     const sich = zone('sich');
     // Only Cossacks walk the Sich's inside: a woman's sprite is always a villager, a Cossack's a Cossack (a food cart,
-    // M2-20, is a cart).
+    // M2-20, is a cart; the visitors, M2-21, are visitors — the visitor role never enters a Cossack-only node).
     for (const a of W.agents) {
       const role = /^(kozak|otaman|vartovyi)\./.test(a.sprite)
         ? 'cossack'
         : a.sprite.startsWith('viz.')
           ? 'cart'
-          : 'villager';
+          : isVisitorSprite(a.sprite)
+            ? 'visitor'
+            : 'villager';
       expect(a.role, a.sprite).toBe(role);
     }
     for (const n of W.paths.nodes.filter((q) => q.x >= sich.x0 && q.kind !== 'gate')) {

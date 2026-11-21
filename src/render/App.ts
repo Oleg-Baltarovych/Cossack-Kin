@@ -47,6 +47,7 @@ import { createClock, createCosmeticRng, realLocalMinutes, type RenderClock } fr
 import { createWorldLayers, type WorldLayer } from './layers/index.ts';
 import { createAgents } from './agents/sim.ts';
 import { createAgentDriver, stepCap } from './agents/driver.ts';
+import { createVisitClock } from './agents/visits.ts';
 import { LINEUP, lineupPoses } from './debug/lineup.ts';
 import type { AgentContext, AgentCounts } from './agents/sim.ts';
 import { AGENT_BUDGET } from '../content/agents.ts';
@@ -255,7 +256,10 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       tiers: null,
       cossacks: undefined,
       cartPeriodS: undefined,
+      visit: null,
     };
+    // The visitors' timetable (M2-21): the core's, on the game's seed and time, read through the scene's feed.
+    const visits = createVisitClock(settings.frozenAt !== null);
     const worldFrames = frameLookup(atlases, WORLD_ATLASES);
     const findFrame = (name: string): Texture | null => worldFrames.get(name) ?? null;
     const sceneFrame = (name: string): Texture => {
@@ -451,6 +455,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       agentCtx.tiers = scene.tiers;
       agentCtx.cossacks = scene.cossacks;
       agentCtx.cartPeriodS = scene.cartPeriodS;
+      agentCtx.visit = visits.at(scene.visitors, seconds);
       agents.advance(seconds, agentCtx);
       // A finished work spell sparks a glint over the worker (M2-18, decoration only — never the coin; at most
       // `perFrame` at once after a catch-up). Not under `?freeze`: its one jump finishes many spells, and a glint in

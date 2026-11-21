@@ -10,6 +10,7 @@ import { memoryStorage, webStorage } from '../platform/storage.ts';
 import {
   FROZEN_NOW,
   noVariants,
+  noVisitors,
   parseGameDebug,
   presetState,
   showcaseTiers,
@@ -30,6 +31,8 @@ export interface Game {
   readonly sceneTiers?: (state: GameState) => VisualTiers;
   /** Dev/test only (`?state=showcase`): no cosmetic variants, so the M-ART frames stay as signed off. */
   readonly sceneVariants?: (state: GameState) => PlotVariants | null;
+  /** Dev/test only (`?state=showcase`): no visitors (M2-21), so the M-ART frames stay as signed off. */
+  readonly sceneVisitors?: (state: GameState) => number | null;
 }
 
 export async function initGame(): Promise<Game> {
@@ -45,7 +48,7 @@ export async function initGame(): Promise<Game> {
         d.preset === 'tiers'
           ? { sceneTiers: tiersIgnoringUnlocks }
           : d.preset === 'showcase'
-            ? { sceneTiers: showcaseTiers, sceneVariants: noVariants }
+            ? { sceneTiers: showcaseTiers, sceneVariants: noVariants, sceneVisitors: noVisitors }
             : {};
       return { store: createStore(state), now, live: !d.frozen, ui: d.ui, saver, notice: 'none', ...sceneTiers };
     }
