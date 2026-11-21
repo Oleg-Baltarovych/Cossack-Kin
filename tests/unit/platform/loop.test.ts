@@ -30,6 +30,23 @@ afterEach(() => {
 });
 
 describe('createLoop (M1-18)', () => {
+  it('start writes the local time zone into the settings when it changed (M2-23, Q9); not again when equal', () => {
+    const store = createStore(farm());
+    const zone = { min: 120 };
+    const loop = createLoop(store, { now: () => T0, tzOffsetMin: () => zone.min });
+    loop.start();
+    expect(store.getState().settings.tzOffsetMin).toBe(120);
+    loop.stop();
+    const before = store.getState();
+    loop.start();
+    expect(store.getState()).toBe(before);
+    loop.stop();
+    zone.min = -300;
+    loop.start();
+    expect(store.getState().settings.tzOffsetMin).toBe(-300);
+    loop.stop();
+  });
+
   it('start ticks at once and then at 10 Hz with the injected clock; stop ticks once more and halts', () => {
     const store = createStore(farm());
     const clock = { now: T0 + 50 };

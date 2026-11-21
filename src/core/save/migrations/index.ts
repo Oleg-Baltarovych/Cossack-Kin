@@ -2,6 +2,7 @@
 // `migrations/NNN-vX-to-vY.ts`, registered here in order (use /save-migration).
 import { STATE_VERSION } from '../../state.ts';
 import { V1_TO_V2 } from './001-v1-to-v2.ts';
+import { V2_TO_V3 } from './002-v2-to-v3.ts';
 
 export interface Migration {
   readonly from: number;
@@ -10,7 +11,7 @@ export interface Migration {
   readonly run: (raw: unknown) => unknown;
 }
 
-export const MIGRATIONS: readonly Migration[] = [V1_TO_V2];
+export const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3];
 
 export type MigrateResult = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
 

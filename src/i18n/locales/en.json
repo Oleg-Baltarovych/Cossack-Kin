@@ -128,5 +128,72 @@
   "start.error.title": "The game did not start",
   "start.error.body": "Something went wrong while starting. Reload the page; your save is untouched.",
   "world.failed.body": "The world did not load.",
-  "world.failed.retry": "Try again"
+  "world.failed.retry": "Try again",
+  "quest.khortytsia.field1.title": "Sow the wheat field",
+  "quest.khortytsia.garden1.title": "Plant the kitchen garden",
+  "quest.khortytsia.field10.title": "Raise the field to level {level}",
+  "quest.khortytsia.apiary1.title": "Set up the apiary",
+  "quest.khortytsia.hire1.title": "Hire a Cossack",
+  "quest.khortytsia.kurins1.title": "Build a kurin in the Sich",
+  "quest.khortytsia.windmill1.title": "Build the windmill",
+  "quest.khortytsia.hire3.title": {
+    "one": "Hire {count} more Cossack",
+    "other": "Hire {count} more Cossacks"
+  },
+  "quest.khortytsia.garden10.title": "Raise the garden to level {level}",
+  "quest.khortytsia.potter1.title": "Invite a potter",
+  "quest.khortytsia.maidan1.title": "Clear the maidan",
+  "quest.khortytsia.windmill10.title": "Raise the windmill to level {level}",
+  "quest.khortytsia.smithy1.title": "Light the smithy forge",
+  "quest.khortytsia.maidan10.title": "Call a council: the maidan to level {level}",
+  "quest.khortytsia.apiary10.title": "Raise the apiary to level {level}",
+  "quest.khortytsia.tavern1.title": "Open the tavern",
+  "quest.khortytsia.walls1.title": "Ring the Sich with a rampart",
+  "quest.khortytsia.hire10.title": {
+    "one": "Hire {count} more Cossack",
+    "other": "Hire {count} more Cossacks"
+  },
+  "quest.khortytsia.fair1.title": "Call a fair",
+  "quest.khortytsia.potter10.title": "Raise the potter's house to level {level}",
+  "quest.khortytsia.treasury1.title": "Start the army treasury",
+  "quest.khortytsia.field25.title": "Raise the field to level {level}",
+  "quest.khortytsia.smithy10.title": "Raise the smithy to level {level}",
+  "quest.khortytsia.tavern10.title": "Raise the tavern to level {level}",
+  "quest.khortytsia.kurins10.title": "Raise the kurins to level {level}",
+  "quest.khortytsia.fair10.title": "Raise the fair to level {level}",
+  "quest.khortytsia.church1.title": "Build the Church of the Intercession",
+  "quest.khortytsia.field50.title": "Raise the field to level {level}",
+  "quest.chain.generated.title": "Raise “{building}” to level {level}",
+  "quest.chore.taps50.title": {
+    "one": "Tap {count} time",
+    "other": "Tap {count} times"
+  },
+  "quest.chore.taps200.title": {
+    "one": "Tap {count} time",
+    "other": "Tap {count} times"
+  },
+  "quest.chore.tapIncome60.title": {
+    "one": "Earn {count} second of income by tapping",
+    "other": "Earn {count} seconds of income by tapping"
+  },
+  "quest.chore.levels10.title": {
+    "one": "Buy {count} level",
+    "other": "Buy {count} levels"
+  },
+  "quest.chore.levels25.title": {
+    "one": "Buy {count} level",
+    "other": "Buy {count} levels"
+  },
+  "quest.chore.purchases10.title": {
+    "one": "Make {count} purchase",
+    "other": "Make {count} purchases"
+  },
+  "quest.chore.hire3.title": {
+    "one": "Hire {count} Cossack",
+    "other": "Hire {count} Cossacks"
+  },
+  "quest.chore.hire10.title": {
+    "one": "Hire {count} Cossack",
+    "other": "Hire {count} Cossacks"
+  }
 }

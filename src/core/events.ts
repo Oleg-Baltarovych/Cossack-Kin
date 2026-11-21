@@ -5,10 +5,12 @@ import type { StoryBeatId } from '../content/story.ts';
 import type { FarmBuildingId, WindLevel } from '../content/villages/khortytsia.ts';
 import type { Big } from './big.ts';
 import type { ReturnReport } from './state.ts';
+import type { QuestId, QuestKind } from './systems/quests.ts';
 import type { Granted } from './systems/reward.ts';
 
 /** Why an action did nothing (the UI explains it; the state is unchanged). */
-export type RejectReason = 'ducats' | 'glory' | 'locked' | 'max' | 'kharch' | 'count' | 'noReport';
+export type RejectReason =
+  'ducats' | 'glory' | 'locked' | 'max' | 'kharch' | 'count' | 'noReport' | 'notDone' | 'range';
 
 export type GameEvent =
   /** The wind changed at time `at` (ms). */
@@ -29,6 +31,10 @@ export type GameEvent =
   | { readonly type: 'OfflineApplied'; readonly report: ReturnReport }
   /** A story beat fired (once); its reward, if any, is already credited (SPEC §2.5). */
   | { readonly type: 'StoryBeatReached'; readonly id: StoryBeatId; readonly granted: Granted | null }
+  /** A quest's goal was reached (once per quest); its reward waits for `claimQuest` (SPEC §3.10). */
+  | { readonly type: 'QuestCompleted'; readonly kind: QuestKind; readonly id: QuestId }
+  /** A finished quest was claimed; `granted` is null for a chore past the day's reward limit. */
+  | { readonly type: 'QuestClaimed'; readonly kind: QuestKind; readonly id: QuestId; readonly granted: Granted | null }
   | { readonly type: 'ActionRejected'; readonly action: string; readonly reason: RejectReason }
   /** The whole state was replaced (a loaded save or a reset): listeners re-read it from scratch. */
   | { readonly type: 'StateReplaced' };

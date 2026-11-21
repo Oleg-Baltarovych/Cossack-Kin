@@ -36,7 +36,8 @@ describe('buying farm buildings (M1-10)', () => {
     expect(r.state.village.levels.field).toBe(1);
     expect(r.state.currencies.ducats.isZero()).toBe(true);
     expect(r.state.stats.purchases).toBe(1);
-    expect(types(r.events)).toEqual(['BuildingUpgraded']);
+    // The first field is also the first step of «Наказ кошового» (M2-23).
+    expect(types(r.events)).toEqual(['BuildingUpgraded', 'QuestCompleted']);
   });
 
   it('crossing a milestone emits TierReached', () => {
@@ -169,7 +170,17 @@ describe('claimReturn and settings (M1-10)', () => {
 
   it('setSettings changes the language / number format', () => {
     const r = applyAction(rich(0), { type: 'setSettings', lang: 'en', numberFormat: 'short' }, T0);
-    expect(r.state.settings).toEqual({ lang: 'en', numberFormat: 'short' });
+    expect(r.state.settings).toEqual({ lang: 'en', numberFormat: 'short', tzOffsetMin: 0 });
+  });
+
+  it('setSettings takes the time zone (M2-23, Q9); one outside UTC−12…+14 or not whole minutes is refused', () => {
+    const s = rich(0);
+    expect(applyAction(s, { type: 'setSettings', tzOffsetMin: 120 }, T0).state.settings.tzOffsetMin).toBe(120);
+    for (const bad of [841, -721, 30.5, Number.NaN]) {
+      const r = applyAction(s, { type: 'setSettings', tzOffsetMin: bad }, T0);
+      expect(r.state).toBe(s);
+      expect(rejected(r.events)).toBe('range');
+    }
   });
 });
 

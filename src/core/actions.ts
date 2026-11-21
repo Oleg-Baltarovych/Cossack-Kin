@@ -1,7 +1,8 @@
 // Player actions (SPEC §3.2–3.4, §3.8; plan §0, M1-10, Q8). One pure reducer: `applyAction(state, action, now)`
 // first advances time to `now` (income up to the click is earned), then applies the action. A refused action leaves
 // the (advanced) state as it is and adds `ActionRejected` with the reason — never a throw for a player error. An
-// accepted action is followed by the story check (M2-22): a beat its trigger now meets fires in the same turn.
+// accepted action is followed by the story check (M2-22): a beat its trigger now meets fires in the same turn; then
+// the quests finished by it report `QuestCompleted` (M2-23: only actions move levels and counters).
 import { FARM, SICH, TAP } from '../content/economy.ts';
 import { SICH_BUILDINGS, type SichBuildingId } from '../content/sich.ts';
 import type { FarmBuildingId } from '../content/villages/khortytsia.ts';
@@ -10,9 +11,10 @@ import { Big } from './big.ts';
 import { bulkCost, buyCount, tier, type BuyMode } from './economy.ts';
 import type { GameEvent, RejectReason } from './events.ts';
 import { collectModifiers, farmIncomeRate, sichUnlocked, villageOf } from './modifiers.ts';
-import type { GameState, Lang, NumberFormat } from './state.ts';
+import { TZ_OFFSET_MIN, type GameState, type Lang, type NumberFormat } from './state.ts';
 import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
+import { claimQuest, questCompletions, type QuestKind } from './systems/quests.ts';
 import { checkStory } from './systems/story.ts';
 
 export type Action =
@@ -21,7 +23,13 @@ export type Action =
   | { readonly type: 'hire'; readonly n: number }
   | { readonly type: 'tap' }
   | { readonly type: 'claimReturn' }
-  | { readonly type: 'setSettings'; readonly lang?: Lang; readonly numberFormat?: NumberFormat };
+  | { readonly type: 'claimQuest'; readonly kind: QuestKind }
+  | {
+      readonly type: 'setSettings';
+      readonly lang?: Lang;
+      readonly numberFormat?: NumberFormat;
+      readonly tzOffsetMin?: number;
+    };
 
 export interface ActionResult {
   readonly state: GameState;
@@ -130,6 +138,23 @@ function claimReturn(s: GameState): ActionResult | RejectReason {
   return s.returnReport ? creditReport(s) : 'noReport';
 }
 
+/** A time zone outside UTC−12…+14 or not whole minutes is refused ('range' — the platform's bug, not the player's). */
+function setSettings(s: GameState, a: Extract<Action, { type: 'setSettings' }>): ActionResult | RejectReason {
+  const tz = a.tzOffsetMin ?? s.settings.tzOffsetMin;
+  if (!Number.isInteger(tz) || tz < TZ_OFFSET_MIN.min || tz > TZ_OFFSET_MIN.max) return 'range';
+  return {
+    state: {
+      ...s,
+      settings: {
+        lang: a.lang ?? s.settings.lang,
+        numberFormat: a.numberFormat ?? s.settings.numberFormat,
+        tzOffsetMin: tz,
+      },
+    },
+    events: [],
+  };
+}
+
 /** Advances to `now`, then applies `action`; refusals come back as `ActionRejected` with the state unchanged. */
 export function applyAction(state: GameState, action: Action, now: number): ActionResult {
   const advanced = advance(state, now);
@@ -155,21 +180,16 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
     case 'claimReturn':
       result = claimReturn(s);
       break;
+    case 'claimQuest':
+      result = claimQuest(s, action.kind);
+      break;
     case 'setSettings':
-      result = {
-        state: {
-          ...s,
-          settings: {
-            lang: action.lang ?? s.settings.lang,
-            numberFormat: action.numberFormat ?? s.settings.numberFormat,
-          },
-        },
-        events: [],
-      };
+      result = setSettings(s, action);
       break;
   }
   if (result === null) return advanced;
   if (typeof result === 'string') return reject(s, before, action, result);
   const story = checkStory(result.state);
-  return { state: story.state, events: [...before, ...result.events, ...story.events] };
+  const quests = questCompletions(s, story.state);
+  return { state: story.state, events: [...before, ...result.events, ...story.events, ...quests] };
 }
