@@ -88,6 +88,8 @@ export const START = {
   ducats: 10,
   lang: 'uk',
   numberFormat: 'words',
+  /** Until the platform tells the time zone (plan Q9): UTC. */
+  tzOffsetMin: 0,
 } as const;
 
 /** Bloom of a land (SPEC §3.6; plan Q6: M1 checks conditions 1–2 plus the land's goal, no resettling yet). */

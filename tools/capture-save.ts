@@ -3,7 +3,9 @@
 // as the game writes a save (`encodeSave`). Fixtures are immutable once committed — capture a new file per version.
 //   node tools/capture-save.ts --seed 7 --days 3 --out tests/fixtures/saves/v1.json
 import { existsSync, writeFileSync } from 'node:fs';
+import { applyAction } from '../src/core/actions.ts';
 import { encodeSave } from '../src/core/save/serialize.ts';
+import type { GameState } from '../src/core/state.ts';
 import { simulate } from './lib/balance/sim.ts';
 
 function arg(name: string): string | undefined {
@@ -22,7 +24,21 @@ if (existsSync(out)) {
   console.error(`${out} exists: fixtures are immutable — add a new version instead`);
   process.exit(1);
 }
-const { final } = simulate({ seed, days });
+const played = simulate({ seed, days }).final;
+// The bot does not claim quests yet (M2-27): at the end the player takes what is finished — every chain step and the
+// chore — through the real action, so the fixture holds quests in play (v3+).
+function claimAll(start: GameState): GameState {
+  let s = start;
+  for (const kind of ['chain', 'chore'] as const) {
+    for (;;) {
+      const r = applyAction(s, { type: 'claimQuest', kind }, s.time.lastSeen);
+      if (r.state === s) break;
+      s = r.state;
+    }
+  }
+  return s;
+}
+const final = claimAll(played);
 // The saver numbers its writes; a played game has written many — any positive count will do.
 const seq = 1;
 writeFileSync(out, `${encodeSave(final, seq)}\n`);

@@ -6,7 +6,7 @@ import { SICH_BUILDING_IDS } from '../../../src/content/sich.ts';
 import { FARM_BUILDING_IDS } from '../../../src/content/villages/khortytsia.ts';
 import { advance } from '../../../src/core/advance.ts';
 import { fnv1a32 } from '../../../src/core/save/checksum.ts';
-import { migrate } from '../../../src/core/save/migrations/index.ts';
+import { migrate, MIGRATIONS } from '../../../src/core/save/migrations/index.ts';
 import { decodeSave, encodeSave } from '../../../src/core/save/serialize.ts';
 import { createInitialState, validateState } from '../../../src/core/state.ts';
 
@@ -28,7 +28,8 @@ describe('migration v1 → v2 (M2-22)', () => {
       army: { infantry: number };
       stats: { taps: number; purchases: number };
     };
-    const m = migrate(v1Payload(), 1);
+    // Only the v1 → v2 step (the chain goes on to the current version, M2-23).
+    const m = migrate(v1Payload(), 1, MIGRATIONS, 2);
     expect(m.ok).toBe(true);
     if (!m.ok) return;
     const v2 = m.value as Record<string, unknown>;
@@ -45,7 +46,8 @@ describe('migration v1 → v2 (M2-22)', () => {
       hires: v1.army.infantry,
       tapIncomeSec: 0,
     });
-    expect(validateState(v2).ok).toBe(true);
+    const latest = migrate(v2, 2);
+    expect(latest.ok && validateState(latest.value).ok).toBe(true);
   });
 
   it('after loading, the beats marked seen never fire: no event, no reward', () => {
@@ -118,17 +120,22 @@ describe('decoding v2 saves (M2-22 review)', () => {
     const p = JSON.stringify(payload);
     return JSON.stringify({ version, seq: 1, checksum: fnv1a32(p), payload: p });
   };
-  const game = (): Record<string, unknown> =>
-    JSON.parse(JSON.stringify(createInitialState({ seed: 8, now: T0 }))) as Record<string, unknown>;
+  /** A v2 game: the current state without what v3 added (M2-23). */
+  const game = (): Record<string, unknown> => {
+    const g = JSON.parse(JSON.stringify(createInitialState({ seed: 8, now: T0 }))) as Record<string, unknown>;
+    Reflect.deleteProperty(g, 'quests');
+    return { ...g, version: 2, settings: { lang: 'uk', numberFormat: 'words' } };
+  };
 
   it('a duplicate seen id is an invalid save', () => {
     const raw = v2Save({ ...game(), story: { seen: ['khortytsia.shore', 'khortytsia.shore'] } });
     expect(decodeSave(raw)).toEqual({ ok: false, reason: 'invalid' });
   });
 
-  it('a v3 envelope (or payload) is a newer game: never loaded, never overwritten', () => {
-    expect(decodeSave(v2Save({ ...game(), version: 3 }, 3))).toEqual({ ok: false, reason: 'newer' });
-    expect(decodeSave(v2Save({ ...game(), version: 3 }, 2))).toEqual({ ok: false, reason: 'newer' });
+  it('a v2 game loads; a newer envelope (or payload) is a newer game: never loaded, never overwritten', () => {
+    expect(decodeSave(v2Save(game())).ok).toBe(true);
+    expect(decodeSave(v2Save({ ...game(), version: 4 }, 4))).toEqual({ ok: false, reason: 'newer' });
+    expect(decodeSave(v2Save({ ...game(), version: 4 }, 2))).toEqual({ ok: false, reason: 'newer' });
   });
 });
 

@@ -1,16 +1,19 @@
-// GameState v2 (SPEC §9.3; plan §0, M1-04, M2-22): v1 + `story` and the quest counters in `stats` — later fields come
+// GameState v3 (SPEC §9.3; plan §0, M1-04, M2-22, M2-23): v2 = v1 + `story` and the quest counters in `stats`; v3 adds
+// `quests` and `settings.tzOffsetMin` — later fields come
 // with a version bump and a migration (save/migrations). Derived values (kharch, defence, tier, wind, «unlocked») are computed, never stored.
 // `validateState` is the gate a save passes through: it takes the JSON form (Big values as strings), rejects anything
 // it does not know, and returns a typed error instead of throwing (rules: save.md, security.md).
 import { FARM, OFFLINE, SICH, START, TAP } from '../content/economy.ts';
 import { SAVE_MAX_EXPONENT } from '../content/numbers.ts';
+import { CHORE_IDS, CHORES, type ChainStep, type ChoreId, type LevelGoal } from '../content/quests.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../content/sich.ts';
 import { STORY_BEAT_IDS, type StoryBeatId } from '../content/story.ts';
 import { FARM_BUILDING_IDS, type FarmBuildingId } from '../content/villages/khortytsia.ts';
 import { Big } from './big.ts';
 import { createRng, type Rng } from './rng.ts';
+import { chainSteps, dayAt, newQuests } from './systems/quests.ts';
 
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 export const LANGS = ['uk', 'en'] as const;
 export const NUMBER_FORMATS = ['words', 'short'] as const;
 export const RETURN_REASONS = ['normal', 'clockBack', 'forwardJump'] as const;
@@ -49,6 +52,41 @@ export interface Stats {
   readonly tapIncomeSec: number;
 }
 
+/**
+ * The active step of «Наказ кошового» (SPEC §3.10): a listed step of the land's chain (`base` = the counted stat when
+ * it began, for a count goal), a generated one (its goal fixed when it began), or none left (every building at max).
+ * The chain is the one of `village.id` (not stored twice). A crafted `index` pointing back at an earlier step is
+ * accepted (SPEC §9.5: an export is trusted, checksum is no anti-cheat): it only replays small rewards in order.
+ */
+export type ChainState =
+  | { readonly kind: 'listed'; readonly index: number; readonly base: number }
+  | { readonly kind: 'generated'; readonly goal: LevelGoal }
+  | { readonly kind: 'done' };
+
+/** The active chore: `n` chores began before it; `claims` were claimed on the local `day` (SPEC §3.9). */
+export interface ChoresState {
+  readonly day: number;
+  readonly n: number;
+  readonly active: ChoreId;
+  readonly base: number;
+  readonly claims: number;
+}
+
+export interface QuestsState {
+  readonly chain: ChainState;
+  readonly chores: ChoresState;
+}
+
+export interface Settings {
+  readonly lang: Lang;
+  readonly numberFormat: NumberFormat;
+  /** Local time minus UTC, in minutes (the platform writes it at start and on return, plan Q9): the quest day. */
+  readonly tzOffsetMin: number;
+}
+
+/** Time zones run from UTC−12 to UTC+14 (minutes). */
+export const TZ_OFFSET_MIN = { min: -12 * 60, max: 14 * 60 } as const;
+
 export interface GameState {
   readonly version: typeof STATE_VERSION;
   /** uint32; the new game's seed comes from the platform layer (crypto), never from the core. */
@@ -68,9 +106,11 @@ export interface GameState {
   readonly stats: Stats;
   /** Story beats already fired, in firing order (SPEC §2.5): each fires once. */
   readonly story: { readonly seen: readonly StoryBeatId[] };
+  /** «Наказ кошового» and the chores (SPEC §3.10); completion is derived from `stats` and the levels. */
+  readonly quests: QuestsState;
   /** Taps counted in the current second (TAP.maxPerSec, plan Q8): the second's start (ms) and the count so far. */
   readonly tapWindow: { readonly start: number; readonly count: number };
-  readonly settings: { readonly lang: Lang; readonly numberFormat: NumberFormat };
+  readonly settings: Settings;
 }
 
 function zeros<K extends string>(ids: readonly K[]): Record<K, number> {
@@ -83,25 +123,28 @@ function zeros<K extends string>(ids: readonly K[]): Record<K, number> {
 /** A new game at `now` (ms) with `seed` (any integer, taken as uint32). */
 export function createInitialState({ seed, now }: { seed: number; now: number }): GameState {
   const s = seed >>> 0;
+  const village: VillageState = {
+    id: 'khortytsia',
+    levels: zeros(FARM_BUILDING_IDS),
+    sichLevels: zeros(SICH_BUILDING_IDS),
+    lifetimeDucats: Big.ZERO,
+    mechanic: { kind: 'wind', stormsSurvived: 0 },
+  };
+  const stats: Stats = { taps: 0, purchases: 0, levelsBought: 0, hires: 0, tapIncomeSec: 0 };
   return {
     version: STATE_VERSION,
     seed: s,
     rng: createRng(s),
     time: { lastSeen: now, maxSeen: now, created: now },
     currencies: { ducats: Big.from(START.ducats), glory: Big.ZERO, regalia: 0, pysanky: 0 },
-    village: {
-      id: 'khortytsia',
-      levels: zeros(FARM_BUILDING_IDS),
-      sichLevels: zeros(SICH_BUILDING_IDS),
-      lifetimeDucats: Big.ZERO,
-      mechanic: { kind: 'wind', stormsSurvived: 0 },
-    },
+    village,
     army: { infantry: 0 },
     returnReport: null,
-    stats: { taps: 0, purchases: 0, levelsBought: 0, hires: 0, tapIncomeSec: 0 },
+    stats,
     story: { seen: [] },
+    quests: newQuests({ village, stats }, s, now, START.tzOffsetMin),
     tapWindow: { start: now, count: 0 },
-    settings: { lang: START.lang, numberFormat: START.numberFormat },
+    settings: { lang: START.lang, numberFormat: START.numberFormat, tzOffsetMin: START.tzOffsetMin },
   };
 }
 
@@ -182,6 +225,68 @@ function beats(value: unknown, path: string): StoryBeatId[] {
   return out;
 }
 
+/** Bound of the quest counters: far past any real play (a chore a second for 30 years), short of float trouble. */
+const MAX_QUEST_COUNT = 1e9;
+
+function levelGoal(value: unknown, path: string): LevelGoal {
+  const g = object(value, path, ['kind', 'id', 'level']);
+  const kind = oneOf(g['kind'], `${path}.kind`, ['building', 'sich'] as const);
+  if (kind === 'building')
+    return {
+      kind,
+      id: oneOf(g['id'], `${path}.id`, FARM_BUILDING_IDS),
+      level: int(g['level'], `${path}.level`, 1, FARM.levelMax),
+    };
+  return {
+    kind,
+    id: oneOf(g['id'], `${path}.id`, SICH_BUILDING_IDS),
+    level: int(g['level'], `${path}.level`, 1, SICH.levelMax),
+  };
+}
+
+function parseChain(value: unknown, steps: readonly ChainStep[], stats: Stats): ChainState {
+  const p = '$.quests.chain';
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return fail('type', p);
+  const kind = oneOf((value as Obj)['kind'], `${p}.kind`, ['listed', 'generated', 'done'] as const);
+  switch (kind) {
+    case 'listed': {
+      const c = object(value, p, ['kind', 'index', 'base']);
+      const index = int(c['index'], `${p}.index`, 0, steps.length - 1);
+      const goal = steps[index]?.goal;
+      // A count step counts from `base`: a base above the counter now is a crafted save (counters only grow).
+      const max = goal?.kind === 'count' ? stats[goal.stat] : MAX_INT;
+      return { kind, index, base: real(c['base'], `${p}.base`, 0, max) };
+    }
+    case 'generated': {
+      const c = object(value, p, ['kind', 'goal']);
+      return { kind, goal: levelGoal(c['goal'], `${p}.goal`) };
+    }
+    case 'done':
+      object(value, p, ['kind']);
+      return { kind };
+  }
+}
+
+/** Quests against the counters and the clock they were read with: no base past its counter, no day past `maxSeen`. */
+function parseQuests(value: unknown, steps: readonly ChainStep[], stats: Stats, maxSeen: number): QuestsState {
+  const q = object(value, '$.quests', ['chain', 'chores']);
+  const p = '$.quests.chores';
+  const c = object(q['chores'], p, ['day', 'n', 'active', 'base', 'claims']);
+  const active = oneOf(c['active'], `${p}.active`, CHORE_IDS);
+  const stat = CHORES.pool.find((d) => d.id === active)?.goal.stat;
+  return {
+    chain: parseChain(q['chain'], steps, stats),
+    chores: {
+      // The easternmost zone's day of maxSeen, +1 for a zone change on the boundary.
+      day: int(c['day'], `${p}.day`, 0, dayAt(maxSeen, TZ_OFFSET_MIN.max) + 1),
+      n: int(c['n'], `${p}.n`, 0, MAX_QUEST_COUNT),
+      active,
+      base: real(c['base'], `${p}.base`, 0, stat === undefined ? MAX_INT : stats[stat]),
+      claims: int(c['claims'], `${p}.claims`, 0, MAX_QUEST_COUNT),
+    },
+  };
+}
+
 function bool(value: unknown, path: string): boolean {
   if (typeof value !== 'boolean') return fail('type', path);
   return value;
@@ -238,6 +343,7 @@ const ROOT_KEYS = [
   'returnReport',
   'stats',
   'story',
+  'quests',
   'tapWindow',
   'settings',
 ] as const;
@@ -259,8 +365,17 @@ function parse(raw: unknown): GameState {
   const infantry = int(army['infantry'], '$.army.infantry', 0, MAX_INT);
   const stats = object(root['stats'], '$.stats', ['taps', 'purchases', 'levelsBought', 'hires', 'tapIncomeSec']);
   const story = object(root['story'], '$.story', ['seen']);
-  const settings = object(root['settings'], '$.settings', ['lang', 'numberFormat']);
+  const settings = object(root['settings'], '$.settings', ['lang', 'numberFormat', 'tzOffsetMin']);
   const tw = object(root['tapWindow'], '$.tapWindow', ['start', 'count']);
+  const landId = oneOf(v['id'], '$.village.id', ['khortytsia'] as const);
+  const counters: Stats = {
+    taps: int(stats['taps'], '$.stats.taps', 0, MAX_INT),
+    purchases: int(stats['purchases'], '$.stats.purchases', 0, MAX_INT),
+    levelsBought: int(stats['levelsBought'], '$.stats.levelsBought', 0, MAX_INT),
+    // Every Cossack in the army was hired: fewer hires than infantry is a crafted save (losses only lower infantry).
+    hires: int(stats['hires'], '$.stats.hires', infantry, MAX_INT),
+    tapIncomeSec: real(stats['tapIncomeSec'], '$.stats.tapIncomeSec', 0, MAX_INT),
+  };
   return {
     version: STATE_VERSION,
     seed: int(root['seed'], '$.seed', 0, UINT32_MAX),
@@ -273,7 +388,7 @@ function parse(raw: unknown): GameState {
       pysanky: int(c['pysanky'], '$.currencies.pysanky', 0, MAX_INT),
     },
     village: {
-      id: oneOf(v['id'], '$.village.id', ['khortytsia'] as const),
+      id: landId,
       levels: levels(v['levels'], '$.village.levels', FARM_BUILDING_IDS, FARM.levelMax),
       sichLevels: levels(v['sichLevels'], '$.village.sichLevels', SICH_BUILDING_IDS, SICH.levelMax),
       lifetimeDucats: big(v['lifetimeDucats'], '$.village.lifetimeDucats'),
@@ -284,15 +399,9 @@ function parse(raw: unknown): GameState {
     },
     army: { infantry },
     returnReport: parseReport(root['returnReport']),
-    stats: {
-      taps: int(stats['taps'], '$.stats.taps', 0, MAX_INT),
-      purchases: int(stats['purchases'], '$.stats.purchases', 0, MAX_INT),
-      levelsBought: int(stats['levelsBought'], '$.stats.levelsBought', 0, MAX_INT),
-      // Every Cossack in the army was hired: fewer hires than infantry is a crafted save (losses only lower infantry).
-      hires: int(stats['hires'], '$.stats.hires', infantry, MAX_INT),
-      tapIncomeSec: real(stats['tapIncomeSec'], '$.stats.tapIncomeSec', 0, MAX_INT),
-    },
+    stats: counters,
     story: { seen: beats(story['seen'], '$.story.seen') },
+    quests: parseQuests(root['quests'], chainSteps({ village: { id: landId } }), counters, maxSeen),
     tapWindow: {
       start: int(tw['start'], '$.tapWindow.start', 0, MAX_DATE_MS),
       count: int(tw['count'], '$.tapWindow.count', 0, TAP.maxPerSec),
@@ -300,6 +409,7 @@ function parse(raw: unknown): GameState {
     settings: {
       lang: oneOf(settings['lang'], '$.settings.lang', LANGS),
       numberFormat: oneOf(settings['numberFormat'], '$.settings.numberFormat', NUMBER_FORMATS),
+      tzOffsetMin: int(settings['tzOffsetMin'], '$.settings.tzOffsetMin', TZ_OFFSET_MIN.min, TZ_OFFSET_MIN.max),
     },
   };
 }

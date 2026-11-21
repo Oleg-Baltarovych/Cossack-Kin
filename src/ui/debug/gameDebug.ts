@@ -12,6 +12,7 @@ import { TIER_LEVELS } from '../../content/economy.ts';
 import { SICH_BUILDINGS } from '../../content/sich.ts';
 import { Big } from '../../core/big.ts';
 import { createInitialState, LANGS, type GameState, type Lang } from '../../core/state.ts';
+import { newQuests } from '../../core/systems/quests.ts';
 import { dueBeats } from '../../core/systems/story.ts';
 import type { GameStore } from '../../core/store.ts';
 import { tier } from '../../core/economy.ts';
@@ -188,6 +189,7 @@ export function presetState(preset: Preset, seed: number, now: number, tier = TO
 /**
  * A preset of a game already played (M2-22): its Cossacks counted as hired and the story beats it has reached seen,
  * as the v1 → v2 migration does (levels bought = Σ levels) — the first click must not fire the beats (and their glory) of a past it never had.
+ * Its quests start as the v2 → v3 migration starts them (M2-23): the chain on the first step not met yet.
  */
 function played(s: GameState): GameState {
   const sum = (r: Readonly<Record<string, number>>): number => Object.values(r).reduce((a, b) => a + b, 0);
@@ -197,5 +199,6 @@ function played(s: GameState): GameState {
     levelsBought: sum(s.village.levels) + sum(s.village.sichLevels),
   };
   const due = dueBeats({ ...s, stats }, s.story.seen).map((b) => b.id);
-  return { ...s, stats, story: { seen: [...s.story.seen, ...due] } };
+  const quests = newQuests({ ...s, stats }, s.seed, s.time.maxSeen, s.settings.tzOffsetMin);
+  return { ...s, stats, story: { seen: [...s.story.seen, ...due] }, quests };
 }

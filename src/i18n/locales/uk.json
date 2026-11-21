@@ -138,5 +138,92 @@
   "start.error.title": "Гра не запустилась",
   "start.error.body": "Щось пішло не так під час запуску. Онови сторінку; збереження не змінено.",
   "world.failed.body": "Світ не завантажився.",
-  "world.failed.retry": "Спробувати ще"
+  "world.failed.retry": "Спробувати ще",
+  "quest.khortytsia.field1.title": "Засій пшеничне поле",
+  "quest.khortytsia.garden1.title": "Посади город",
+  "quest.khortytsia.field10.title": "Підніми поле до рівня {level}",
+  "quest.khortytsia.apiary1.title": "Постав пасіку",
+  "quest.khortytsia.hire1.title": "Найми козака",
+  "quest.khortytsia.kurins1.title": "Збудуй курінь на Січі",
+  "quest.khortytsia.windmill1.title": "Збудуй вітряк",
+  "quest.khortytsia.hire3.title": {
+    "one": "Найми ще {count} козака",
+    "few": "Найми ще {count} козаки",
+    "many": "Найми ще {count} козаків",
+    "other": "Найми ще {count} козака"
+  },
+  "quest.khortytsia.garden10.title": "Підніми город до рівня {level}",
+  "quest.khortytsia.potter1.title": "Запроси гончаря",
+  "quest.khortytsia.maidan1.title": "Розчисть майдан",
+  "quest.khortytsia.windmill10.title": "Підніми вітряк до рівня {level}",
+  "quest.khortytsia.smithy1.title": "Розпали кузню",
+  "quest.khortytsia.maidan10.title": "Склич раду: майдан до рівня {level}",
+  "quest.khortytsia.apiary10.title": "Підніми пасіку до рівня {level}",
+  "quest.khortytsia.tavern1.title": "Відчини шинок",
+  "quest.khortytsia.walls1.title": "Обнеси Січ валом",
+  "quest.khortytsia.hire10.title": {
+    "one": "Найми ще {count} козака",
+    "few": "Найми ще {count} козаки",
+    "many": "Найми ще {count} козаків",
+    "other": "Найми ще {count} козака"
+  },
+  "quest.khortytsia.fair1.title": "Скликай ярмарок",
+  "quest.khortytsia.potter10.title": "Підніми хату гончаря до рівня {level}",
+  "quest.khortytsia.treasury1.title": "Заведи військову скарбницю",
+  "quest.khortytsia.field25.title": "Підніми поле до рівня {level}",
+  "quest.khortytsia.smithy10.title": "Підніми кузню до рівня {level}",
+  "quest.khortytsia.tavern10.title": "Підніми шинок до рівня {level}",
+  "quest.khortytsia.kurins10.title": "Підніми курені до рівня {level}",
+  "quest.khortytsia.fair10.title": "Підніми ярмарок до рівня {level}",
+  "quest.khortytsia.church1.title": "Збудуй церкву Покрови",
+  "quest.khortytsia.field50.title": "Підніми поле до рівня {level}",
+  "quest.chain.generated.title": "Підніми «{building}» до рівня {level}",
+  "quest.chore.taps50.title": {
+    "one": "Зроби {count} тап",
+    "few": "Зроби {count} тапи",
+    "many": "Зроби {count} тапів",
+    "other": "Зроби {count} тапу"
+  },
+  "quest.chore.taps200.title": {
+    "one": "Зроби {count} тап",
+    "few": "Зроби {count} тапи",
+    "many": "Зроби {count} тапів",
+    "other": "Зроби {count} тапу"
+  },
+  "quest.chore.tapIncome60.title": {
+    "one": "Збери тапами {count} секунду доходу",
+    "few": "Збери тапами {count} секунди доходу",
+    "many": "Збери тапами {count} секунд доходу",
+    "other": "Збери тапами {count} секунди доходу"
+  },
+  "quest.chore.levels10.title": {
+    "one": "Купи {count} рівень",
+    "few": "Купи {count} рівні",
+    "many": "Купи {count} рівнів",
+    "other": "Купи {count} рівня"
+  },
+  "quest.chore.levels25.title": {
+    "one": "Купи {count} рівень",
+    "few": "Купи {count} рівні",
+    "many": "Купи {count} рівнів",
+    "other": "Купи {count} рівня"
+  },
+  "quest.chore.purchases10.title": {
+    "one": "Зроби {count} покупку",
+    "few": "Зроби {count} покупки",
+    "many": "Зроби {count} покупок",
+    "other": "Зроби {count} покупки"
+  },
+  "quest.chore.hire3.title": {
+    "one": "Найми {count} козака",
+    "few": "Найми {count} козаки",
+    "many": "Найми {count} козаків",
+    "other": "Найми {count} козака"
+  },
+  "quest.chore.hire10.title": {
+    "one": "Найми {count} козака",
+    "few": "Найми {count} козаки",
+    "many": "Найми {count} козаків",
+    "other": "Найми {count} козака"
+  }
 }

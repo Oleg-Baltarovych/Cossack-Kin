@@ -29,7 +29,7 @@ describe('save fixtures (M1-20, rules/save.md)', () => {
     });
   }
 
-  for (const file of ['v1.json', 'v2.json']) {
+  for (const file of ['v1.json', 'v2.json', 'v3.json']) {
     it(`${file} is a real played game: buildings, Sich and Cossacks`, () => {
       const r = decodeSave(readFileSync(join(DIR, file), 'utf8').trim());
       if (!r.ok) throw new Error(r.reason);
@@ -54,5 +54,17 @@ describe('save fixtures (M1-20, rules/save.md)', () => {
     expect(r.state.stats.levelsBought).toBeGreaterThan(0);
     expect(r.state.stats.hires).toBe(r.state.army.infantry);
     expect(r.state.stats.tapIncomeSec).toBeGreaterThan(0);
+  });
+});
+
+describe('v3 fixture (M2-23)', () => {
+  it('was played with quests: chain steps and a chore claimed, the active ones counted from their start', () => {
+    const r = decodeSave(readFileSync(join(DIR, 'v3.json'), 'utf8').trim());
+    if (!r.ok) throw new Error(r.reason);
+    const q = r.state.quests;
+    expect(q.chain.kind === 'listed' && q.chain.index).toBeGreaterThan(0);
+    expect(q.chores.n).toBeGreaterThan(0);
+    expect(q.chores.claims).toBe(q.chores.n);
+    expect(r.state.settings.tzOffsetMin).toBe(0);
   });
 });

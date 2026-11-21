@@ -2,6 +2,7 @@
 // While running it ticks at 10 Hz; `start` (through `resume`) and `stop` each tick once, so the state is current the moment the page
 // hides or comes back. When the loop is stopped, time is not lost — the next tick counts the gap through `applyOffline`
 // (with its caps), which is how a hidden page becomes an absence. lifecycle.ts decides when to start and stop.
+// `start` also writes the local time zone into the settings when it changed (plan Q9: the quest day is local).
 import type { GameStore } from '../core/store.ts';
 
 /** Ticks per second (SPEC §9.2). */
@@ -11,7 +12,12 @@ const MS_PER_SEC = 1000;
 export interface LoopOptions {
   readonly now?: () => number;
   readonly hz?: number;
+  /** Local time minus UTC, minutes. */
+  readonly tzOffsetMin?: () => number;
 }
+
+/** The zone of the device: `getTimezoneOffset` is UTC minus local (whole minutes in practice; rounded for the save gate). */
+const deviceTzOffsetMin = (): number => Math.round(-new Date().getTimezoneOffset());
 
 export interface Loop {
   readonly running: () => boolean;
@@ -19,7 +25,10 @@ export interface Loop {
   stop(): void;
 }
 
-export function createLoop(store: GameStore, { now = Date.now, hz = LOOP_HZ }: LoopOptions = {}): Loop {
+export function createLoop(
+  store: GameStore,
+  { now = Date.now, hz = LOOP_HZ, tzOffsetMin = deviceTzOffsetMin }: LoopOptions = {},
+): Loop {
   let id: ReturnType<typeof setInterval> | null = null;
   const step = (): void => {
     store.tick(now());
@@ -30,6 +39,8 @@ export function createLoop(store: GameStore, { now = Date.now, hz = LOOP_HZ }: L
       if (id !== null) return;
       // The first tick back reports a clock set back; the running ticks stay quiet about it.
       store.resume(now());
+      const tz = tzOffsetMin();
+      if (tz !== store.getState().settings.tzOffsetMin) store.dispatch({ type: 'setSettings', tzOffsetMin: tz }, now());
       id = setInterval(step, MS_PER_SEC / hz);
     },
     stop() {
