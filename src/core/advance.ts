@@ -4,11 +4,14 @@
 //   ducats += farmIncomeRate × duration,  glory += gloryRate × duration,  stormsSurvived += storms begun in it.
 // No step loop and no cap here: a 0.1 s tick and an 8 h absence take the same path, which is what makes the offline
 // equivalence test hold. The offline cap, the glory store and the clock-cheat guard are `applyOffline`'s (M1-11).
+// At the end the due story beats fire (`checkStory`, M2-22): `integrate` is the same step without them, for
+// `applyOffline`, which integrates the capped window and then checks the beats on the state it keeps.
 import { Big } from './big.ts';
 import type { GameEvent } from './events.ts';
 import { collectModifiers, farmIncomeRate, villageOf } from './modifiers.ts';
 import type { GameState } from './state.ts';
 import { gloryRate } from './systems/army.ts';
+import { checkStory } from './systems/story.ts';
 import { stormsSurvivedDuring, windAt, windBreakpoints } from './systems/village-mechanics/wind.ts';
 
 const MS_PER_SEC = 1000;
@@ -20,6 +23,14 @@ export interface AdvanceResult {
 
 /** Moves `state` forward to `now` (ms). `now ≤ lastSeen` or a non-finite `now` changes nothing (a clock going back is applyOffline's case). */
 export function advance(state: GameState, now: number): AdvanceResult {
+  const moved = integrate(state, now);
+  if (moved.state === state) return moved;
+  const story = checkStory(moved.state);
+  return { state: story.state, events: [...moved.events, ...story.events] };
+}
+
+/** `advance` without the story check: income, glory, storms and wind events only. */
+export function integrate(state: GameState, now: number): AdvanceResult {
   const from = state.time.lastSeen;
   // A non-finite clock is invalid input: Infinity would never end the wind scan, NaN would poison lastSeen.
   if (!Number.isFinite(now) || now <= from) return { state, events: [] };

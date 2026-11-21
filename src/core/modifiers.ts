@@ -7,7 +7,7 @@ import { SICH_BUILDINGS, type SichBuilding } from '../content/sich.ts';
 import { FARM_BUILDING_IDS, KHORTYTSIA, type FarmBuildingId, type Village } from '../content/villages/khortytsia.ts';
 import type { Big } from './big.ts';
 import { incomeRate } from './economy.ts';
-import type { GameState } from './state.ts';
+import type { GameState, VillageState } from './state.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
 
 export interface Modifiers {
@@ -28,12 +28,15 @@ export interface Modifiers {
 const VILLAGES: Readonly<Record<GameState['village']['id'], Village>> = { khortytsia: KHORTYTSIA };
 
 /** The content record of the state's land. */
-export function villageOf(state: GameState): Village {
+export function villageOf(state: { readonly village: Pick<VillageState, 'id'> }): Village {
   return VILLAGES[state.village.id];
 }
 
 /** Whether a Sich building can be bought (and its effects count) in this state. */
-export function sichUnlocked(b: SichBuilding, state: GameState): boolean {
+export function sichUnlocked(
+  b: SichBuilding,
+  state: { readonly village: Pick<VillageState, 'id' | 'levels'> },
+): boolean {
   const u = b.unlock;
   switch (u.kind) {
     case 'start':
@@ -85,9 +88,21 @@ function farmEffect(state: GameState, kind: 'armyPower' | 'glory'): number {
 
 /** All multipliers in force at `now` (ms) (SPEC §9.6): the wind on the windmill depends on the time. */
 export function collectModifiers(state: GameState, now: number): Modifiers {
+  return modifiersUnder(state, windLookAt(state.seed, now, villageOf(state)).windmillMult);
+}
+
+/**
+ * The multipliers without the wind of the moment (the windmill at ×1, a breeze): the rate a reward in minutes is
+ * measured by, so it does not depend on when it is granted (plan M2-22: online = offline).
+ */
+export function steadyModifiers(state: GameState): Modifiers {
+  return modifiersUnder(state, 1);
+}
+
+function modifiersUnder(state: GameState, windmillMult: number): Modifiers {
   const village = villageOf(state);
   const buildingMult = Object.fromEntries(FARM_BUILDING_IDS.map((id) => [id, 1])) as Record<FarmBuildingId, number>;
-  buildingMult.windmill *= village.passive.mult * windLookAt(state.seed, now, village).windmillMult;
+  buildingMult.windmill *= village.passive.mult * windmillMult;
   return {
     incomeMult: 1 + defence(state) * DEFENCE.incomePerPoint,
     buildingMult,

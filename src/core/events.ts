@@ -1,9 +1,11 @@
 // Domain events (SPEC §9.2; plan §0): a discriminated union of plain data. The core returns them with every state
 // change; the store forwards them to render and audio, which react but never write state. Grows with M1-11/12.
 import type { SichBuildingId } from '../content/sich.ts';
+import type { StoryBeatId } from '../content/story.ts';
 import type { FarmBuildingId, WindLevel } from '../content/villages/khortytsia.ts';
 import type { Big } from './big.ts';
 import type { ReturnReport } from './state.ts';
+import type { Granted } from './systems/reward.ts';
 
 /** Why an action did nothing (the UI explains it; the state is unchanged). */
 export type RejectReason = 'ducats' | 'glory' | 'locked' | 'max' | 'kharch' | 'count' | 'noReport';
@@ -25,6 +27,8 @@ export type GameEvent =
   | { readonly type: 'ReturnClaimed'; readonly ducats: Big; readonly glory: Big }
   /** The player came back: the absence was counted into `report` (waiting for claimReturn). */
   | { readonly type: 'OfflineApplied'; readonly report: ReturnReport }
+  /** A story beat fired (once); its reward, if any, is already credited (SPEC §2.5). */
+  | { readonly type: 'StoryBeatReached'; readonly id: StoryBeatId; readonly granted: Granted | null }
   | { readonly type: 'ActionRejected'; readonly action: string; readonly reason: RejectReason }
   /** The whole state was replaced (a loaded save or a reset): listeners re-read it from scratch. */
   | { readonly type: 'StateReplaced' };

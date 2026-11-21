@@ -1,6 +1,7 @@
 // The save migration chain (SPEC §9.5, rules/save.md; plan M1-13). One pure step per version bump,
-// `migrations/NNN-vX-to-vY.ts`, registered here in order (use /save-migration). Empty at v1.
+// `migrations/NNN-vX-to-vY.ts`, registered here in order (use /save-migration).
 import { STATE_VERSION } from '../../state.ts';
+import { V1_TO_V2 } from './001-v1-to-v2.ts';
 
 export interface Migration {
   readonly from: number;
@@ -9,7 +10,7 @@ export interface Migration {
   readonly run: (raw: unknown) => unknown;
 }
 
-export const MIGRATIONS: readonly Migration[] = [];
+export const MIGRATIONS: readonly Migration[] = [V1_TO_V2];
 
 export type MigrateResult = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
 

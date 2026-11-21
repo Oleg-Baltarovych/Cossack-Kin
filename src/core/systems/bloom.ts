@@ -4,7 +4,7 @@
 import { BLOOM } from '../../content/economy.ts';
 import { SICH_BUILDINGS } from '../../content/sich.ts';
 import { sichUnlocked, villageOf } from '../modifiers.ts';
-import type { GameState } from '../state.ts';
+import type { VillageState } from '../state.ts';
 
 export interface BloomStatus {
   readonly farm: boolean;
@@ -13,7 +13,10 @@ export interface BloomStatus {
   readonly reached: boolean;
 }
 
-export function bloomStatus(state: GameState): BloomStatus {
+/** What bloom reads: the land only (the v1 → v2 migration checks it on a raw save). */
+export type BloomFacts = { readonly village: Pick<VillageState, 'id' | 'levels' | 'sichLevels' | 'mechanic'> };
+
+export function bloomStatus(state: BloomFacts): BloomStatus {
   const village = villageOf(state);
   const farm = village.buildings.every((b) => state.village.levels[b.id] >= BLOOM.farmLevel);
   // «Відкриті» = open in this land at all (the cannon foundry of land 5 is not); the church opens at farm 25.
