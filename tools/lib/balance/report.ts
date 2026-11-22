@@ -18,6 +18,7 @@ export interface Corridor {
   readonly bloomDays: Range;
   readonly sessionActions: Range;
   readonly offline8hNoticeable: Range;
+  readonly s1MaxActions: number;
   readonly novelty: {
     readonly week1Sessions: number;
     readonly maxSessionsWithoutNovelty: number;
@@ -55,11 +56,16 @@ function median(values: readonly number[]): number | null {
 
 const fmt = (n: number | null): string => (n === null ? '—' : String(Number(n.toFixed(DIGITS))));
 
-/** Novelties per session (1..n). */
-export function noveltiesPerSession(r: SimResult, n: number): number[] {
+/** Novelties per session (1..n), of the kinds `include` lets through (all by default). */
+export function noveltiesPerSession(
+  r: SimResult,
+  n: number,
+  include: (kind: SimResult['novelties'][number]['kind']) => boolean = () => true,
+): number[] {
   const counts = Array.from({ length: n }, () => 0);
   for (const nv of r.novelties)
-    if (nv.session >= 1 && nv.session <= n) counts[nv.session - 1] = (counts[nv.session - 1] ?? 0) + 1;
+    if (nv.session >= 1 && nv.session <= n && include(nv.kind))
+      counts[nv.session - 1] = (counts[nv.session - 1] ?? 0) + 1;
   return counts;
 }
 
@@ -94,9 +100,10 @@ export function evaluate(
     // Session metrics over the land's life: up to the bloom session (or every session without bloom).
     const upTo = r.bloomSession ?? r.sessions.length;
     const live = r.sessions.filter((s) => s.index <= upTo);
-    const actions = median(live.map((s) => s.actions));
+    // S1 is onboarding (owner 2026-11-22, SPEC §2.3): the corridor counts from S2; S1 is reported on its own.
+    const actions = median(live.filter((s) => s.index > 1).map((s) => s.actions));
     add(
-      'sessionActions (median)',
+      'sessionActions (median, S2+)',
       `${String(pacing.sessionActions.min)}–${String(pacing.sessionActions.max)}`,
       fmt(actions),
       actions !== null && actions >= pacing.sessionActions.min && actions <= pacing.sessionActions.max,
@@ -108,17 +115,26 @@ export function evaluate(
       fmt(atOpen),
       atOpen !== null && atOpen >= pacing.offline8hNoticeable.min && atOpen <= pacing.offline8hNoticeable.max,
     );
+    const s1 = r.sessions[0]?.actions ?? null;
+    add('s1Actions', `≤ ${String(pacing.s1MaxActions)}`, fmt(s1), s1 !== null && s1 <= pacing.s1MaxActions, false);
     // Up to bloom only: after bloom the move to the next land is the novelty (M5).
-    const week1 = noveltiesPerSession(
-      r,
-      Math.min(pacing.novelty.week1Sessions, r.bloomSession ?? pacing.novelty.week1Sessions),
-    );
-    const emptyRun = longestZeroRun(week1);
+    const week1Len = Math.min(pacing.novelty.week1Sessions, r.bloomSession ?? pacing.novelty.week1Sessions);
+    const emptyRun = longestZeroRun(noveltiesPerSession(r, week1Len));
     add(
       'maxSessionsWithoutNovelty (week 1)',
       `≤ ${String(pacing.novelty.maxSessionsWithoutNovelty)}`,
       String(emptyRun),
       emptyRun <= pacing.novelty.maxSessionsWithoutNovelty,
+    );
+    // Report only: the same without chain steps (Q6 made them novelties), so a chain that only papers over a dull
+    // session shows here (M2-27).
+    const emptyNoChain = longestZeroRun(noveltiesPerSession(r, week1Len, (k) => k !== 'chainStep'));
+    add(
+      'maxSessionsWithoutNovelty without chainStep (week 1)',
+      `≤ ${String(pacing.novelty.maxSessionsWithoutNovelty)}`,
+      String(emptyNoChain),
+      emptyNoChain <= pacing.novelty.maxSessionsWithoutNovelty,
+      false,
     );
     // Days 8+: report only (M1 content runs out after the 75/100 tiers, SPEC §12.3).
     const firstLater = pacing.novelty.week1Sessions + 1;
@@ -157,7 +173,7 @@ export function renderReport(
   const lines: string[] = [
     '# Balance — land 1 (Хортиця)',
     '',
-    `Bot: greedy MAX (plan Q10), ${String(PACING.sessionsPerDay)} sessions/day × ${String(PACING.sessionSec / 60)} min, tap every ${String(PACING.tapEverySec)} s, free profile.`,
+    `Bot: greedy MAX (plan Q10), ${String(PACING.sessionsPerDay)} sessions/day × ${String(PACING.sessionSec / 60)} min, tap every ${String(PACING.tapEverySec)} s, claims every finished quest (not an action), free profile.`,
     '',
   ];
   const failed = checks.filter((c) => c.gate && !c.ok).length;
@@ -179,13 +195,13 @@ export function renderReport(
     lines.push(
       '### Novelty timeline, week 1',
       '',
-      '| session | actions | noticeable | at open | novelties |',
-      '|---|---|---|---|---|',
+      '| session | actions | noticeable | at open | claims (chain/chore) | novelties |',
+      '|---|---|---|---|---|---|',
     );
     for (const s of r.sessions.slice(0, PACING.novelty.week1Sessions)) {
       const list = r.novelties.filter((n) => n.session === s.index).map((n) => (n.ref ? `${n.kind}:${n.ref}` : n.kind));
       lines.push(
-        `| S${String(s.index)} | ${String(s.actions)} | ${String(s.noticeable)} | ${String(s.noticeableAtOpen)} | ${list.join(', ') || '—'} |`,
+        `| S${String(s.index)} | ${String(s.actions)} | ${String(s.noticeable)} | ${String(s.noticeableAtOpen)} | ${String(s.claims.chain)}/${String(s.claims.chore)} | ${list.join(', ') || '—'} |`,
       );
     }
     lines.push('', '### Calendar (SPEC §2.4)', '', '| entry | window | seen |', '|---|---|---|');
@@ -205,12 +221,25 @@ export function renderReport(
 
 /** One CSV row per seed × session (for spreadsheets). */
 export function renderCsv(results: readonly SimResult[]): string {
-  const rows = ['seed,session,startSec,actions,noticeable,noticeableAtOpen,novelties'];
+  const rows = [
+    'seed,session,startSec,actions,noticeable,noticeableAtOpen,chainClaims,choreClaims,choreRewards,novelties',
+  ];
   for (const r of results) {
     const counts = noveltiesPerSession(r, r.sessions.length);
     for (const s of r.sessions)
       rows.push(
-        [r.seed, s.index, s.start, s.actions, s.noticeable, s.noticeableAtOpen, counts[s.index - 1] ?? 0].join(','),
+        [
+          r.seed,
+          s.index,
+          s.start,
+          s.actions,
+          s.noticeable,
+          s.noticeableAtOpen,
+          s.claims.chain,
+          s.claims.chore,
+          s.choreRewards,
+          counts[s.index - 1] ?? 0,
+        ].join(','),
       );
   }
   return `${rows.join('\n')}\n`;

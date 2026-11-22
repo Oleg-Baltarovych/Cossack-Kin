@@ -27,7 +27,14 @@ import { pickStable } from './rng.ts';
 import { AGENT_BUDGET, CART_PERIOD } from '../content/agents.ts';
 import type { Reward } from '../content/rewards.ts';
 import { STORY_BEATS, type PortraitId, type StoryBeatId } from '../content/story.ts';
-import { chainQuest, choreQuest, choreRewardsLeft, type QuestId, type QuestKind } from './systems/quests.ts';
+import {
+  chainQuest,
+  choreQuest,
+  choreRewardsLeft,
+  generatedTarget,
+  type QuestId,
+  type QuestKind,
+} from './systems/quests.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -307,10 +314,8 @@ export interface QuestLineView {
 export function questLineView(state: GameState, kind: QuestKind): QuestLineView | null {
   const q = kind === 'chain' ? chainQuest(state) : choreQuest(state);
   if (!q) return null;
-  const buildingKey =
-    q.id === 'chain.generated' && q.goal.kind !== 'count'
-      ? buildingNameKey(state, q.goal.kind === 'building' ? 'farm' : 'sich', q.goal.id)
-      : null;
+  const target = generatedTarget(q);
+  const buildingKey = target ? buildingNameKey(state, target.kind === 'building' ? 'farm' : 'sich', target.id) : null;
   return {
     kind,
     id: q.id,

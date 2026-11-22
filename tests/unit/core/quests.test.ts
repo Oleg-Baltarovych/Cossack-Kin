@@ -7,7 +7,16 @@ import { Big } from '../../../src/core/big.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { validateState } from '../../../src/core/state.ts';
-import { chainQuest, choreQuest, dayAt, generatedGoal, nextChore, questDay } from '../../../src/core/systems/quests.ts';
+import {
+  chainQuest,
+  choreQuest,
+  dayAt,
+  generatedGoal,
+  generatedTarget,
+  nextChore,
+  questDay,
+  questRef,
+} from '../../../src/core/systems/quests.ts';
 import { SICH_BUILDING_IDS } from '../../../src/content/sich.ts';
 
 const T0 = 1_763_400_000_000; // 2025-11-17 17:20 UTC
@@ -89,9 +98,9 @@ describe('«Наказ кошового»: the chain in order (M2-23)', () => {
   });
 
   it('a step is completed by an action: QuestCompleted once, then the claim grants the reward', () => {
-    // Little money, so the reward is visible in the sum (1e30 + 300 is 1e30).
+    // Little money and glory, so the reward is visible in the sum (1e30 + 300 is 1e30).
     const w = wealthy();
-    const s = { ...w, currencies: { ...w.currencies, ducats: Big.from(1000) } };
+    const s = { ...w, currencies: { ...w.currencies, ducats: Big.from(1000), glory: Big.ZERO } };
     const bought = applyAction(s, { type: 'buyBuilding', id: 'field', mode: 1 }, T0);
     expect(of(bought.events, 'QuestCompleted')).toEqual([
       { type: 'QuestCompleted', kind: 'chain', id: 'khortytsia.field1' },
@@ -100,9 +109,11 @@ describe('«Наказ кошового»: the chain in order (M2-23)', () => {
     expect(of(again.events, 'QuestCompleted')).toEqual([]);
     const r = claim(again.state, 'chain');
     const granted = of(r.events, 'QuestClaimed')[0]?.granted;
-    expect(granted?.currency).toBe('ducats');
-    if (granted?.currency !== 'ducats') return;
-    expect(r.state.currencies.ducats.sub(again.state.currencies.ducats).toNumber()).toBeCloseTo(
+    // The first farm step pays glory (M2-27, SPEC §3.10).
+    expect(QUEST_CHAIN[0]?.reward.kind).toBe('gloryMinutes');
+    expect(granted?.currency).toBe('glory');
+    if (granted?.currency !== 'glory') return;
+    expect(r.state.currencies.glory.sub(again.state.currencies.glory).toNumber()).toBeCloseTo(
       granted.amount.toNumber(),
     );
     expect(chainQuest(r.state)?.id).toBe(QUEST_CHAIN[1]?.id);
@@ -416,5 +427,23 @@ describe('review fixes (M2-23)', () => {
     expect(rewarded).toBeLessThanOrEqual(CHORES.maxClaimsPerDay * days);
     // Back to the west at the end: no new day came from it.
     expect(s.quests.chores.day).toBe(lastDay);
+  });
+});
+
+describe('questRef: one stable name per quest (M2-27: the balance log and the strip share the generated rule)', () => {
+  it('a listed step and a chore are their ids; a generated step names its building and level', () => {
+    const s = wealthy();
+    const listed = chainQuest(s);
+    if (!listed) throw new Error('no chain step');
+    expect(questRef(listed)).toBe(QUEST_CHAIN[0]?.id);
+    expect(generatedTarget(listed)).toBeNull();
+    expect(questRef(choreQuest(s))).toBe(s.quests.chores.active);
+    const gen = chainQuest({
+      ...s,
+      quests: { ...s.quests, chain: { kind: 'generated', goal: { kind: 'building', id: 'field', level: 75 } } },
+    });
+    if (!gen) throw new Error('no generated step');
+    expect(generatedTarget(gen)).toEqual({ kind: 'building', id: 'field', level: 75 });
+    expect(questRef(gen)).toBe('generated:field@75');
   });
 });

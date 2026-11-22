@@ -137,6 +137,17 @@ export function chainQuest(state: QuestFacts & { readonly quests: QuestsState })
   }
 }
 
+/** The building and level of a generated chain step (null for a listed step or a chore). */
+export function generatedTarget(q: QuestView): LevelGoal | null {
+  return q.id === 'chain.generated' && q.goal.kind !== 'count' ? q.goal : null;
+}
+
+/** A name per quest that tells generated steps apart: the id, or `generated:<building>@<level>`. */
+export function questRef(q: QuestView): string {
+  const g = generatedTarget(q);
+  return g ? `generated:${g.id}@${String(g.level)}` : q.id;
+}
+
 function choreDef(id: ChoreId): ChoreDef {
   const def = CHORES.pool.find((c) => c.id === id);
   // Every id of CHORE_IDS is in the pool (content test).

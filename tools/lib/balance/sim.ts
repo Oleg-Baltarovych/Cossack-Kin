@@ -1,19 +1,24 @@
 // The balance simulator (SPEC §12.3; plan M1-14, Q10). A greedy bot plays the real core — no copy of any formula — on
 // the session rhythm of src/content/pacing.ts: two 7-minute sessions a day, a tap every 2 s, offline between sessions.
-// Each step it presses MAX on the best target (Δincome / price for ducats; the lowest open Sich building for glory)
-// and hires Cossacks while they are cheap. It logs actions, «відчутні» purchases and novelties (SPEC §2.4), milestone
-// times and bloom. Deterministic: the same options give the same result, byte for byte.
+// Each step it presses MAX on the best target (soonest payback incl. the wait for the price, steady income, for
+// ducats; the lowest open Sich building for glory)
+// and hires Cossacks while they are cheap. After every step and press it claims each finished quest — the step of
+// «Наказ кошового» and the chore — through the real `claimQuest` action (M2-27; a claim is not an «дія», SPEC §12.3,
+// so it is counted apart). It logs actions, «відчутні» purchases and novelties (SPEC §2.4: story beats and chain
+// steps too, plan Q6), milestone times and bloom. Deterministic: the same options give the same result, byte for byte.
 import { FARM, SICH } from '../../../src/content/economy.ts';
 import { PACING, type NoveltyKind } from '../../../src/content/pacing.ts';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
 import type { FarmBuildingId } from '../../../src/content/villages/khortytsia.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
-import { sichUnlocked, villageOf } from '../../../src/core/modifiers.ts';
+import { farmIncomeRate, sichUnlocked, steadyModifiers, villageOf } from '../../../src/core/modifiers.ts';
 import { tick } from '../../../src/core/offline.ts';
 import { farmRowView, sichRowView, visibleSichIds } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { canHire } from '../../../src/core/systems/army.ts';
+import { chainQuest, choreQuest, questRef } from '../../../src/core/systems/quests.ts';
+import { tier } from '../../../src/core/economy.ts';
 import { bloomStatus } from '../../../src/core/systems/bloom.ts';
 import { stormStarts } from '../../../src/core/systems/village-mechanics/wind.ts';
 
@@ -55,6 +60,10 @@ export interface SessionLog {
   readonly noticeable: number;
   /** Noticeable purchases made at the session's first step, i.e. from what the offline time brought. */
   readonly noticeableAtOpen: number;
+  /** Quests claimed (`claimQuest`); not counted in `actions`. */
+  readonly claims: { readonly chain: number; readonly chore: number };
+  /** Chore claims that paid a reward (the rest, past CHORES.maxClaimsPerDay, only move the counter). */
+  readonly choreRewards: number;
 }
 
 export interface SimResult {
@@ -92,22 +101,52 @@ export function sessionOf(t: number, starts: readonly number[]): number {
   return starts.length + 1;
 }
 
+const FARM_TIERS = FARM.milestones.map((m) => m.level);
+
+/**
+ * The milestone levels a press from `from` to `to` crossed, by the core's tier rule (`TierReached` names only the
+ * top one: 9 → 26 crosses 10 and 25). A tier is a novelty once it is seen, skipped or not.
+ */
+export function crossedTiers(from: number, to: number, milestoneLevels: readonly number[]): number[] {
+  const out: number[] = [];
+  for (let t = tier(from, milestoneLevels) + 1; t <= tier(to, milestoneLevels); t += 1) {
+    const level = milestoneLevels[t - 1];
+    if (level !== undefined) out.push(level);
+  }
+  return out;
+}
+
 const isNoticeable = (e: GameEvent): boolean =>
   (e.type === 'BuildingUpgraded' && e.from === 0) ||
   (e.type === 'SichUpgraded' && e.from === 0) ||
   e.type === 'TierReached' ||
   (e.type === 'CossackHired' && e.total === e.n);
 
-/** The farm building with the best income gain per ducat for its next level (null when all are at the cap). */
+/**
+ * The farm building whose next level pays back soonest, counting the wait for its price: (price − ducats) / income +
+ * price / gain (null when all are at the cap). Gains and income are the steady ones (`steadyModifiers`: no wind of
+ * the moment). M2-27: ranked by gain per ducat alone, and with the storm's ×3, the bot saved a whole session for a 13K
+ * windmill while a 10-ducat field or an affordable garden was there to buy.
+ */
 function bestFarm(s: GameState): FarmBuildingId | null {
   let best: FarmBuildingId | null = null;
-  let bestRatio = -1;
+  let bestScore = Infinity;
+  const income = farmIncomeRate(s, steadyModifiers(s)).toNumber();
+  const ducats = s.currencies.ducats.toNumber();
   for (const b of villageOf(s).buildings) {
     const v = farmRowView(s, b.id, 1);
     if (v.blocked === 'max') continue;
-    const ratio = v.incomeAfter.sub(v.incomeNow).toNumber() / v.price.toNumber();
-    if (ratio > bestRatio) {
-      bestRatio = ratio;
+    const next: GameState = {
+      ...s,
+      village: { ...s.village, levels: { ...s.village.levels, [b.id]: s.village.levels[b.id] + 1 } },
+    };
+    const gain = farmIncomeRate(next, steadyModifiers(next)).toNumber() - income;
+    const price = v.price.toNumber();
+    const short = Math.max(0, price - ducats);
+    const wait = short === 0 ? 0 : income > 0 ? short / income : Infinity;
+    const score = gain > 0 ? wait + price / gain : Infinity;
+    if (score < bestScore) {
+      bestScore = score;
       best = b.id;
     }
   }
@@ -182,21 +221,21 @@ export function simulate(options: SimOptions): SimResult {
             note(t, 'firstPurchase');
           }
           if (e.from === 0) note(t, 'building', e.id);
-          for (const m of FARM.milestones)
-            if (e.from < m.level && e.to >= m.level) milestones[`${e.id}@${String(m.level)}`] ??= sec(t);
+          for (const level of crossedTiers(e.from, e.to, FARM_TIERS)) {
+            milestones[`${e.id}@${String(level)}`] ??= sec(t);
+            note(t, 'tier', `${e.id}@${String(level)}`);
+          }
           break;
         case 'SichUpgraded':
           if (e.from === 0) note(t, 'sichBuilding', e.id);
+          for (const level of crossedTiers(e.from, e.to, SICH.milestones))
+            note(t, 'sichTier', `${e.id}@${String(level)}`);
           break;
-        case 'TierReached': {
-          const level = e.zone === 'farm' ? FARM.milestones[e.tier - 1]?.level : undefined;
-          const sichLevel = e.zone === 'sich' ? SICH.milestones[e.tier - 1] : undefined;
-          if (level !== undefined) note(t, 'tier', `${e.id}@${String(level)}`);
-          if (sichLevel !== undefined) note(t, 'sichTier', `${e.id}@${String(sichLevel)}`);
-          break;
-        }
         case 'CossackHired':
           if (e.total === e.n) note(t, 'firstHire');
+          break;
+        case 'StoryBeatReached':
+          note(t, 'storyBeat', e.id);
           break;
         default:
       }
@@ -232,6 +271,29 @@ export function simulate(options: SimOptions): SimResult {
     return { ok: true, noticeable: record(r.events, t) };
   };
 
+  /** Claims every finished quest now (a claimed chain step can start one already met: claimed in turn). */
+  const claimAll = (t: number, claims: { chain: number; chore: number; choreRewards: number }): void => {
+    for (;;) {
+      const q = chainQuest(state);
+      if (!q?.done) break;
+      const ref = questRef(q);
+      if (!act({ type: 'claimQuest', kind: 'chain' }, t).ok) break;
+      claims.chain += 1;
+      note(t, 'chainStep', ref);
+    }
+    // Ends: a claim starts the next chore with `base` = its counter now, so it is not done until more taps/levels/hires
+    // come (no chore goal is n = 0, content test); a refused claim (none expected) breaks out too.
+    while (choreQuest(state).done) {
+      const r = applyAction(state, { type: 'claimQuest', kind: 'chore' }, t);
+      const claimed = r.events.find((e) => e.type === 'QuestClaimed');
+      if (!claimed) break;
+      state = r.state;
+      record(r.events, t);
+      claims.chore += 1;
+      if (claimed.granted) claims.choreRewards += 1;
+    }
+  };
+
   const stepMs = PACING.tapEverySec * MS;
   const sessionMs = PACING.sessionSec * MS;
   for (let i = 0; i < starts.length; i += 1) {
@@ -239,6 +301,7 @@ export function simulate(options: SimOptions): SimResult {
     let actions = 0;
     let noticeable = 0;
     let atOpen = 0;
+    const claims = { chain: 0, chore: 0, choreRewards: 0 };
     for (let t = start; t < start + sessionMs; t += stepMs) {
       let stepNoticeable = advanceTo(t);
       const report = state.returnReport;
@@ -247,6 +310,7 @@ export function simulate(options: SimOptions): SimResult {
         act({ type: 'claimReturn' }, t);
       }
       if (taps) act({ type: 'tap' }, t);
+      claimAll(t, claims);
       for (let p = 0; p < MAX_PRESSES_PER_STEP; p += 1) {
         const a = nextAction(state, t);
         if (!a) break;
@@ -254,12 +318,21 @@ export function simulate(options: SimOptions): SimResult {
         if (!r.ok) break;
         actions += 1;
         stepNoticeable += r.noticeable;
+        claimAll(t, claims);
       }
       afterStep(t);
       noticeable += stepNoticeable;
       if (t === start) atOpen = stepNoticeable;
     }
-    sessions.push({ index: i + 1, start: sec(start), actions, noticeable, noticeableAtOpen: atOpen });
+    sessions.push({
+      index: i + 1,
+      start: sec(start),
+      actions,
+      noticeable,
+      noticeableAtOpen: atOpen,
+      claims: { chain: claims.chain, chore: claims.chore },
+      choreRewards: claims.choreRewards,
+    });
     // bloom is set inside afterStep (a closure): read it through a function so TS does not narrow it to null here.
     if (options.stopAtBloom && bloomed()) break;
   }

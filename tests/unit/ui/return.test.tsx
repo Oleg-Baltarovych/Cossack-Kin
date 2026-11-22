@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { OFFLINE } from '../../../src/content/economy.ts';
+import { KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
 import { applyOffline } from '../../../src/core/offline.ts';
 import { formatBig } from '../../../src/i18n/index.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
@@ -48,10 +49,13 @@ describe('ReturnModal (M1-18)', () => {
     const dialog = screen.getByRole('dialog', { name: 'З поверненням!' });
     expect(dialog.textContent).toContain('Час відсутності: 2 години 5 хвилин');
     expect(dialog.textContent).not.toContain('ліміт');
-    // 20 fields (20/s) + 10 gardens (80/s) for 7500 s = 750 тис.: the window prints the report's own number.
-    expect(report.ducats.toNumber()).toBeCloseTo(100 * 7500, 6);
+    // 20 fields + 10 gardens (both at tier 10: ×2) for 7500 s (M2-27: 12/s + 48/s = 450 тис.): the window prints the
+    // report's own number.
+    const prodOf = (id: string): number => KHORTYTSIA.buildings.find((b) => b.id === id)?.baseProd ?? NaN;
+    const rate = 20 * prodOf('field') * 2 + 10 * prodOf('garden') * 2;
+    expect(report.ducats.toNumber()).toBeCloseTo(rate * 7500, 6);
     expect(dialog.textContent).toContain(`Дукати+${formatBig(report.ducats, 'uk', 'words')}`);
-    expect(dialog.textContent).toContain('+750 тис.');
+    expect(dialog.textContent).toContain('+450 тис.');
     const before = store.getState().currencies.ducats;
     fireEvent.click(screen.getByRole('button', { name: 'Забрати' }));
     expect(store.getState().currencies.ducats.eq(before.add(report.ducats))).toBe(true);

@@ -10,8 +10,8 @@ export type Reward =
 
 /**
  * The least a minute of reward is worth: `ducatsPerMinute` × the land's scale, `gloryPerMinute` × its glory scale
- * (scale-free like the reward itself). Гіпотеза (M2-27 tunes): a minute of a level-1 field ≈ 30 ducats; the first
- * kurins cost 50 glory: the 5-minute messenger reward right after the first Cossacks pays half of them.
+ * (scale-free like the reward itself). Kept in M2-27 (the floor moved no metric): a minute of a level-1 field ≈ 18
+ * ducats; the first kurins cost 50 glory: the 5-minute messenger reward right after the first Cossacks pays half.
  */
 export const REWARD = {
   minPerMinute: { ducats: 10, glory: 5 },

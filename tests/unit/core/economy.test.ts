@@ -36,11 +36,12 @@ describe('milestones and tiers (M1-05)', () => {
 });
 
 describe('cost and income (M1-05)', () => {
-  it('cost(l) = base × scale × growth^l × mult: the field costs 10, then 11.5, …', () => {
-    expect(close(cost(field, 0, 1).toNumber(), 10)).toBe(true);
-    expect(close(cost(field, 1, 1).toNumber(), 11.5)).toBe(true);
-    expect(close(cost(field, 10, 1).toNumber(), 10 * 1.15 ** 10)).toBe(true);
-    expect(close(cost(field, 10, 1000, 0.8).toNumber(), 10 * 1000 * 1.15 ** 10 * 0.8)).toBe(true);
+  it('cost(l) = base × scale × growth^l × mult: the field costs base, then base × growth, …', () => {
+    const { base, growth } = field;
+    expect(close(cost(field, 0, 1).toNumber(), base)).toBe(true);
+    expect(close(cost(field, 1, 1).toNumber(), base * growth)).toBe(true);
+    expect(close(cost(field, 10, 1).toNumber(), base * growth ** 10)).toBe(true);
+    expect(close(cost(field, 10, 1000, 0.8).toNumber(), base * 1000 * growth ** 10 * 0.8)).toBe(true);
     expect(close(cost(walls, 3, KHORTYTSIA.gloryScale).toNumber(), walls.base * walls.growth ** 3)).toBe(true);
   });
 
@@ -59,21 +60,23 @@ describe('cost and income (M1-05)', () => {
   });
 
   it('prod(l) = baseProd × scale × l × milestoneMult(l) × mult; 0 at level 0', () => {
+    const f = field.baseProd;
+    const w = windmill.baseProd;
     expect(prod(field, 0, 1).isZero()).toBe(true);
-    expect(close(prod(field, 9, 1).toNumber(), 0.5 * 9)).toBe(true);
-    expect(close(prod(field, 10, 1).toNumber(), 0.5 * 10 * 2)).toBe(true);
-    expect(close(prod(windmill, 25, 1, 2).toNumber(), 200 * 25 * 4 * 2)).toBe(true);
-    expect(close(prod(field, 100, 1).toNumber(), 0.5 * 100 * 48)).toBe(true);
+    expect(close(prod(field, 9, 1).toNumber(), f * 9)).toBe(true);
+    expect(close(prod(field, 10, 1).toNumber(), f * 10 * 2)).toBe(true);
+    expect(close(prod(windmill, 25, 1, 2).toNumber(), w * 25 * 4 * 2)).toBe(true);
+    expect(close(prod(field, 100, 1).toNumber(), f * 100 * 48)).toBe(true);
   });
 
   it('incomeRate sums every building, with a per-building multiplier', () => {
     const s = createInitialState({ seed: 1, now: 0 });
     expect(incomeRate(s.village.levels, KHORTYTSIA).isZero()).toBe(true);
     const levels = { ...s.village.levels, field: 10, windmill: 25 };
-    const plain = 0.5 * 10 * 2 + 200 * 25 * 4;
+    const plain = field.baseProd * 10 * 2 + windmill.baseProd * 25 * 4;
     expect(close(incomeRate(levels, KHORTYTSIA).toNumber(), plain)).toBe(true);
     const doubledMill = incomeRate(levels, KHORTYTSIA, (id) => (id === 'windmill' ? 2 : 1));
-    expect(close(doubledMill.toNumber(), 0.5 * 10 * 2 + 200 * 25 * 4 * 2)).toBe(true);
+    expect(close(doubledMill.toNumber(), field.baseProd * 10 * 2 + windmill.baseProd * 25 * 4 * 2)).toBe(true);
   });
 });
 
