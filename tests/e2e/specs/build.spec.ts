@@ -13,6 +13,7 @@ import { SCAFFOLD_MS } from '../../../src/render/fx/construction.ts';
 import { PARTICLE_BUDGET } from '../../../src/render/fx/registry.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
+import { SPEC_MAX_DRAW_CALLS } from '../helpers/budgets.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
@@ -23,7 +24,6 @@ const FRAME_MS = 16;
 const SETTLE_MS = 3 * FRAME_MS;
 /** The field (x 450) and the apiary (660) on the farm's second screen. */
 const CAM = 330;
-const MAX_DRAW_CALLS = 30;
 
 const today = (): string => {
   const d = new Date();
@@ -65,7 +65,7 @@ async function shot(page: Page, testInfo: TestInfo, name: string): Promise<Buffe
   const png = await page.screenshot({ path: join(DIR, file), scale: 'device' });
   await testInfo.attach(file, { body: png, contentType: 'image/png' });
   const stats = await readStats(page);
-  expect(stats.drawCalls, `${name}: draw calls`).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+  expect(stats.drawCalls, `${name}: draw calls`).toBeLessThanOrEqual(SPEC_MAX_DRAW_CALLS);
   expect(stats.particles, `${name}: particles`).toBeLessThanOrEqual(PARTICLE_BUDGET);
   return png;
 }
