@@ -28,7 +28,7 @@ No backend in v1.
 - `pnpm e2e` — Playwright (builds `--mode test` into `dist-test/`, serves it on :4317); `pnpm e2e --grep @screens` — M0 screenshot matrix (3 phones) → `reports/screens/<date>/`; first time: `pnpm exec playwright install chromium`
 - `PERF=1 pnpm e2e --grep @perf --workers=1` — light-shaft tier measurements (CPU ×4 throttle, live animation) → `reports/perf/<date>/rays.md` and the ART-18 tier table `quality.md` (fps, CPU ms, draw calls, particles); opt-in, not in CI. On battery Windows throttles the CPU: run e2e plugged in (or `--workers=1`)
 - CI: `.github/workflows/ci.yml` runs the check sequence + functional e2e (no `@screens`/`@perf`) on push to main / PR, plus gitleaks; the full e2e matrix with `@screens` runs nightly (if main changed) and on manual dispatch; Linux screenshot baselines via manual dispatch with `update_snapshots` (procedure in `docs/CONTEXT.md` §6)
-- Planned, not yet wired: `pnpm balance` (M1)
+- `pnpm balance --check` — balance simulation (seeds 1/2/3, payback bot claims quests) against the SPEC §2.3/§2.4 corridor + 60-day CPU budget (10 s) → `reports/balance/<date>/report.md`; run after any `src/content/` or core formula change
 
 ## Non-negotiable rules
 - If a task conflicts with the SPEC — stop and ask. Behaviour/architecture changes go into `docs/SPEC.md` + an ADR (`/adr`).

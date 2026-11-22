@@ -1,5 +1,6 @@
-// Land 1 — Хортиця (SPEC §3.2, §3.7; plan M1-03). The 8 farm/suburb buildings (tuned in M1-15: `pnpm balance --check`
-// holds land 1 in the pacing corridor), the land's passive bonus, its wind mechanic and its Bloom goal. Data only.
+// Land 1 — Хортиця (SPEC §3.2, §3.7; plan M1-03). The 8 farm/suburb buildings (tuned in M1-15; retuned in M2-27 with
+// the quest rewards and the payback bot: `baseProd` ×0.6, smithy and tavern bases up — `pnpm balance --check` holds
+// land 1 in the pacing corridor), the land's passive bonus, its wind mechanic and its Bloom goal. Data only.
 
 export const FARM_BUILDING_IDS = [
   'field',
@@ -86,7 +87,7 @@ export const KHORTYTSIA: Village = {
       zone: 'farm',
       base: 10,
       growth: 1.15,
-      baseProd: 0.5,
+      baseProd: 0.3,
       kharchPerLevel: 1,
       nameKey: 'building.field.name',
       descKey: 'building.field.desc',
@@ -96,7 +97,7 @@ export const KHORTYTSIA: Village = {
       zone: 'farm',
       base: 110,
       growth: 1.2,
-      baseProd: 4,
+      baseProd: 2.4,
       kharchPerLevel: 2,
       nameKey: 'building.garden.name',
       descKey: 'building.garden.desc',
@@ -106,7 +107,7 @@ export const KHORTYTSIA: Village = {
       zone: 'farm',
       base: 1.2e3,
       growth: 1.2,
-      baseProd: 30,
+      baseProd: 18,
       kharchPerLevel: 3,
       nameKey: 'building.apiary.name',
       descKey: 'building.apiary.desc',
@@ -116,7 +117,7 @@ export const KHORTYTSIA: Village = {
       zone: 'farm',
       base: 13e3,
       growth: 1.2,
-      baseProd: 200,
+      baseProd: 120,
       kharchPerLevel: 5,
       nameKey: 'building.windmill.name',
       descKey: 'building.windmill.desc',
@@ -126,16 +127,16 @@ export const KHORTYTSIA: Village = {
       zone: 'farm',
       base: 400e3,
       growth: 1.2,
-      baseProd: 1.4e3,
+      baseProd: 840,
       nameKey: 'building.potter.name',
       descKey: 'building.potter.desc',
     },
     {
       id: 'smithy',
       zone: 'suburb',
-      base: 40e6,
+      base: 60e6,
       growth: 1.12,
-      baseProd: 9e3,
+      baseProd: 5.4e3,
       effect: { kind: 'armyPower', perLevel: 0.03 },
       nameKey: 'building.smithy.name',
       descKey: 'building.smithy.desc',
@@ -143,9 +144,9 @@ export const KHORTYTSIA: Village = {
     {
       id: 'tavern',
       zone: 'suburb',
-      base: 360e6,
+      base: 720e6,
       growth: 1.12,
-      baseProd: 60e3,
+      baseProd: 36e3,
       effect: { kind: 'glory', perLevel: 0.01 },
       nameKey: 'building.tavern.name',
       descKey: 'building.tavern.desc',
@@ -155,7 +156,7 @@ export const KHORTYTSIA: Village = {
       zone: 'suburb',
       base: 5e9,
       growth: 1.1,
-      baseProd: 400e3,
+      baseProd: 240e3,
       effect: { kind: 'fairDay' },
       nameKey: 'building.fair.name',
       descKey: 'building.fair.desc',

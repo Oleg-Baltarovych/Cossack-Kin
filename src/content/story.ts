@@ -4,7 +4,7 @@
 // beats whose triggers exist in this build: «Рада на майдані» rewards glory until the hero comes (M4), «Вниз за
 // пороги» (bloom → resettling) comes with M5. Texts: i18n `story.<land>.<beat>.title|text`, sources in
 // docs/content-sources.md. Reward sizes: гіпотеза, kept small — 10/15/30 min pushed Майдан 10 to S2 and the session
-// actions over 15 (pnpm balance, M2-22); M2-27 retunes them with the chain and chores (plan R4).
+// actions over 15 (pnpm balance, M2-22); kept in M2-27 (the retune slowed the economy instead, plan R4).
 import type { Reward } from './rewards.ts';
 import type { SichBuildingId } from './sich.ts';
 import type { FarmBuildingId } from './villages/khortytsia.ts';

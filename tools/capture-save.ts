@@ -25,8 +25,8 @@ if (existsSync(out)) {
   process.exit(1);
 }
 const played = simulate({ seed, days }).final;
-// The bot does not claim quests yet (M2-27): at the end the player takes what is finished — every chain step and the
-// chore — through the real action, so the fixture holds quests in play (v3+).
+// The bot claims finished quests as it plays (M2-27); this last sweep — every chain step and the chore, through the
+// real action — stays so a fixture never ends on a finished, unclaimed quest (v3+).
 function claimAll(start: GameState): GameState {
   let s = start;
   for (const kind of ['chain', 'chore'] as const) {

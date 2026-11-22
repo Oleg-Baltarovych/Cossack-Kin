@@ -82,14 +82,15 @@ describe('the one-line strip over the lists (M2-25, SPEC §10.3)', () => {
     expect(within(strip()).queryAllByRole('listitem')).toHaveLength(0);
     expect(strip().textContent).toContain('Засій пшеничне поле');
     expect(strip().textContent).toContain('0 з 1');
-    expect(strip().textContent).toContain('5 хвилин доходу');
+    // The first farm steps pay glory (M2-27, SPEC §3.10).
+    expect(strip().textContent).toContain('5 хвилин слави');
     expect(within(strip()).queryByRole('button')).toBeNull();
   });
 
   it('plurals for the minutes, in en too', () => {
     mount(game('en'));
     const s = screen.getByRole('region', { name: 'Tasks' });
-    expect(s.textContent).toContain('5 minutes of income');
+    expect(s.textContent).toContain('5 minutes of glory');
     expect(s.textContent).toContain('0 of 1');
   });
 
@@ -102,13 +103,13 @@ describe('the one-line strip over the lists (M2-25, SPEC §10.3)', () => {
   it('a step done: «Забрати» names its reward; the claim credits it, reads it out, and the next step shows', () => {
     const { store } = mount(game());
     fireEvent.click(screen.getByRole('button', { name: /«Пшеничне поле»/ }));
-    const claim = within(strip()).getByRole('button', { name: 'Забрати нагороду: 5 хвилин доходу' });
+    const claim = within(strip()).getByRole('button', { name: 'Забрати нагороду: 5 хвилин слави' });
     expect(claim.textContent).toBe('Забрати');
-    const before = store.getState().currencies.ducats;
+    const before = store.getState().currencies.glory;
     fireEvent.click(claim);
-    const gained = store.getState().currencies.ducats.sub(before);
+    const gained = store.getState().currencies.glory.sub(before);
     expect(gained.gt(0)).toBe(true);
-    expect(screen.getByRole('status').textContent).toBe(`Отримано: +${formatBig(gained, 'uk', 'words')} дук.`);
+    expect(screen.getByRole('status').textContent).toBe(`Отримано: +${formatBig(gained, 'uk', 'words')} слави`);
     expect(strip().textContent).toContain('Посади город');
     expect(within(strip()).queryByRole('button')).toBeNull();
   });
@@ -200,7 +201,8 @@ describe('coins to the counter on a claim (M2-25, M2-26)', () => {
       const coins = expectedCoins(store);
       claimInStrip();
       expect(coins()).toBeGreaterThan(0);
-      const flying = document.querySelectorAll<HTMLElement>('[data-coin="ducats"]');
+      // The first step pays glory (M2-27): its coins fly to the glory counter.
+      const flying = document.querySelectorAll<HTMLElement>('[data-coin="glory"]');
       expect(flying).toHaveLength(coins());
       const start = flying[0]?.style.transform;
       act(() => {
@@ -317,10 +319,10 @@ describe('coins to the counter on a claim (M2-25, M2-26)', () => {
   it('«менше руху»: no coins, the reward is still credited and read out', () => {
     document.documentElement.dataset['motion'] = 'reduced';
     const { store } = mount(fieldBuilt(game()));
-    const before = store.getState().currencies.ducats;
+    const before = store.getState().currencies.glory;
     claimInStrip();
     expect(document.querySelectorAll('[data-coin]')).toHaveLength(0);
-    expect(store.getState().currencies.ducats.gt(before)).toBe(true);
+    expect(store.getState().currencies.glory.gt(before)).toBe(true);
     expect(screen.getByRole('status').textContent).toMatch(/^Отримано: \+/);
   });
 
