@@ -37,7 +37,7 @@ export function App({ game }: { game: Game }) {
     };
   }, [game]);
 
-  useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store) : undefined), [game]);
+  useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store, game.now) : undefined), [game]);
 
   // The world reads the game through the bridge (render/bridge.ts): events and selectors only. Pixi and the scene are a
   // lazy chunk (M2-04): the HUD and the panel paint first, the world joins when its code and atlases arrive.

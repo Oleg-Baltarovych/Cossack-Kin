@@ -52,6 +52,46 @@ export async function waitReady(page: Page): Promise<void> {
   await expect(page.locator('body'), 'world init failed (see the browser console)').toHaveAttribute('data-ready', '1');
 }
 
+/**
+ * Keeps the browser's own frames under a running fake clock (`page.clock.setFixedTime`/`install` without a pause): call
+ * it after the clock call, before `goto`. Playwright's clock also fakes `requestAnimationFrame` as a 16 ms timer, which
+ * has none of the browser's backpressure: the page queues ~60 frames/s of WebGL work while SwiftShader draws ~10, the
+ * GPU process falls behind by seconds per second played, and after a reload the new page's first synchronous GL call
+ * (Pixi's WebGL probe in `app.init`) waits out that backlog — over 20 s after a long run (M2-24). Frames from the native
+ * `requestAnimationFrame` run at the pace the GPU keeps up with. The callback gets the fake `performance.now()`, the
+ * clock the Pixi ticker reads, so frame times stay on one timeline across a reload. Not for paused clocks
+ * (`pauseAt`/`runFor`): those specs step every frame by hand. It leans on Playwright internals (`__pwClock.builtins`,
+ * pinned `@playwright/test` 1.65.1): recheck it on every Playwright upgrade — `assertNativeFrames` fails if they moved.
+ */
+export async function nativeFrames(page: Page): Promise<void> {
+  await page.context().addInitScript(() => {
+    // Playwright's injected clock keeps the page's native timers as `__pwClock.builtins` (clock.ts `inject`).
+    const pw = (
+      globalThis as { __pwClock?: { builtins: Pick<Window, 'requestAnimationFrame' | 'cancelAnimationFrame'> } }
+    ).__pwClock;
+    // No clock (or a wrong call order): leave the flag unset — `assertNativeFrames` reports it in the test.
+    if (!pw?.builtins.requestAnimationFrame) return;
+    const { requestAnimationFrame: raf, cancelAnimationFrame: caf } = pw.builtins;
+    window.requestAnimationFrame = (cb) =>
+      raf(() => {
+        cb(performance.now());
+      });
+    window.cancelAnimationFrame = (id) => {
+      caf(id);
+    };
+    (window as { __ckNativeRaf?: boolean }).__ckNativeRaf = true;
+  });
+}
+
+/** Fails the test when `nativeFrames` did not take over this document's frames (call after each `goto`/`reload`). */
+export async function assertNativeFrames(page: Page): Promise<void> {
+  const ok = await page.evaluate(() => (window as { __ckNativeRaf?: boolean }).__ckNativeRaf === true);
+  if (!ok)
+    throw new Error(
+      'nativeFrames did not install: Playwright clock internals changed (__pwClock.builtins), or it was called before page.clock.*',
+    );
+}
+
 export async function readStats(page: Page): Promise<WorldStats> {
   const stats = await page.evaluate(() => {
     const s = window.__CK__?.stats;

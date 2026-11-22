@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { chooseSave } from '../../../src/core/save/load.ts';
+import { migrate, MIGRATIONS } from '../../../src/core/save/migrations/index.ts';
 import { decodeSave, encodeSave, SAVE_VERSION } from '../../../src/core/save/serialize.ts';
 import { validateState } from '../../../src/core/state.ts';
 
@@ -66,5 +67,24 @@ describe('v3 fixture (M2-23)', () => {
     expect(q.chores.n).toBeGreaterThan(0);
     expect(q.chores.claims).toBe(q.chores.n);
     expect(r.state.settings.tzOffsetMin).toBe(0);
+  });
+});
+
+describe('the registered migration chain (M2-24)', () => {
+  const v1 = (): unknown =>
+    JSON.parse((JSON.parse(readFileSync(join(DIR, 'v1.json'), 'utf8')) as { payload: string }).payload) as unknown;
+
+  it('has exactly one step per version, from 1 up to the current one, in order', () => {
+    expect(MIGRATIONS.map((m) => [m.from, m.to])).toEqual(
+      Array.from({ length: SAVE_VERSION - 1 }, (_, i) => [i + 1, i + 2]),
+    );
+  });
+
+  it('a hole anywhere in it is an error: the oldest fixture is refused, never half-migrated', () => {
+    expect(migrate(v1(), 1).ok).toBe(true);
+    MIGRATIONS.forEach((_, hole) => {
+      const holed = MIGRATIONS.filter((__, i) => i !== hole);
+      expect(migrate(v1(), 1, holed), `without step ${String(hole + 1)}`).toEqual({ ok: false });
+    });
   });
 });
