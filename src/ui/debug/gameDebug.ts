@@ -9,6 +9,7 @@
 //   ?lang=uk|en       — the starting language
 //   ?ui=0             — no DOM UI: world-only screenshots (the e2e helper adds it unless a test asks for ui=1)
 import { TIER_LEVELS } from '../../content/economy.ts';
+import type { Action } from '../../core/actions.ts';
 import { SICH_BUILDINGS } from '../../content/sich.ts';
 import { Big } from '../../core/big.ts';
 import { createInitialState, LANGS, type GameState, type Lang } from '../../core/state.ts';
@@ -69,10 +70,16 @@ export function parseGameDebug(search: string, mode: string): GameDebug {
   return { preset, frozen: render.freeze !== false, seed: render.seed, ui, lang, tier: tier ?? TOP_TIER };
 }
 
-/** Read-only window onto the game for e2e (dev/test builds only; `pnpm check:dist` fails if it reaches dist/). */
+/** Window onto the game for e2e (dev/test builds only; `pnpm check:dist` fails if it reaches dist/). */
 export interface GameDebugHandle {
   /** The current state as its save JSON (Big → string), for `validateState` on the test side. */
   readonly state: () => string;
+  /**
+   * A player action through the store, as the UI would send it (M2-24: claiming a quest before its UI, M2-25). The
+   * core still validates it; returns the event types it produced. Only `Action`s reach the store, and none of them grants
+   * an ad reward or a purchase (those come from the SDK/billing callbacks, M8), so the hook cannot bypass those gates.
+   */
+  readonly dispatch: (action: Action) => readonly string[];
 }
 
 declare global {
@@ -82,8 +89,11 @@ declare global {
 }
 
 /** Exposes `store` as `window.__CK_GAME__`; returns the uninstall function. */
-export function installGameDebug(store: GameStore): () => void {
-  const handle: GameDebugHandle = { state: () => JSON.stringify(store.getState()) };
+export function installGameDebug(store: GameStore, now: () => number): () => void {
+  const handle: GameDebugHandle = {
+    state: () => JSON.stringify(store.getState()),
+    dispatch: (action) => store.dispatch(action, now()).map((e) => e.type),
+  };
   window.__CK_GAME__ = handle;
   return () => {
     if (window.__CK_GAME__ === handle) delete window.__CK_GAME__;
