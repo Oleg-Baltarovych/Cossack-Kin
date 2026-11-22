@@ -121,18 +121,32 @@ function hash2(ix: number, iy: number): number {
 }
 
 /**
- * Whole-row shift of the sky gradient at (x, y), −`shift`…`shift` (SKY_BAND_EDGES): constant over runs of `runMin`–
- * `runMax` columns and over `cellRows` rows, so the edges between the 25 / 50 / 75 % bands and solid colour step by
- * 1–2 px instead of running ruler-straight, and bands at different heights step differently. Deterministic.
+ * Whole-row shift of the sky gradient at (x, y) (SKY_BAND_EDGES): along a row the columns fall into runs of `runMin`–
+ * `runMax`, each held at one shift of up to ±`depthMax` px that drifts from run to run as smoothed noise — the edge
+ * climbs and drops in stairs of 1–3 px rather than a comb of equal teeth (A3: a tooth/line comb read as a dashed rule,
+ * alternating teeth as battlements). The run grid moves on by `phaseStep` ± jitter in every `cellRows` band of rows, so
+ * the steps of bands at different heights never stack into columns. Edges between the 25 / 50 / 75 % bands and solid
+ * colour step irregularly instead of running ruler-straight (ART-BIBLE §8.2). Deterministic.
  */
 export function bandShift(x: number, y: number): number {
-  const { runMin, runMax, cellRows, shift } = SKY_BAND_EDGES;
+  const { runMin, runMax, cellRows, depthMax, phaseStep, phaseJitter } = SKY_BAND_EDGES;
   const cell = Math.floor(y / cellRows);
-  // Runs: walk the columns in blocks of runMax; each block is split once at a hashed point (runs of runMin…runMax).
-  const block = Math.floor(x / runMax);
+  // The band's phase: `phaseStep` on from the band above, ± a hashed jitter — neighbours never share a grid.
+  const phase = cell * phaseStep + Math.floor(hash2(cell, 104729) * phaseJitter);
+  // Runs: walk the columns (shifted by the phase) in blocks of runMax; each block is split once at a hashed point
+  // into two runs (runMin…runMax − runMin columns each).
+  const px = x + phase;
+  const block = Math.floor(px / runMax);
   const split = runMin + Math.floor(hash2(block, cell + 7919) * (runMax - 2 * runMin + 1));
-  const run = block * 2 + (x - block * runMax < split ? 0 : 1);
-  return Math.floor(hash2(run, cell) * (2 * shift + 1)) - shift;
+  const run = block * 2 + (px - block * runMax >= split ? 1 : 0);
+  // A staircase, not a comb: the shift drifts from run to run as smoothed noise over the run index (period ~3 runs).
+  const t = run / 3;
+  const i = Math.floor(t);
+  const f = t - i;
+  const a = hash2(i, cell) * 2 - 1;
+  const b = hash2(i + 1, cell) * 2 - 1;
+  const v = a + (b - a) * f * f * (3 - 2 * f);
+  return Math.round(v * (depthMax + 0.49));
 }
 
 /** Smoothly interpolated value noise in −1..1. */

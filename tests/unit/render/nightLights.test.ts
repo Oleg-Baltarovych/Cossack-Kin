@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { FIRE, FIRE_LIGHTS, FIREFLIES, WINDOW_POOL } from '../../../src/render/atmosphere/config.ts';
-import { fireflies, flicker, paintPool, poolLook, sparks } from '../../../src/render/atmosphere/nightLights.ts';
+import {
+  fireflies,
+  flicker,
+  paintPool,
+  paintSpill,
+  poolLook,
+  sparks,
+} from '../../../src/render/atmosphere/nightLights.ts';
 
 describe('flicker (ART-16)', () => {
   it('stays within base ± depth in whole 1/8 steps and repeats for the same time', () => {
@@ -51,6 +58,49 @@ describe('paintPool (ART-16 light pools)', () => {
   });
 });
 
+describe('paintSpill (M2-29: focal window light on the ground, ART-19 deferred 2)', () => {
+  const spill = paintSpill(20, 12, 0xffcc66);
+  const alphaAt = (x: number, y: number): number => spill.pixels[(y * spill.w + x) * 4 + 3] ?? -1;
+  const rowSum = (y: number): number => {
+    let sum = 0;
+    for (let x = 0; x < spill.w; x++) sum += alphaAt(x, y);
+    return sum;
+  };
+
+  it('is the near half of an ellipse: rx wide each side, ry rows out from the wall, nothing behind it', () => {
+    expect(spill.w).toBe(41);
+    expect(spill.h).toBe(13);
+    expect(alphaAt(20, 0)).toBe(255); // full strength right at the wall foot under the windows
+    expect(alphaAt(0, 0)).toBe(0);
+    expect(alphaAt(40, 0)).toBe(0);
+    expect(alphaAt(20, 12)).toBe(0); // the far rim fades out
+  });
+
+  it('falls off away from the wall: each third of the rows holds less light than the one nearer the wall', () => {
+    const third = (k: number): number => {
+      let sum = 0;
+      for (let y = Math.round((k * spill.h) / 3); y < Math.round(((k + 1) * spill.h) / 3); y++) sum += rowSum(y);
+      return sum;
+    };
+    expect(third(1)).toBeLessThan(third(0) * 0.8);
+    expect(third(2)).toBeLessThan(third(1) * 0.8);
+    for (let y = 2; y < spill.h; y++) expect(rowSum(y), `row ${String(y)}`).toBeLessThan(rowSum(y - 2));
+    // and from the middle toward the sides
+    expect(alphaAt(20, 2)).toBeGreaterThanOrEqual(alphaAt(32, 2));
+  });
+
+  it('is dithered in a few quantized steps, premultiplied', () => {
+    const alphas = new Set<number>();
+    for (let i = 0; i < spill.pixels.length; i += 4) {
+      const a = spill.pixels[i + 3] ?? 0;
+      alphas.add(a);
+      expect(spill.pixels[i] ?? 0).toBeLessThanOrEqual(a);
+    }
+    expect(alphas.size).toBeGreaterThanOrEqual(4); // a dithered falloff, not a flat stamp
+    expect(alphas.size).toBeLessThanOrEqual(6);
+  });
+});
+
 describe('sparks and fireflies (ART-16)', () => {
   it('sparks rise from the fire in whole px, at most FIRE.sparks, and repeat for the same time', () => {
     const list = sparks(3.3, { x: 100, y: 200 });
@@ -85,8 +135,14 @@ describe('poolLook (M2-08)', () => {
   it('gives fires their FIRE_LIGHTS pool and windows a flat one of a share of the mask width', () => {
     expect(poolLook({ sprite: 'campfire' }, null)).toMatchObject({ ...FIRE_LIGHTS.campfire, fire: true });
     expect(poolLook({ sprite: 'forge' }, 14)).toMatchObject({ ...FIRE_LIGHTS.forge, fire: true });
-    expect(poolLook({ sprite: 'khata.t1' }, 76)).toMatchObject({ rx: 34, ry: WINDOW_POOL.ry, fire: false });
+    expect(poolLook({ sprite: 'khata.t1' }, 76)).toMatchObject({
+      rx: Math.round(34 * WINDOW_POOL.widen),
+      ry: WINDOW_POOL.ry,
+      fire: false,
+      spill: true,
+    });
     expect(poolLook({ sprite: 'kurin' }, 4)?.rx).toBe(WINDOW_POOL.minRx);
+    expect(poolLook({ sprite: 'campfire' }, null)?.spill).toBe(false); // fires light all round
     expect(poolLook({ sprite: 'tyn' }, null)).toBeNull();
   });
 
@@ -96,7 +152,11 @@ describe('poolLook (M2-08)', () => {
   });
 
   it("uses a prop's poolRx over the mask share, and window pools sit on the pivot (dx 0)", () => {
-    expect(poolLook({ sprite: 'treasury.t3', poolRx: 9 }, 80)).toMatchObject({ rx: 9, dx: 0, fire: false });
+    expect(poolLook({ sprite: 'treasury.t3', poolRx: 9 }, 80)).toMatchObject({
+      rx: Math.round(9 * WINDOW_POOL.widen),
+      dx: 0,
+      fire: false,
+    });
   });
 
   it("carries a fire light's dx (the watchtower beacon) and 0 for fires on the pivot", () => {
@@ -113,7 +173,7 @@ describe('poolLook (M2-08)', () => {
     expect(taverns).toHaveLength(6);
     for (const t of taverns) {
       expect(t.poolRx, t.sprite).toBeGreaterThan(0);
-      expect(poolLook(t, 132)?.rx, t.sprite).toBe(t.poolRx);
+      expect(poolLook(t, 132)?.rx, t.sprite).toBe(Math.round((t.poolRx ?? 0) * WINDOW_POOL.widen));
     }
   });
 });

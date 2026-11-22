@@ -58,6 +58,40 @@ export function paintPool(rx: number, ry: number, color: number): PoolImage {
   return { w, h, pixels };
 }
 
+/** Alpha per step of a window spill, rim → wall: one more step than a pool; the middle steps carry the throw (A3 review). */
+const SPILL_ALPHA = [0, 0.125, 0.375, 0.625, 0.8125, 1] as const;
+
+/**
+ * Window light spilling on the ground (M2-29, ART-19 deferred 2: «фокусне світіння»): the near half of an ellipse
+ * rx × ry whose top row lies at the wall foot — full strength there under the windows, falling off in 5 Bayer-dithered
+ * steps toward the sides and out over `ry` rows; nothing behind the wall. Premultiplied, like `paintPool`.
+ */
+export function paintSpill(rx: number, ry: number, color: number): PoolImage {
+  const steps = SPILL_ALPHA.length - 1;
+  const w = 2 * rx + 1;
+  const h = ry + 1;
+  const pixels = new Uint8Array(w * h * 4);
+  const r = (color >> 16) & 255;
+  const g = (color >> 8) & 255;
+  const b = color & 255;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const d = Math.hypot((x - rx) / rx, y / ry);
+      if (d >= 1) continue;
+      const threshold = ((BAYER4[(y % 4) * 4 + (x % 4)] ?? 0) + 0.5) / 16;
+      const level = Math.min(steps, Math.floor((1 - d) * steps + threshold));
+      if (level <= 0) continue;
+      const a = SPILL_ALPHA[level] ?? 0;
+      const i = (y * w + x) * 4;
+      pixels[i] = Math.round(r * a);
+      pixels[i + 1] = Math.round(g * a);
+      pixels[i + 2] = Math.round(b * a);
+      pixels[i + 3] = Math.round(255 * a);
+    }
+  }
+  return { w, h, pixels };
+}
+
 export interface Speck {
   readonly x: number;
   readonly y: number;
@@ -114,6 +148,8 @@ export interface PoolLook {
   /** Pool centre right of the pivot (logical px). */
   readonly dx: number;
   readonly fire: boolean;
+  /** A window spill (`paintSpill`, top row on the ground `below` the pivot) rather than a round pool centred there. */
+  readonly spill: boolean;
 }
 
 const isFire = (sprite: string): sprite is keyof typeof FIRE_LIGHTS => sprite in FIRE_LIGHTS;
@@ -126,10 +162,11 @@ const isFire = (sprite: string): sprite is keyof typeof FIRE_LIGHTS => sprite in
 export function poolLook(prop: Pick<Prop, 'sprite' | 'poolRx' | 'noPool'>, maskWidth: number | null): PoolLook | null {
   if (isFire(prop.sprite)) {
     const light = FIRE_LIGHTS[prop.sprite];
-    return { ...light, dx: light.dx ?? 0, fire: true };
+    return { ...light, dx: light.dx ?? 0, fire: true, spill: false };
   }
   if (maskWidth === null || prop.noPool === true) return null;
-  const rx = prop.poolRx ?? Math.max(WINDOW_POOL.minRx, Math.round(maskWidth * WINDOW_POOL.rxShare));
+  const base = prop.poolRx ?? Math.round(maskWidth * WINDOW_POOL.rxShare);
+  const rx = Math.max(WINDOW_POOL.minRx, Math.round(base * WINDOW_POOL.widen));
   const { ry, color, alpha, below } = WINDOW_POOL;
-  return { rx, ry, color, alpha, below, dx: 0, fire: false };
+  return { rx, ry, color, alpha, below, dx: 0, fire: false, spill: true };
 }

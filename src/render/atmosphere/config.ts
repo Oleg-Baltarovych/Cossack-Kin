@@ -101,9 +101,18 @@ const ramp = (name: RampName, from: number, to: number): ColorRef[] => {
 // The last chain color is reserved for the sun/moon disc; halos stop one step below it, the gradient at `baseMax`.
 /**
  * Stepped band edges of the sky dither (M2-29, ART-BIBLE §8.2 «шви дизеру»; skyPaint `bandShift`): the gradient's row
- * moves by up to `shift` whole px, held over runs of `runMin`–`runMax` columns and `cellRows` rows.
+ * holds over runs of `runMin`–`runMax` columns and drifts run to run in stairs of 1–`depthMax` whole px up or
+ * down (A3, art-director: teeth of one depth on one grid read as a dashed rule). Each band of `cellRows` rows moves the run
+ * grid `phaseStep` ± up to `phaseJitter` − 1 columns on from the band above (3–7 of 12: never the same grid).
  */
-export const SKY_BAND_EDGES = { runMin: 3, runMax: 12, cellRows: 24, shift: 2 } as const;
+export const SKY_BAND_EDGES = {
+  runMin: 3,
+  runMax: 12,
+  cellRows: 24,
+  depthMax: 3,
+  phaseStep: 5,
+  phaseJitter: 3,
+} as const;
 
 export const SKY_LOOKS: Readonly<Record<SkyKeyId, SkyLook>> = {
   // Світанок: cold with pink — violet-blue zenith (sky 0 + cloth 2), pink-peach horizon (sky 3–4), not gold.
@@ -297,18 +306,30 @@ export const GRADE_LOOKS: Readonly<Record<SkyKeyId, GradeLook>> = {
   },
   golden: {
     exposure: 1,
-    contrast: 1.05,
-    saturation: 1.15,
-    // Darkest tones lean to ink 3 (violet), mids warm toward gold 3 while grass stays green (sunlit, not olive
-    // mud — art-director ART-05 review), gold in the lights.
+    contrast: 1,
+    saturation: 1.25,
+    // Tonal structure (M2-29, ART-19 deferred 1, Kuindzhi «Вечір на Україні»): the luminance curve sinks the meadow
+    // and tree masses (grass 2–3, foliage: y 0.2–0.45) about a ramp step while whitewash and sunlit thatch (y ≥ 0.75)
+    // keep their value, so the lit walls glow on a dark ground; mids take thatch 2 — a deep warm olive, not brown
+    // mud (green stays ≥ red, luts.test). Darkest tones lean to ink 3 (violet), gold in the lights.
+    curve: [
+      [0, 0],
+      [0.2, 0.13],
+      [0.3, 0.185],
+      [0.42, 0.29],
+      [0.55, 0.43],
+      [0.66, 0.65],
+      [0.8, 0.8],
+      [1, 1],
+    ],
     shadowTint: ['ink', 3],
-    shadowAmount: 0.4,
-    midTint: ['gold', 3],
-    midAmount: 0.15,
+    shadowAmount: 0.3,
+    midTint: ['thatch', 2],
+    midAmount: 0.4,
     lightTint: ['gold', 3],
     lightAmount: 0.3,
     lift: ['ink', 3],
-    liftAmount: 0.3,
+    liftAmount: 0.2,
     snap: 0.1,
   },
   dusk: {
@@ -670,11 +691,20 @@ export const TORCH_LIGHT: FireLight & {
   readonly max: number;
 } = { rx: 13, ry: 6, alpha: 0.5, color: ['gold', 2], below: 0, dx: 3, seedBase: 1000, max: 4 };
 /**
- * Window light spilling on the ground in front of every building with a night mask: a flat ellipse `rxShare` × the
- * sprite width wide (at least `minRx`; a prop's `poolRx` overrides), `ry` rows tall, `below` rows under the pivot; a
- * slow candle flicker.
+ * Window light spilling on the ground in front of every building with a night mask (M2-29 focal glow, ART-19 deferred
+ * 2 — Kuindzhi's warm ground under the windows): the near half of an ellipse (`paintSpill`) `rxShare` × the sprite
+ * width (a prop's `poolRx` overrides it) × `widen` each side (at least `minRx`), reaching `ry` rows out from the wall
+ * foot `below` rows under the pivot — strongest at the wall, dithered out; a slow candle flicker.
  */
-export const WINDOW_POOL = { rxShare: 0.45, minRx: 4, ry: 5, below: 3, alpha: 0.4, color: ['gold', 2] } as const;
+export const WINDOW_POOL = {
+  rxShare: 0.45,
+  widen: 1.25,
+  minRx: 4,
+  ry: 14,
+  below: 0,
+  alpha: 0.6,
+  color: ['gold', 2],
+} as const;
 /**
  * Light pools are alpha-blended (not additive: orange added to the blue night ground lands on grey-pink), so the
  * middle step reads amber (gold 2 at 0.6 over the night ground ≈ #916037, art-director ART-16). They show only once
