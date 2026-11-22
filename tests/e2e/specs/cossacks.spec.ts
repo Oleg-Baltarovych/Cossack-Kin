@@ -10,9 +10,8 @@ import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
+import { MAX_DRAW_CALLS } from '../helpers/budgets.ts';
 
-/** World shots: the M0–M2a scene budget (screens.spec.ts), unchanged by the people. */
-const MAX_DRAW_CALLS = 11;
 const PARTICLE_BUDGET = 300;
 /** Q11: Cossacks beyond this stay abstract. */
 const COSSACK_BUDGET = 16;

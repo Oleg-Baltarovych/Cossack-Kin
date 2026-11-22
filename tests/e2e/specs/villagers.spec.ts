@@ -9,10 +9,8 @@ import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
+import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
 
-/** World shots: the M0–M2a scene budget (screens.spec.ts), unchanged by the villagers. */
-const MAX_DRAW_CALLS = 11;
-const PARTICLE_BUDGET = 300;
 /** AC: at least this many villagers in the scene on `rich`. */
 const MIN_VILLAGERS = 8;
 

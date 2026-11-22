@@ -99,6 +99,12 @@ const ramp = (name: RampName, from: number, to: number): ColorRef[] => {
 
 // Index notes: ramps are 0-indexed here (sky[0] = #2b2350); ART-BIBLE §8 names the same steps.
 // The last chain color is reserved for the sun/moon disc; halos stop one step below it, the gradient at `baseMax`.
+/**
+ * Stepped band edges of the sky dither (M2-29, ART-BIBLE §8.2 «шви дизеру»; skyPaint `bandShift`): the gradient's row
+ * moves by up to `shift` whole px, held over runs of `runMin`–`runMax` columns and `cellRows` rows.
+ */
+export const SKY_BAND_EDGES = { runMin: 3, runMax: 12, cellRows: 24, shift: 2 } as const;
+
 export const SKY_LOOKS: Readonly<Record<SkyKeyId, SkyLook>> = {
   // Світанок: cold with pink — violet-blue zenith (sky 0 + cloth 2), pink-peach horizon (sky 3–4), not gold.
   dawn: {
@@ -378,16 +384,19 @@ export interface CloudPlacement {
 }
 
 /**
- * Two big clouds high, one mid-size, then a loose group of small ones low over the horizon; the band in between stays
- * mostly open sky (art-director ART-07: an even zig-zag of five read as stamped).
+ * Two big clouds and a mid-size one in the sky the game shows (M2-29 framing, art-director 2nd pass: c1/c5 lay wholly
+ * under the HUD), then a loose group of small ones low over the horizon. Bases from 0.53 of the sky height: every cloud
+ * stands wholly below the HUD edge on the reference phones (clouds.test). The big ones at three heights (no 2×2
+ * checker) and clear of the night moon's disc and halo core in every zone's frame at freeze 0 (art-director M2-29a:
+ * a cloud chopped the moon in the Sich night frame; clouds.test) — so they keep to the layer's ends, where the moon is
+ * not, and the small ones fill the middle low over the horizon.
  */
 export const CLOUDS: readonly CloudPlacement[] = [
-  { variant: 'c1', x: 30, y: 0.13, speed: 1.6 },
-  { variant: 'c5', x: 250, y: 0.24, speed: 1.4 },
-  // c2 below the HUD edge (M2-29 framing: c1/c5 lie wholly under the HUD in game, c2 wholly below it — clouds.test).
-  { variant: 'c2', x: 400, y: 0.56, speed: 1.1 },
-  { variant: 'c3', x: 120, y: 0.74, speed: 0.8 },
-  { variant: 'c4', x: 180, y: 0.8, speed: 0.7 },
+  { variant: 'c1', x: 10, y: 0.53, speed: 1.6 },
+  { variant: 'c2', x: 330, y: 0.58, speed: 1.1 },
+  { variant: 'c5', x: 480, y: 0.63, speed: 1.4 },
+  { variant: 'c3', x: 160, y: 0.76, speed: 0.8 },
+  { variant: 'c4', x: 250, y: 0.84, speed: 0.7 },
 ];
 /**
  * Clouds lower than this share of the sky are far away: squashed vertically and see-through toward the sky.
@@ -672,6 +681,26 @@ export const WINDOW_POOL = { rxShare: 0.45, minRx: 4, ry: 5, below: 3, alpha: 0.
  * the emissive level is past `from` (no grey smudge on sunlit ground at golden hour).
  */
 export const POOLS = { from: 0.5 } as const;
+/**
+ * Moonlight on the ground props' upper edges (M2-29, art-director M2-15 tail 5 + ART-BIBLE §8.8 «холодний місячний
+ * верх стін»): at night everything away from a window read as one flat blue. A 1-px bevel (pixi-filters `BevelFilter`
+ * on the sorted props, before the grade) pulls every px whose neighbour toward the moon — one up and one toward the
+ * moon's side — is open air `alpha` of the way to `color`; through the night LUT's steep low end that is about one
+ * ramp step lighter on dark wood and thatch and next to nothing on whitewash. The scene's exposure is untouched. Per
+ * key in `MOON_RIM_LEVELS` (blended like the sky); only under a clear sky with the moon up.
+ */
+export const MOON_RIM = { color: ['plaster', 6], alpha: 0.45 } as const satisfies {
+  readonly color: ColorRef;
+  readonly alpha: number;
+};
+export const MOON_RIM_LEVELS: Readonly<Record<SkyKeyId, number>> = {
+  dawn: 0,
+  morning: 0,
+  day: 0,
+  golden: 0,
+  dusk: 0.5,
+  night: 1,
+};
 /**
  * Summer fireflies over the meadow (≤ 40, SPEC §6.3): each blinks on for `blinkOn` of its 3–5 s cycle, the first
  * `peak` of it with a dim + of 4 neighbours (so the blink registers among the 1-px grass highlights); yellow-green.
@@ -974,6 +1003,30 @@ export const BUILD = {
   /** Footprints of the `scaffold.s|l` looks (the generator's SCAFFOLD_LOOKS; a gen test holds them equal). */
   scaffoldW: { s: 40, l: 56 },
 } as const;
+
+/**
+ * A building's 1-px warm outline (M2-29, art-director M2-15 tails 2–3; render/fx/outline.ts, after the grade): while
+ * its row is the selected one in the sheet — a closed ring, `select.day`, or `select.night` once the emissive level
+ * reaches `nightFrom` (the light pools' threshold: a softer gold beside the lit windows). From `nightFrom` on, a new
+ * tier flashes as a warm rim light on the building instead of the day star (art-director M2-29a: a closed ring read as
+ * «selected»): only the edges facing the light (top and left), pulsing with the flash's three steps over `flashRimMs`
+ * — `[share of the time, colour]` per step, gold 1 → gold 2 → gold 1 (opaque, so every px stays a palette colour). «Менше руху»: no flash, so no rim; the selection stays.
+ */
+export const PLOT_MARK = {
+  select: { day: ['gold', 4], night: ['gold', 3] },
+  nightFrom: 0.5,
+  flashRimMs: 480,
+  flashRimSteps: [
+    [0.25, ['gold', 1]],
+    [0.7, ['gold', 2]],
+    [1, ['gold', 1]],
+  ],
+} as const satisfies {
+  readonly select: { readonly day: ColorRef; readonly night: ColorRef };
+  readonly nightFrom: number;
+  readonly flashRimMs: number;
+  readonly flashRimSteps: readonly (readonly [number, ColorRef])[];
+};
 
 // --- Camera (M2-02, SPEC §6.1) ---------------------------------------------------------------------------------
 /**

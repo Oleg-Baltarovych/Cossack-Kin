@@ -6,6 +6,7 @@ import { isVariantPlot } from '../content/variants.ts';
 import type { Plot, PlotBuilding } from '../content/villages/khortytsia.layout.ts';
 import type { PlotVariants, VisualTiers } from '../core/selectors.ts';
 import { WIND } from './atmosphere/config.ts';
+import type { PlotMark } from './fx/outline.ts';
 
 export interface SceneState {
   /** Visual tier per building; `null` = no game attached: show everything. */
@@ -31,6 +32,11 @@ export interface SceneState {
    * px. Set by render/fx/build.ts for one frame at a time, never by the bridge.
    */
   readonly pop?: Readonly<Partial<Record<PlotBuilding, number>>>;
+  /**
+   * Buildings outlined this frame (M2-29, render/fx/outline.ts): the selected row's building and a new tier's night
+   * rim. Set per frame by App and render/fx/build.ts, never by the bridge.
+   */
+  readonly marks?: readonly PlotMark[];
 }
 
 /** The game's seed and a reader of its time (ms, `GameState.time.lastSeen`): read-only, for the visitors. */

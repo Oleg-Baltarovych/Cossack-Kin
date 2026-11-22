@@ -48,6 +48,11 @@ export interface PanelProps {
   readonly reveal?: Reveal | null;
   /** The sheet opened on `building`'s row with its top edge at client y `sheetTop` (the camera may clear it). */
   readonly onReveal?: ((building: PlotBuilding, sheetTop: number) => void) | undefined;
+  /**
+   * The selected building changed (M2-29): the tapped building while its row is the current one and the sheet is open,
+   * else `null` — the world outlines it.
+   */
+  readonly onSelect?: ((building: PlotBuilding | null) => void) | undefined;
   /** The state to start in (half by default). */
   readonly initial?: SheetState;
 }
@@ -175,7 +180,7 @@ function recentSamples(samples: readonly { y: number; t: number }[], t: number):
 
 const reduceSheet = (s: SheetState, a: SheetAction): SheetState => sheetReducer(s, a);
 
-export function Panel({ onZone, zoneSource, reveal = null, onReveal, initial = 'half' }: PanelProps) {
+export function Panel({ onZone, zoneSource, reveal = null, onReveal, onSelect, initial = 'half' }: PanelProps) {
   const [tab, setTab] = useState<Tab>('farm');
   // Roving tabindex (manual activation): arrows move focus between the tabs; Enter/Space/click choose one.
   const [focusTab, setFocusTab] = useState<Tab>('farm');
@@ -323,6 +328,16 @@ export function Panel({ onZone, zoneSource, reveal = null, onReveal, initial = '
       window.removeEventListener('keydown', onKey);
     };
   }, [sheet]);
+
+  // The world outlines the current row's building while the sheet shows it (M2-29).
+  const selected = sheet === 'collapsed' ? null : current;
+  const notifySelect = useRef(onSelect);
+  useLayoutEffect(() => {
+    notifySelect.current = onSelect;
+  });
+  useEffect(() => {
+    notifySelect.current?.(selected);
+  }, [selected]);
 
   // The reveal once its list is rendered (the effect below needs the row in the DOM).
   const [shown, setShown] = useState<Reveal | null>(null);

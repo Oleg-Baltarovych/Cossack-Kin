@@ -5,6 +5,7 @@
 // opacity by time of day), with the agents on the path graph (render/agents/, M2-16) sorted among them and re-posed
 // every frame. All sprites come from one atlas texture, so the whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
+import { BevelFilter } from 'pixi-filters';
 import {
   GROUND_TILE,
   type BandPlot,
@@ -12,11 +13,22 @@ import {
   type WorldLayout,
 } from '../../content/villages/khortytsia.layout.ts';
 import { cullByX } from '../cull.ts';
-import { CLOUD_SHADOW, DAYTIME_PROPS, QUALITY_TIERS, sailFps, SWAY } from '../atmosphere/config.ts';
+import {
+  CLOUD_SHADOW,
+  DAYTIME_PROPS,
+  MOON_RIM,
+  MOON_RIM_LEVELS,
+  QUALITY_TIERS,
+  sailFps,
+  SWAY,
+} from '../atmosphere/config.ts';
+import { outlineSets, type OutlineItem, type Outlines } from '../fx/outline.ts';
+import { rampColor } from '../palette.ts';
+import type { PlotBuilding } from '../../content/villages/khortytsia.layout.ts';
 import { popSize } from '../fx/construction.ts';
 import { plotShown } from '../scene.ts';
 import type { VisualTiers } from '../../core/selectors.ts';
-import { cloudShadowLevel, emissiveLevel } from '../atmosphere/emissive.ts';
+import { cloudShadowLevel, emissiveLevel, keyLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
 import { swayFrame } from '../sway.ts';
 import { riverRowEnd } from '../zones.ts';
@@ -41,6 +53,8 @@ export interface GroundLayerOptions {
   readonly weather: Weather;
   /** Cloud shadows by tier (ART-18); `null` = auto, starts at med. */
   readonly quality: Quality | null;
+  /** Where the scene's `marks` (selected / flashing buildings) are outlined, after the grade (M2-29). */
+  readonly outlines?: Outlines | undefined;
 }
 
 /** `khata.t1` → base, shadow and emissive frame names (`<entity>[.<variant>][@layer]/idle/00`). */
@@ -93,7 +107,14 @@ export function plotTileTexture<T>(
   return t.upgrades.reduce((tex, u) => (tier >= u.from ? u.texture : tex), t.on);
 }
 
-export function createGroundLayer({ layout, frame, lessMotion, weather, quality }: GroundLayerOptions): WorldLayer {
+export function createGroundLayer({
+  layout,
+  frame,
+  lessMotion,
+  weather,
+  quality,
+  outlines,
+}: GroundLayerOptions): WorldLayer {
   return createLayer('ground', PARALLAX, (container) => {
     const tiles = new Container({ label: 'ground-tiles' });
     const decals = new Container({ label: 'decals' });
@@ -105,6 +126,15 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
     const nearShadows = new Container({ label: 'cloud-shadows-near' });
     cloudShadows.addChild(farShadows, nearShadows);
     container.addChild(tiles, decals, shadows, props, cloudShadows);
+    // Moonlight on the props' upper edges (M2-29, MOON_RIM): a 1-px bevel toward the moon, before the grade; on only
+    // at night under a clear sky (no filter pass by day).
+    const moonRim = new BevelFilter({
+      thickness: Math.SQRT2,
+      lightColor: rampColor(...MOON_RIM.color),
+      lightAlpha: 0,
+      shadowAlpha: 0,
+    });
+    let moonOn = false;
     const nearTexture = frame('cloud-shadow/idle/00');
     const farTexture = frame('cloud-shadow-far/idle/00');
 
@@ -134,6 +164,15 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       props.addChild(sprite);
       return { prop: p, sprite, shadow, anim };
     });
+    /** A building's own sprites (not its variant add-ons or day-only life): what an outline wraps. */
+    const ownerOf = new Map<Sprite, PlotBuilding>();
+    for (const { prop, sprite } of placed)
+      if (prop.plot && prop.plot.variant === undefined && prop.daytime !== true)
+        ownerOf.set(sprite, prop.plot.building);
+    const box = (s: Sprite) => (): { x0: number; y0: number; x1: number; y1: number } => {
+      const b = s.getBounds();
+      return { x0: b.minX, y0: b.minY, x1: b.maxX, y1: b.maxY };
+    };
 
     /** Agent sprites by agent id (M2-16): made on an agent's first pose, destroyed when it leaves the pool. */
     interface Person {
@@ -287,6 +326,8 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
       dispose: () => {
         shoreEnd?.destroy(false);
         shoreEnd = null;
+        props.filters = [];
+        moonRim.destroy();
       },
       setQuality: (q) => {
         shadowsOn = QUALITY_TIERS[q].cloudShadows;
@@ -348,6 +389,38 @@ export function createGroundLayer({ layout, frame, lessMotion, weather, quality 
         const x0 = camX - CULL_MARGIN;
         const x1 = camX + viewW + CULL_MARGIN;
         for (const into of [tiles, decals, shadows, props, nearShadows, farShadows]) cullByX(into, x0, x1);
+        // Moonlight: toward the moon's side of the sky (its x on the sky's 0..1), strength by the key.
+        const moon = weather === 'clear' && cycle.moon.y > 0 ? keyLevel(MOON_RIM_LEVELS, cycle) : 0;
+        if (moon > 0.01) {
+          moonRim.rotation = cycle.moon.x < 0.5 ? 45 : 135;
+          moonRim.lightAlpha = MOON_RIM.alpha * Math.min(1, moon);
+        }
+        if (moon > 0.01 !== moonOn) {
+          moonOn = moon > 0.01;
+          props.filters = moonOn ? [moonRim] : [];
+        }
+        // Outlines of the marked buildings (selected row, a night tier flash), cut by whatever stands in front.
+        if (outlines) {
+          const marks = scene.marks ?? [];
+          if (marks.length > 0) {
+            const items: OutlineItem<Sprite>[] = [];
+            for (const child of props.children) {
+              if (!(child instanceof Sprite)) continue;
+              items.push({
+                item: child,
+                building: ownerOf.get(child) ?? null,
+                visible: child.visible,
+                z: child.zIndex,
+                box: box(child),
+              });
+            }
+            marks.forEach((m, i) => {
+              const { parts, occluders } = outlineSets(items, m.building);
+              outlines.draw(i, parts, occluders, m);
+            });
+          }
+          outlines.hideFrom(marks.length);
+        }
       },
     };
   });

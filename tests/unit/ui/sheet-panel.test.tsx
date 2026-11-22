@@ -137,4 +137,27 @@ describe('bottom sheet (M2-13): states, keyboard, aria', () => {
       vi.useRealTimers();
     }
   });
+
+  it('the tapped building is the selected one while its row is current and the sheet open (M2-29 world outline)', () => {
+    const onSelect = vi.fn();
+    const view = mount({ initial: 'collapsed', reveal: null, onSelect });
+    expect(onSelect).toHaveBeenLastCalledWith(null);
+    const rerender = (props: PanelProps) => {
+      view.rerender(
+        <GameProvider store={createStore(createInitialState({ seed: 5, now: T0 }))} now={() => T0}>
+          <Panel {...props} />
+        </GameProvider>,
+      );
+    };
+    rerender({ initial: 'collapsed', reveal: { building: 'windmill' }, onSelect });
+    expect(onSelect).toHaveBeenLastCalledWith('windmill');
+    // Collapsing hides the row: nothing is selected; opening again shows it.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onSelect).toHaveBeenLastCalledWith(null);
+    fireEvent.click(toggle());
+    expect(onSelect).toHaveBeenLastCalledWith('windmill');
+    // Another tab: the row is no longer current.
+    fireEvent.click(screen.getByRole('tab', { name: 'Січ' }));
+    expect(onSelect).toHaveBeenLastCalledWith(null);
+  });
 });

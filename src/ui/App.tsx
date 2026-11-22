@@ -104,6 +104,7 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
             zoneSource={world?.onZoneChange}
             reveal={reveal}
             onReveal={(building, sheetTop) => world?.reveal(building, sheetTop)}
+            onSelect={(building) => world?.mark(building)}
           />
         </div>
         <TierBanner />
