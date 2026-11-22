@@ -84,6 +84,15 @@ export function useGame<T>(selector: (state: GameState) => T, isEqual: (a: T, b:
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
+/**
+ * Reads the state on demand, for handlers that need it once (coins measure an income against the rate now, M2-26):
+ * no subscription, no re-render. Never call it during render — `useGame` is for that.
+ */
+export function useGameReader(): () => GameState {
+  const { store } = useGameContext();
+  return useCallback(() => store.getState(), [store]);
+}
+
 /** Dispatches a player action at the provider's `now`; returns its events (a tap shows its number from `Tapped`). */
 export function useAct(): (action: Action) => readonly GameEvent[] {
   const { store, now } = useGameContext();

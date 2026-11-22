@@ -32,7 +32,7 @@ const QuestLine = memo(function QuestLine({ kind, compact }: LineProps) {
   const v = useGame(kind === 'chain' ? selectChain : selectChore, sameLine);
   const text = useText();
   const act = useAct();
-  const markOrigin = useFlightOrigin();
+  const withOrigin = useFlightOrigin();
   const noteId = useId();
   if (!v) return null;
   const title = text.t(v.titleKey, {
@@ -78,8 +78,9 @@ const QuestLine = memo(function QuestLine({ kind, compact }: LineProps) {
           aria-label={v.rewarded ? text.t('ui.quest.claimLabel', { reward }) : text.t('ui.quest.countLabel')}
           aria-describedby={v.rewarded ? undefined : noteId}
           onClick={(e) => {
-            markOrigin(e.currentTarget);
-            act({ type: 'claimQuest', kind });
+            withOrigin(e.currentTarget, () => {
+              act({ type: 'claimQuest', kind });
+            });
           }}
         >
           {text.t(v.rewarded ? 'ui.quest.claim' : 'ui.quest.count')}

@@ -1,5 +1,6 @@
-/* Coins flying from a claimed quest to its HUD counter (plan M2-25): x eases in, y eases out, so the coin arcs up and
-   over; it vanishes on arrival. Over everything, never in the way of taps. */
+/* Coins flying to a HUD counter (plans M2-25, M2-26): positioned by script (a transform per frame of a Bézier made at
+   launch, on the logical px grid), hidden until take-off and after landing. Over everything, never in the way of
+   taps. */
 .layer {
   position: absolute;
   inset: 0;
@@ -8,41 +9,35 @@
   overflow: hidden;
 }
 
+/* The 16-px icon centred on its point. */
 .coin {
   position: fixed;
+  left: 0;
+  top: 0;
   margin: calc(-8 * var(--px)) 0 0 calc(-8 * var(--px));
-  animation: coin-x var(--flight-ms, 650ms) cubic-bezier(0.5, 0, 0.9, 0.6) both;
+  visibility: hidden;
 }
 
-.lift {
-  display: block;
-  animation: coin-y var(--flight-ms, 650ms) cubic-bezier(0.1, 0.6, 0.4, 1) both;
+/* In the air: a 1-px ink outline (four whole-px shadows) sets the coin apart from the world it crosses; on take-off it
+   shows faint for COIN_FLIGHT.fadeInMs (the inline animation-duration), then whole. */
+.coin[data-flying] {
+  visibility: visible;
+  filter: drop-shadow(var(--px) 0 0 var(--c-ink-0)) drop-shadow(calc(-1 * var(--px)) 0 0 var(--c-ink-0))
+    drop-shadow(0 var(--px) 0 var(--c-ink-0)) drop-shadow(0 calc(-1 * var(--px)) 0 var(--c-ink-0));
+  animation-name: coin-in;
+  animation-timing-function: steps(1, end);
 }
 
-@keyframes coin-x {
+@keyframes coin-in {
   from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  90% {
-    opacity: 1;
+    opacity: 0.5;
   }
   to {
-    transform: translateX(var(--dx));
-    opacity: 0;
+    opacity: 1;
   }
 }
 
-@keyframes coin-y {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(var(--dy));
-  }
-}
-
-/* «Менше руху»: the script spawns none; this is the second line of defence. */
+/* «Менше руху»: the script launches none; this is the second line of defence. */
 @media (prefers-reduced-motion: reduce) {
   .layer {
     display: none;

@@ -5,6 +5,7 @@ import { memo, useId } from 'react';
 import type { GameState } from '../../core/state.ts';
 import { useAct, useGame } from '../hooks/useGame.ts';
 import { useText } from '../hooks/useText.ts';
+import { useFlightOrigin } from './CoinFlight.tsx';
 import styles from './ReturnModal.module.css';
 
 const selectReport = (s: GameState): GameState['returnReport'] => s.returnReport;
@@ -13,6 +14,7 @@ export const ReturnModal = memo(function ReturnModal() {
   // The report object is replaced, never mutated: identity is the right equality.
   const report = useGame(selectReport, Object.is);
   const act = useAct();
+  const withOrigin = useFlightOrigin();
   const { t, num, dur } = useText();
   const titleId = useId();
   const bodyId = useId();
@@ -64,8 +66,11 @@ export const ReturnModal = memo(function ReturnModal() {
           className={styles.claim}
           // The only control in a modal dialog: focus it so Enter/Space claim at once.
           autoFocus
-          onClick={() => {
-            act({ type: 'claimReturn' });
+          onClick={(e) => {
+            // The coins of a large return fly from here (M2-26).
+            withOrigin(e.currentTarget, () => {
+              act({ type: 'claimReturn' });
+            });
           }}
         >
           {t('return.claim')}

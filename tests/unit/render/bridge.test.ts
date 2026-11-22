@@ -9,6 +9,7 @@ import type { WorldTap } from '../../../src/render/App.ts';
 import { WIND_STRENGTH } from '../../../src/render/atmosphere/config.ts';
 import { connectWorld, sceneOf } from '../../../src/render/bridge.ts';
 import { AGENT_BUDGET } from '../../../src/content/agents.ts';
+import { SHAKE } from '../../../src/content/juice.ts';
 import { agentPoses, createAgents, stepInPlace, type AgentContext } from '../../../src/render/agents/sim.ts';
 import { plotShown, type SceneState } from '../../../src/render/scene.ts';
 import {
@@ -27,12 +28,14 @@ function fakeWorld() {
   const coins: [number, number][] = [];
   const built: string[] = [];
   const celebrated: string[] = [];
+  const shakes = { n: 0 };
   let tap: ((t: WorldTap) => void) | null = null;
   return {
     scenes,
     coins,
     built,
     celebrated,
+    shakes,
     tapAt: (x: number, y: number, building: WorldTap['building'] = null) =>
       tap?.({ clientX: 0, clientY: 0, x, y, building }),
     world: {
@@ -46,6 +49,9 @@ function fakeWorld() {
       spawnCoin: (x: number, y: number) => coins.push([x, y]),
       construct: (b: string) => built.push(b),
       celebrate: (b: string) => celebrated.push(b),
+      shake: () => {
+        shakes.n += 1;
+      },
     },
   };
 }
@@ -152,6 +158,35 @@ describe('construction and tier juice (M2-12)', () => {
     store.dispatch({ type: 'buyBuilding', id: 'garden', mode: 10 }, T0 + 300);
     expect(f.built).toEqual(['field', 'garden']);
     expect(f.celebrated).toEqual(['field', 'garden']);
+  });
+});
+
+describe('camera shake (M2-26)', () => {
+  it('only the big events of SHAKE shake the camera: a new tier does, a plain level, a tap or a tick does not', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 1 }, T0 + 100);
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 1 }, T0 + 200);
+    store.dispatch({ type: 'tap' }, T0 + 300);
+    store.tick(T0 + 400);
+    expect(SHAKE.events).toEqual(['TierReached']);
+    expect(f.shakes.n).toBe(0);
+    // Field 2 → 11 crosses the tier-II level: one shake for the one new tier.
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 10 }, T0 + 500);
+    expect(f.celebrated).toEqual(['field']);
+    expect(f.shakes.n).toBe(1);
+  });
+  it('never on load, offline catch-up or the return: only a player action reaches a tier (no shake behind the window)', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.replace(rich());
+    store.resume(T0 + 3 * 3600_000);
+    expect(store.getState().returnReport).not.toBeNull();
+    store.dispatch({ type: 'claimReturn' }, T0 + 3 * 3600_000);
+    store.tick(T0 + 3 * 3600_000 + 100);
+    expect(f.shakes.n).toBe(0);
   });
 });
 

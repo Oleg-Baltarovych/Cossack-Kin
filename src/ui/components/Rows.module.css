@@ -109,8 +109,44 @@
 }
 
 .buy:active:not(:disabled) {
-  transform: translateY(calc(2 * var(--px)));
+  transform: translateY(var(--press-y));
   box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+}
+
+/* Turned affordable (SPEC §6.7, plan M2-26): one hop, in whole logical px (each keyframe holds, steps(1)). It moves
+   `translate`, not `transform`, so a press during the hop still adds its offset. ui/hooks/useHop.ts sets the mark. */
+.buy[data-hop] {
+  animation: hop var(--hop-ms) both;
+}
+
+@keyframes hop {
+  0% {
+    translate: 0 calc(-1 * var(--px));
+    animation-timing-function: steps(1, end);
+  }
+  20% {
+    translate: 0 calc(-1 * var(--hop-y));
+    animation-timing-function: steps(1, end);
+  }
+  60% {
+    translate: 0 calc(-1 * var(--px));
+    animation-timing-function: steps(1, end);
+  }
+  85%,
+  100% {
+    translate: 0 0;
+  }
+}
+
+/* «Менше руху»: the script sets no mark; this is the second line of defence. */
+@media (prefers-reduced-motion: reduce) {
+  .buy[data-hop] {
+    animation: none;
+  }
+}
+
+:global([data-motion='reduced']) .buy[data-hop] {
+  animation: none;
 }
 
 .buy:disabled {

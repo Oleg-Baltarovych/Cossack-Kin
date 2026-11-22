@@ -73,12 +73,36 @@ const SUFFIXES: Readonly<Record<'ukWords' | 'short', readonly string[]>> = {
   short: ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'],
 };
 
+/** Decimals a mantissa `v` (< 1000) keeps: 3 significant digits (hundredths below 10). Shared by display and roll. */
+const digitsFor = (v: number): number => (v < 10 ? 2 : v < 100 ? 1 : 0);
+
 /** `v` (1 ≤ v < 1000, or < 1 for tiny values) with 3 significant digits, trailing zeros trimmed. */
 function mantissa(v: number, decimal: string): string {
-  const digits = v < 10 ? 2 : v < 100 ? 1 : 0;
+  const digits = digitsFor(v);
   const s = v.toFixed(digits);
   const trimmed = digits > 0 ? s.replace(/\.?0+$/, '') : s;
   return trimmed.replace('.', decimal);
+}
+
+/** An amount ≥ 1000 (by its log10) as a power of 1000 and its mantissa, after the roll-over (999.999K reads 1M). */
+function scaled(log10: number): { readonly tier: number; readonly m: number } {
+  const tier = Math.floor(Math.floor(log10) / 3);
+  const m = 10 ** (log10 - tier * 3);
+  return Number(m.toFixed(digitsFor(m))) >= 1000 ? { tier: tier + 1, m: m / 1000 } : { tier, m };
+}
+
+/**
+ * `v` (≥ 0) at the precision `formatBig` shows it, by the same rounding (`digitsFor`, `scaled`, `toFixed`): two amounts
+ * with the same result read the same, and amounts that read differently differ (sweep test). The HUD counter
+ * (ui/hooks/useCounter.ts) formats a rolling number only when this changes, so most frames of a roll allocate nothing.
+ * Plain numbers only (the roll runs in Number range); past the last suffix it stays 3 significant digits, like the
+ * scientific form.
+ */
+export function shownValue(v: number): number {
+  if (!(v > 0) || !Number.isFinite(v)) return v;
+  if (v < 1000) return Math.min(Number(v.toFixed(digitsFor(v))), 1000);
+  const { tier, m } = scaled(Math.log10(v));
+  return Number(m.toFixed(digitsFor(m))) * 1000 ** tier;
 }
 
 /**
@@ -96,19 +120,12 @@ export function formatBig(value: Big, lang: Lang, format: NumberFormat): string 
   }
   const words = format === 'words' && lang === 'uk';
   const suffixes = words ? SUFFIXES.ukWords : SUFFIXES.short;
-  let exp = Math.floor(value.log10());
-  let tier = Math.floor(exp / 3);
-  let v = 10 ** (value.log10() - tier * 3);
-  // 999.999K must read 1M, not 1000K.
-  if (Number(v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)) >= 1000) {
-    tier += 1;
-    v /= 1000;
-  }
+  const { tier, m: v } = scaled(value.log10());
   if (tier <= suffixes.length) {
     const suffix = suffixes[tier - 1] ?? '';
     return `${mantissa(v, decimal)}${words ? ' ' : ''}${suffix}`;
   }
-  exp = Math.floor(value.log10());
+  const exp = Math.floor(value.log10());
   const m = 10 ** (value.log10() - exp);
   const m2 = Number(m.toFixed(2)) >= 10 ? 1 : m;
   const e = Number(m.toFixed(2)) >= 10 ? exp + 1 : exp;
