@@ -19,7 +19,9 @@ import {
   STANDARD_FRAMES,
   type FxPiece,
 } from './construction.ts';
-import { BUILD } from '../atmosphere/config.ts';
+import { BUILD, PLOT_MARK } from '../atmosphere/config.ts';
+import { rampColor } from '../palette.ts';
+import type { PlotMark } from './outline.ts';
 import type { SceneState } from '../scene.ts';
 
 export interface BuildFx {
@@ -31,7 +33,8 @@ export interface BuildFx {
   celebrate(building: PlotBuilding, nowMs: number): void;
   /**
    * Steps every running sequence to `nowMs`; returns the scene to draw this frame. `emissive` 0..1 = the night masks'
-   * opacity (atmosphere/emissive.ts): the standard's gold finial glints with the windows.
+   * opacity (atmosphere/emissive.ts): the standard's gold finial glints with the windows, and from
+   * `PLOT_MARK.nightFrom` on a new tier lights a warm rim on the building (scene `marks`) instead of the star flash.
    */
   present(scene: SceneState, nowMs: number, emissive: number): SceneState;
   destroy(): void;
@@ -117,6 +120,7 @@ export function createBuildFx(
   >();
   const parties = new Map<PlotBuilding, { start: number; flash: Sprite; standard: Sprite; glint: Sprite }>();
   const claim = claimParticles();
+  const rimSteps = PLOT_MARK.flashRimSteps.map(([until, [ramp, shade]]) => ({ until, color: rampColor(ramp, shade) }));
 
   const dispose = (sprites: readonly Sprite[]): void => {
     for (const s of sprites) s.destroy();
@@ -158,6 +162,8 @@ export function createBuildFx(
       let tiers = scene.tiers;
       let pop: Partial<Record<PlotBuilding, number>> | undefined;
       let live = 0;
+      const night = emissive >= PLOT_MARK.nightFrom;
+      const rims: PlotMark[] = [];
       for (const [building, b] of builds) {
         const site = sites.get(building);
         const f = buildFrame(nowMs - b.start, lessMotion);
@@ -202,8 +208,11 @@ export function createBuildFx(
         const waiting = nowMs < p.start;
         p.standard.visible = !waiting;
         p.glint.visible = !waiting && emissive > 0.01;
-        p.flash.visible = !waiting && f.flash !== null;
+        p.flash.visible = !waiting && f.flash !== null && !night;
         if (waiting) continue;
+        const rimAt = nowMs - p.start;
+        const step = rimSteps.find(({ until }) => rimAt < until * PLOT_MARK.flashRimMs);
+        if (night && !lessMotion && step) rims.push({ building, color: step.color, alpha: 1, rim: true });
         const t = standardFrames[f.standard];
         if (t) p.standard.texture = t;
         // Planted just right of the building, a row in front of its pivot.
@@ -219,8 +228,13 @@ export function createBuildFx(
         }
       }
       claim.set(live);
-      if (tiers === scene.tiers && pop === undefined) return scene;
-      return pop === undefined ? { ...scene, tiers } : { ...scene, tiers, pop };
+      if (tiers === scene.tiers && pop === undefined && rims.length === 0) return scene;
+      return {
+        ...scene,
+        tiers,
+        ...(pop === undefined ? {} : { pop }),
+        ...(rims.length === 0 ? {} : { marks: [...(scene.marks ?? []), ...rims] }),
+      };
     },
     destroy() {
       claim.release();

@@ -10,6 +10,7 @@ import {
   FOG_SKY,
   MOON,
   OVERCAST_LOOKS,
+  SKY_BAND_EDGES,
   SKY_LOOKS,
   STARS,
   type ColorRef,
@@ -92,7 +93,9 @@ function halo(look: HaloLook, cx: number, cy: number, x: number, y: number): num
 /** Continuous chain position of pixel (x, y) for one key. */
 function chainPos(p: Prepared, x: number, y: number, h: number, sun: Pt, moon: Pt | null): number {
   const { look } = p;
-  const v = h > 1 ? y / (h - 1) : 1;
+  // Band edges stepped (ART-BIBLE §8.2 «шви дизеру»): the gradient's row shifts by whole px over runs of columns.
+  const gy = Math.min(h - 1, Math.max(0, y + bandShift(x, y)));
+  const v = h > 1 ? gy / (h - 1) : 1;
   let base = look.top + (look.horizon - look.top) * Math.pow(v, look.curve);
   const fromHorizon = (1 - v) / look.glowHeight;
   if (fromHorizon < 1) base += look.glow * (1 - fromHorizon) * (1 - fromHorizon);
@@ -115,6 +118,21 @@ function hash2(ix: number, iy: number): number {
   let n = Math.imul(ix, 374761393) + Math.imul(iy, 668265263);
   n = Math.imul(n ^ (n >>> 13), 1274126177);
   return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * Whole-row shift of the sky gradient at (x, y), −`shift`…`shift` (SKY_BAND_EDGES): constant over runs of `runMin`–
+ * `runMax` columns and over `cellRows` rows, so the edges between the 25 / 50 / 75 % bands and solid colour step by
+ * 1–2 px instead of running ruler-straight, and bands at different heights step differently. Deterministic.
+ */
+export function bandShift(x: number, y: number): number {
+  const { runMin, runMax, cellRows, shift } = SKY_BAND_EDGES;
+  const cell = Math.floor(y / cellRows);
+  // Runs: walk the columns in blocks of runMax; each block is split once at a hashed point (runs of runMin…runMax).
+  const block = Math.floor(x / runMax);
+  const split = runMin + Math.floor(hash2(block, cell + 7919) * (runMax - 2 * runMin + 1));
+  const run = block * 2 + (x - block * runMax < split ? 0 : 1);
+  return Math.floor(hash2(run, cell) * (2 * shift + 1)) - shift;
 }
 
 /** Smoothly interpolated value noise in −1..1. */

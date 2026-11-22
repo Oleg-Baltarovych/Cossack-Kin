@@ -19,7 +19,8 @@ import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
  * Frame budget (SPEC §12.4 caps the game at 30): the scene measured 5 before ART-09; the water adds 2 passes (ART-09:
  * mirror into waterRT, row strips back onto worldRT); light shafts with their dust add 2 while a low sun shines
  * (ART-10, additive). Per-tier budgets are set in ART-18. M2-11: boats are drawn over the water in their own graded
- * container — its filter pass adds 2 while a boat is on screen (night farm/suburb 9 → 11). Raise only with the reason here
+ * container — its filter pass adds 2 while a boat is on screen (night farm/suburb 9 → 11). M2-29a: the night moonlight bevel on
+ * the sorted props adds 3 at dusk and night under a clear sky (night farm with a boat 11 → 14). Raise only with the reason here
  * (the number: helpers/budgets.ts, shared with the other world-shot specs).
  */
 const SCENE = '/?seed=1&freeze&time=13:00';

@@ -10,9 +10,8 @@ import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
+import { MAX_DRAW_CALLS } from '../helpers/budgets.ts';
 
-/** World shots: the M0–M2a scene budget (screens.spec.ts). */
-const MAX_DRAW_CALLS = 11;
 const ROLES: readonly AgentRole[] = ['villager', 'cossack', 'visitor', 'cart'];
 
 async function worldShot(page: Page): Promise<Buffer> {

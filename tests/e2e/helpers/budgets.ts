@@ -3,7 +3,7 @@
 // share these numbers instead of copying them.
 
 /** Draw calls of a world shot (M0–M2a scene; raise only with the reason in screens.spec.ts). */
-export const MAX_DRAW_CALLS = 11;
+export const MAX_DRAW_CALLS = 14;
 /** The game's draw-call cap (SPEC §12.4); specs of one scene check the measured MAX_DRAW_CALLS instead. */
 export const SPEC_MAX_DRAW_CALLS = 30;
 /** Live particles (SPEC §12.4). */

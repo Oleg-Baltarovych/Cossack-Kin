@@ -630,7 +630,8 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     { tile: 'meadow', top: 0, h: 32 }, // far meadow, aerial perspective
     { tile: 'grass', top: 32, h: 96 }, // back row: khata tier I and its yard fence
     { tile: 'path', top: 128, h: 32 }, // the path with ruts
-    { tile: 'grass', top: 160, h: 128 }, // front row: khata tier III; ends at ~75 % of the screen
+    // Front row: khata tier III, down to the near corner's fence end (M2-29; the same grass tiles as the fill below).
+    { tile: 'grass', top: 160, h: 192 },
   ],
   // Under the future bottom sheet: quiet grass (a large earth fill shows its tile repeat).
   fill: 'grass',
@@ -711,6 +712,10 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     // field in the back row past the windmill, the apiary at the willow's foot, the garden in the front row.
     ...FARM_PLOTS,
     ...FARM_VARIANTS,
+    // The near left corner at the closer zoom level (M2-29 framing tail: plain grass there): the end of a wattle fence
+    // with marigolds at its foot, low enough to stay fully under the half sheet at the normal level on 360/390/412.
+    { sprite: 'tyn', x: 64, ground: 346 },
+    { sprite: 'flowers.a', x: 92, ground: 348 },
   ],
   // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
   // mallows at the corners of the first screen, the rest spread for the pan.

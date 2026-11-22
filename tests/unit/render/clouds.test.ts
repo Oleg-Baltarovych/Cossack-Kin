@@ -11,6 +11,10 @@ import { cloudShadowLevel, emissiveLevel, keyLevel } from '../../../src/render/a
 import { cloudLook, cloudX } from '../../../src/render/layers/Clouds.ts';
 import { horizonY } from '../../../src/render/layers/Layer.ts';
 import { computeViewport, worldTargetSize } from '../../../src/render/viewport.ts';
+import { SKY_LOOKS } from '../../../src/render/atmosphere/config.ts';
+import { skyPixel } from '../../../src/render/atmosphere/skyPaint.ts';
+import { layerOffset } from '../../../src/render/camera.ts';
+import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 
 const cloud = { variant: 'c2', x: 100, y: 0.4, speed: 2 } as const;
 
@@ -97,7 +101,7 @@ describe('clouds and the HUD (M2-29 framing review)', () => {
     { w: 412, h: 915, dpr: 3.5, hud: 0.117 },
   ] as const;
 
-  it('no cloud is sliced by the HUD edge at the default framing: wholly under the HUD or wholly below it', () => {
+  it('every cloud stands wholly below the HUD edge at the default framing (none hidden under it, none sliced)', () => {
     for (const p of PHONES) {
       const viewH = worldTargetSize(computeViewport(p.w, p.h, p.dpr)).height;
       const hud = Math.ceil(viewH * p.hud);
@@ -107,9 +111,47 @@ describe('clouds and the HUD (M2-29 framing review)', () => {
         const top = base - Math.ceil(ABOVE * scaleY);
         const bottom = base + Math.ceil(BELOW * scaleY);
         expect(
-          bottom <= hud || top >= hud,
+          top >= hud,
           `${c.variant} on ${String(p.w)}: rows ${String(top)}–${String(bottom)}, HUD ${String(hud)}`,
         ).toBe(true);
+      }
+    }
+  });
+});
+
+describe('clouds and the moon (M2-29a art review)', () => {
+  /** Cloud footprints (assets-src/gen/sky/cloud `CLOUD_SHAPES` widths) and rows around the base (as above). */
+  const WIDTH = { c1: 120, c2: 92, c3: 70, c4: 52, c5: 104 } as const;
+  it('in each zone frame at 23:00 (freeze 0) the moon disc and its halo core stand clear of every cloud', () => {
+    for (const p of [
+      { w: 390, h: 844, dpr: 3 },
+      { w: 360, h: 800, dpr: 3 },
+      { w: 412, h: 915, dpr: 3.5 },
+    ] as const) {
+      const { width: viewW, height: viewH } = worldTargetSize(computeViewport(p.w, p.h, p.dpr));
+      const sky = horizonY(viewH);
+      const moon = skyPixel(dayCycle(23 * 60).moon, viewW, sky);
+      // The disc and the bright core of its halo (half its radius): the key light a cloud must not chop.
+      const radius = SKY_LOOKS.night.moonHalo.radius / 2;
+      const span = Math.round(KHORTYTSIA_WORLD.width * 0.1) + viewW;
+      for (const zone of KHORTYTSIA_WORLD.zones) {
+        const cam = Math.min(zone.anchorX, KHORTYTSIA_WORLD.width - viewW);
+        for (const c of CLOUDS) {
+          const scaleY = c.y > LOW_CLOUD.below ? LOW_CLOUD.scaleY : 1;
+          const base = Math.round(sky * c.y);
+          const x = cloudX(c, 0, span) + layerOffset(cam, 0.1);
+          const box = {
+            x0: x - WIDTH[c.variant] / 2,
+            x1: x + WIDTH[c.variant] / 2,
+            y0: base - Math.ceil(39 * scaleY),
+            y1: base + Math.ceil(5 * scaleY),
+          };
+          const dx = Math.max(box.x0 - moon.x, 0, moon.x - box.x1);
+          const dy = Math.max(box.y0 - moon.y, 0, moon.y - box.y1);
+          expect(Math.hypot(dx, dy), `${c.variant} over the moon in ${zone.id} on ${String(p.w)}`).toBeGreaterThan(
+            radius,
+          );
+        }
       }
     }
   });

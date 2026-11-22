@@ -60,11 +60,12 @@ import { rampColor, rampCss } from './palette.ts';
 import { DEFAULT_SCENE, type SceneState } from './scene.ts';
 import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
-import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_TAP, WORK_GLINT } from './atmosphere/config.ts';
+import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_MARK, PLOT_TAP, WORK_GLINT } from './atmosphere/config.ts';
 import { plotAt, plotSpan } from './plotHit.ts';
 import { propTargets } from './plotTargets.ts';
 import { createCoinFx } from './fx/coins.ts';
 import { createBuildFx } from './fx/build.ts';
+import { createOutlines } from './fx/outline.ts';
 import { shakeOffset } from './fx/shake.ts';
 import type { PlotBuilding } from '../content/villages/khortytsia.layout.ts';
 import { computeViewport, worldTargetSize, type Viewport, type ZoomLevel } from './viewport.ts';
@@ -139,6 +140,11 @@ export interface WorldApp {
    * level the camera moves up just enough that the building stays above the sheet; at the normal level nothing moves.
    */
   reveal(building: PlotBuilding, sheetTop: number): void;
+  /**
+   * The building whose row is selected in the sheet (M2-29), or `null`: a 1-px warm outline on it in the world while it
+   * is set. Cosmetic: no game state.
+   */
+  mark(building: PlotBuilding | null): void;
   /** Calls `listener` for every tap on the world (not a drag; both taps of a double tap); returns the unsubscribe. */
   onTap(listener: (tap: WorldTap) => void): () => void;
   /** A tap coin at ground-space px (render/bridge.ts on the core's `Tapped`). */
@@ -281,7 +287,13 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     disposers.push(() => {
       post.destroy();
     });
+    // Outlines of the selected building and of a new tier at night (M2-29): one slot each, after the grade.
+    const outlines = createOutlines(2);
+    disposers.push(() => {
+      outlines.destroy();
+    });
     const layers = createWorldLayers({
+      outlines,
       layout,
       frame: sceneFrame,
       weather: settings.weather,
@@ -301,7 +313,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const ungraded = layer.id === 'sky' || layer.id === 'far' || layer.id === 'mid' || layer.id === 'light';
       if (layer.id === 'light') {
         world.addChild(graded);
-        worldTop.addChild(layer.container);
+        worldTop.addChild(layer.container, outlines.container);
         continue;
       }
       (ungraded ? world : graded).addChild(layer.container);
@@ -373,6 +385,12 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     let scene: SceneState = DEFAULT_SCENE;
     // The scene drawn in the last frame (a building under scaffolding is still empty there): what a tap hits.
     let drawn: SceneState = DEFAULT_SCENE;
+    /** The building whose row is selected in the sheet (`mark`), outlined in the world. */
+    let marked: PlotBuilding | null = null;
+    const selectColor = {
+      day: rampColor(...PLOT_MARK.select.day),
+      night: rampColor(...PLOT_MARK.select.night),
+    };
     // The camera of the last frame: a tap is read in the frame the player saw.
     let lastCam = { ...split(motion.x, vp.scale), scale: vp.scale, y: 0, level: motion.level };
     // Quality (ART-18): a fixed `?quality`, else auto — start at AUTO_QUALITY.start and let the fps probe pick once.
@@ -477,7 +495,21 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       }
       const cycle = dayCycle(minutes);
       // The scene as it looks this frame: a building under scaffolding still empty, a popping one scaled (M2-12).
-      const shown = build.present(scene, performance.now(), emissiveLevel(cycle));
+      const emissive = emissiveLevel(cycle);
+      const presented = build.present(scene, performance.now(), emissive);
+      const shown: SceneState = marked
+        ? {
+            ...presented,
+            marks: [
+              {
+                building: marked,
+                color: emissive >= PLOT_MARK.nightFrom ? selectColor.night : selectColor.day,
+                alpha: 1,
+              },
+              ...(presented.marks ?? []),
+            ],
+          }
+        : presented;
       drawn = shown;
       // Closer level: the sky band moves down just enough to keep the shown disc in the window (art-director, M2-03).
       const skyH = horizonY(target.height);
@@ -518,6 +550,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
         if (layer.id === 'sky') layer.container.y = skyY;
       }
       post.container.x = layerOffset(cam.worldPx, post.parallax);
+      outlines.container.x = layerOffset(cam.worldPx, 1);
       coins.container.x = layerOffset(cam.worldPx, 1);
       glints.container.x = coins.container.x;
       build.top.x = coins.container.x;
@@ -768,6 +801,9 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
           margin: PLOT_TAP.revealMarginPx,
         });
         motion = setY(motion, y, view);
+      },
+      mark: (building) => {
+        marked = building;
       },
       onTap: (listener) => {
         tapListeners.add(listener);
