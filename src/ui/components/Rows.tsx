@@ -8,6 +8,7 @@ import type { BuyMode } from '../../core/economy.ts';
 import { farmRowView, hireView, sichRowView, type BuyBlock } from '../../core/selectors.ts';
 import type { GameState } from '../../core/state.ts';
 import { sameView, useAct, useGame } from '../hooks/useGame.ts';
+import { useHop } from '../hooks/useHop.ts';
 import { useText, type Text } from '../hooks/useText.ts';
 import type { Big } from '../../core/big.ts';
 import { Icon } from './Icon.tsx';
@@ -66,6 +67,8 @@ interface RowProps {
   readonly price: ReactNode;
   readonly buyLabel: string;
   readonly disabled: boolean;
+  /** The buy mode the price is for: a switch of mode that enables the button is no «became affordable» hop. */
+  readonly mode: BuyMode;
   readonly onBuy: () => void;
   /** The building id (the bottom sheet scrolls to `data-building` when its plot is tapped, M2-13). */
   readonly building?: string;
@@ -84,12 +87,14 @@ function Row({
   price,
   buyLabel,
   disabled,
+  mode,
   onBuy,
   building,
   highlighted = false,
   current = false,
 }: RowProps) {
   const noteId = useId();
+  const hop = useHop<HTMLButtonElement>(!disabled, mode);
   return (
     <li
       className={highlighted ? [styles.row, styles.lit].join(' ') : styles.row}
@@ -110,6 +115,7 @@ function Row({
         )}
       </div>
       <button
+        ref={hop}
         type="button"
         className={styles.buy}
         disabled={disabled}
@@ -168,6 +174,7 @@ export const FarmRow = memo(function FarmRow({
       price={priceTag(text, 'ducat', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
       disabled={v.blocked !== null}
+      mode={mode}
       onBuy={() => {
         act({ type: 'buyBuilding', id, mode });
       }}
@@ -201,6 +208,7 @@ export const SichRow = memo(function SichRow({
       price={priceTag(text, 'glory', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
       disabled={v.blocked !== null}
+      mode={mode}
       onBuy={() => {
         act({ type: 'buySich', id, mode });
       }}
@@ -236,6 +244,7 @@ export const HireRow = memo(function HireRow({ mode }: { readonly mode: BuyMode 
       price={priceTag(text, 'ducat', full ? null : v.price)}
       buyLabel={full ? text.t('ui.hire.buttonFull') : text.t('ui.hire.button', { count: v.count, price })}
       disabled={v.blocked !== null}
+      mode={mode}
       onBuy={() => {
         act({ type: 'hire', n: v.count });
       }}

@@ -3,10 +3,11 @@
 // (ui/storyQueue.ts, owned by GameUi) and come one at a time after the return window. A dialog named by its title:
 // the focus moves to its button and stays inside (Tab cycles), Esc closes it like the button does (the beat is already
 // paid, nothing is lost), and GameUi returns the focus once the last one closes (useDialogFocus).
-import { useEffect, useId, useRef, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, type KeyboardEvent } from 'react';
 import { storyBeatView } from '../../core/selectors.ts';
 import { useText } from '../hooks/useText.ts';
 import { grantedText } from '../rewards.ts';
+import { useCoinLaunch } from './CoinFlight.tsx';
 import type { QueuedBeat } from '../storyQueue.ts';
 import { Portrait } from './Portrait.tsx';
 import styles from './StoryModal.module.css';
@@ -39,10 +40,17 @@ export function StoryModal({ beat, onClose }: StoryModalProps) {
   const bodyId = useId();
   const boxRef = useRef<HTMLElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const close = useRef(onClose);
+  const launch = useCoinLaunch();
+  const latest = useRef({ onClose, launch, granted: beat.granted });
   useEffect(() => {
-    close.current = onClose;
+    latest.current = { onClose, launch, granted: beat.granted };
   });
+  // Closing (the button or Esc) sends the reward's coins from the button to its counter (M2-26), if it was large.
+  const close = useCallback(() => {
+    const l = latest.current;
+    l.launch(buttonRef.current, l.granted);
+    l.onClose();
+  }, []);
   // The only control: focused at once, so Enter/Space go on. A passive effect, after GameUi noted the opener.
   useEffect(() => {
     buttonRef.current?.focus();
@@ -51,18 +59,18 @@ export function StoryModal({ beat, onClose }: StoryModalProps) {
     const onKey = (e: globalThis.KeyboardEvent): void => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       e.preventDefault();
-      close.current();
+      close();
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, []);
+  }, [close]);
 
   const view = storyBeatView(beat.id);
   // An id the content no longer has (the core cannot send one): nothing to tell, the queue moves on.
   useEffect(() => {
-    if (!view) close.current();
+    if (!view) latest.current.onClose();
   }, [view]);
   if (!view) return null;
   const g = beat.granted;
@@ -94,7 +102,7 @@ export function StoryModal({ beat, onClose }: StoryModalProps) {
             </div>
           </dl>
         )}
-        <button ref={buttonRef} type="button" className={styles.claim} onClick={onClose}>
+        <button ref={buttonRef} type="button" className={styles.claim} onClick={close}>
           {t(beat.more > 0 ? 'story.next' : 'story.ok')}
         </button>
       </section>

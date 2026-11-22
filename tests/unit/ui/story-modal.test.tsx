@@ -74,6 +74,29 @@ describe('story beat windows (M2-25)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('closing a beat that paid glory sends its coins to the glory counter (M2-26); none under «менше руху»', () => {
+    const hired = (s: GameState): GameState => ({ ...s, army: { infantry: 3 }, stats: { ...s.stats, hires: 3 } });
+    for (const reduced of [false, true]) {
+      cleanup();
+      if (reduced) document.documentElement.dataset['motion'] = 'reduced';
+      try {
+        const store = mount(played());
+        act(() => {
+          store.replace(hired(store.getState()));
+          store.tick(T0 + 100);
+        });
+        const beat = screen.getByRole('dialog', { name: 'Гонець з городка' });
+        expect(document.querySelectorAll('[data-coin]')).toHaveLength(0);
+        fireEvent.click(within(beat).getByRole('button', { name: 'Гаразд' }));
+        const coins = document.querySelectorAll('[data-coin="glory"]').length;
+        if (reduced) expect(coins).toBe(0);
+        else expect(coins).toBeGreaterThan(0);
+      } finally {
+        delete document.documentElement.dataset['motion'];
+      }
+    }
+  });
+
   it('a beat reached online shows its reward, takes the focus, keeps Tab inside, closes on Esc, gives the focus back', () => {
     // The maidan one level short of the council.
     mount(played((s) => ({ ...s, village: { ...s.village, sichLevels: { ...s.village.sichLevels, maidan: 9 } } })));

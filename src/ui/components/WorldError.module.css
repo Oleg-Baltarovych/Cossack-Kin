@@ -38,7 +38,7 @@
 }
 
 .retry:active {
-  transform: translateY(calc(2 * var(--px)));
+  transform: translateY(var(--press-y));
   box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
 }
 

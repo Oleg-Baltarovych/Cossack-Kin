@@ -9,11 +9,14 @@ import { CHORES } from '../../../src/content/quests.ts';
 import { Big } from '../../../src/core/big.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { createStore, type GameStore } from '../../../src/core/store.ts';
+import { hudView } from '../../../src/core/selectors.ts';
 import { choreQuest } from '../../../src/core/systems/quests.ts';
 import { formatBig } from '../../../src/i18n/index.ts';
-import { CoinFlight } from '../../../src/ui/components/CoinFlight.tsx';
+import { CoinFlight, useFlightOrigin } from '../../../src/ui/components/CoinFlight.tsx';
 import { Hud } from '../../../src/ui/components/Hud.tsx';
 import { Panel, type PanelProps } from '../../../src/ui/components/Panel.tsx';
+import { ReturnModal } from '../../../src/ui/components/ReturnModal.tsx';
+import { coinsFor } from '../../../src/ui/coins.ts';
 import { GameProvider } from '../../../src/ui/hooks/useGame.ts';
 
 const T0 = 1_763_400_000_000;
@@ -174,21 +177,44 @@ describe('red dot on «Ще» (M2-25 review, SPEC §6.7)', () => {
   });
 });
 
-describe('coins to the counter on a claim (M2-25)', () => {
+describe('coins to the counter on a claim (M2-25, M2-26)', () => {
   const claimInStrip = () => {
     fireEvent.click(within(strip()).getByRole('button', { name: /^Забрати/ }));
   };
+  /** Coins every paid claim of `store` should send: by the size of the grant against its currency's rate (ui/coins.ts). */
+  const expectedCoins = (store: GameStore): (() => number) => {
+    let n = 0;
+    store.onEvent((e) => {
+      if (e.type !== 'QuestClaimed' || !e.granted || e.granted.currency === 'pysanky') return;
+      const v = hudView(store.getState());
+      n += coinsFor(e.granted.amount, e.granted.currency === 'ducats' ? v.ducatsPerSec : v.gloryPerSec);
+    });
+    return () => n;
+  };
+  const longest = COIN_FLIGHT.flightMs + COIN_FLIGHT.staggerMs * Math.max(...COIN_FLIGHT.tiers.map((t) => t.coins));
 
-  it('a paid claim sends the coins of its currency; they are gone after their flight', () => {
+  it('a paid claim sends the coins of its currency along their curve; they are gone after their flight', () => {
     vi.useFakeTimers();
     try {
-      mount(fieldBuilt(game()));
+      const { store } = mount(fieldBuilt(game()));
+      const coins = expectedCoins(store);
       claimInStrip();
-      expect(document.querySelectorAll('[data-coin="ducats"]')).toHaveLength(COIN_FLIGHT.coins);
+      expect(coins()).toBeGreaterThan(0);
+      const flying = document.querySelectorAll<HTMLElement>('[data-coin="ducats"]');
+      expect(flying).toHaveLength(coins());
+      const start = flying[0]?.style.transform;
       act(() => {
-        vi.advanceTimersByTime(COIN_FLIGHT.flightMs + COIN_FLIGHT.staggerMs * COIN_FLIGHT.coins);
+        vi.advanceTimersByTime(COIN_FLIGHT.flightMs / 2);
+      });
+      // Half-way the first coin is in the air, away from the button.
+      expect(flying[0]?.dataset['flying']).toBe('');
+      expect(flying[0]?.style.transform).not.toBe(start);
+      act(() => {
+        vi.advanceTimersByTime(longest);
       });
       expect(document.querySelectorAll('[data-coin]')).toHaveLength(0);
+      // Landed: the loop stopped by itself (the HUD roll is long over too).
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.useRealTimers();
     }
@@ -198,31 +224,92 @@ describe('coins to the counter on a claim (M2-25)', () => {
     vi.useFakeTimers();
     try {
       // The chain step and the chore both done: the strip shows the chain step, then the chore.
-      mount(choreDone(fieldBuilt(game())));
+      const { store } = mount(choreDone(fieldBuilt(game())));
+      const coins = expectedCoins(store);
       claimInStrip();
+      const one = coins();
       claimInStrip();
-      expect(document.querySelectorAll('[data-coin]')).toHaveLength(2 * COIN_FLIGHT.coins);
+      expect(coins()).toBeGreaterThan(one);
+      expect(document.querySelectorAll('[data-coin]')).toHaveLength(coins());
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('unmounted mid-flight: every timer the flight set is cleared', () => {
+  it('the return window: a large return sends ducat coins from «Забрати», a small one none', () => {
+    const away = (seconds: number): void => {
+      cleanup();
+      const s = fieldBuilt(game());
+      const rate = hudView(s).ducatsPerSec;
+      const report = {
+        awaySec: seconds,
+        countedSec: seconds,
+        capped: false,
+        reason: 'normal' as const,
+        ducats: rate.mul(seconds),
+        glory: Big.ZERO,
+      };
+      render(
+        <GameProvider store={createStore({ ...s, returnReport: report })} now={() => T0}>
+          <CoinFlight>
+            <Hud />
+            <ReturnModal />
+          </CoinFlight>
+        </GameProvider>,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Забрати' }));
+    };
+    away(COIN_FLIGHT.tiers[0].minIncomeSec - 1);
+    expect(document.querySelectorAll('[data-coin]')).toHaveLength(0);
+    away(COIN_FLIGHT.tiers[1].minIncomeSec);
+    expect(document.querySelectorAll('[data-coin="ducats"]')).toHaveLength(COIN_FLIGHT.tiers[1].coins);
+    expect(document.querySelectorAll('[data-coin="glory"]')).toHaveLength(0);
+  });
+
+  it('a refused press leaves no origin behind: a later claim from elsewhere sends no coins from it', () => {
+    function Refused() {
+      const withOrigin = useFlightOrigin();
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            withOrigin(e.currentTarget, () => undefined);
+          }}
+        >
+          Refused
+        </button>
+      );
+    }
+    const store = createStore(fieldBuilt(game()));
+    render(
+      <GameProvider store={store} now={() => T0}>
+        <CoinFlight>
+          <Hud />
+          <Refused />
+        </CoinFlight>
+      </GameProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refused' }));
+    // The chain step claimed without any button (as a debug dispatch would): no press point, no coins.
+    act(() => {
+      store.dispatch({ type: 'claimQuest', kind: 'chain' }, T0);
+    });
+    expect(store.getState().quests.chain).not.toEqual(fieldBuilt(game()).quests.chain);
+    expect(document.querySelectorAll('[data-coin]')).toHaveLength(0);
+  });
+
+  it('unmounted mid-flight: no animation frame or timer is left behind', () => {
     vi.useFakeTimers();
-    const set = vi.spyOn(globalThis, 'setTimeout');
-    const cleared = vi.spyOn(globalThis, 'clearTimeout');
     try {
       const { unmount } = mount(fieldBuilt(game()));
-      set.mockClear();
       claimInStrip();
-      const handles = set.mock.results.map((r) => r.value as unknown);
-      expect(handles.length).toBeGreaterThan(0);
+      act(() => {
+        vi.advanceTimersByTime(COIN_FLIGHT.frameMs * 3);
+      });
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
       unmount();
-      const gone = cleared.mock.calls.map((c) => c[0] as unknown);
-      expect(handles.filter((h) => !gone.includes(h))).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
-      set.mockRestore();
-      cleared.mockRestore();
       vi.useRealTimers();
     }
   });

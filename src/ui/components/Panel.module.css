@@ -149,6 +149,19 @@
   box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-thatch-3);
 }
 
+/* Pressed (SPEC §6.7): down by the shared offset (whole logical px, plan M2-26). */
+.mode:active:not(:disabled) {
+  transform: translateY(var(--press-y));
+}
+
+/* Tabs and the open/close button are pressed too, but they do not move: they are joined edge to edge in the bar
+   (shared borders, the selected tab's gold rim), so a shift would open a gap and break the rims. A shade of the same
+   depth along the top shows the press instead — no layout change. */
+.tab:active:not([aria-selected='true']),
+.toggle:active {
+  box-shadow: inset 0 var(--press-y) 0 var(--c-wood-0);
+}
+
 .tab:focus-visible,
 .toggle:focus-visible,
 .mode:focus-visible {

@@ -3,8 +3,10 @@
 // `--px` is one logical px in CSS px. The pixel font (Press Start 2P, 8 font px per em) stays crisp only when one font
 // px is a whole number of device px, so the two text sizes are picked in device px:
 //   --font-s ≈ 1.25 logical px per font px (row text), --font-m = 2 logical px per font px (the HUD counters).
-// `--tap` is the tap-target side: at least 44 css px, in whole logical px.
+// `--tap` is the tap-target side: at least 44 css px, in whole logical px. Button juice (plan M2-26, content BUTTON):
+// `--press-y` is the pressed offset and `--hop-y` the affordable hop, both in whole logical px; `--hop-ms` its length.
 import master from '../../assets-src/palettes/master.json';
+import { BUTTON } from '../content/juice.ts';
 import { computeViewport } from '../render/viewport.ts';
 
 const FONT_EM_PX = 8;
@@ -54,6 +56,9 @@ export function trackScale(root: HTMLElement, win: Window = window): () => void 
     root.style.setProperty('--font-s', `${String(s.fontS)}px`);
     root.style.setProperty('--font-m', `${String(s.fontM)}px`);
     root.style.setProperty('--tap', `${String(s.tap)}px`);
+    root.style.setProperty('--press-y', `${String(BUTTON.pressPx * s.px)}px`);
+    root.style.setProperty('--hop-y', `${String(BUTTON.hopPx * s.px)}px`);
+    root.style.setProperty('--hop-ms', `${String(BUTTON.hopMs)}ms`);
   };
   apply();
   win.addEventListener('resize', apply);

@@ -24,11 +24,62 @@ export const SHEET = {
 } as const;
 
 /**
- * Coins flying from a claimed quest to its counter in the HUD (plan M2-25, SPEC §6.7): `coins` ducat or glory icons,
- * one every `staggerMs`, each `flightMs` in the air. «Менше руху»: none (the counter and the strip still say it).
+ * Coins flying to their HUD counter on a large income (plan M2-25/26, SPEC §6.7): a quest claim, the return window's
+ * «Забрати», a story beat's reward when its window closes. An income is large when it is worth at least the first
+ * tier's `minIncomeSec` seconds of that currency's income per second now (an idle game's amounts grow without bound,
+ * so a fixed number would soon mean «always» or «never»; with no income at all there is no measure and any amount sends
+ * the first tier); a larger one sends the coins of the highest tier it reaches. Each coin flies a quadratic Bézier
+ * from the pressed button to the counter: the control point stands `arcPx` logical px above the middle of the line,
+ * shifted sideways by `spreadPx` per coin from the centre one, so the coins fan out, and stays `marginPx` inside the
+ * screen (the curve stays inside its three points, so no coin leaves the screen). One leaves every `staggerMs`, each
+ * is `flightMs` in the air; positions are worked out at launch for every `frameMs`, on the logical pixel grid. On
+ * take-off a coin shows faint for `fadeInMs`, and it wears a 1-px ink outline, so it reads as UI over the world.
+ * «Менше руху»: none (the counter and the read-out still say it).
  */
 export const COIN_FLIGHT = {
-  coins: 5,
+  tiers: [
+    { minIncomeSec: 60, coins: 5 },
+    { minIncomeSec: 1800, coins: 8 },
+  ],
   staggerMs: 70,
   flightMs: 650,
+  frameMs: 16,
+  arcPx: 48,
+  spreadPx: 20,
+  marginPx: 8,
+  fadeInMs: 48,
+} as const;
+
+/**
+ * The HUD counters (SPEC §6.7): a new amount rolls from the one shown to it in `lerpMs` (ease-out), restarting from
+ * where it is on every change (10 Hz ticks keep it rolling). «Менше руху»: the new amount at once. The screen-reader
+ * text is always the exact amount, at once.
+ */
+export const COUNTER = {
+  lerpMs: 250,
+} as const;
+
+/**
+ * Buttons (SPEC §6.7): pressed, a button moves down `pressPx` logical px; a buy button that turns affordable hops once
+ * (`hopPx` up and back in whole logical px over `hopMs`; not on mount, not on a buy-mode switch, not under «менше
+ * руху»).
+ */
+export const BUTTON = {
+  pressPx: 2,
+  hopPx: 3,
+  hopMs: 300,
+} as const;
+
+/**
+ * The camera shake (SPEC §6.7): `px` logical px, only vertically (the HUD and the sheet hide the rows it uncovers;
+ * a sideways shake would bare the world's edge), alternating every `stepMs` and fading to `minPx`, over `ms`. Only on
+ * the big events listed here — a building's new visual tier for now; raid results (M3) and the Розквіт (M5) join
+ * the list. «Менше руху»: none.
+ */
+export const SHAKE = {
+  px: 2,
+  minPx: 1,
+  ms: 150,
+  stepMs: 30,
+  events: ['TierReached'],
 } as const;

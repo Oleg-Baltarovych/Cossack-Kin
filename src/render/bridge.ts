@@ -5,6 +5,9 @@
 // of the kurin), the food carts' period (M2-20: from the kharch), the visitors' seed and clock (M2-21) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
 // M2-12: `BuildingUpgraded` 0 → 1 builds the plot on screen (scaffold → pop → confetti), `TierReached` celebrates it
 // (flash, rising standard) — the level is already in the state; the animation never holds the economy back.
+// M2-26: the big events in content SHAKE shake the camera (`world.shake`; none under «менше руху»).
+import { SHAKE } from '../content/juice.ts';
+import type { GameEvent } from '../core/events.ts';
 import { villageOf } from '../core/modifiers.ts';
 import { plotVariants, populationView, visualTiers, type PlotVariants, type VisualTiers } from '../core/selectors.ts';
 import type { GameState } from '../core/state.ts';
@@ -13,6 +16,9 @@ import { windAt } from '../core/systems/village-mechanics/wind.ts';
 import type { WorldApp, WorldTap } from './App.ts';
 import { WIND_STRENGTH } from './atmosphere/config.ts';
 import type { SceneState, VisitorFeed } from './scene.ts';
+
+/** The big events that shake the camera (content SHAKE, M2-26); typed here so a renamed event fails to compile. */
+const SHAKING: ReadonlySet<GameEvent['type']> = new Set<GameEvent['type']>(SHAKE.events);
 
 /** What render may read from the game: the state and the event stream, nothing that changes either. */
 export type GameView = Pick<GameStore, 'getState' | 'onEvent'>;
@@ -52,7 +58,7 @@ function sameRecord<T extends Readonly<Record<string, number>>>(a: T | null, b: 
 
 /** Connects `world` to `game`; returns the disconnect function. Call it before UI tap handlers subscribe. */
 export function connectWorld(
-  world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin' | 'construct' | 'celebrate'>,
+  world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin' | 'construct' | 'celebrate' | 'shake'>,
   game: GameView,
   tiersOf: TiersOf = visualTiers,
   variantsOf: VariantsOf = plotVariants,
@@ -85,6 +91,7 @@ export function connectWorld(
     lastTap = tap.building ? null : tap;
   });
   const offEvents = game.onEvent((e) => {
+    if (SHAKING.has(e.type)) world.shake();
     switch (e.type) {
       case 'Tapped':
         if (lastTap) world.spawnCoin(lastTap.x, lastTap.y);

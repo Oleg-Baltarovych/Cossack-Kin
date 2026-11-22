@@ -65,6 +65,7 @@ import { plotAt, plotSpan } from './plotHit.ts';
 import { propTargets } from './plotTargets.ts';
 import { createCoinFx } from './fx/coins.ts';
 import { createBuildFx } from './fx/build.ts';
+import { shakeOffset } from './fx/shake.ts';
 import type { PlotBuilding } from '../content/villages/khortytsia.layout.ts';
 import { computeViewport, worldTargetSize, type Viewport, type ZoomLevel } from './viewport.ts';
 
@@ -146,6 +147,8 @@ export interface WorldApp {
   construct(building: PlotBuilding): void;
   /** A new tier (M2-12): the flash and the rising standard (after the reveal if it is still being built). */
   celebrate(building: PlotBuilding): void;
+  /** A big event (M2-26, content SHAKE): the camera shakes SHAKE.px logical px for SHAKE.ms; none under «менше руху». */
+  shake(): void;
   destroy(): void;
 }
 
@@ -362,6 +365,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     /** `?lineup` stands from the start camera's left edge (dev/test). */
     const lineupX = Math.round(motion.x);
     let lessMotion = settings.lessMotion;
+    /** When the running camera shake began (performance.now ms), or null (M2-26). */
+    let shakeFrom: number | null = null;
     const zoneListeners = new Set<(zone: ZoneId) => void>();
     let zone: ZoneId | null = null;
     let settled = true;
@@ -524,7 +529,14 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       glints.update(performance.now() / 1000);
       upscale.scale.set(lv.scale);
       upscale.x = -cam.fracDevicePx;
-      upscale.y = -camY * lv.scale;
+      // The shake (M2-26) moves the whole frame by whole logical px of the level on screen; vertical only, so the rows
+      // it bares stay under the HUD and the sheet.
+      let shakeY = 0;
+      if (shakeFrom !== null) {
+        shakeY = lessMotion ? 0 : shakeOffset(performance.now() - shakeFrom);
+        if (shakeY === 0) shakeFrom = null;
+      }
+      upscale.y = (shakeY - camY) * lv.scale;
       app.renderer.render({ container: world, target: worldRT, clear: true });
       water.render(app.renderer, frameInfo.ambient, frameInfo.cycle, cam.worldPx, skyY);
       app.renderer.render({ container: worldTop, target: worldRT, clear: false });
@@ -771,6 +783,9 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       },
       celebrate: (building) => {
         build.celebrate(building, performance.now());
+      },
+      shake: () => {
+        if (!lessMotion) shakeFrom = performance.now();
       },
       destroy: disposeAll,
     };
