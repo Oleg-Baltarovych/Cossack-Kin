@@ -2,7 +2,7 @@
 // in the sheet (render/scene.ts `marks`, set by App from `WorldApp.mark`), and at night as the new tier's flash (a
 // warm rim on the building itself instead of the day star, render/fx/build.ts). Drawn after the grade, so it keeps its
 // palette colour at night, yet it hides behind whatever stands in front of the building: per mark one filtered group
-// renders the building's sprites shifted by 1 px (four ways for the ring; up and up-left for the night rim), erases
+// renders the building's sprites shifted by 1 px (eight ways for the ring; up and up-left for the night rim), erases
 // the sprites themselves and every sprite drawn in front of them (blend `erase`), and a colour matrix paints what is
 // left — the ring — one flat colour.
 // The ground layer (layers/Ground.ts) picks the sprites: `outlineSets` is the pure part.
@@ -63,12 +63,20 @@ export function outlineSets<T>(
   return { parts: parts.map((p) => p.item), occluders: occluders.map((o) => o.item) };
 }
 
-/** The four 1-px shifts of the ring (4-connected: no corner px, a clean pixel-art outline). */
+/**
+ * The eight 1-px shifts of the ring: with the corner px filled, wherever the silhouette steps (a chimney over the
+ * ridge, a roof's stair) the ring climbs as one joined line instead of meeting only at a diagonal, which reads as a
+ * break at 1:1 (M2-29 A2, art-director: the ridge either side of the chimney).
+ */
 const RING = [
   [1, 0],
   [-1, 0],
   [0, 1],
   [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
 ] as const;
 /** The rim light: only above and up-left of the sprite — its top and left edges (light from the top-left). */
 const RIM = [

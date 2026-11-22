@@ -55,13 +55,18 @@ function shift(plot: Plot, steps: number, fade = 0): void {
  * end piece (`val-end`, M2-01), which must continue this tile pixel for pixel.
  */
 /** Rows of the moat at the rampart's toe (walls II+, art-director M2-09): lit far edge, dark water, the near lip. */
-const MOAT: Readonly<Record<'edge' | 'top' | 'bottom' | 'lip', number>> = { edge: 23, top: 24, bottom: 27, lip: 27 };
+export const MOAT: Readonly<Record<'edge' | 'top' | 'bottom' | 'lip', number>> = {
+  edge: 23,
+  top: 24,
+  bottom: 27,
+  lip: 27,
+};
 
 /**
  * The moat along the rampart's front (walls II+): a 1-px lit top edge (the far bank catching the light), 3 rows of dark
  * still water with sparse lit ripples (period 16: tiles meet), a darker earth lip on the near side.
  */
-function paintMoat(plot: Plot): void {
+export function paintMoat(plot: Plot): void {
   for (let x = 0; x < W; x++) {
     plot.set(x, MOAT.edge, 'earth', 4);
     for (let y = MOAT.top; y < MOAT.bottom; y++) {
@@ -78,7 +83,7 @@ function paintMoat(plot: Plot): void {
  * vertical stake heads every 2–3 px under a 1-px turf lip, a 1-px contact shadow under them, a darker post every 32 px
  * (periods divide 64: tiles meet), then the moat.
  */
-function paintRampart(plot: Plot): void {
+export function paintRampart(plot: Plot): void {
   const walk = { top: 3, rows: 3 };
   for (let x = 0; x < W; x++) {
     // Planks 8 px long with a dark joint; the front edge in shade.
@@ -132,7 +137,7 @@ function paintDitch(plot: Plot, seed: string): void {
 }
 
 /** The far meadow tile (`meadow`): sparse tufts one step lighter, dithered into the near grass at the bottom. */
-function paintMeadow(plot: Plot, seed: string): void {
+export function paintMeadow(plot: Plot, seed: string): void {
   grassField(plot, { x: 0, y: 0, w: HALF, h: H }, `${seed}:a`, { tufts: 3, flecks: 0 });
   grassField(plot, { x: HALF, y: 0, w: HALF, h: H }, `${seed}:b`, { tufts: 2, flecks: 0 });
   shift(plot, 1, 2);

@@ -219,6 +219,20 @@ describe('the continuous world (M2-01)', () => {
     expect(W.river).toMatchObject({ x0: 0, x1: zone('sich').x0 });
     expect(W.segments.find((s) => s.x0 === zone('sich').x0)?.groundHaze).toBe(false);
   });
+
+  it('the Dnipro ends on a ragged, stepped bank (M2-29 A2): held cuts and jumps, never one straight diagonal', () => {
+    const river = W.river;
+    const bank = river?.bank ?? [];
+    expect(bank).toHaveLength(river?.rows ?? -1);
+    expect(bank[0]).toBe(0);
+    expect(bank.at(-1)).toBe(river?.taper);
+    const steps = bank.slice(1).map((b, r) => b - (bank[r] ?? 0));
+    for (const s of steps) expect(s).toBeGreaterThanOrEqual(0);
+    // Vertical cuts (a row ends where the one above did) and runs of 3+ px, and step widths vary.
+    expect(steps.filter((s) => s === 0).length).toBeGreaterThanOrEqual(5);
+    expect(steps.filter((s) => s >= 3).length).toBeGreaterThanOrEqual(5);
+    expect(new Set(steps).size).toBeGreaterThanOrEqual(4);
+  });
 });
 
 describe('night pools and tier bands (M2-09)', () => {
