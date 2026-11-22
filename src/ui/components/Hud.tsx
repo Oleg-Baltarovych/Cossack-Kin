@@ -35,7 +35,9 @@ export const Hud = memo(function Hud() {
             <Icon id="ducat" />
             {t('ui.hud.ducats')}
           </span>
-          <span className={styles.amount}>{num(v.ducats)}</span>
+          <span className={styles.amount} data-counter="ducats">
+            {num(v.ducats)}
+          </span>
           <span className={styles.rate}>{t('ui.hud.perSec', { value: num(v.ducatsPerSec) })}</span>
         </p>
         <p className={styles.currency}>
@@ -43,7 +45,9 @@ export const Hud = memo(function Hud() {
             <Icon id="glory" />
             {t('ui.hud.glory')}
           </span>
-          <span className={styles.amount}>{num(v.glory)}</span>
+          <span className={styles.amount} data-counter="glory">
+            {num(v.glory)}
+          </span>
           <span className={styles.rate}>{t('ui.hud.perSec', { value: num(v.gloryPerSec) })}</span>
         </p>
       </div>

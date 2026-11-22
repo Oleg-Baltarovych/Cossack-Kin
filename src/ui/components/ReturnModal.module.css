@@ -3,6 +3,8 @@
   position: absolute;
   inset: 0;
   display: grid;
+  /* One definite cell: a window's max-height: 100% then means «no taller than the screen inside the gutter». */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   padding: calc(env(safe-area-inset-top) + 12 * var(--px)) calc(env(safe-area-inset-right) + 12 * var(--px))
     calc(env(safe-area-inset-bottom) + 12 * var(--px)) calc(env(safe-area-inset-left) + 12 * var(--px));
@@ -12,10 +14,14 @@
   background: color-mix(in srgb, var(--c-ink-0) 80%, transparent);
 }
 
+/* Never taller than the screen (small phones, larger text): the body scrolls, the title and the button stay. */
 .dialog {
   width: 100%;
   max-width: calc(300 * var(--px));
-  display: grid;
+  max-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   gap: calc(8 * var(--px));
   padding: calc(10 * var(--px));
   color: var(--c-plaster-5);
@@ -35,10 +41,24 @@
   text-align: center;
 }
 
+.title,
+.gains,
+.claim {
+  flex: none;
+}
+
 .body {
   display: grid;
   gap: calc(6 * var(--px));
   line-height: 1.5;
+}
+
+/* The part that scrolls when the window meets the screen's height. */
+.scroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .body p {
@@ -75,7 +95,7 @@
 }
 
 .claim {
-  min-height: 44px;
+  min-height: var(--tap, 44px);
   padding: calc(4 * var(--px));
   font: inherit;
   word-spacing: inherit;

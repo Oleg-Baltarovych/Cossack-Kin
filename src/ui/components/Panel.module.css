@@ -179,3 +179,18 @@
   font-weight: normal;
   color: var(--c-thatch-5);
 }
+
+/* Something to claim (M2-25, SPEC §6.7): a 4×4 crimson dot with an ink rim at the tab's top right. */
+.tab {
+  position: relative;
+}
+
+.dot {
+  position: absolute;
+  top: calc(4 * var(--px));
+  right: calc(4 * var(--px));
+  width: calc(4 * var(--px));
+  height: calc(4 * var(--px));
+  background: var(--c-crimson-4);
+  box-shadow: 0 0 0 var(--px) var(--c-ink-0);
+}
