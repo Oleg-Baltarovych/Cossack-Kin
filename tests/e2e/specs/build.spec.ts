@@ -77,6 +77,9 @@ function region(png: Buffer, rows: { y0: number; y1: number }): Buffer {
   return Buffer.from(img.data.subarray(rows.y0 * stride, rows.y1 * stride));
 }
 
+/** The «тір II» banner: the live region with an explicit aria-live (the quest strip's claim read-out, M2-25, is another status). */
+const tierBanner = (page: Page) => page.getByRole('status').and(page.locator('[aria-live="polite"]'));
+
 test.describe('M2-12 construction and tiers', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
   // 4–6 full-page device-scale screenshots per test; CI SwiftShader takes ~15 s per shot.
@@ -138,7 +141,7 @@ test.describe('M2-12 construction and tiers', () => {
       await page.getByRole('button', { name: '×10' }).click();
       await page.getByRole('button', { name: /Пшеничне поле/ }).click();
       expect((await gameState(page)).village.levels.field).toBe(11);
-      const banner = page.getByRole('status');
+      const banner = tierBanner(page);
       await expect(banner).toHaveText('Пшеничне поле — тір II');
       await expect(banner).toHaveAttribute('aria-live', 'polite');
       // The banner never takes taps: a tap through it reaches the world.
@@ -177,6 +180,6 @@ test.describe('M2-12 construction and tiers', () => {
 
     await page.getByRole('button', { name: '×10' }).click();
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
-    await expect(page.getByRole('status')).toHaveText('Пшеничне поле — тір II');
+    await expect(tierBanner(page)).toHaveText('Пшеничне поле — тір II');
   });
 });

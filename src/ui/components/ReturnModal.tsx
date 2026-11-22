@@ -31,7 +31,7 @@ export const ReturnModal = memo(function ReturnModal() {
         <h2 id={titleId} className={styles.title}>
           {t('return.title')}
         </h2>
-        <div id={bodyId} className={styles.body}>
+        <div id={bodyId} className={[styles.body, styles.scroll].join(' ')}>
           {report.reason === 'clockBack' ? (
             <p>{t('return.clockBack')}</p>
           ) : (

@@ -237,6 +237,18 @@ export function newQuests(facts: QuestFacts, seed: number, now: number, tzOffset
   };
 }
 
+/** The chores' day now (never earlier than the stored one) and the claims made on it. */
+function choreDayOf(state: Pick<GameState, 'time' | 'settings' | 'quests'>): { day: number; claims: number } {
+  const c = state.quests.chores;
+  const day = Math.max(c.day, questDay(state));
+  return { day, claims: day > c.day ? 0 : c.claims };
+}
+
+/** Chore claims that still pay today (plan M2-25: the UI warns before a claim that pays nothing). */
+export function choreRewardsLeft(state: Pick<GameState, 'time' | 'settings' | 'quests'>): number {
+  return Math.max(0, CHORES.maxClaimsPerDay - choreDayOf(state).claims);
+}
+
 /** Grants the finished quest of `kind` and starts the next; 'notDone' when it is not finished (or none is left). */
 export function claimQuest(state: GameState, kind: QuestKind): { state: GameState; events: GameEvent[] } | 'notDone' {
   const q = kind === 'chain' ? chainQuest(state) : choreQuest(state);
@@ -249,9 +261,9 @@ export function claimQuest(state: GameState, kind: QuestKind): { state: GameStat
     return { state: s, events: [{ type: 'QuestClaimed', kind, id: q.id, granted: g.granted }] };
   }
   const c = state.quests.chores;
-  const day = Math.max(c.day, questDay(state));
-  const claims = day > c.day ? 0 : c.claims;
-  const g = claims < CHORES.maxClaimsPerDay ? grantReward(state, q.reward) : null;
+  const { day, claims } = choreDayOf(state);
+  // One source with the UI warning (questLineView `rewarded`): a claim pays exactly while rewards are left today.
+  const g = choreRewardsLeft(state) > 0 ? grantReward(state, q.reward) : null;
   const s = g ? g.state : state;
   const next = nextChore(s.seed, c.n + 1, c.active);
   const chores: ChoresState = {

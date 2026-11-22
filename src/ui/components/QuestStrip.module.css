@@ -1,0 +1,146 @@
+/* Quests in the sheet (plan M2-25 + review). The strip: one line over the list on a darker board (≈ one tap target +
+   padding: the title takes at most two lines, the reward one). The «Ще» board: both quests in full. «Забрати» is the
+   gold button of the rows (≥ the --tap target). Text colours on wood-1 are ≥ 5.9:1 (WCAG AA). */
+.strip {
+  flex: none;
+  background: var(--c-wood-1);
+  border-bottom: var(--px) solid var(--c-ink-0);
+}
+
+.board {
+  padding: calc(6 * var(--px)) 0;
+}
+
+.strip:focus-visible,
+.board:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: calc(-2 * var(--px));
+}
+
+.heading {
+  margin: 0 calc(6 * var(--px)) calc(4 * var(--px));
+  font-size: inherit;
+  font-weight: normal;
+  color: var(--c-thatch-5);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--c-wood-1);
+  border-top: var(--px) solid var(--c-ink-0);
+  border-bottom: var(--px) solid var(--c-ink-0);
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--px));
+  padding: calc(3 * var(--px)) calc(6 * var(--px));
+}
+
+.line + .line {
+  border-top: var(--px) solid var(--c-wood-0);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: calc(2 * var(--px));
+}
+
+.title,
+.meta {
+  margin: 0;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--px));
+  color: var(--c-plaster-5);
+}
+
+.titleText {
+  min-width: 0;
+}
+
+/* The strip keeps its height: a long title stops after two lines (the full one is on «Ще»). */
+.compact .titleText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(1 * var(--px)) calc(6 * var(--px));
+  color: var(--c-plaster-3);
+}
+
+/* Each token whole: «12 з 50» and «3 хвилини доходу» never break inside. */
+.token,
+.reward {
+  white-space: nowrap;
+}
+
+.reward {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(2 * var(--px));
+  color: var(--c-grass-6);
+}
+
+.warn {
+  color: var(--c-sky-6);
+}
+
+.claim {
+  flex: none;
+  min-width: calc(72 * var(--px));
+  min-height: var(--tap, 44px);
+  padding: calc(3 * var(--px)) calc(6 * var(--px));
+  font: inherit;
+  color: var(--c-ink-0);
+  background: var(--c-gold-4);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
+    inset 0 var(--px) 0 var(--c-gold-5);
+  cursor: pointer;
+}
+
+/* Past the day's limit: still a button (the chore is counted), but grey — it pays nothing (6.8:1, like a disabled buy). */
+.empty {
+  color: var(--c-plaster-6);
+  background: var(--c-stone-2);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1),
+    inset 0 var(--px) 0 var(--c-stone-3);
+}
+
+.claim:active {
+  transform: translateY(calc(2 * var(--px)));
+  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+}
+
+.claim:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
+}
+
+/* The claimed reward for screen readers; on screen the coins and the counter say it. */
+.said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

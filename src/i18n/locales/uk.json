@@ -225,5 +225,45 @@
     "few": "Найми {count} козаки",
     "many": "Найми {count} козаків",
     "other": "Найми {count} козака"
-  }
+  },
+  "ui.quest.region": "Завдання",
+  "ui.quest.progress": "{progress} з {target}",
+  "ui.quest.claim": "Забрати",
+  "ui.quest.claimLabel": "Забрати нагороду: {reward}",
+  "ui.quest.count": "Зарахувати",
+  "ui.quest.countLabel": "Зарахувати справу без нагороди",
+  "ui.quest.limit": "Ліміт нагород на сьогодні: нічого не дасть.",
+  "ui.quest.claimable": "Є нагорода",
+  "ui.quest.claimed": "Отримано: {reward}",
+  "reward.incomeMinutes": {
+    "one": "{count} хвилина доходу",
+    "few": "{count} хвилини доходу",
+    "many": "{count} хвилин доходу",
+    "other": "{count} хвилини доходу"
+  },
+  "reward.gloryMinutes": {
+    "one": "{count} хвилина слави",
+    "few": "{count} хвилини слави",
+    "many": "{count} хвилин слави",
+    "other": "{count} хвилини слави"
+  },
+  "reward.pysanky": {
+    "one": "{count} писанка",
+    "few": "{count} писанки",
+    "many": "{count} писанок",
+    "other": "{count} писанки"
+  },
+  "granted.ducats": "+{value} дук.",
+  "granted.glory": "+{value} слави",
+  "granted.pysanky": {
+    "one": "+{count} писанка",
+    "few": "+{count} писанки",
+    "many": "+{count} писанок",
+    "other": "+{count} писанки"
+  },
+  "story.reward": "Нагорода",
+  "story.next": "Далі",
+  "story.ok": "Гаразд",
+  "ui.quest.chainProgress": "Наказ кошового: {progress} з {target}",
+  "ui.quest.choreProgress": "Справа: {progress} з {target}"
 }

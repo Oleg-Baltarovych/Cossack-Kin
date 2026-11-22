@@ -1,22 +1,26 @@
 // Root DOM UI: the Pixi world canvas with the HUD and the bottom panel over it (SPEC §6.1). The game was loaded before
 // React started (ui/game.ts, main.tsx); here it runs: the loop while the page is visible, autosave, the world.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { startAutosave } from '../platform/autosave.ts';
 import { chunksLoaded } from '../platform/chunkReload.ts';
 import { driveGame } from '../platform/lifecycle.ts';
 import type { WorldApp } from '../render/index.ts';
 import { BootNotice } from './components/BootNotice.tsx';
+import { CoinFlight } from './components/CoinFlight.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel, type Reveal } from './components/Panel.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
+import { StoryModal } from './components/StoryModal.tsx';
 import { TapFeedback } from './components/TapFeedback.tsx';
 import { TierBanner } from './components/TierBanner.tsx';
 import { WorldError } from './components/WorldError.tsx';
 import { installGameDebug } from './debug/gameDebug.ts';
 import type { Game } from './game.ts';
-import { GameProvider, useGame } from './hooks/useGame.ts';
+import { GameProvider, useGame, useGameEvent } from './hooks/useGame.ts';
+import { useDialogFocus } from './hooks/useDialogFocus.ts';
 import { useWorld, type StartWorld } from './hooks/useWorld.ts';
+import { EMPTY_QUEUE, shownBeat, storyQueue } from './storyQueue.ts';
 import styles from './App.module.css';
 
 export function App({ game }: { game: Game }) {
@@ -63,10 +67,23 @@ export function App({ game }: { game: Game }) {
   );
 }
 
-/** HUD and panel, made inert (no focus, no screen reader) while a window is open — aria-modal alone is not. */
-function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notice'] }) {
+/**
+ * HUD and panel, made inert (no focus, no screen reader) while a window is open — aria-modal alone is not. Windows
+ * come one at a time: the save notice, then the return window, then the story beats in their queue (M2-25).
+ */
+export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notice'] }) {
   const away = useGame((s) => s.returnReport !== null);
   const [noticeOpen, setNoticeOpen] = useState(notice !== 'none');
+  // Beats the core fired (online, or several at the end of an absence) wait for their modal here.
+  const [queue, toQueue] = useReducer(storyQueue, EMPTY_QUEUE);
+  useGameEvent(
+    useCallback((e) => {
+      if (e.type === 'StoryBeatReached' || e.type === 'StateReplaced') toQueue(e);
+    }, []),
+  );
+  const beat = shownBeat(queue, away || noticeOpen);
+  const windowOpen = away || noticeOpen || beat !== null;
+  useDialogFocus(windowOpen);
   // A tap on a building opens its row in the sheet (SPEC §3.3, M2-13); a tap on open ground earns (TapFeedback).
   const [reveal, setReveal] = useState<Reveal | null>(null);
   useEffect(
@@ -78,28 +95,39 @@ function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notic
   );
   return (
     <div className={styles.ui}>
-      <TapFeedback world={world} />
-      <div className={styles.layer} inert={away || noticeOpen}>
-        <Hud />
-        <Panel
-          onZone={(zone) => world?.focusZone(zone)}
-          zoneSource={world?.onZoneChange}
-          reveal={reveal}
-          onReveal={(building, sheetTop) => world?.reveal(building, sheetTop)}
-        />
-      </div>
-      <TierBanner />
-      {/* The save notice first: the return window waits under it. */}
-      {noticeOpen ? (
-        <BootNotice
-          notice={notice}
-          onClose={() => {
-            setNoticeOpen(false);
-          }}
-        />
-      ) : (
-        <ReturnModal />
-      )}
+      <CoinFlight>
+        <TapFeedback world={world} />
+        <div className={styles.layer} inert={windowOpen}>
+          <Hud />
+          <Panel
+            onZone={(zone) => world?.focusZone(zone)}
+            zoneSource={world?.onZoneChange}
+            reveal={reveal}
+            onReveal={(building, sheetTop) => world?.reveal(building, sheetTop)}
+          />
+        </div>
+        <TierBanner />
+        {/* The save notice first: the return window waits under it, the story beats under both. */}
+        {noticeOpen ? (
+          <BootNotice
+            notice={notice}
+            onClose={() => {
+              setNoticeOpen(false);
+            }}
+          />
+        ) : (
+          <ReturnModal />
+        )}
+        {beat && (
+          <StoryModal
+            key={beat.key}
+            beat={beat}
+            onClose={() => {
+              toQueue({ type: 'close', key: beat.key });
+            }}
+          />
+        )}
+      </CoinFlight>
     </div>
   );
 }

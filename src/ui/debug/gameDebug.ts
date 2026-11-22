@@ -1,6 +1,6 @@
 // Dev/test game presets for screenshots (plan M1-17; M1-19 adds `showcase`). Only reached behind `__CK_DEBUG__`, so
 // production drops it. URL values are untrusted: one known key, an allowlist of values, the shared length cap.
-//   ?state=fresh|rich|mid|away|showcase — a new game (rich: with 1M ducats), a mid-land farm, that farm back after 9 h away (the return window),
+//   ?state=fresh|rich|mid|away|showcase — a new game (rich: with 1M ducats, its welcome beat seen), a mid-land farm, that farm back after 9 h away (the return window),
 //                     or every plot built to the tier the M-ART scene shows (the e2e world shots use it)
 //   ?state=tiers&tier=N — every building at visual tier N (0 = empty plots … 6; the Sich tops out at IV, plan M2-05),
 //                     locked ones too (the church at I–II: the scene ignores unlock conditions); invalid N: the top tier
@@ -180,8 +180,14 @@ export function presetState(preset: Preset, seed: number, now: number, tier = TO
   if (preset === 'away') return applyOffline(presetState('mid', seed, now - AWAY_MS), now).state;
   const s = createInitialState({ seed, now });
   if (preset === 'fresh') return s;
-  // Nothing built yet, but a purse for the first buildings (e2e: a purchase puts a building on its empty plot).
-  if (preset === 'rich') return { ...s, currencies: { ...s.currencies, ducats: Big.from(1e6), glory: Big.from(1e3) } };
+  // Nothing built yet, but a purse for the first buildings (e2e: a purchase puts a building on its empty plot). The
+  // welcome beat («Берег Дніпра») counts as seen: its modal (M2-25) would cover the first purchase of every rich shot.
+  if (preset === 'rich')
+    return {
+      ...s,
+      currencies: { ...s.currencies, ducats: Big.from(1e6), glory: Big.from(1e3) },
+      story: { seen: dueBeats(s, s.story.seen).map((b) => b.id) },
+    };
   if (preset === 'showcase') return played(showcase(s));
   if (preset === 'tiers') return played(atTier(s, tier));
   return played({

@@ -1,8 +1,8 @@
 // Story beats and quests across a reload (plan M2-24 AC «e2e reload зберігає віхи й квести», SPEC §3.10, §2.5). The page
 // boots the committed v3 fixture (a played game) from its save slot, on a clock fixed at the fixture's `lastSeen`, so
 // no time passes and every number is exact. Through the UI the player builds the farm up to the church's unlock and
-// raises the church (the «Освячення Покрови» beat, with its glory); the chain steps and a chore (its taps) go through the
-// dev/test `__CK_GAME__.dispatch` (the quest UI is M2-25). After the reload the beats and the quests are the saved ones, and the
+// raises the church (the «Освячення Покрови» beat, with its glory, and its window — M2-25); the chain steps and a chore
+// are claimed in the quest strip (the chore's taps go through the dev/test `__CK_GAME__.dispatch`). After the reload the beats and the quests are the saved ones, and the
 // beat does not fire again: its glory is not granted twice.
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
@@ -79,29 +79,48 @@ test.describe('M2-24 story beats and quests across a reload', () => {
     expect(reached.story.seen).toEqual([...start.story.seen, 'khortytsia.pokrova']);
     // The beat's reward came once (the church itself costs ducats, not glory).
     expect(reached.currencies.glory.gt(gloryBefore)).toBe(true);
+    // Its window (M2-25) tells of it and holds the focus; Esc closes it and gives the focus back to the church button.
+    const pokrova = page.getByRole('dialog', { name: 'Освячення Покрови' });
+    await expect(pokrova).toContainText(/Нагорода\+\d+ слави/);
+    await expect(pokrova.getByRole('button', { name: 'Гаразд' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(pokrova).toBeHidden();
+    await expect(church).toBeFocused();
 
     // Claim every finished chain step (the fixture stands on «hire one more»: hire, then claim).
     const hire = page.getByRole('button', { name: /^Найняти/ });
     await expect(hire, 'exactly one hire button on the Sich tab').toHaveCount(1);
     await hire.click();
     await expect.poll(async () => (await gameState(page)).stats.hires).toBe(reached.stats.hires + 1);
+    // The quest strip at the top of the sheet (M2-25): «Забрати» on the chain line while its step is done.
+    // One line over the list: a finished chain step first, then a finished chore.
+    const strip = page.getByRole('region', { name: 'Завдання' });
+    const chainClaim = strip.locator('[data-quest="chain"]').getByRole('button', { name: /^Забрати/ });
+    const chainIndex = async () => {
+      const c = (await gameState(page)).quests.chain;
+      return c.kind === 'listed' ? c.index : Infinity;
+    };
     let claimed = 0;
     // Bounded: a chain step that could be claimed forever would hang here instead of failing.
-    while (claimed < 20 && (await dispatch(page, { type: 'claimQuest', kind: 'chain' })).includes('QuestClaimed'))
-      claimed++;
+    for (; claimed < 20 && (await chainClaim.count()) > 0; claimed++) {
+      const at = await chainIndex();
+      await chainClaim.click();
+      await expect.poll(chainIndex).toBeGreaterThan(at);
+    }
     expect(claimed, 'the chain stops at a goal not yet met').toBeLessThan(20);
     expect(claimed).toBeGreaterThan(0);
-    // The chore of the day (the fixture's is «tap 50 times»): tap until it is done, then claim it. Taps are capped per
-    // second, so the fixed clock steps one second whenever a tap is refused.
+    // The chore of the day (the fixture's is «tap 50 times»): tap until its «Забрати» shows, then claim it there. Taps
+    // are capped per second, so the fixed clock steps one second whenever a tap is refused.
     const chore = await gameState(page);
-    const claimChore = async () =>
-      (await dispatch(page, { type: 'claimQuest', kind: 'chore' })).includes('QuestClaimed');
+    const choreClaim = strip.locator('[data-quest="chore"]').getByRole('button', { name: /^Забрати/ });
     let clock = LAST_SEEN + AWAY_MS;
-    for (let i = 0; i < 400 && !(await claimChore()); i++) {
+    for (let i = 0; i < 400 && (await choreClaim.count()) === 0; i++) {
       if ((await dispatch(page, { type: 'tap' })).includes('Tapped')) continue;
       clock += 1000;
       await page.clock.setFixedTime(clock);
     }
+    await choreClaim.click();
+    await expect.poll(async () => (await gameState(page)).quests.chores.n).toBe(chore.quests.chores.n + 1);
     const before = await gameState(page);
     expect(before.quests.chain.kind === 'listed' && before.quests.chain.index).toBeGreaterThan(
       start.quests.chain.kind === 'listed' ? start.quests.chain.index : Infinity,

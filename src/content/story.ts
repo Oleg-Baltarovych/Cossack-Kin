@@ -20,6 +20,9 @@ export type StoryBeatId = (typeof STORY_BEAT_IDS)[number];
 /** Who looks out of the beat's frame (Q14: an existing sprite ×2; 48×48 portraits are M9). */
 export type PortraitId = 'kobzar' | 'messenger' | 'otaman';
 
+/** The largest sprite frame a portrait box holds (atlas px); the box is twice that (plan M2-25). Cosmetic. */
+export const PORTRAIT_MAX_PX = { w: 32, h: 36 } as const;
+
 /** A monotone condition: once it holds, it holds for good (levels and counters only grow within a land). */
 export type StoryTrigger =
   | { readonly kind: 'start' }

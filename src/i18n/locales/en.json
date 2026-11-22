@@ -195,5 +195,37 @@
   "quest.chore.hire10.title": {
     "one": "Hire {count} Cossack",
     "other": "Hire {count} Cossacks"
-  }
+  },
+  "ui.quest.region": "Tasks",
+  "ui.quest.progress": "{progress} of {target}",
+  "ui.quest.claim": "Claim",
+  "ui.quest.claimLabel": "Claim the reward: {reward}",
+  "ui.quest.count": "Count it",
+  "ui.quest.countLabel": "Count the chore without a reward",
+  "ui.quest.limit": "Daily reward limit: pays nothing.",
+  "ui.quest.claimable": "Reward waiting",
+  "ui.quest.claimed": "Received: {reward}",
+  "reward.incomeMinutes": {
+    "one": "{count} minute of income",
+    "other": "{count} minutes of income"
+  },
+  "reward.gloryMinutes": {
+    "one": "{count} minute of glory",
+    "other": "{count} minutes of glory"
+  },
+  "reward.pysanky": {
+    "one": "{count} pysanka",
+    "other": "{count} pysanky"
+  },
+  "granted.ducats": "+{value} ducats",
+  "granted.glory": "+{value} glory",
+  "granted.pysanky": {
+    "one": "+{count} pysanka",
+    "other": "+{count} pysanky"
+  },
+  "story.reward": "Reward",
+  "story.next": "Next",
+  "story.ok": "Got it",
+  "ui.quest.chainProgress": "Koshovyi's order: {progress} of {target}",
+  "ui.quest.choreProgress": "Chore: {progress} of {target}"
 }

@@ -25,6 +25,9 @@ import { windLookAt } from './systems/village-mechanics/wind.ts';
 import { PLOT_VARIANTS, VARIANT_SALT, type VariantPlot } from '../content/variants.ts';
 import { pickStable } from './rng.ts';
 import { AGENT_BUDGET, CART_PERIOD } from '../content/agents.ts';
+import type { Reward } from '../content/rewards.ts';
+import { STORY_BEATS, type PortraitId, type StoryBeatId } from '../content/story.ts';
+import { chainQuest, choreQuest, choreRewardsLeft, type QuestId, type QuestKind } from './systems/quests.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -272,11 +275,81 @@ export function tierBannerView(
 ): TierBannerView | null {
   // `TierReached.tier` counts milestones; the visual tier counts level 1 as tier I too (TIER_LEVELS).
   const tier = e.tier + 1;
-  if (e.zone === 'farm') {
-    const b = villageOf(state).buildings.find((x) => x.id === e.id);
-    return b ? { nameKey: b.nameKey, tier } : null;
-  }
-  const b = SICH_BUILDINGS.find((x) => x.id === e.id);
-  if (!b) return null;
-  return { nameKey: e.id === 'special' ? villageOf(state).sichSpecial.nameKey : b.nameKey, tier };
+  const nameKey = buildingNameKey(state, e.zone, e.id);
+  return nameKey === null ? null : { nameKey, tier };
+}
+
+/** The name key of a building of `zone` in the land (the land's own Sich building takes its land's), or null. */
+function buildingNameKey(state: GameState, zone: 'farm' | 'sich', id: string): string | null {
+  if (zone === 'farm') return villageOf(state).buildings.find((x) => x.id === id)?.nameKey ?? null;
+  if (id === 'special') return villageOf(state).sichSpecial.nameKey;
+  return SICH_BUILDINGS.find((x) => x.id === id)?.nameKey ?? null;
+}
+
+/**
+ * One line of the quest strip (plan M2-25, SPEC §3.10): the title key and its params (`target` fills `{count}` and
+ * `{level}`, `buildingKey` the generated step's `{building}`), the progress shown (never past the target), the reward,
+ * and whether claiming it pays (`rewarded`: false for a chore past the day's limit — the claim still counts it).
+ */
+export interface QuestLineView {
+  readonly kind: QuestKind;
+  readonly id: QuestId;
+  readonly titleKey: string;
+  readonly buildingKey: string | null;
+  readonly progress: number;
+  readonly target: number;
+  readonly done: boolean;
+  readonly reward: Reward;
+  readonly rewarded: boolean;
+}
+
+/** The active quest of `kind` as a strip line; null for the chain once it is through. */
+export function questLineView(state: GameState, kind: QuestKind): QuestLineView | null {
+  const q = kind === 'chain' ? chainQuest(state) : choreQuest(state);
+  if (!q) return null;
+  const buildingKey =
+    q.id === 'chain.generated' && q.goal.kind !== 'count'
+      ? buildingNameKey(state, q.goal.kind === 'building' ? 'farm' : 'sich', q.goal.id)
+      : null;
+  return {
+    kind,
+    id: q.id,
+    titleKey: q.titleKey,
+    buildingKey,
+    progress: Math.min(Math.max(0, q.progress), q.target),
+    target: q.target,
+    done: q.done,
+    reward: q.reward,
+    rewarded: kind === 'chain' || choreRewardsLeft(state) > 0,
+  };
+}
+
+/** Something waits to be claimed (the red dot): a finished chain step, or a finished chore that still pays today. */
+export function questClaimable(state: GameState): boolean {
+  if (chainQuest(state)?.done) return true;
+  return choreQuest(state).done && choreRewardsLeft(state) > 0;
+}
+
+/**
+ * Which quest the one-line strip in the sheet shows (SPEC §10.3 «одним рядком»; M2-25 review): a claim waiting first —
+ * the chain step, then a chore that still pays — otherwise the chain step; the chore once the chain is through. Both
+ * lines in full are on the «Ще» tab.
+ */
+export function stripQuestKind(state: GameState): QuestKind {
+  const chain = chainQuest(state);
+  if (chain?.done) return 'chain';
+  if (choreQuest(state).done && choreRewardsLeft(state) > 0) return 'chore';
+  return chain ? 'chain' : 'chore';
+}
+
+/** What the story modal shows of a beat (plan M2-25, SPEC §2.5); the reward it came to is in its event. */
+export interface StoryBeatView {
+  readonly titleKey: string;
+  readonly textKey: string;
+  readonly portrait: PortraitId;
+}
+
+export function storyBeatView(id: StoryBeatId): StoryBeatView | null {
+  const b = STORY_BEATS.find((x) => x.id === id);
+  return b ? { titleKey: b.titleKey, textKey: b.textKey, portrait: b.portrait } : null;
 }

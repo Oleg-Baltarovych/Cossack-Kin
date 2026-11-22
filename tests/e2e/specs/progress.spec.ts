@@ -7,6 +7,7 @@ import { chooseSave } from '../../../src/core/save/load.ts';
 import { resume } from '../../../src/core/offline.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
+import { closeWelcome } from '../helpers/story.ts';
 import { waitReady } from '../helpers/world.ts';
 
 const URL = '/?time=13:00&seed=5&ui=1';
@@ -41,6 +42,8 @@ test.describe('M1-20 progress across reloads', () => {
     await page.clock.setFixedTime(T0);
     await page.goto(URL);
     await waitReady(page);
+    // A new game: its welcome beat first (M2-25).
+    await closeWelcome(page);
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     const before = await gameState(page);
     expect(before.village.levels.field).toBe(1);
@@ -59,6 +62,8 @@ test.describe('M1-20 progress across reloads', () => {
     await page.clock.setFixedTime(T0);
     await page.goto(URL);
     await waitReady(page);
+    // A new game: its welcome beat first (M2-25).
+    await closeWelcome(page);
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     // Hiding the page saves it (lifecycle onPause): that save is what the reload loads.
     await hide(page);

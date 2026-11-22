@@ -4,6 +4,8 @@
 // (`reveal`) opens half with that building's row in view and lit; `onReveal` then lets the camera clear it. Choosing
 // «Хутір» or «Січ» also takes the camera to that zone (SPEC §6.1, M2-02) through `onZone`; the other way round, the tab
 // follows the camera where it settles (`zoneSource`) — without moving the camera again, moving focus, or leaving «Ще».
+// Over the «Хутір»/«Січ» lists stands the one-line quest strip, «Ще» lists both quests (M2-25); a red dot on «Ще» marks
+// a claim while the sheet is down.
 import {
   useEffect,
   useId,
@@ -23,9 +25,10 @@ import { BUY_MODES } from '../../content/economy.ts';
 import { LANGS } from '../../core/state.ts';
 import type { BuyMode } from '../../core/economy.ts';
 import { villageOf } from '../../core/modifiers.ts';
-import { visibleSichIds } from '../../core/selectors.ts';
+import { questClaimable, visibleSichIds } from '../../core/selectors.ts';
 import { useAct, useGame } from '../hooks/useGame.ts';
 import { useText } from '../hooks/useText.ts';
+import { QuestList, QuestStrip } from './QuestStrip.tsx';
 import { FarmRow, HireRow, SichRow } from './Rows.tsx';
 import styles from './Panel.module.css';
 
@@ -386,6 +389,10 @@ export function Panel({ onZone, zoneSource, reveal = null, onReveal, initial = '
   } as CSSProperties;
   const collapsed = sheet === 'collapsed';
   const marks = { lit, current };
+  // A red dot (SPEC §6.7) on «Ще» — where the tasks live (§10.3) — while the sheet is down and a quest waits to be
+  // claimed. Not by colour alone: the tab's description says it.
+  const claimable = useGame(questClaimable);
+  const dotTab: Tab | null = collapsed && claimable ? 'more' : null;
   return (
     <section
       ref={sectionRef}
@@ -422,15 +429,20 @@ export function Panel({ onZone, zoneSource, reveal = null, onReveal, initial = '
               className={styles.tab}
               aria-selected={id === tab}
               aria-controls={`${base}-panel`}
+              aria-describedby={id === dotTab ? `${base}-dot` : undefined}
               tabIndex={id === focusTab ? 0 : -1}
               onClick={() => {
                 select(id);
               }}
             >
               {t(`ui.tab.${id}`)}
+              {id === dotTab && <span className={styles.dot} aria-hidden="true" data-dot="" />}
             </button>
           ))}
         </div>
+        <span id={`${base}-dot`} hidden>
+          {t('ui.quest.claimable')}
+        </span>
         <button
           ref={toggleRef}
           type="button"
@@ -451,11 +463,17 @@ export function Panel({ onZone, zoneSource, reveal = null, onReveal, initial = '
         hidden={collapsed}
         className={styles.body}
       >
+        {tab !== 'more' && <QuestStrip />}
         {tab !== 'more' && <ModePicker mode={mode} onChange={setMode} />}
         <div ref={scrollRef} className={styles.scroll}>
           {tab === 'farm' && <FarmList mode={mode} marks={marks} />}
           {tab === 'sich' && <SichList mode={mode} marks={marks} />}
-          {tab === 'more' && <Settings />}
+          {tab === 'more' && (
+            <>
+              <QuestList />
+              <Settings />
+            </>
+          )}
         </div>
       </div>
     </section>
