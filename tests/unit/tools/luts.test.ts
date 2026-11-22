@@ -54,17 +54,39 @@ describe('buildLut', () => {
     expect(luma(plaster)).toBeLessThan(luma(hex(master.ramps['plaster']?.[4] ?? '#000000')) * 0.75);
   });
 
-  it('golden hour: grass warms but stays green (not olive mud), darkest tones lean to ink 3', () => {
+  it('golden hour (M2-29, ART-19 deferred 1): the meadow sinks to a deep warm olive, lit walls and thatch stay bright', () => {
     const lut = buildLut(GRADE_LOOKS.golden, palette);
-    for (const i of [2, 3, 4]) {
+    // The meadow's body (grass 2–3): a tone darker than by day, olive (yellow-green, green still ≥ red), never brown mud.
+    for (const i of [2, 3]) {
       const src = ramp('grass', i);
       const grass = lutLookup(lut, src);
-      expect(grass[1]).toBeGreaterThan(grass[0] + 20); // still clearly green
+      expect(luma(grass), `grass ${String(i)}`).toBeLessThan(luma(src) * 0.8);
+      expect(grass[1], `grass ${String(i)} not brown`).toBeGreaterThanOrEqual(grass[0]);
+      expect(hue(grass), `grass ${String(i)} olive`).toBeGreaterThanOrEqual(60);
+      expect(hue(grass), `grass ${String(i)} olive`).toBeLessThanOrEqual(100);
       expect(grass[0] - grass[1]).toBeGreaterThan(src[0] - src[1]); // warmer: red gained on green
     }
+    // Sunlit whitewash and thatch keep (or gain) their value: against the darker meadow they glow (Kuindzhi).
+    for (const [name, i] of [
+      ['plaster', 4],
+      ['plaster', 5],
+      ['thatch', 4],
+      ['thatch', 5],
+    ] as const) {
+      const src = ramp(name, i);
+      const lit = lutLookup(lut, src);
+      expect(luma(lit), `${name} ${String(i)}`).toBeGreaterThanOrEqual(luma(src) * 0.97);
+      expect(lit[0], `${name} ${String(i)} warm`).toBeGreaterThan(lit[2] + 30);
+    }
+    // Wall-to-meadow contrast clearly above the day's.
+    const dayLut = buildLut(GRADE_LOOKS.day, palette);
+    const ratio = (l: Uint8Array): number =>
+      luma(lutLookup(l, ramp('plaster', 5))) / luma(lutLookup(l, ramp('grass', 3)));
+    expect(ratio(lut)).toBeGreaterThan(ratio(dayLut) * 1.3);
     const earth = lutLookup(lut, ramp('earth', 0));
-    expect(Math.abs(earth[0] - ramp('ink', 3)[0])).toBeLessThan(20);
+    expect(Math.abs(earth[0] - ramp('ink', 2)[0])).toBeLessThan(20); // deep: about ink 2 (a ramp step darker than by day)
     expect(earth[2]).toBeGreaterThan(ramp('earth', 0)[2]); // toward violet ink 3, away from brown
+    expect(earth[0] - earth[2]).toBeLessThan(ramp('earth', 0)[0] - ramp('earth', 0)[2]);
   });
 
   it('night ground (M0 bands): blue hue, top band no lighter than cloth 1 and darker than the cloth 2 horizon, never black, bands distinct', () => {

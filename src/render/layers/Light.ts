@@ -28,7 +28,7 @@ import {
   TORCH_LIGHT,
 } from '../atmosphere/config.ts';
 import { emissiveLevel } from '../atmosphere/emissive.ts';
-import { fireflies, flicker, paintPool, poolLook } from '../atmosphere/nightLights.ts';
+import { fireflies, flicker, paintPool, paintSpill, poolLook } from '../atmosphere/nightLights.ts';
 import { claimParticles } from '../fx/registry.ts';
 import type { DayCycle } from '../atmosphere/dayCycle.ts';
 import { lutBucket } from '../atmosphere/grading.ts';
@@ -121,13 +121,14 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
     const rain = weather === 'rain' ? createRain(layout) : null;
     rain?.setBudget(lessMotion ? 0 : budget.splashes, budget.rainFar);
     container.addChild(haze, night, ...(rain ? [rain.container] : []), rays, dust, flyLayer);
-    // Light pools: one texture per size, shared by the sprites (fire: round; windows: flat, by the building's width).
+    // Light pools: one texture per size, shared by the sprites (fire: round; windows: a spill from the wall foot, by
+    // the building's width).
     const poolTextures = new Map<string, CpuTexture>();
-    const poolTexture = (rx: number, ry: number, color: number): Texture => {
-      const key = `${String(rx)}:${String(ry)}:${String(color)}`;
+    const poolTexture = (rx: number, ry: number, color: number, spill = false): Texture => {
+      const key = `${spill ? 's' : 'p'}:${String(rx)}:${String(ry)}:${String(color)}`;
       let tex = poolTextures.get(key);
       if (!tex) {
-        const img = paintPool(rx, ry, color);
+        const img = (spill ? paintSpill : paintPool)(rx, ry, color);
         tex = cpuTexture(img.w, img.h, img.pixels);
         poolTextures.set(key, tex);
       }
@@ -142,12 +143,13 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
       const look = poolLook(prop, mask ? mask.width : null);
       if (!look) return [];
       const sprite = new Sprite({
-        texture: poolTexture(look.rx, look.ry, rampColor(look.color[0], look.color[1])),
+        texture: poolTexture(look.rx, look.ry, rampColor(look.color[0], look.color[1]), look.spill),
         roundPixels: true,
       });
-      sprite.anchor.set(0.5);
+      // A spill's top row (the wall foot) sits on its row; a round pool centres on it.
+      sprite.anchor.set(0.5, look.spill ? 0 : 0.5);
       night.addChild(sprite);
-      // A fire's pool centres on the flames; a window pool lies on the ground in front of the wall.
+      // A fire's pool centres on the flames; a window spill lies on the ground in front of the wall.
       const { fire, below, dx } = look;
       return [{ prop, sprite, fire, seed, below, dx, alpha: look.alpha }];
     });
