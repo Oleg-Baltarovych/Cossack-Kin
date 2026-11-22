@@ -70,6 +70,7 @@ export interface Prop {
     | 'khata.t1'
     | 'khata.t3'
     | 'tyn'
+    | 'tyn-end'
     | 'mallows'
     | 'palisade.h0'
     | 'palisade.h1'
@@ -292,7 +293,10 @@ export interface Decal {
     | 'yard'
     | 'trail.l'
     | 'trail.r'
-    | 'val-end'
+    | 'val-end.val'
+    | 'val-end.moat'
+    | 'val-end.rampart'
+    | 'ditch-end'
     | 'maidan-edge'
     | 'road-mouth'
     | 'road-track'
@@ -426,13 +430,19 @@ export interface GroundSegment {
 /**
  * The river under the horizon (ART-09): `rows` of water from the horizon down over [x0, x1). Toward `x1` the bank
  * comes forward: over the last `taper` px each row ends a little earlier than the one above it (the nearest row
- * first), so the water runs out to the far bank instead of ending on a vertical cut.
+ * first), so the water runs out to the far bank instead of ending on a vertical cut. `bank` (M2-29 A2) makes that
+ * waterline ragged and stepped instead of a clean diagonal.
  */
 export interface River {
   readonly x0: number;
   readonly x1: number;
   readonly rows: number;
   readonly taper: number;
+  /**
+   * Per row (row 0 first): how many px before `x1` the row ends — non-decreasing, from 0 to `taper`. Held values are
+   * the bank's vertical earth cuts, jumps its runs (the `bank` decal draws both). Absent = the clean 2:1 taper.
+   */
+  readonly bank?: readonly number[];
   /** Rows where a boulder stands on the waterline at the river's end (the `bank` decal draws it, water foams at it). */
   readonly rocks?: readonly number[];
 }
@@ -714,7 +724,7 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     ...FARM_VARIANTS,
     // The near left corner at the closer zoom level (M2-29 framing tail: plain grass there): the end of a wattle fence
     // with marigolds at its foot, low enough to stay fully under the half sheet at the normal level on 360/390/412.
-    { sprite: 'tyn', x: 64, ground: 346 },
+    { sprite: 'tyn-end', x: 64, ground: 346 },
     { sprite: 'flowers.a', x: 92, ground: 348 },
   ],
   // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
@@ -1175,7 +1185,12 @@ export const KHORTYTSIA_SICH: ZoneScene = {
       ground: 40,
       plot: { building: 'kurins', from: 1, requires: [{ building: 'walls', from: 1 }] },
     },
-    { sprite: 'val-end', x: 0, ground: 32, plot: { building: 'walls', from: 1 } },
+    // The rampart's end by walls tier (M2-29 A2): the moat and the rampart's walk start inside it on ragged edges.
+    { sprite: 'val-end.val', x: 0, ground: 32, plot: { building: 'walls', from: 1, until: 2 } },
+    { sprite: 'val-end.moat', x: 0, ground: 32, plot: { building: 'walls', from: 2, until: 3 } },
+    { sprite: 'val-end.rampart', x: 0, ground: 32, plot: { building: 'walls', from: 3 } },
+    // The outer moat's ragged head at the zone edge (walls II+), not a vertical cut at x 0.
+    { sprite: 'ditch-end', x: 0, ground: 0, plot: { building: 'walls', from: 2 } },
     // The plank bridge over the moat where the gate path crosses it (walls II+), over the road track.
     { sprite: 'moat-bridge', x: 198, ground: 57, plot: { building: 'walls', from: 2 } },
     // The trails run from the gate to the kurin doors: they need both.
@@ -1292,7 +1307,16 @@ export const TIER_ART_PENDING: Readonly<Partial<Record<PlotBuilding, string>>> =
 export const KHORTYTSIA_WORLD: WorldLayout = composeWorld(
   {
     // The Dnipro between the far bank and the settlement: it covers the far meadow row but the near bank below it.
-    river: { x0: 0, x1: KHORTYTSIA_FARM.width + KHORTYTSIA_SUBURB.width, rows: 26, taper: 50, rocks: [6, 14, 21] },
+    // Its end (M2-29 A2, art-director M2-15 tail 4): a ragged bank — cuts held 1–3 rows, runs of 1–9 px, the boulders
+    // on held cuts.
+    river: {
+      x0: 0,
+      x1: KHORTYTSIA_FARM.width + KHORTYTSIA_SUBURB.width,
+      rows: 26,
+      taper: 50,
+      bank: [0, 0, 3, 4, 4, 9, 9, 10, 12, 13, 13, 19, 19, 20, 21, 21, 26, 27, 28, 33, 33, 34, 36, 41, 44, 50],
+      rocks: [6, 14, 21],
+    },
     links: KHORTYTSIA_LINKS,
     agents: KHORTYTSIA_AGENTS,
     // The far plane layer (parallax 0.2) is ~695 px wide on a 400 px view, the mid layer (0.5) ~1140 px. The M-ART

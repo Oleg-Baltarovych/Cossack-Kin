@@ -2,8 +2,13 @@
 // Pure: no Pixi, no DOM. World x everywhere; screen x = world x − camX.
 import type { GroundSegment, River, WorldZone, ZoneId } from '../content/villages/khortytsia.layout.ts';
 
-/** World x where river row `r` (0 = right under the horizon) ends: the far row at x1, the nearest `taper` px before. */
+/**
+ * World x where river row `r` (0 = right under the horizon) ends: the far row at x1, the nearest `taper` px before —
+ * on the stepped `bank` profile when the river has one, else on a clean taper.
+ */
 export function riverRowEnd(river: River, r: number): number {
+  const stepped = river.bank?.[r];
+  if (stepped !== undefined) return river.x1 - stepped;
   const near = river.rows > 1 ? r / (river.rows - 1) : 1;
   return river.x1 - Math.round(river.taper * near);
 }

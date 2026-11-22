@@ -1,14 +1,19 @@
 // Zone-edge ground recipes of the continuous world (plan M2-01, art-director seam review): flat decals drawn over the
 // ground tiles where the suburb meets the Sich and where the Dnipro ends. Top-left anchored; transparent outside the
 // shape so the tiles under them show through.
-// - `val-end`      the rampart's left end: the val tile (same pixels) cut by a 1-px-per-row diagonal ramp, a lit earth
-//                lip on the ramp, a grass-tuft fringe, grass beyond it;
+// - `val-end`      the rampart's left end (variants by walls tier: `val` I, `moat` II, `rampart` III+): the row's tile
+//                (same pixels) cut by a ragged stepped ramp (M2-29 A2) — lit west-facing earth cuts on the held rows,
+//                shaded treads under the turf on the steps, a grass-tuft fringe, grass beyond it; the moat (and the
+//                rampart's walk and revetment) start inside it on a ragged edge with an earth cut, not at x 64;
+// - `ditch-end`  the left end of the moat outside the walls (walls II+, Sich x 0): meadow over the tile's water up to a
+//                ragged start, a shaded earth cut where the water begins, the near lip wrapping under it;
 // - `maidan-edge`   the maidan's left edge: grass over a ragged edge (2–6 px steps every 6–10 rows, like `maidan-end`),
 //                earth crumbs into the grass, tufts over the dirt, a rounded bottom-left corner;
 // - `road-mouth` the road's end at the Sich: it widens into a ragged dirt mouth and its ruts bend up-right;
 // - `road-track`    the road's ruts running on across the maidan to the gate (faint dashes, like `trail`);
-// - `bank`       where the river ends: a sand lip along the 2:1 waterline, a darker clay face behind it, granite
-//                boulders on the waterline, a reed clump at the foot.
+// - `bank`       where the river ends, on the river's stepped `bank` profile (M2-29 A2): a lit sand lip on every
+//                run with a clay face under it, a lit earth cut on every held row, granite boulders on the waterline,
+//                a reed clump at the foot.
 // Recipe parts: `light: false`, `occlusion: false`, no outline (ground).
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { compose } from './passes.ts';
@@ -18,7 +23,8 @@ import { reeds } from './recipes-plants.ts';
 import { seedOf, valueNoise } from './noise.ts';
 import { seededRng } from './rng.ts';
 import type { SpriteGenerator } from './types.ts';
-import { paintVal } from '../khortytsia/ground/index.ts';
+import { riverRowEnd } from '../../../src/render/zones.ts';
+import { MOAT, paintMeadow, paintMoat, paintRampart, paintVal } from '../khortytsia/ground/index.ts';
 
 /** Piece → frame size (logical px) and the recipe that draws it. */
 export const EDGE_SIZES = {
@@ -27,17 +33,18 @@ export const EDGE_SIZES = {
   'road-mouth': { w: 88, h: 64 },
   'road-track': { w: 192, h: 96 },
   bank: { w: 72, h: 40 },
+  'ditch-end': { w: 24, h: 12 },
 } as const;
 export type EdgePiece = keyof typeof EDGE_SIZES;
+/** Pieces drawn per tier of the building under them (`<piece>.<variant>` frames). */
+const EDGE_VARIANTS: Partial<Record<EdgePiece, readonly string[]>> = { 'val-end': ['val', 'moat', 'rampart'] };
 
 /** The river's rows and the decal's left edge: `bank` puts each row's end where render/zones.ts ends the water. */
 const RIVER = KHORTYTSIA_WORLD.river ?? { x0: 0, x1: 0, rows: 0, taper: 0 };
 /** Columns of land left of the nearest row's end inside the `bank` frame. */
 export const BANK_MARGIN = 10;
-const rowEnd = (r: number): number => {
-  const near = RIVER.rows > 1 ? r / (RIVER.rows - 1) : 1;
-  return RIVER.taper + BANK_MARGIN - Math.round(RIVER.taper * near);
-};
+/** Frame column where river row `r` ends (render/zones.ts `riverRowEnd`: the same stepped profile as the water). */
+const rowEnd = (r: number): number => riverRowEnd(RIVER, r) - (RIVER.x1 - RIVER.taper - BANK_MARGIN);
 
 const grassOver = (plot: Plot, w: number, h: number, seed: string, keep: (x: number, y: number) => boolean): void => {
   const grass = new Plot();
@@ -55,26 +62,90 @@ const grassOver = (plot: Plot, w: number, h: number, seed: string, keep: (x: num
   }
 };
 
-function valEnd(plot: Plot): void {
+/**
+ * The ramp's edge per row (its first earth column): from 46 at the crest (just left of the corner tower's base) to 18
+ * at the toe, held 1–4 rows (earth cuts) and stepping 1–4 px (treads) — ragged, never one straight slope.
+ */
+const VAL_EDGE = [
+  46, 46, 45, 42, 41, 41, 41, 37, 36, 36, 35, 32, 32, 31, 31, 28, 27, 27, 27, 24, 23, 23, 22, 22, 21, 19, 19, 19, 18,
+  18, 18, 18,
+] as const;
+/** First column of the moat's rows (far edge, water ×3, near lip ×2): ragged, well right of the ramp. */
+const MOAT_START = [34, 33, 30, 31, 32, 35] as const;
+/** The rampart's plank walk (rows 3–6) ends in a post at `WALK_END`; its revetment (rows 13–20) in one at `REV_END`. */
+const WALK_END = 44;
+const REV_END = 36;
+
+function valEnd(plot: Plot, variant: string): void {
   const { w, h } = EDGE_SIZES['val-end'];
   paintVal(plot);
-  // The ramp: the crest starts 46 px in (just left of the corner tower's base), the toe at 18 px — one px per row, the
-  // earth's end lit (top-left light).
-  const edge = (y: number): number => 46 - Math.round((y * 28) / (h - 1));
+  if (variant !== 'val') {
+    // The moat (from walls III the rampart) over the val, each feature only from its own ragged start.
+    const full = new Plot();
+    paintVal(full);
+    if (variant === 'rampart') paintRampart(full);
+    else paintMoat(full);
+    const start = (y: number): number => {
+      const m = MOAT_START[y - MOAT.edge];
+      if (m !== undefined) return m;
+      if (variant !== 'rampart') return w;
+      if (y >= 3 && y <= 6) return WALK_END;
+      if (y >= 13 && y <= 20) return y === 14 ? REV_END - 2 : y === 20 ? REV_END - 1 : REV_END;
+      return w;
+    };
+    for (let y = 0; y < h; y++) {
+      for (let x = start(y); x < w; x++) {
+        const px = full.get(x, y);
+        if (px) plot.set(x, y, px.ramp, px.shade);
+      }
+    }
+    // The water's left end: an earth cut facing away from the light (earth 1); the lit far edge steps over it.
+    for (let y = MOAT.top; y < MOAT.bottom; y++) {
+      const m = start(y);
+      plot.set(m - 1, y, 'earth', 1);
+      for (let x = m; x < start(y - 1); x++) plot.set(x, y - 1, 'earth', 4);
+    }
+    if (variant === 'rampart') {
+      // End posts: the walk's (a lit face, a dark side) and the revetment's (like its 32-px posts).
+      for (let y = 2; y <= 7; y++) {
+        plot.set(WALK_END, y, 'wood', y === 2 ? 4 : 3);
+        plot.set(WALK_END + 1, y, 'wood', 1);
+      }
+      for (let y = 13; y <= 20; y++) {
+        plot.set(REV_END, y, 'wood', y === 13 ? 3 : 2);
+        plot.set(REV_END + 1, y, 'wood', 0);
+      }
+    }
+  }
+  const edge = (y: number): number => VAL_EDGE[y] ?? 18;
   for (let y = 0; y < h; y++) {
     const e = edge(y);
     for (let x = 0; x < e; x++) plot.delete(x, y);
-    plot.set(e, y, 'earth', 5);
-    plot.set(e + 1, y, 'earth', 4);
+    const above = y > 0 ? edge(y - 1) : e;
+    if (above > e) {
+      // A tread: earth reaching out under the turf of the row above faces away from the light — shaded, darkest
+      // where it meets the cut above; its outer end catches the light.
+      for (let x = e; x < above; x++) plot.set(x, y, 'earth', x === above - 1 ? 1 : 2);
+      plot.set(e, y, 'earth', 4);
+    } else {
+      // A held row: the west-facing earth cut, lit (top-left light).
+      plot.set(e, y, 'earth', 5);
+      plot.set(e + 1, y, 'earth', 4);
+    }
   }
   grassOver(plot, w, h, 'val-end', (x, y) => x < edge(y));
-  // Tuft fringe along the ramp: grass blades leaning onto the lip every 3–5 rows; a dithered toe into the grass.
+  // Tuft fringe: blades leaning onto the cut every 3–5 rows, turf overhanging the wider treads; a dithered toe.
   const rng = seededRng('val-end:fringe');
   for (let y = 1; y < h; y += 3 + Math.floor(rng() * 3)) {
     const e = edge(y);
     plot.set(e, y, 'grass', 3);
     plot.set(e - 1, y - 1, 'grass', 4);
     if (rng() < 0.5) plot.set(e + 1, y, 'grass', 2);
+  }
+  for (let y = 1; y < h; y++) {
+    const e = edge(y);
+    const above = edge(y - 1);
+    if (above - e >= 3) plot.set(e + 1 + Math.floor(rng() * (above - e - 2)), y - 1, 'grass', 3);
   }
   for (let x = 14; x < 20; x++) if (x % 2 === 0) plot.set(x, h - 1, 'earth', 1);
 }
@@ -179,25 +250,38 @@ function track(plot: Plot): void {
 function bank(plot: Plot): void {
   const { h } = EDGE_SIZES.bank;
   const rows = RIVER.rows;
-  // The clay face under the lip: 4 rows deep below every lip px (it faces the viewer, in shadow; light comes from the
-  // top-left), darkest right under the lip, its lower edge dithered into the meadow.
+  /** Columns [a, b) of row `r`'s run (land under the water of the row above); the far row's lip is 2 px. */
+  const run = (r: number): readonly [number, number] => [rowEnd(r), r === 0 ? rowEnd(0) + 2 : rowEnd(r - 1)];
+  // The clay face under every run (it faces the viewer, in shadow; light comes from the top-left): 3 rows deep, darkest
+  // right under the lip, a 4th row dithered into the meadow.
   for (let r = 0; r < rows; r++) {
-    const e = rowEnd(r);
-    for (let k = 1; k <= 4; k++) {
-      for (const x of [e, e + 1]) {
+    const [a, b] = run(r);
+    for (let x = a; x < b; x++) {
+      for (let k = 1; k <= 4; k++) {
         if (k === 4 && (x + r) % 2 === 0) continue;
         plot.set(x, r + k, 'earth', k <= 2 ? 1 : 2);
       }
     }
   }
-  // The waterline: a sand lip as wide as the row's step (a clean 2:1 diagonal), lit.
   for (let r = 0; r < rows; r++) {
-    const e = rowEnd(r);
-    plot.set(e, r, 'earth', 5);
-    plot.set(e + 1, r, 'earth', 4);
+    const [a, b] = run(r);
+    if (b > a) {
+      // The waterline on a run: a sand lip, lit on its water half, a step darker toward the cut behind it.
+      for (let x = a; x < b; x++) plot.set(x, r, 'earth', x - a < Math.max(1, (b - a) / 2) ? 5 : 4);
+    } else {
+      // A held row: the bank's west-facing earth cut, lit, the clay showing behind it.
+      plot.set(a, r, 'earth', 4);
+      plot.set(a + 1, r, 'earth', 3);
+      if (r % 3 === 0) plot.set(a + 2, r, 'earth', 2);
+    }
   }
-  // Grass tufts along the top of the lip.
-  for (let r = 3; r < rows - 2; r += 5) grassTuft(plot, rowEnd(r) + 8, r, 3, 3, r % 2 === 0);
+  // Grass tufts on the land behind the longer runs; a turf crumb at the head of a cut.
+  for (let r = 2; r < rows - 2; r++) {
+    const [a, b] = run(r);
+    const [pa, pb] = run(r - 1);
+    if (b - a >= 5) grassTuft(plot, b + 3, r, 3, 3, r % 2 === 0);
+    else if (b === a && pb > pa) plot.set(a + 4, r, 'grass', 3);
+  }
   // Granite boulders on the waterline (the river's `rocks` rows: the water foams at them): 5×4, a 1-px top-left
   // highlight, a darker underside, the corners rounded off.
   for (const r of RIVER.rocks ?? []) {
@@ -215,8 +299,35 @@ function bank(plot: Plot): void {
   reeds(plot, foot + 4, 12, h - 4, 12, 'bank');
 }
 
-const RECIPES: Readonly<Record<EdgePiece, (plot: Plot) => void>> = {
+/**
+ * Water start per tile row of `ditch-end` (rows 3–8 water, 9–10 the near lip): ragged — the moat ends on a rounded,
+ * stepped head at Sich x 3–12 instead of a vertical cut at x 0.
+ */
+const DITCH_START = [7, 4, 3, 3, 5, 9, 8, 12] as const;
+const DITCH_TOP = 3;
+const DITCH_LIP = 9;
+
+function ditchEnd(plot: Plot): void {
+  // The meadow tile's own px (the ditch tile is meadow + water) up to the water's start: no seam with the tile.
+  const meadow = new Plot();
+  paintMeadow(meadow, 'ground.meadow');
+  DITCH_START.forEach((s, i) => {
+    const y = DITCH_TOP + i;
+    for (let x = 0; x < s; x++) {
+      const px = meadow.get(x, y);
+      if (px) plot.set(x, y, px.ramp, px.shade);
+    }
+    if (y < DITCH_LIP) {
+      // The cut where the water begins faces away from the light: earth 1, a crumb of earth 2 on the turf beside it.
+      plot.set(s - 1, y, 'earth', 1);
+      if ((s + y) % 2 === 0) plot.set(s - 2, y, 'earth', 2);
+    } else plot.set(s - 1, y, 'earth', 2);
+  });
+}
+
+const RECIPES: Readonly<Record<EdgePiece, (plot: Plot, variant: string) => void>> = {
   'val-end': valEnd,
+  'ditch-end': ditchEnd,
   'maidan-edge': maidanEnd,
   'road-mouth': roadMouth,
   'road-track': track,
@@ -230,11 +341,12 @@ export function edgeGenerator(piece: EdgePiece): SpriteGenerator {
     id: piece,
     size: EDGE_SIZES[piece],
     frames: { idle: 1 },
+    ...(EDGE_VARIANTS[piece] ? { variants: EDGE_VARIANTS[piece] } : {}),
     // The road's mouth hangs left of its pivot (it is placed from the Sich's side, over the maidan's edge).
     anchor: piece === 'road-mouth' ? { x: 1, y: 0 } : { x: 0, y: 0 },
-    generate(_rng, { buffer, rampSize }) {
+    generate(_rng, { variant, buffer, rampSize }) {
       const plot = new Plot();
-      RECIPES[piece](plot);
+      RECIPES[piece](plot, variant ?? '');
       compose(buffer, [plot.part(1, 1)], rampSize, { light: false, occlusion: false });
     },
   };

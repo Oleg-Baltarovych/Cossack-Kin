@@ -12,6 +12,16 @@ describe('river rows (M2-01)', () => {
     for (let r = 1; r < river.rows; r++) expect(riverRowEnd(river, r)).toBeLessThanOrEqual(riverRowEnd(river, r - 1));
   });
 
+  it('a stepped bank profile (M2-29 A2) ends each row `bank[r]` px before x1 instead of on the clean taper', () => {
+    const bank = Array.from({ length: 26 }, (_, r) => (r < 2 ? 0 : r < 5 ? 4 : 50));
+    const stepped: River = { ...river, bank };
+    expect(riverRowEnd(stepped, 0)).toBe(1000);
+    expect(riverRowEnd(stepped, 1)).toBe(1000);
+    expect(riverRowEnd(stepped, 3)).toBe(996);
+    expect(riverRowEnd(stepped, 25)).toBe(950);
+    expect(riverRowsAt(stepped, 997)).toBe(2);
+  });
+
   it('counts the water rows over a world column: all of them before the taper, none past x1', () => {
     expect(riverRowsAt(river, 0)).toBe(26);
     expect(riverRowsAt(river, 949)).toBe(26);
