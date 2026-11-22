@@ -3,6 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { SPEC_MAX_DRAW_CALLS } from '../helpers/budgets.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
 
 const today = (): string => {
@@ -11,7 +12,6 @@ const today = (): string => {
   return `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 const DIR = join('reports', 'screens', today());
-const MAX_DRAW_CALLS = 30;
 
 /** A device-px shot for the UI review, draw calls within budget. */
 async function shoot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
@@ -19,7 +19,7 @@ async function shoot(page: Page, testInfo: TestInfo, name: string): Promise<void
   const file = `sheet-${name}-${testInfo.project.name}.png`;
   const png = await page.screenshot({ path: join(DIR, file), scale: 'device' });
   await testInfo.attach(file, { body: png, contentType: 'image/png' });
-  expect((await readStats(page)).drawCalls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+  expect((await readStats(page)).drawCalls).toBeLessThanOrEqual(SPEC_MAX_DRAW_CALLS);
 }
 
 const toggle = (page: Page) => page.getByRole('button', { name: /панель/i });
