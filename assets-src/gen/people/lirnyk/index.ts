@@ -20,10 +20,12 @@ export const LIRNYK_OUTFIT: Outfit = {
 };
 
 /**
- * The lira (art-director M2-21): a wheel-cover hump at the back end, a darker 1-px key-box along the top of the body,
- * the body a step lighter than the strap with a top-left highlight, a dark rim.
+ * The lira (art-director M2-21): a wheel-cover hump at the back end standing 2 px over the box with a lit top-left
+ * (M2-29: it was 1 px and read as a bump in the lid), a darker 1-px key-box along the top of the body, the body a step
+ * lighter than the strap with a top-left highlight, a dark rim.
  */
-const LIRA: Mask = ['.hh......', 'hHhkkkkk.', 'rBbbbbbbr', 'rbbbbbbbr', 'rbbbbbbr.', '.rrrrrr..'];
+const LIRA: Mask = ['.Hh......', 'hHhh.....', 'hhhkkkkk.', 'rBbbbbbbr', 'rbbbbbbbr', 'rbbbbbbr.', '.rrrrrr..'];
+const LIRA_AT = { x: 9, y: 15 } as const;
 const LIRA_INK: PropLegend = {
   h: ['wood', 3],
   H: ['wood', 5],
@@ -32,25 +34,21 @@ const LIRA_INK: PropLegend = {
   B: ['wood', 6],
   r: ['wood', 2],
 };
-/** The crank at the tail: its axle and an L-shaped 2-px handle turning a quarter per idle frame (still on the walk). */
+/** The crank's axle out of the tail end (body-local). */
 const AXLE = { x: 18, y: 19 } as const;
-const CRANK: readonly (readonly { readonly x: number; readonly y: number }[])[] = [
-  [
-    { x: 19, y: 19 },
-    { x: 19, y: 20 },
-  ],
-  [
-    { x: 19, y: 19 },
-    { x: 20, y: 19 },
-  ],
-  [
-    { x: 19, y: 19 },
-    { x: 19, y: 18 },
-  ],
-  [
-    { x: 19, y: 18 },
-    { x: 20, y: 18 },
-  ],
+/**
+ * The crank seen from the side (M2-29, art-director M2-21: the L of two same-tone px read as a stub): it turns in the
+ * plane across the box, so its arm (a 1-px post, wood 2) and handle (a 1-px knob, wood 5) step up → toward us → down →
+ * behind, one quarter per idle frame (still, up, on the walk). Points are body-local; `post` null = foreshortened.
+ */
+const CRANK: readonly {
+  readonly post: { x: number; y: number } | null;
+  readonly knob: { x: number; y: number; shade: number };
+}[] = [
+  { post: { x: 19, y: 18 }, knob: { x: 19, y: 17, shade: 5 } },
+  { post: null, knob: { x: 19, y: 19, shade: 5 } },
+  { post: { x: 19, y: 20 }, knob: { x: 19, y: 21, shade: 5 } },
+  { post: null, knob: { x: 19, y: 19, shade: 2 } },
 ];
 
 const LIRNYK: Traveller = {
@@ -59,13 +57,16 @@ const LIRNYK: Traveller = {
   head: HEAD,
   headAt: { x: 6, y: 2 },
   dress: 'coat',
-  front: (f) => [{ mask: LIRA, legend: LIRA_INK, x: 9, y: 16 + f.bob }],
+  front: (f) => [{ mask: LIRA, legend: LIRA_INK, x: LIRA_AT.x, y: LIRA_AT.y + f.bob }],
   thin: (f) => {
-    const crank = CRANK[f.anim === 'idle' ? f.frame : 0] ?? [];
+    const crank = CRANK[f.anim === 'idle' ? f.frame : 0];
+    const b = f.bob;
     return [
-      ...thinLine({ x: 6, y: 10 + f.top }, { x: 10, y: 15 + f.bob }, 'wood', 1),
-      { x: AXLE.x, y: AXLE.y + f.bob, ramp: 'wood', shade: 1 },
-      ...crank.map((p) => ({ x: p.x, y: p.y + f.bob, ramp: 'wood' as const, shade: 3 })),
+      // The strap ends on the hump's top, over its highlight's shoulder.
+      ...thinLine({ x: 6, y: 10 + f.top }, { x: 10, y: 14 + b }, 'wood', 1),
+      { x: AXLE.x, y: AXLE.y + b, ramp: 'wood', shade: 1 },
+      ...(crank?.post ? [{ x: crank.post.x, y: crank.post.y + b, ramp: 'wood' as const, shade: 2 }] : []),
+      ...(crank ? [{ x: crank.knob.x, y: crank.knob.y + b, ramp: 'wood' as const, shade: crank.knob.shade }] : []),
     ];
   },
   shadow: [3, 17],

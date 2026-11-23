@@ -5,14 +5,20 @@
   width: calc(16 * var(--px));
   height: calc(16 * var(--px));
   vertical-align: middle;
-  overflow: hidden;
+  /* No clip: layout keeps the box on 1/64 css px, so at dpr 3.5 a clip edge lands a hair off the device grid and
+     blends the outline row it cuts; the sprite's own margin is transparent instead. */
 }
 
-/* The 16×16 frame at 1 css px per atlas px, scaled up to one logical px per atlas px (whole device px). */
+/* The 18×18 frame (the icon in a 1-px transparent margin) at 1 css px per atlas px, scaled to one logical px per
+   atlas px (whole device px) and shifted back by the margin: the scaled layer's anti-aliased edge lies on the
+   transparent margin, not on the icon's outline row. */
 .sprite {
   display: block;
-  width: 16px;
-  height: 16px;
+  position: relative;
+  left: calc(-1 * var(--px));
+  top: calc(-1 * var(--px));
+  width: 18px;
+  height: 18px;
   background-repeat: no-repeat;
   image-rendering: pixelated;
   transform: scale(var(--px-n, 1));

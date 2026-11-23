@@ -39,7 +39,8 @@ export interface IconAtlas {
 export type IconSource = IconAtlas | 'loading' | 'failed';
 
 const FRAME = /^icon\.([a-z][a-z0-9-]*)\/idle\/00$/;
-const ICON_PX = 16;
+/** An icon frame: the 16×16 icon in a 1-px transparent margin (the generator's `ICON_FRAME`; M2-29 B1). */
+const ICON_PX = 18;
 
 const isIconId = (v: string): v is IconId => (ICON_IDS as readonly string[]).includes(v);
 

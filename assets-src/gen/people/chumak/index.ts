@@ -30,6 +30,19 @@ export const CHUMAK_OUTFIT: Outfit = {
   hat: { ramp: 'thatch', tones: [2, 3, 4, 5] },
 };
 
+/**
+ * A shadow fold down the near (right) leg of the шаровари, sash to knee (art-director M2-21: the white linen read as a
+ * flat block), a step under their shade; body-local, on the leg in every stand / walk leg mask.
+ */
+// From under the sash to the knee, the lowest px a step deeper where the cloth gathers (art-director M2-29 B1: 3 px
+// of plaster 3 was lost in the scene).
+const FOLD: readonly { readonly x: number; readonly y: number; readonly deep?: true }[] = [
+  { x: 10, y: 17 },
+  { x: 10, y: 18 },
+  { x: 10, y: 19 },
+  { x: 11, y: 20, deep: true },
+];
+
 /** The lash's sway (px) per walk frame. */
 const SWAY = [0, 1, 1, 1, 0, 0];
 
@@ -52,6 +65,12 @@ const CHUMAK: Traveller = {
       ...thinLine({ x: 21, y: 12 + t }, { x: 21 + s, y: 14 + t }, 'wood', 1),
       ...thinLine({ x: 21 + s, y: 15 + t }, { x: 20 + s, y: 17 + t }, 'wood', 1),
       ...thinLine({ x: 20 + s, y: 18 + t }, { x: 21 + s, y: 21 + t }, 'wood', 0),
+      ...FOLD.map((p) => ({
+        x: p.x,
+        y: p.y,
+        ramp: 'plaster' as const,
+        shade: CHUMAK_OUTFIT.lower.tones[0] - (p.deep ? 1 : 0),
+      })),
     ];
   },
   shadow: [3, 16],

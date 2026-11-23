@@ -3,7 +3,8 @@
 // 13:00 on `state=tiers&tier=6` (the tavern stands) on 390×844, and the same view by day on 360 and 412. Seed 171 has
 // a кобзар visit starting 137 s after the frozen game clock (FROZEN_NOW), so `freeze=13` is 150 s into it — past his
 // walk in, seated and playing (the timetable is pinned by tests/unit/core/visitors.test.ts); plus the гончар at the
-// fair on 390.
+// fair on 390; the лірник at the well and the чумак with his віз at the layby (M2-29 B1); on 390 the four also at
+// 19:30 (visitors keep to the day hours, so the golden hour is their darkest key).
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
@@ -19,6 +20,13 @@ const HANCHAR_SEED = 118;
 const HANCHAR_FREEZE = 10;
 /** Camera left edge with the fair square in view. */
 const FAIR_CAM = 900;
+/** Seed 241 has a лірник visit starting 154 s before the frozen clock (+10 s = 164 s in, playing by the well). */
+const LIRNYK_SEED = 241;
+/** Seed 127 has a чумак visit starting 145 s before (+10 s = 155 s in, his віз on the layby). */
+const CHUMAK_SEED = 127;
+/** Camera left edges with the well (suburb x 226) and the layby (suburb x 300) in view. */
+const WELL_CAM = 860;
+const LAYBY_CAM = 930;
 const KOBZAR_SEED = 171;
 const KOBZAR_FREEZE = 13;
 /** Camera left edge (logical px) with the tavern and the кобзар left of its door in view. */
@@ -76,9 +84,19 @@ test.describe('M2-21 visitors in the suburb @screens @visitors', () => {
     await shoot(page, testInfo, 'kobzar-1300', TAVERN_CAM);
   });
 
-  test('гончар 1300: his jugs at the fair', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.use.viewport?.width !== 390, 'one shot on 390');
-    await gotoReady(page, url('tiers&tier=6', '13:00', HANCHAR_SEED, HANCHAR_FREEZE, FAIR_CAM));
-    await shoot(page, testInfo, 'hanchar-1300', FAIR_CAM);
-  });
+  for (const { name, seed, freeze, cam } of [
+    { name: 'kobzar', seed: KOBZAR_SEED, freeze: KOBZAR_FREEZE, cam: TAVERN_CAM },
+    { name: 'hanchar', seed: HANCHAR_SEED, freeze: HANCHAR_FREEZE, cam: FAIR_CAM },
+    { name: 'lirnyk', seed: LIRNYK_SEED, freeze: 10, cam: WELL_CAM },
+    { name: 'chumak', seed: CHUMAK_SEED, freeze: 10, cam: LAYBY_CAM },
+  ]) {
+    for (const hhmm of ['1300', '1930']) {
+      if (name === 'kobzar' && hhmm === '1300') continue;
+      test(`${name} ${hhmm}`, async ({ page }, testInfo) => {
+        test.skip(testInfo.project.use.viewport?.width !== 390, 'one shot on 390');
+        await gotoReady(page, url('tiers&tier=6', `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`, seed, freeze, cam));
+        await shoot(page, testInfo, `${name}-${hhmm}`, cam);
+      });
+    }
+  }
 });
