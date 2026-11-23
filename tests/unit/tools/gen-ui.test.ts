@@ -2,7 +2,7 @@
 // (≤ 16 colours, ≤ 4 ramps), wrapped in a coloured (never black) outline, each one distinct; the DOM's id list matches.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import icon, { ICON_SIZE, ICONS } from '../../../assets-src/gen/ui/icon/index.ts';
+import icon, { ICON_FRAME, ICON_MARGIN, ICON_SIZE, ICONS } from '../../../assets-src/gen/ui/icon/index.ts';
 import { loadPalette } from '../../../assets-src/gen/lib/palette.ts';
 import { ICON_IDS } from '../../../src/ui/icons.ts';
 import { renderGenerator } from '../../../tools/lib/sprites/atlas.ts';
@@ -18,19 +18,28 @@ function frames() {
 }
 
 describe('UI icons (M2-14)', () => {
-  it('one 16×16 frame per icon, in the ui atlas; the DOM knows the same ids', () => {
+  it('one 16×16 icon per frame in a 1-px transparent margin, in the ui atlas; the DOM knows the same ids', () => {
     expect(icon.atlas).toBe('ui');
     expect([...ICON_IDS]).toEqual([...ICONS]);
     const fs = frames();
     expect(fs.map((f) => f.name)).toEqual(ICONS.map((id) => `icon.${id}/idle/00`));
-    for (const f of fs) expect([f.image.width, f.image.height]).toEqual([ICON_SIZE, ICON_SIZE]);
+    for (const f of fs) {
+      expect([f.image.width, f.image.height]).toEqual([ICON_FRAME, ICON_FRAME]);
+      for (let y = 0; y < ICON_FRAME; y++)
+        for (let x = 0; x < ICON_FRAME; x++) {
+          const inside =
+            x >= ICON_MARGIN && y >= ICON_MARGIN && x < ICON_MARGIN + ICON_SIZE && y < ICON_MARGIN + ICON_SIZE;
+          if (!inside)
+            expect(f.image.data[(y * ICON_FRAME + x) * 4 + 3], `${f.name} ${String(x)},${String(y)}`).toBe(0);
+        }
+    }
   });
 
   it('binary alpha, ≤ 16 colours and ≤ 4 ramps per icon, no pure black', () => {
     for (const f of frames()) {
       const d = f.image.data;
       let opaque = 0;
-      for (let i = 0; i < ICON_SIZE * ICON_SIZE; i++) {
+      for (let i = 0; i < ICON_FRAME * ICON_FRAME; i++) {
         const a = d[i * 4 + 3] ?? 0;
         expect([0, 255], f.name).toContain(a);
         if (a === 0) continue;

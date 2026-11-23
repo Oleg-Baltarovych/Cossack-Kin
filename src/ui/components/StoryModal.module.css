@@ -36,8 +36,9 @@
   margin: 0;
 }
 
-/* The ×2 sprite (PORTRAIT_MAX_PX atlas px at most) in a 1-px ink frame with a gold rim, on day-sky blue (the
-   `sky` ramp is the dusk one) with a grass line to stand on. */
+/* The ×2 sprite (PORTRAIT_MAX_PX atlas px at most) in a 1-px ink frame with a gold rim, on a neutral wood ground a
+   step lighter than the panel with a lighter floor line (the boots stay on it): a framed likeness belongs to the frame's
+   material, not the clock (art-director M2-29 B1; a fixed noon sky was the loudest thing in a night window). */
 .portrait {
   position: relative;
   float: left;
@@ -46,11 +47,11 @@
   height: calc((2 * var(--frame-h, 36) + 2) * var(--px));
   margin: 0 calc(8 * var(--px)) calc(4 * var(--px)) 0;
   overflow: hidden;
-  background: var(--c-water-5);
+  background: var(--c-wood-2);
   border: var(--px) solid var(--c-ink-0);
   box-shadow:
     inset 0 0 0 var(--px) var(--c-gold-3),
-    inset 0 calc(-6 * var(--px)) 0 var(--c-grass-4);
+    inset 0 calc(-6 * var(--px)) 0 var(--c-wood-3);
 }
 
 /* The frame at 1 css px per atlas px, scaled about its foot to 2 logical px per atlas px (whole device px). */

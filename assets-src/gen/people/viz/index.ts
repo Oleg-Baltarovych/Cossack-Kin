@@ -10,7 +10,7 @@
 // straw bed with wisps through the rails, the far ladder side showing through the rungs. The same wood for both.
 // Frames: idle 4@6 (the oxen stand: tail swish, an ear, a nod; wheels still), walk 6@10 (a four-beat ox walk, the
 // backs rock 1 px, the spokes alternate + and × a frame). Ramps: plaster (oxen, horns), stone (forequarters, muzzle),
-// wood (cart, yoke), thatch (sacks, straw), gold (grain), ink (eyes, hooves). 64×32, pivot at the middle of the ground
+// wood (cart, yoke, horn tips), thatch (sacks, straw), gold (grain), ink (eyes, hooves). 64×32, pivot at the middle of the ground
 // row under the wheels and hooves.
 import { contactShadow } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
@@ -137,9 +137,15 @@ function cart(side: Side, variant: VizVariant): void {
       if (u % 5 === 2) side.set(u, BED.top - 3, 'thatch', 2);
     }
   }
+  // Full: the ladder's rungs and the stakes (стояки) in front of the sacks in dark brown, a rung every 3 px and a
+  // middle rail, so the box reads as wood over the load, not one gold block (art-director M2-20).
+  const full = variant === 'full';
   for (let u = BED.u0; u <= BED.u1; u++) {
     side.set(u, BED.rail, 'wood', 4);
-    if ((u - BED.u0) % 4 === 1) for (let y = BED.rail + 1; y < BED.top; y++) side.set(u, y, 'wood', 3);
+    if (full) {
+      if ((u - BED.u0) % 3 === 1) for (let y = BED.rail + 1; y < BED.top; y++) side.set(u, y, 'wood', 2);
+      side.set(u, BED.rail + 3, 'wood', 3);
+    } else if ((u - BED.u0) % 4 === 1) for (let y = BED.rail + 1; y < BED.top; y++) side.set(u, y, 'wood', 3);
     side.set(u, BED.top, 'wood', 3);
     side.set(u, BED.beam, 'wood', 2);
   }
@@ -210,8 +216,11 @@ function ox(side: Side, u0: number, y0: number, pose: OxPose, tone: number): voi
     const fore = u >= u0 + 12;
     for (let y = top; y <= bottom; y++) {
       const row = y - top;
-      if (fore) side.set(u, y, 'stone', s(row === 0 ? 5 : y === bottom ? 3 : 4));
-      else side.set(u, y, 'plaster', s(row === 0 ? 4 : row <= 2 ? 3 : y === bottom ? 1 : 2));
+      // The back line keeps the near ox's tone on the far one (one step over its darker body), so the far back
+      // reads over the cart's shadow (art-director M2-20).
+      const back0 = (base: number): number => (row === 0 ? base : s(base));
+      if (fore) side.set(u, y, 'stone', row === 0 ? back0(5) : s(y === bottom ? 3 : 4));
+      else side.set(u, y, 'plaster', row === 0 ? back0(4) : s(row <= 2 ? 3 : y === bottom ? 1 : 2));
     }
   }
   // Neck (dark stone) down to the lowered head; the dewlap hangs under the throat.
@@ -243,7 +252,8 @@ function ox(side: Side, u0: number, y0: number, pose: OxPose, tone: number): voi
     [25, -3, 'tip'],
   ];
   for (const [du, dy, part] of horn) {
-    if (part === 'tip') side.set(u0 + du, head + dy, 'ink', 2);
+    // A dark-brown wood tip, not ink: an ink tip merged with the outline and the horn read short at 360.
+    if (part === 'tip') side.set(u0 + du, head + dy, 'wood', 1);
     else side.set(u0 + du, head + dy, 'plaster', s(dy === 0 ? 5 : 6));
   }
   // Tail from the rump down to a dark tuft; it swishes in the idle.

@@ -9,6 +9,13 @@ import type { RampName } from '../../lib/buffer.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 
 export const ICON_SIZE = 16;
+/**
+ * The frame is the icon in a 1-px transparent margin (M2-29 B1): the DOM scales the sprite with a transform, and the
+ * layer's anti-aliased edge (the image's own edge for frames on the atlas border) then lies on the margin, not on the
+ * outline row (art-director M2-14: the outer outline blended over 1 device px at 412@3.5).
+ */
+export const ICON_MARGIN = 1;
+export const ICON_FRAME = ICON_SIZE + 2 * ICON_MARGIN;
 export const ICONS = [
   'ducat',
   'glory',
@@ -33,6 +40,8 @@ interface Px {
 }
 
 const OUTLINE: Px = { ramp: 'ink', shade: 1, solid: false };
+// skin 2 (the neck's shade already uses it): the cossack icon stays within 16 colours.
+const SKIN_OUTLINE: Px = { ramp: 'skin', shade: 2, solid: false };
 /** Edge lighting changes a shade by one step; the gradient by one step across the shape. */
 const STEP = 1;
 /** Gradient threshold: (dx + dy) / r beyond ±EDGE lightens / darkens the px. */
@@ -48,6 +57,11 @@ class Icon {
 
   has(x: number, y: number): boolean {
     return this.px.has(this.key(x, y));
+  }
+
+  private at(x: number, y: number): Px | undefined {
+    if (x < 0 || y < 0 || x >= ICON_SIZE || y >= ICON_SIZE) return undefined;
+    return this.px.get(this.key(x, y));
   }
 
   private solidAt(x: number, y: number): boolean {
@@ -135,8 +149,12 @@ class Icon {
     for (let y = 0; y < ICON_SIZE; y++) {
       for (let x = 0; x < ICON_SIZE; x++) {
         if (this.has(x, y)) continue;
-        if (this.solidAt(x - 1, y) || this.solidAt(x + 1, y) || this.solidAt(x, y - 1) || this.solidAt(x, y + 1))
-          lit.set(this.key(x, y), OUTLINE);
+        const around = [this.at(x - 1, y), this.at(x + 1, y), this.at(x, y - 1), this.at(x, y + 1)].filter(
+          (p): p is Px => p?.solid === true,
+        );
+        // Around bare skin only, a warm brown outline (as the people's, ART-BIBLE §3): an ink line down both cheeks
+        // under the cap read as hair to the jaw — a bob (art-director M2-14).
+        if (around.length > 0) lit.set(this.key(x, y), around.every((p) => p.ramp === 'skin') ? SKIN_OUTLINE : OUTLINE);
       }
     }
     return lit;
@@ -191,8 +209,14 @@ function glory(i: Icon): void {
     3,
     { cx: 8, cy: 4, r: 4 },
   );
-  // Collar.
-  i.rect(6, 7, 9, 7, 'gold', 4, { flat: true });
+  // A darker edge down the head's shaded (right) side, so the head holds its shape on a gold button.
+  for (let y = 0; y <= 7; y++) {
+    let right = -1;
+    for (let x = 0; x < ICON_SIZE; x++) if (i.has(x, y)) right = x;
+    if (right >= 0) i.set(right, y, 'gold', 1, { flat: true });
+  }
+  // Collar: a 1-px dark flange between the head and the haft (a light one blurred them into one gold blob).
+  i.rect(6, 7, 9, 7, 'gold', 0, { flat: true });
   // Ribs (flanges) of the head.
   for (const [x, y0, y1] of [
     [5, 2, 4],
@@ -227,7 +251,8 @@ function kharch(i: Icon): void {
     [11, 6],
   ] as const)
     i.set(x, y, 'wood', 3, { flat: true });
-  for (let x = 2; x <= 13; x++) if (i.has(x, 12)) i.set(x, 12, 'wood', 3, { flat: true });
+  // The bottom crust a step darker than the cuts: a lighter one read as a ducat's rim (art-director M2-14).
+  for (let x = 2; x <= 13; x++) if (i.has(x, 12)) i.set(x, 12, 'wood', 2, { flat: true });
 }
 
 /** Козак: a head in a crimson шапка with a black lamb-fur band, a shaved temple with the оселедець, a drooping moustache, the blue жупан's collar. */
@@ -272,6 +297,10 @@ function cossack(i: Icon): void {
     [2, 7],
   ] as const)
     i.set(x, y, 'ink', 2, { flat: true });
+  // Sideburns: 1–2 px under the fur band, the cheeks below bare (art-director M2-14).
+  i.set(4, 6, 'ink', 2, { flat: true });
+  i.set(11, 6, 'ink', 2, { flat: true });
+  i.set(11, 7, 'ink', 2, { flat: true });
   // Eyes, moustache (falls below the mouth on both sides).
   i.set(6, 7, 'ink', 1, { flat: true });
   i.set(9, 7, 'ink', 1, { flat: true });
@@ -484,7 +513,7 @@ const AFTER: Partial<Readonly<Record<IconId, (i: Icon) => void>>> = {
 const icon: SpriteGenerator = {
   atlas: 'ui',
   id: 'icon',
-  size: { w: ICON_SIZE, h: ICON_SIZE },
+  size: { w: ICON_FRAME, h: ICON_FRAME },
   frames: { idle: 1 },
   variants: ICONS,
   anchor: { x: 0, y: 0 },
@@ -498,7 +527,11 @@ const icon: SpriteGenerator = {
     AFTER[id]?.(after);
     // Strokes are not solid: `finish` adds no outline around them.
     for (const [k, p] of after.finish(rampSize)) done.set(k, p);
-    for (const [k, p] of done) buffer.set(k % ICON_SIZE, Math.floor(k / ICON_SIZE), { ramp: p.ramp, shade: p.shade });
+    for (const [k, p] of done)
+      buffer.set(ICON_MARGIN + (k % ICON_SIZE), ICON_MARGIN + Math.floor(k / ICON_SIZE), {
+        ramp: p.ramp,
+        shade: p.shade,
+      });
   },
 };
 
