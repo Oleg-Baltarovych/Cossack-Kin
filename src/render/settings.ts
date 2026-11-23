@@ -3,6 +3,7 @@
 // bundle carries no debug vocabulary (plan M0-05: no `freeze` string in dist/).
 
 import type { ZoneId } from '../content/villages/khortytsia.layout.ts';
+import type { WindLevel } from '../content/villages/khortytsia.ts';
 import type { ZoomLevel } from './viewport.ts';
 
 export const WEATHERS = ['clear', 'rain', 'fog'] as const;
@@ -10,11 +11,14 @@ export const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
 /** The world's zones (content `ZoneId`): `?zone=` puts the camera at the zone's anchor (M2-01). */
 export const ZONES: readonly ZoneId[] = ['farm', 'suburb', 'sich'];
 export const QUALITIES = ['low', 'med', 'high'] as const;
+/** The game's wind levels (content `WindLevel`, land-1 mechanic). */
+export const WINDS: readonly WindLevel[] = ['calm', 'breeze', 'storm'];
 
 export type Weather = (typeof WEATHERS)[number];
 export type Season = (typeof SEASONS)[number];
 export type Zone = ZoneId;
 export type Quality = (typeof QUALITIES)[number];
+export type Wind = WindLevel;
 
 export interface RenderSettings {
   /** Cosmetic RNG seed; `null` = random per session. */
@@ -37,6 +41,8 @@ export interface RenderSettings {
   readonly lessMotion: boolean;
   /** Dev/test: the villager animation lineup replaces the agents (`?lineup`, render/debug/lineup.ts). */
   readonly lineup: boolean;
+  /** Dev/test: sails, sway and smoke at this wind level whatever the game's wind is; `null` = the game's. */
+  readonly fixedWind: Wind | null;
 }
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
@@ -52,4 +58,5 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   zoom: 0,
   lessMotion: false,
   lineup: false,
+  fixedWind: null,
 };

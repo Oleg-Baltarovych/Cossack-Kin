@@ -14,7 +14,7 @@ const palette: Palette = loadPalette(JSON.parse(readFileSync('assets-src/palette
 /** The widest phone view in logical px (412-px project) plus a margin: two add-ons farther apart never share a screen. */
 const PHONE_VIEW_PX = 420;
 const PROP_BUDGET = { colors: 16, ramps: 4 } as const;
-const ADD_ON_IDS = ['flowers', 'kennel', 'bench', 'laundry', 'woodpile', 'stork-nest', 'pumpkins'];
+const ADD_ON_IDS = ['flowers', 'kennel', 'bench', 'laundry', 'woodpile', 'stork-nest', 'pumpkins', 'plough'];
 
 const generators = await loadGenerators();
 /** Base frame 00 of every non-debug generator, by stem (`flowers.a`). */
@@ -115,10 +115,12 @@ describe('plot variant add-ons (M2-10)', () => {
     expect(hits).toEqual([]);
   });
 
-  it('never shows two laundry lines in one phone view (art-director M2-10)', () => {
-    const lines = addOns.filter((p) => p.sprite === 'laundry');
-    const close = lines.flatMap((a, i) =>
-      lines
+  // Big, eye-catching add-ons read as copy-paste when two plots show the same one on one screen (art-director M2-10:
+  // two laundry lines; M2-29 B3: seed 1's fair and smithy carts).
+  it.each(['laundry', 'cart'])('never shows two %s add-ons in one phone view', (sprite) => {
+    const same = addOns.filter((p) => p.sprite === sprite);
+    const close = same.flatMap((a, i) =>
+      same
         .slice(i + 1)
         .filter((b) => plotOf(a) !== plotOf(b) && Math.abs(a.x - b.x) < PHONE_VIEW_PX)
         .map((b) => `${String(a.x)} × ${String(b.x)}`),

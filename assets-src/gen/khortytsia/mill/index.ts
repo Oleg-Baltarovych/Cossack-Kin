@@ -34,8 +34,10 @@ export const MILL_TIERS: Readonly<Record<string, MillTier>> = {
   t2: { cabinW: 36, hub: 52, floor: 28, roofH: 17 },
   t3: { cabinW: 40, hub: 53, floor: 28, roofH: 18, leanTo: true },
   t4: { cabinW: 40, hub: 53, floor: 28, roofH: 18, leanTo: true, gallery: true, carving: true },
-  t5: { cabinW: 44, hub: 54, floor: 27, roofH: 19, leanTo: true, gallery: true, carving: true, pole: 5 },
-  t6: { cabinW: 44, hub: 54, floor: 27, roofH: 19, leanTo: true, gallery: true, carving: true, pole: 6, gold: true },
+  // A short pole (M2-29 B3, art-director M2-07): the VI vane on its top sits 5 px lower than on the old 6-px pole,
+  // clear of the river band and of the sail tips' lattice; V keeps the same pole so VI never shrinks.
+  t5: { cabinW: 44, hub: 54, floor: 27, roofH: 19, leanTo: true, gallery: true, carving: true, pole: 1 },
+  t6: { cabinW: 44, hub: 54, floor: 27, roofH: 19, leanTo: true, gallery: true, carving: true, pole: 1, gold: true },
 };
 
 export function millGeometry(t: MillTier): MillGeometry {

@@ -143,6 +143,7 @@ export interface Prop {
     | 'woodpile'
     | 'stork-nest'
     | 'pumpkins'
+    | 'plough'
     | 'pennant.a'
     | 'pennant.b'
     | 'kovyla.a'
@@ -733,9 +734,10 @@ export const KHORTYTSIA_FARM: ZoneScene = {
         {
           parts: [
             { sprite: 'mill.t6' },
+            // On the back-slope pole (generator `millPoleTop('t6')`), under the sails like the pole and the banner: the
+            // sails turn in front of the roof, so a blade passing the vane hides it rather than slides under it.
+            { sprite: 'gilt.vane', dx: -9, lift: 82, shadow: false, animate: GILT_SHIMMER },
             sails('mill-sails.l', 55),
-            // On the back-slope pole (generator `millPoleTop('t6')`); its top row is the last one below the river band.
-            { sprite: 'gilt.vane', dx: -9, lift: 87, shadow: false, animate: GILT_SHIMMER },
             MILL_MALLOWS,
             MILL_TYN,
           ],
@@ -1004,7 +1006,8 @@ const SUBURB_VARIANTS: readonly Prop[] = [
   addOn('fair', 2, 'bench', 120, 248),
   addOn('smithy', 0, 'woodpile', 340, 232),
   addOn('smithy', 1, 'kennel', 345, 230),
-  addOn('smithy', 2, 'cart', 300, 240),
+  // A plough left for a new share, not a second sheaf cart (seed 1 drew the fair's and this one side by side; M2-29 B3).
+  addOn('smithy', 2, 'plough', 300, 240),
 ];
 
 export const KHORTYTSIA_SUBURB: ZoneScene = {

@@ -60,7 +60,7 @@ import { rampColor, rampCss } from './palette.ts';
 import { DEFAULT_SCENE, type SceneState } from './scene.ts';
 import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
-import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_MARK, PLOT_TAP, WORK_GLINT } from './atmosphere/config.ts';
+import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_MARK, PLOT_TAP, WIND_STRENGTH, WORK_GLINT } from './atmosphere/config.ts';
 import { plotAt, plotSpan } from './plotHit.ts';
 import { propTargets } from './plotTargets.ts';
 import { createCoinFx } from './fx/coins.ts';
@@ -382,7 +382,10 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     const zoneListeners = new Set<(zone: ZoneId) => void>();
     let zone: ZoneId | null = null;
     let settled = true;
-    let scene: SceneState = DEFAULT_SCENE;
+    /** `?wind=` (dev/test) pins the wind strength over whatever the game's wind is. */
+    const withWind = (next: SceneState): SceneState =>
+      settings.fixedWind === null ? next : { ...next, wind: WIND_STRENGTH[settings.fixedWind] };
+    let scene: SceneState = withWind(DEFAULT_SCENE);
     // The scene drawn in the last frame (a building under scaffolding is still empty there): what a tap hits.
     let drawn: SceneState = DEFAULT_SCENE;
     /** The building whose row is selected in the sheet (`mark`), outlined in the world. */
@@ -781,7 +784,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
         lessMotion = on;
       },
       setScene: (next) => {
-        scene = next;
+        scene = withWind(next);
       },
       plotAtClient: (clientX, clientY) => hit(groundAt(screenAt(clientX, clientY))),
       reveal: (building, sheetTop) => {

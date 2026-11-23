@@ -19,7 +19,7 @@ describe('parseDebugParams — valid', () => {
 
   it('parses the full screenshot URL', () => {
     const params = parseDebugParams(
-      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5&zoom=1&still&lineup',
+      '?seed=7&freeze&time=19:30&weather=rain&season=autumn&zone=sich&quality=low&overlay&cam=10.5&zoom=1&still&lineup&wind=storm',
       'test',
     );
     expect(params).toEqual({
@@ -35,6 +35,7 @@ describe('parseDebugParams — valid', () => {
       zoom: 1,
       still: true,
       lineup: true,
+      wind: 'storm',
     });
     expect(warn).not.toHaveBeenCalled();
   });
@@ -52,6 +53,15 @@ describe('parseDebugParams — valid', () => {
     expect(parseDebugParams('?time=07:00', 'test').time).toBe('07:00');
     expect(parseDebugParams('?time=2300', 'test').time).toBe('23:00');
     expect(parseDebugParams('?time=7:05', 'test').time).toBe('07:05');
+  });
+
+  // M2-29 B3: calm / storm shots without hunting a seed whose wind window is open at the frozen time.
+  it("wind takes the game's wind levels and reaches the render settings; absent = the game's wind", () => {
+    for (const wind of ['calm', 'breeze', 'storm'] as const) {
+      expect(toRenderSettings(parseDebugParams(`?wind=${wind}`, 'test')).fixedWind).toBe(wind);
+    }
+    expect(toRenderSettings(parseDebugParams('', 'test')).fixedWind).toBeNull();
+    expect(DEFAULT_RENDER_SETTINGS.fixedWind).toBeNull();
   });
 
   it('overlay flag forms', () => {
@@ -84,6 +94,8 @@ describe('parseDebugParams — invalid → default + console.warn', () => {
     ['cam=Infinity', 'cam'],
     ['zoom=2', 'zoom'],
     ['zoom=-1', 'zoom'],
+    ['wind=gale', 'wind'],
+    ['wind=1', 'wind'],
   ] as const)('%s', (query, key) => {
     const params = parseDebugParams(`?${query}`, 'development');
     expect(params[key]).toEqual(DEBUG_DEFAULTS[key]);
