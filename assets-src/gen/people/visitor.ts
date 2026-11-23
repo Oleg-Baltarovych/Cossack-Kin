@@ -7,7 +7,7 @@
 // neck) are drawn without an outline. Canvas 32 px (pivot unchanged), light top-left; facing left is a mirror in
 // render. The кобзар also has `play` 4@6: seated, the kobza on his knee, strumming.
 import { compose, contactShadow } from '../lib/passes.ts';
-import { checkMask, paintDoll, type Mask, type Outfit, type Stamp } from '../lib/doll.ts';
+import { checkMask, paintDoll, type Mask, type Outfit, type Stamp, PEOPLE_SELECTIVE } from '../lib/doll.ts';
 import { Plot } from '../lib/plot.ts';
 import type { RampName } from '../lib/buffer.ts';
 import type { SpriteGenerator } from '../lib/types.ts';
@@ -206,7 +206,7 @@ export function travellerGenerator(t: Traveller): SpriteGenerator {
         light: false,
         occlusion: false,
         outline: { mode: 'outer', drop: 2, parts: [1] },
-        selective: { lit: 'lighter' },
+        selective: PEOPLE_SELECTIVE,
       });
       const shadow = layers.shadow;
       if (shadow)

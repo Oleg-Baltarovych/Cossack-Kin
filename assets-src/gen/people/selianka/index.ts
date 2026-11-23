@@ -5,7 +5,7 @@
 // M2-17: work, talk, sit and cheer poses from the shared choreography (people/work.ts); the canvas is padded to 32 px
 // so tools and props fit beside the body (the pivot column is unchanged).
 import { compose, contactShadow } from '../../lib/passes.ts';
-import { checkMask, paintDoll, type Mask, type Outfit, type Stamp } from '../../lib/doll.ts';
+import { checkMask, paintDoll, type Mask, type Outfit, type Stamp, PEOPLE_SELECTIVE } from '../../lib/doll.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 import {
@@ -302,7 +302,7 @@ const selianka: SpriteGenerator = {
       light: false,
       occlusion: false,
       outline: { mode: 'outer', drop: 2, parts: [1] },
-      selective: { lit: 'lighter' },
+      selective: PEOPLE_SELECTIVE,
     });
     const shadow = layers.shadow;
     if (shadow) contactShadow(shadow, { x0: span[0] + PAD, x1: span[1] + PAD, groundY: SELIANKA_GROUND, height: 3 });

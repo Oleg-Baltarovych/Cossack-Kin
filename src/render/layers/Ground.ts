@@ -5,7 +5,6 @@
 // opacity by time of day), with the agents on the path graph (render/agents/, M2-16) sorted among them and re-posed
 // every frame. All sprites come from one atlas texture, so the whole layer is one batch. Night window masks are not here: they live in the post-grade emissive container.
 import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
-import { BevelFilter } from 'pixi-filters';
 import {
   GROUND_TILE,
   type BandPlot,
@@ -18,11 +17,13 @@ import {
   DAYTIME_PROPS,
   MOON_RIM,
   MOON_RIM_LEVELS,
+  RAIN_SHADOWS,
   QUALITY_TIERS,
   sailFps,
   SWAY,
 } from '../atmosphere/config.ts';
 import { outlineSets, type OutlineItem, type Outlines } from '../fx/outline.ts';
+import { createMoonRim } from '../fx/moonRim.ts';
 import { rampColor } from '../palette.ts';
 import type { PlotBuilding } from '../../content/villages/khortytsia.layout.ts';
 import { popSize } from '../fx/construction.ts';
@@ -126,14 +127,15 @@ export function createGroundLayer({
     const nearShadows = new Container({ label: 'cloud-shadows-near' });
     cloudShadows.addChild(farShadows, nearShadows);
     container.addChild(tiles, decals, shadows, props, cloudShadows);
-    // Moonlight on the props' upper edges (M2-29, MOON_RIM): a 1-px bevel toward the moon, before the grade; on only
-    // at night under a clear sky (no filter pass by day).
-    const moonRim = new BevelFilter({
-      thickness: Math.SQRT2,
-      lightColor: rampColor(...MOON_RIM.color),
-      lightAlpha: 0,
-      shadowAlpha: 0,
-    });
+    // No direct sun under rain (M2-29 A4): cast shadows fade to a soft occlusion (one alpha on the batch, no pass).
+    if (weather === 'rain') shadows.alpha = RAIN_SHADOWS.alpha;
+    // Moonlight on the props' upper edges (M2-29, MOON_RIM): a 1-px rim toward the moon, before the grade, weaker
+    // down thin vertical lines (A4); on only at night under a clear sky (no filter pass by day).
+    const rimColor = rampColor(...MOON_RIM.color);
+    const moonRim = createMoonRim(
+      [((rimColor >> 16) & 0xff) / 255, ((rimColor >> 8) & 0xff) / 255, (rimColor & 0xff) / 255],
+      MOON_RIM.thin,
+    );
     let moonOn = false;
     const nearTexture = frame('cloud-shadow/idle/00');
     const farTexture = frame('cloud-shadow-far/idle/00');
@@ -392,12 +394,11 @@ export function createGroundLayer({
         // Moonlight: toward the moon's side of the sky (its x on the sky's 0..1), strength by the key.
         const moon = weather === 'clear' && cycle.moon.y > 0 ? keyLevel(MOON_RIM_LEVELS, cycle) : 0;
         if (moon > 0.01) {
-          moonRim.rotation = cycle.moon.x < 0.5 ? 45 : 135;
-          moonRim.lightAlpha = MOON_RIM.alpha * Math.min(1, moon);
+          moonRim.set(cycle.moon.x < 0.5 ? 'left' : 'right', MOON_RIM.alpha * Math.min(1, moon));
         }
         if (moon > 0.01 !== moonOn) {
           moonOn = moon > 0.01;
-          props.filters = moonOn ? [moonRim] : [];
+          props.filters = moonOn ? [moonRim.filter] : [];
         }
         // Outlines of the marked buildings (selected row, a night tier flash), cut by whatever stands in front.
         if (outlines) {

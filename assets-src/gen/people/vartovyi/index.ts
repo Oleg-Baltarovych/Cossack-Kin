@@ -4,7 +4,7 @@
 // (the torch held up, the spear behind in the far hand): the flame is on the base frame (dusk) and on the @emissive
 // layer (night, post-grade, like the campfire). Variants are palette swaps.
 import { compose, contactShadow } from '../../lib/passes.ts';
-import { paintDoll, type Outfit } from '../../lib/doll.ts';
+import { paintDoll, type Outfit, PEOPLE_SELECTIVE } from '../../lib/doll.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 import { guardPose, GUARD_FRAMES, isGuardAction, type CossackInks, type FlameInks } from '../cossack.ts';
@@ -101,7 +101,7 @@ const vartovyi: SpriteGenerator = {
       light: false,
       occlusion: false,
       outline: { mode: 'outer', drop: 2, parts: [1] },
-      selective: { lit: 'lighter' },
+      selective: PEOPLE_SELECTIVE,
     });
     const shadow = layers.shadow;
     if (shadow)

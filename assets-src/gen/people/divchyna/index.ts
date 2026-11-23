@@ -4,7 +4,7 @@
 // (стрічки) hanging from the wreath — the girl's silhouette mark, and her secondary motion: they hang in idle and
 // stream back on the walk. Variants are palette swaps.
 import { compose, contactShadow } from '../../lib/passes.ts';
-import { checkMask, paintDoll, type Mask, type Outfit, type Stamp } from '../../lib/doll.ts';
+import { checkMask, paintDoll, type Mask, type Outfit, type Stamp, PEOPLE_SELECTIVE } from '../../lib/doll.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 import { IDLE, SELIANKA_GROUND, TORSO_AT, WALK, WOMAN_BASE, WOMAN_H, WOMAN_W, womanStamps } from '../selianka/index.ts';
@@ -113,7 +113,7 @@ const divchyna: SpriteGenerator = {
       light: false,
       occlusion: false,
       outline: { mode: 'outer', drop: 2, parts: [1] },
-      selective: { lit: 'lighter' },
+      selective: PEOPLE_SELECTIVE,
     });
     const shadow = layers.shadow;
     if (shadow) contactShadow(shadow, { x0: PAD + 3, x1: PAD + 13, groundY: SELIANKA_GROUND, height: 3 });

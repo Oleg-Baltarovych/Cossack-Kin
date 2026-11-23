@@ -20,6 +20,12 @@ export interface SkyKeyTime {
   readonly lut: string;
 }
 
+/**
+ * File name of a key's grading LUT in `public/luts/`: `<HHMM>.png` (clear and fog), `<HHMM>-rain.png` (rain, M2-29 A4).
+ */
+export const lutFile = (lut: string, weather: 'clear' | 'rain' | 'fog'): string =>
+  weather === 'rain' ? `${lut}-rain.png` : `${lut}.png`;
+
 /** Ordered by `at`; the last key wraps over midnight into the first. */
 export const SKY_KEYS: readonly SkyKeyTime[] = [
   { id: 'dawn', at: 5 * 60 + 30, hold: 15, lut: '0530' },
@@ -265,6 +271,21 @@ export interface GradeLook {
   readonly liftAmount: number;
   /** 0..1 pull of every LUT entry toward its nearest palette color. */
   readonly snap: number;
+  /** Hues the tone curve spares (M2-29 A4): part of the luminance it took is given back (see `HueKeep`). */
+  readonly hueKeep?: readonly HueKeep[];
+}
+
+/**
+ * A hue band the tone curve spares: a colour whose HSV hue lies in [from, to] (degrees, wraps past 360; `feather`
+ * degrees of soft edge outside) and whose HSV saturation is past `sat[0]` (full from `sat[1]`) gets `keep` of the
+ * luminance the curve took given back. The saturation gate keeps near-grey whitewash and muted ground out.
+ */
+export interface HueKeep {
+  readonly from: number;
+  readonly to: number;
+  readonly feather: number;
+  readonly sat: readonly [number, number];
+  readonly keep: number;
 }
 
 export const GRADE_LOOKS: Readonly<Record<SkyKeyId, GradeLook>> = {
@@ -331,6 +352,12 @@ export const GRADE_LOOKS: Readonly<Record<SkyKeyId, GradeLook>> = {
     lift: ['ink', 3],
     liftAmount: 0.2,
     snap: 0.1,
+    // M2-29 A4 (art-director A3 deferrals): the curve must not sink what the low sun lights up — the red of the
+    // mallows and banners (crimson) and the sunlit log faces of the Sich (wood 3–5).
+    hueKeep: [
+      { from: 335, to: 12, feather: 8, sat: [0.55, 0.7], keep: 0.85 },
+      { from: 22, to: 33, feather: 4, sat: [0.55, 0.62], keep: 0.6 },
+    ],
   },
   dusk: {
     exposure: 0.6,
@@ -372,6 +399,42 @@ export const GRADE_LOOKS: Readonly<Record<SkyKeyId, GradeLook>> = {
     liftAmount: 0,
     snap: 0,
   },
+};
+
+/**
+ * Rain grade (M2-29 A4, ART-19 deferred 3): under a closed overcast there is no direct sun, so each key loses colour
+ * by day (the land greys toward the sky; the wet film over it darkens it about a ramp step) and the golden key loses its
+ * sun-only tonal structure — no sunk meadow under glowing walls, only a gentle evening dip and a warm cast (A3: rain at
+ * 19:30 had become the darkest daytime frame). `pnpm luts` writes them as `public/luts/<HHMM>-rain.png`; the world
+ * loads the set of its weather (`loadLuts`).
+ */
+export const RAIN_GRADE_LOOKS: Readonly<Record<SkyKeyId, GradeLook>> = {
+  dawn: { ...GRADE_LOOKS.dawn, saturation: 0.6 },
+  morning: { ...GRADE_LOOKS.morning, saturation: 0.62, shadowTint: ['stone', 2], shadowAmount: 0.2, lightAmount: 0 },
+  day: { ...GRADE_LOOKS.day, saturation: 0.62, shadowTint: ['stone', 2], shadowAmount: 0.2 },
+  golden: {
+    exposure: 1,
+    contrast: 0.95,
+    saturation: 0.72,
+    curve: [
+      [0, 0],
+      [0.3, 0.26],
+      [0.6, 0.56],
+      [1, 1],
+    ],
+    shadowTint: ['ink', 3],
+    shadowAmount: 0.25,
+    midTint: ['thatch', 2],
+    midAmount: 0.2,
+    lightTint: ['sky', 5],
+    lightAmount: 0.15,
+    lift: ['ink', 3],
+    liftAmount: 0.15,
+    snap: 0.1,
+  },
+  // Dusk and night already grade the land to one cool tint (saturation does not show through it): kept as they are.
+  dusk: GRADE_LOOKS.dusk,
+  night: GRADE_LOOKS.night,
 };
 
 // --- Emissive night masks (windows, later forge and fire) --------------------------------------------
@@ -713,15 +776,17 @@ export const WINDOW_POOL = {
 export const POOLS = { from: 0.5 } as const;
 /**
  * Moonlight on the ground props' upper edges (M2-29, art-director M2-15 tail 5 + ART-BIBLE §8.8 «холодний місячний
- * верх стін»): at night everything away from a window read as one flat blue. A 1-px bevel (pixi-filters `BevelFilter`
- * on the sorted props, before the grade) pulls every px whose neighbour toward the moon — one up and one toward the
+ * верх стін»): at night everything away from a window read as one flat blue. A 1-px rim (`render/fx/moonRim.ts`, one
+ * filter pass on the sorted props before the grade; pixi-filters `BevelFilter` until M2-29 A4) pulls every px whose neighbour toward the moon — one up and one toward the
  * moon's side — is open air `alpha` of the way to `color`; through the night LUT's steep low end that is about one
  * ramp step lighter on dark wood and thatch and next to nothing on whitewash. The scene's exposure is untouched. Per
  * key in `MOON_RIM_LEVELS` (blended like the sky); only under a clear sky with the moon up.
  */
-export const MOON_RIM = { color: ['plaster', 6], alpha: 0.45 } as const satisfies {
+export const MOON_RIM = { color: ['plaster', 6], alpha: 0.45, thin: 0.2 } as const satisfies {
   readonly color: ColorRef;
   readonly alpha: number;
+  /** Share of the rim the px of a 1-px vertical line keep below its top px (willow strands, thin stakes; M2-29 A4). */
+  readonly thin: number;
 };
 export const MOON_RIM_LEVELS: Readonly<Record<SkyKeyId, number>> = {
   dawn: 0,
@@ -777,13 +842,14 @@ export const OVERCAST_CHAINS: Readonly<Record<SkyKeyId, readonly ColorRef[]>> = 
     ['plaster', 3],
     ['plaster', 4],
   ],
+  // M2-29 A4: one step muter (no clear-sky sunset over the greyed rain land) — sun breaking under the storm edge.
   golden: [
     ['stone', 1],
     ['stone', 2],
     ['plaster', 0],
+    ['plaster', 1],
     ['sky', 3],
     ['sky', 4],
-    ['sky', 5],
   ],
   // One hue family per chain: alternating blue and grey steps band into stripes (night, first try).
   dusk: [
@@ -912,7 +978,8 @@ export const RAIN_LOOKS: Readonly<
   dawn: { streak: ['stone', 4], wet: 0.25, puddle: ['stone', 4], ripple: ['water', 6] },
   morning: { streak: ['stone', 4], wet: 0.25, puddle: ['stone', 4], ripple: ['water', 6] },
   day: { streak: ['stone', 5], wet: 0.25, puddle: ['stone', 5], ripple: ['water', 7] },
-  golden: { streak: ['sky', 4], wet: 0.25, puddle: ['sky', 5], ripple: ['sky', 6] },
+  // Golden streaks grey (M2-29 A4): warm drops over the greyed land read as orange specks.
+  golden: { streak: ['stone', 4], wet: 0.25, puddle: ['sky', 5], ripple: ['sky', 6] },
   dusk: { streak: ['stone', 3], wet: 0.18, puddle: ['sky', 3], ripple: ['water', 5] },
   night: { streak: ['stone', 2], wet: 0.12, puddle: ['stone', 3], ripple: ['water', 4] },
 };
@@ -923,6 +990,11 @@ export const WET = { color: ['ink', 1] } as const;
  * the land keeps enough value separation that fences and trees read with no moon (art-director ART-17).
  */
 export const RAIN_NIGHT_GRADE = 0.7;
+/**
+ * Cast shadows under rain (M2-29 A4, ART-19 deferred 3): no direct sun, so the props' `@shadow` frames (contact ellipse
+ * and the down-right cast) fade to a soft occlusion at this alpha.
+ */
+export const RAIN_SHADOWS = { alpha: 0.45 } as const;
 
 // --- Quality tiers and auto-detect (ART-18) ---------------------------------------------------------------------
 /**

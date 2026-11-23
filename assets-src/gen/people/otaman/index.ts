@@ -6,7 +6,7 @@
 // 6 @10, `speak` 4 @6 (булава raised, pointed at the ranks, raised again, brought to the chest), `march` 6 @10 (the
 // review step, the булава upright before the face). One outfit (`otaman.a`).
 import { compose, contactShadow } from '../../lib/passes.ts';
-import { checkMask, paintDoll, type Mask, type Outfit, type Stamp } from '../../lib/doll.ts';
+import { checkMask, paintDoll, type Mask, type Outfit, type Stamp, PEOPLE_SELECTIVE } from '../../lib/doll.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 import { paintArm, paintInks, type Ink, type Pt } from '../work.ts';
@@ -209,7 +209,7 @@ const otaman: SpriteGenerator = {
       light: false,
       occlusion: false,
       outline: { mode: 'outer', drop: 2, parts: [1] },
-      selective: { lit: 'lighter' },
+      selective: PEOPLE_SELECTIVE,
     });
     const shadow = layers.shadow;
     if (shadow) contactShadow(shadow, { x0: 3 + PAD, x1: 17 + PAD, groundY: OTAMAN_GROUND, height: 3 });

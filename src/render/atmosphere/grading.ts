@@ -1,10 +1,10 @@
-// Time-of-day color grading (ART-04, ADR 001): the 6 key LUTs from `pnpm luts` (public/luts/<HHMM>.png,
-// 256×16 strips) are decoded once to CPU memory; the two keys of the current `dayCycle` are blended on the CPU
+// Time-of-day color grading (ART-04, ADR 001): the 6 key LUTs of the weather's set from `pnpm luts`
+// (public/luts/<HHMM>[-rain].png, 256×16 strips) are decoded once to CPU memory; the two keys of the current `dayCycle` are blended on the CPU
 // into one dynamic texture (rebuilt at most every LUT_UPDATE_MINUTES of game time) that drives a single
 // pixi-filters `ColorMapFilter` on the graded world container.
 import { BufferImageSource, Texture } from 'pixi.js';
 import { ColorMapFilter } from 'pixi-filters';
-import { LUT_SIZE, LUT_UPDATE_MINUTES, RAIN_NIGHT_GRADE, SKY_KEYS, type SkyKeyId } from './config.ts';
+import { LUT_SIZE, LUT_UPDATE_MINUTES, RAIN_NIGHT_GRADE, SKY_KEYS, lutFile, type SkyKeyId } from './config.ts';
 import type { DayCycle } from './dayCycle.ts';
 import type { Weather } from '../settings.ts';
 
@@ -51,9 +51,14 @@ async function loadLut(file: string): Promise<Uint8Array> {
   }
 }
 
-/** Loads every key LUT; any missing or malformed file rejects (startWorld then marks `data-ready="error"`). */
-export async function loadLuts(): Promise<LutSet> {
-  const entries = await Promise.all(SKY_KEYS.map(async (key) => [key.id, await loadLut(`${key.lut}.png`)] as const));
+/**
+ * Loads every key LUT of `weather`'s set (rain has its own grade, M2-29 A4); any missing or malformed file rejects
+ * (startWorld then marks `data-ready="error"`).
+ */
+export async function loadLuts(weather: Weather): Promise<LutSet> {
+  const entries = await Promise.all(
+    SKY_KEYS.map(async (key) => [key.id, await loadLut(lutFile(key.lut, weather))] as const),
+  );
   return Object.fromEntries(entries) as Record<SkyKeyId, Uint8Array>;
 }
 
