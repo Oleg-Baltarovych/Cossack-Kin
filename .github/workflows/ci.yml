@@ -155,10 +155,14 @@ jobs:
           - { project: 390x844@3, shard: 3/4 }
           - { project: 390x844@3, shard: 4/4 }
           - { project: 360x800@3, shard: 1/1 }
-          - { project: 412x915@3.5, shard: 1/1 }
+          # 412@3.5 (1442×3203 device px a frame) in 2 jobs of 1 worker: two SwiftShader pages on one runner starved
+          # each other — run 45245190135 ran every 412 test 2–2.5× slower than run 45236717753 on the same app code
+          # and its screenshots timed out.
+          - { project: 412x915@3.5, shard: 1/2, workers: 1 }
+          - { project: 412x915@3.5, shard: 2/2, workers: 1 }
     env:
       UPDATE_SNAPSHOTS: ${{ github.event_name == 'workflow_dispatch' && inputs.update_snapshots }}
-      E2E_ARGS: --project=${{ matrix.project }} --shard=${{ matrix.shard }}
+      E2E_ARGS: --project=${{ matrix.project }} --shard=${{ matrix.shard }}${{ matrix.workers && format(' --workers={0}', matrix.workers) || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

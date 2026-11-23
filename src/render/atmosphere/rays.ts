@@ -8,6 +8,22 @@
 // - `dustMotes`: ≤ 40 drifting 1-px motes, shown only where the light is at step ≥ 2, flickering every other frame.
 // No Pixi, no DOM.
 
+import { RAY_LOOKS } from './config.ts';
+import type { DayCycle } from './dayCycle.ts';
+import type { Weather } from '../settings.ts';
+
+/**
+ * Opacity of the light shafts (and their dust) for this moment, 0 = none: a low sun above the horizon under a clear
+ * sky (ART-BIBLE §8.2; never in rain or fog), level blended between the two sky keys (`RAY_LOOKS`). The light layer
+ * also needs the disc on screen; the @screens palette check skips the sky where this is > 0 (additive light).
+ */
+export function shaftLevel(cycle: DayCycle, weather: Weather): number {
+  if (weather !== 'clear' || cycle.sun.y <= -0.02) return 0;
+  const a = RAY_LOOKS[cycle.keyA].level;
+  const level = a + (RAY_LOOKS[cycle.keyB].level - a) * cycle.t;
+  return level > 0.01 ? level : 0;
+}
+
 export interface Point {
   readonly x: number;
   readonly y: number;

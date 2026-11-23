@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { CLOUDS, FRAMING } from '../../../src/render/atmosphere/config.ts';
+import { dayCycle } from '../../../src/render/atmosphere/dayCycle.ts';
+import { shaftLevel } from '../../../src/render/atmosphere/rays.ts';
 import { framedY, split } from '../../../src/render/camera.ts';
 import { horizonY } from '../../../src/render/layers/Layer.ts';
 import { validateState } from '../../../src/core/state.ts';
@@ -187,7 +189,9 @@ function horizonShare(deviceH: number, scale: number): number {
 const CLOUD_RISE = 41;
 /**
  * The sky is ungraded (it is the light source): its rows above the highest cloud must be pure palette colors. Clouds
- * (ART-07) are LUT-graded like the world, so the check stops above them.
+ * (ART-07) are LUT-graded like the world, so the check stops above them. Until M2-29a the clouds stood at the top of
+ * the sky and this band was 4 rows; with the clouds below the HUD it is ~100 rows, where a low sun's shafts shine —
+ * so the caller runs it only at keys without shafts.
  */
 function expectSkyOnPalette(png: Buffer, scale: number): void {
   const { width, height, data } = decodePng(png);
@@ -255,7 +259,10 @@ test.describe('ART-04 time of day @screens', () => {
       const name = `khortytsia-farm-${hhmm}-clear`;
       const png = await shoot(page, testInfo, name);
       expectPixelGrid(png, testInfo, scale, 0);
-      expectSkyOnPalette(png, scale);
+      // Light shafts (ART-10) add light over the sky (blend `add`), off the palette by design: the sky painter itself is
+      // guarded over its whole band by tests/unit/render/sky-palette.test.ts.
+      if (shaftLevel(dayCycle(Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(2))), 'clear') === 0)
+        expectSkyOnPalette(png, scale);
       // ART-BIBLE §8: *night* is never black. By day, sprites legitimately use the darkest palette steps (outlines).
       if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
       if (hhmm === '2300') expectGroundDarkerThanHorizon(png, scale);
@@ -664,10 +671,15 @@ test.describe('M1-17 UI list @screens', () => {
 
   test('ui buy: a click raises the level and the HUD follows', async ({ page }) => {
     await gotoReady(page, '/?time=13:00&freeze&seed=1&state=fresh&ui=1');
+    const hud = page.getByRole('banner');
+    await expect(hud.getByText('+0/с', { exact: true }).first()).toBeVisible();
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     await expect(page.getByText('Рів. 1', { exact: true })).toBeVisible();
-    // The HUD's income (the row shows the same rate as its own token since M2-13).
-    await expect(page.getByRole('banner').getByText('+0,5/с', { exact: true })).toBeVisible();
+    // The HUD's income = the row's own rate token (M2-13), read from the row: the number is balance (M2-27 moved it).
+    const row = page.getByRole('listitem').filter({ hasText: 'Пшеничне поле' });
+    const rate = /(\+[\d,]+\/с) →/.exec(await row.innerText())?.[1];
+    expect(rate, 'the field row shows its rate after the buy').toMatch(/^\+(?!0\/)/);
+    await expect(hud.getByText(rate ?? '', { exact: true })).toBeVisible();
   });
 });
 
