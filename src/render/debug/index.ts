@@ -2,6 +2,7 @@
 // Imported only behind `__CK_DEBUG__` (render/index.ts), so none of it reaches the production bundle.
 import { UPDATE_PRIORITY } from 'pixi.js';
 import type { WorldApp } from '../App.ts';
+import type { PlotBuilding } from '../../content/villages/khortytsia.layout.ts';
 import type { AgentCounts } from '../agents/sim.ts';
 import { particles } from '../fx/registry.ts';
 import type { RenderSettings } from '../settings.ts';
@@ -45,7 +46,9 @@ export interface DebugHandle {
   readonly stats: DebugStats;
   readonly settings: RenderSettings;
   /** The building a tap at this client (CSS px) point would hit (M2-13; e2e finds a building to tap with it). */
-  readonly plotAt: (clientX: number, clientY: number) => string | null;
+  readonly plotAt: (clientX: number, clientY: number) => PlotBuilding | null;
+  /** Where the player sees a building, or null when it is hidden (M2-29 D, `WorldApp.buildingOnScreen`). */
+  readonly buildingAt: (building: PlotBuilding) => { readonly x: number; readonly y: number } | null;
 }
 
 declare global {
@@ -82,7 +85,12 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     glint: world.lastGlint(),
     seed: world.seed,
   };
-  window.__CK__ = { stats, settings, plotAt: (x, y) => world.plotAtClient(x, y) };
+  window.__CK__ = {
+    stats,
+    settings,
+    plotAt: (x, y) => world.plotAtClient(x, y),
+    buildingAt: (b) => world.buildingOnScreen(b),
+  };
 
   let frameStart = 0;
   // HIGH runs before the world render (NORMAL) and the stage render (LOW); UTILITY runs after both.

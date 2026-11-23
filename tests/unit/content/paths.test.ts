@@ -78,10 +78,16 @@ describe('khortytsia villagers (plan M2-18)', () => {
       expect(n.kind, n.id).toBe('work');
       expect(n.building, n.id).toBeDefined();
     }
-    for (const v of villagers) {
-      expect(v.work.length, v.sprite).toBeGreaterThan(0);
+    for (const v of villagers)
       for (const id of v.work) expect(node(id)?.work, `${v.sprite} works at ${id}`).toBeDefined();
-    }
+  });
+
+  it('the household fills the scene budget (M2-29 D): one villager spawn per place, the first eleven at work', () => {
+    const household = KHORTYTSIA_WORLD.agents.filter((a) => a.role === 'villager');
+    expect(household).toHaveLength(AGENT_BUDGET.villager);
+    // The first villagers on the scene (a young village) are its workers, not passers-by.
+    const first = villagers.slice(0, 9);
+    for (const v of first) expect(v.work.length, v.sprite).toBeGreaterThan(0);
   });
 
   it('homes are always open (no building), so everyone has somewhere to be on an empty plot', () => {

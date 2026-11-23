@@ -20,6 +20,35 @@ export const AGENT_BUDGET: Readonly<Record<AgentRole, number>> = {
 };
 
 /**
+ * How many villagers live in the scene (M2-29 D, SPEC §6.6 «від 3 до ~25 за Σ рівнів», plan §0): `base` in a new game,
+ * plus floor(`perSqrtLevel` × √Σ levels) of every building (farm and unlocked Sich), up to `AGENT_BUDGET.villager`.
+ * The square root makes the first purchases bring people quickly (one at level 1, 8 with every building at tier I)
+ * and the budget is reached about when every farm building is at 25 (Σ ≈ 250). Cosmetic: who walks, not the economy.
+ */
+export const VILLAGER_GROWTH = { base: 3, perSqrtLevel: 1.4 } as const;
+
+/**
+ * Builders at a scaffold (M2-29 D, SPEC §6.5 «2–3 селяни підходять і стукають молотками»; owner 2026-11-23: builders
+ * always come): the men of the household nearest the site by their route, however far — one per slot of `slots.s` (a
+ * low plot's scaffold) or `slots.l` (a house's); a slot is a px offset from the site's pivot, a sprite's width apart (no
+ * two fuse, art-director) and centred — hammer (`work-build`) on the dirt before the posts, facing in. The scaffold's
+ * first stage waits until the first of them is there, at most `waitMaxS` s, and only then do the stages (and their
+ * knocks) go up — `stretch` × slower while someone hammers, so the work is seen. Measured first arrivals (seeds 1–3,
+ * 3–25 villagers): the farm by day 2–25 s (a new game's field 12–25 s); the suburb with a small household 16–44 s and
+ * at night up to 66 s (the men come out of the khata) — past the cap the stages start and the men still come,
+ * hammering while it stands. The economy never waits: the level is already bought. While a crew is there, chat spots within `clearPx` of its slots are closed (passers-by do not stand among the builders, art-director). A site
+ * with no graph node a villager may use within `reachPx` (the Sich: villagers never enter it), or no man in the
+ * household, has no builders and starts at once.
+ */
+export const BUILDERS = {
+  slots: { s: [-7, 7], l: [-14, 0, 14] },
+  reachPx: 48,
+  waitMaxS: 25,
+  stretch: 2,
+  clearPx: 16,
+} as const;
+
+/**
  * How often a food cart leaves the farm for the Sich (plan M2-20, SPEC §3.0 «харч», §6.4): every `kharchS / kharch` s,
  * clamped to [minS, maxS] — more food, more carts; none while the farm grows no food. Cosmetic: the period only paces
  * the carts on the road (at most `AGENT_BUDGET.cart` at once), it moves nothing in the economy. `minS` keeps three
@@ -121,7 +150,8 @@ export type PersonSprite = KozakSprite | OtamanSprite | GuardSprite | GirlSprite
  * Villager animations beyond walk/idle (M2-17, SPEC §6.4), frames `<VillagerSprite>/<anim>/<nn>` in the `people` atlas,
  * for the FSM (M2-18) to pick: `work-<building>` at the five workplaces (field: the man mows with a scythe, the woman
  * reaps with a sickle; apiary: honeycombs into a pail; smithy: the man at the anvil, the woman at the bellows; potter:
- * seated at the kick wheel; fair: offering a jug over a basket), `talk`, `sit` (on a stool, by the fire at night),
+ * seated at the kick wheel; fair: offering a jug over a basket), `work-build` (M2-29 D: hammering a scaffold post at
+ * chest height — the builders), `talk`, `sit` (on a stool, by the fire at night),
  * `cheer`. The generators declare the same frame counts (tests/unit/tools/gen-people.test.ts).
  */
 export const VILLAGER_ANIMS = {
@@ -130,6 +160,7 @@ export const VILLAGER_ANIMS = {
   'work-smithy': { frames: 4, fps: 8 },
   'work-potter': { frames: 4, fps: 8 },
   'work-fair': { frames: 4, fps: 8 },
+  'work-build': { frames: 4, fps: 8 },
   talk: { frames: 2, fps: 4 },
   sit: { frames: 2, fps: 2 },
   cheer: { frames: 4, fps: 10 },

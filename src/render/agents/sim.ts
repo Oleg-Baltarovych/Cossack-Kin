@@ -22,6 +22,7 @@
 // The frame path steps in place (`stepInPlace`, `writePoses`: no allocation per tick but on a new step of the routine);
 // `stepAgents`/`agentPoses` are the pure copies for tests and tools.
 import {
+  BUILDERS,
   CART_PERIOD,
   CART_TRIP,
   COSSACK_ANIMS,
@@ -106,6 +107,11 @@ export interface AgentContext {
    */
   readonly cossacks?: number | undefined;
   /**
+   * Villagers the household has on the scene (core `populationView`, M2-29 D): the first that many villager-role
+   * spawns are there; absent = no game, all of them.
+   */
+  readonly villagers?: number | undefined;
+  /**
    * Seconds between food carts leaving the farm (core `populationView`, M2-20); `null` = no food, no carts; absent =
    * no game: the busiest traffic (`CART_PERIOD.minS`).
    */
@@ -115,6 +121,16 @@ export interface AgentContext {
    * absent = nobody visiting (no game, the showcase).
    */
   readonly visit?: VisitNow | null | undefined;
+  /** Scaffolds standing now (M2-29 D, render/fx/build.ts): the nearest men of the household go and hammer there. */
+  readonly builds?: readonly BuildSite[] | undefined;
+}
+
+/** A building under its scaffold (world x of its pivot, ground row) and the scaffold's size (`BUILDERS[size]` men). */
+export interface BuildSite {
+  readonly building: NodeBuilding;
+  readonly x: number;
+  readonly ground: number;
+  readonly size: 's' | 'l';
 }
 
 /** A visit as the agents see it: the visitor, the timetable slot (one route per visit), seconds into it and its length. */
@@ -172,7 +188,19 @@ const RANK_ANIM: Readonly<Record<DrillPhase, CossackAnim | 'idle'>> = {
 
 /** What an arriving walk turns into. */
 type Errand =
-  'rest' | 'work' | 'chat' | 'night' | 'indoors' | 'rank' | 'lead' | 'post' | 'haunt' | 'leave' | 'unload' | 'depot';
+  | 'build'
+  | 'rest'
+  | 'work'
+  | 'chat'
+  | 'night'
+  | 'indoors'
+  | 'rank'
+  | 'lead'
+  | 'post'
+  | 'haunt'
+  | 'leave'
+  | 'unload'
+  | 'depot';
 
 /** What an agent is doing (villager and Cossack states included; a wanderer stands, rests, walks and goes indoors). */
 export type Activity =
@@ -197,7 +225,7 @@ export type Activity =
   | { readonly kind: 'night'; readonly anim: 'sit' | 'talk' | 'idle' | 'sit-smoke' }
   /** Gone in at a door for the night: out of sight, no pose. */
   | { readonly kind: 'indoors' }
-  /** A Cossack the army does not have now (M2-19): not on the scene, no pose. */
+  /** A Cossack the army does not have now (M2-19), a villager the household does not (M2-29 D): no pose. */
   | { readonly kind: 'absent' }
   /** In his place in the ranks: the drill clock picks the animation. */
   | { readonly kind: 'rank' }
@@ -205,6 +233,8 @@ export type Activity =
   | { readonly kind: 'lead' }
   /** A guard at his post: on the spear by day, a torch at night. */
   | { readonly kind: 'post'; readonly anim: 'watch' | 'torch' }
+  /** A builder hammering at a scaffold (M2-29 D). */
+  | { readonly kind: 'build' }
   /** A food cart waiting beyond the world's edge for its turn (M2-20): out of sight, no pose. */
   | { readonly kind: 'depot' }
   /** A cart stopped short of the gate, unloading (still full), then standing turned (empty) before the way back. */
@@ -227,8 +257,12 @@ export interface Agent {
   readonly offset: number;
   /** Place among the Cossacks with a duty (on the scene while < `AgentContext.cossacks`); −1 for everyone else. */
   readonly enlist: number;
+  /** Place among the villager-role spawns (on the scene while < `AgentContext.villagers`); −1 for everyone else. */
+  readonly settle: number;
   /** The otaman: the drill cycle whose front he marched last (−1 before the first). */
   reviewed: number;
+  /** The scaffold this villager is building at (M2-29 D): the node it stands by and px beside it; `null` = none. */
+  crew: { readonly building: NodeBuilding; readonly at: string; readonly dx: number; readonly facing: 1 | -1 } | null;
   /** The last node reached. */
   at: string;
   /** Index into `goals` of the goal picked last (`cycle` order); −1 before the first. */
@@ -283,6 +317,8 @@ export interface AgentPool {
   ticks: number;
   /** The food carts' timetable (M2-20). */
   readonly carts: CartSchedule;
+  /** Builders sent to each scaffold standing (agent ids; M2-29 D): chosen once per scaffold. */
+  readonly crews: Map<NodeBuilding, readonly number[]>;
 }
 
 /**
@@ -436,6 +472,16 @@ function arrive(ctx: AgentContext, pool: AgentPool, agent: Agent, then: Errand, 
     cartArrive(agent, then);
     return;
   }
+  if (then === 'build') {
+    if (agent.crew) agent.facing = agent.crew.facing;
+    setActivity(agent, { kind: 'build' });
+    return;
+  }
+  if (then === 'leave') {
+    // In at the door: the household no longer has this villager (or, back again on the way, out next tick).
+    setActivity(agent, settled(ctx, agent) ? { kind: 'rest', ticksLeft: 0 } : { kind: 'absent' });
+    return;
+  }
   const day = workingHours(ctx.minutes);
   if (then === 'indoors' && !day) {
     setActivity(agent, { kind: 'indoors' });
@@ -504,14 +550,18 @@ function plan(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerS
     goTo(ctx, pool, agent, night.at, night.then, night.dx, t);
     return;
   }
-  const work = pick(agent, openOf(ctx, pool.graph, spawn.work));
+  // Nobody works a building still under its scaffold (its builders do): the level is bought, the work starts after.
+  const work = pick(
+    agent,
+    openOf(ctx, pool.graph, spawn.work).filter((id) => !underScaffold(ctx, nodeOf(pool.graph, id))),
+  );
   if (work !== undefined) goTo(ctx, pool, agent, work, 'work', 0, t);
   else chat(ctx, pool, agent, spawn, t);
 }
 
 /** Off to talk at one of its open chat spots (another than where it stands, when it has one); else a pause. */
 function chat(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, t: number): void {
-  const open = openOf(ctx, pool.graph, spawn.chat);
+  const open = openOf(ctx, pool.graph, spawn.chat).filter((id) => !crowded(pool, nodeOf(pool.graph, id)));
   const away = open.filter((id) => id !== agent.at);
   const target = pick(agent, away.length > 0 ? away : open);
   if (target === undefined) rest(agent, span(agent, VILLAGER_DAY.idleS));
@@ -527,8 +577,55 @@ function recordDone(done: WorkDoneLog, agent: Agent, building: NodeBuilding): vo
   done.count += 1;
 }
 
-function villagerTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, t: number): void {
+// ── the household (M2-29 D) ───────────────────────────────────────────────────────────────────────────────────────
+
+/** Whether the household has this villager on the scene now (everyone else: always). */
+const settled = (ctx: AgentContext, agent: Agent): boolean =>
+  agent.settle < 0 || ctx.villagers === undefined || agent.settle < ctx.villagers;
+
+/** The door a villager comes out of and goes back in at: a wanderer's indoors door, else its home. */
+const doorOf = (spawn: AgentSpawn): string => (spawn.routine === 'wander' ? (spawn.indoors ?? spawn.home) : spawn.home);
+
+/**
+ * Comings and goings of the household (like the army's Cossacks, M2-19): a villager the household no longer has walks
+ * in at its door and is gone; one it has again (on its way in) turns back; a newcomer walks out of the door. Returns
+ * whether the tick was spent on that (the routine does nothing more this tick).
+ */
+function household(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): boolean {
   const a = agent.activity;
+  const leaving = a.kind === 'walk' && a.then === 'leave';
+  if (!settled(ctx, agent)) {
+    if (a.kind === 'absent') return true;
+    if (a.kind === 'indoors') setActivity(agent, { kind: 'absent' });
+    else if (leaving) walk(ctx, pool, agent, t);
+    else goTo(ctx, pool, agent, doorOf(agent.spawn), 'leave', 0, t);
+    return true;
+  }
+  if (a.kind === 'absent') {
+    atNode(pool.graph, agent, doorOf(agent.spawn), 0);
+    rest(agent, 0);
+    return false;
+  }
+  if (leaving) rest(agent, 0);
+  return false;
+}
+
+function villagerTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, t: number): void {
+  if (household(ctx, pool, agent, t)) return;
+  const a = agent.activity;
+  const building = a.kind === 'build' || (a.kind === 'walk' && a.then === 'build');
+  if (agent.crew) {
+    // A builder: to the scaffold, then hammer until it comes down.
+    if (a.kind === 'build') agent.animTicks += 1;
+    else if (building) walk(ctx, pool, agent, t);
+    else goTo(ctx, pool, agent, agent.crew.at, 'build', agent.crew.dx, t);
+    return;
+  }
+  if (building) {
+    // The scaffold came down: back to the day.
+    plan(ctx, pool, agent, spawn, t);
+    return;
+  }
   const day = workingHours(ctx.minutes);
   switch (a.kind) {
     case 'walk':
@@ -698,6 +795,7 @@ function misplaced(ctx: AgentContext, graph: PathGraph, agent: Agent, spawn: Cos
     work: 'work',
     chat: 'chat',
     leave: 'absent',
+    build: 'build',
     unload: 'unload',
     depot: 'depot',
   };
@@ -926,6 +1024,7 @@ function depart(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): vo
 }
 
 function wanderTick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
+  if (household(ctx, pool, agent, t)) return;
   const a = agent.activity;
   const spawn = agent.spawn;
   const door = spawn.routine === 'wander' && !workingHours(ctx.minutes) ? spawn.indoors : undefined;
@@ -1059,9 +1158,143 @@ function tick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void
   else wanderTick(ctx, pool, agent, t);
 }
 
+// -- builders (M2-29 D) --------------------------------------------------------------------------------------------
+
+/**
+ * Whether `agent` may be sent to build: a man of the household on the scene, not building already. Builders always come
+ * (owner 2026-11-23): at night too, out of his door.
+ */
+function free(ctx: AgentContext, agent: Agent): boolean {
+  const a = agent.activity;
+  return (
+    agent.spawn.routine === 'villager' &&
+    agent.sprite.startsWith('selianyn') &&
+    agent.crew === null &&
+    settled(ctx, agent) &&
+    a.kind !== 'absent' &&
+    !(a.kind === 'walk' && a.then === 'leave')
+  );
+}
+
+/** The node nearest `site` a villager may stand at (open, within `BUILDERS.reachPx`), or undefined. */
+function siteNode(ctx: AgentContext, graph: PathGraph, site: BuildSite): PathNode | undefined {
+  let best: PathNode | undefined;
+  let bestD: number = BUILDERS.reachPx;
+  for (const n of graph.nodes) {
+    if (!mayEnter(n, 'villager') || !nodeOpen(ctx, n)) continue;
+    const d = Math.hypot(n.x - site.x, n.ground - site.ground);
+    if (d <= bestD) {
+      best = n;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * Px `agent` walks to stand at `x` by node `to`: back to the node it last reached, then the path `goTo` takes (straight
+ * between nodes); Infinity when it cannot get there.
+ */
+function routePx(ctx: AgentContext, graph: PathGraph, agent: Agent, to: string, x: number): number {
+  const path = findPath(graph, agent.at, to, agent.role, (n) => nodeOpen(ctx, n));
+  if (!path) return Infinity;
+  let px = 0;
+  let from = { x: agent.x, ground: agent.y };
+  for (const id of path) {
+    const n = nodeOf(graph, id);
+    px += Math.hypot(n.x - from.x, n.ground - from.ground);
+    from = n;
+  }
+  return px + Math.abs(x - from.x);
+}
+
+const NO_BUILDS: readonly BuildSite[] = [];
+
+/** Whether `node` belongs to a building whose scaffold stands now (no work there until it comes down). */
+function underScaffold(ctx: AgentContext, node: PathNode): boolean {
+  return node.building !== undefined && standing(ctx.builds ?? NO_BUILDS, node.building);
+}
+
+/** Whether `building` has a scaffold in `sites` (a plain loop: this runs every frame). */
+function standing(sites: readonly BuildSite[], building: NodeBuilding): boolean {
+  for (const s of sites) if (s.building === building) return true;
+  return false;
+}
+
+/**
+ * Sends builders to each new scaffold of `ctx.builds` (between steps, so every agent sees the same pool; the driver also
+ * calls it on a frame that steps no tick, so a new scaffold never reads `none` for a frame): the free men nearest the
+ * site by their route (then id), however far (owner 2026-11-23), one per `BUILDERS.slots[size]`, each to his slot
+ * before the posts, facing in. Builders of a scaffold that came down are released (their next tick takes up the day
+ * again; one still walking turns back). No scaffold and no crew: nothing to do, nothing allocated.
+ */
+export function assignCrews(ctx: AgentContext, pool: AgentPool): void {
+  const sites = ctx.builds ?? NO_BUILDS;
+  if (sites.length === 0 && pool.crews.size === 0) return;
+  // Deleting the entry being visited is safe in a Map's iteration.
+  for (const building of pool.crews.keys()) if (!standing(sites, building)) pool.crews.delete(building);
+  for (const agent of pool.agents) if (agent.crew && !pool.crews.has(agent.crew.building)) agent.crew = null;
+  for (const site of sites) {
+    if (pool.crews.has(site.building)) continue;
+    // Once per scaffold: the allocations below are not per frame.
+    const node = siteNode(ctx, pool.graph, site);
+    const slots = BUILDERS.slots[site.size];
+    const men = node
+      ? pool.agents
+          .filter((a) => free(ctx, a))
+          .map((a) => ({ a, px: routePx(ctx, pool.graph, a, node.id, site.x) }))
+          .filter((m) => m.px < Infinity)
+          .sort((m, n) => m.px - n.px || m.a.id - n.a.id)
+          .slice(0, slots.length)
+          .map((m) => m.a)
+      : [];
+    men.forEach((agent, k) => {
+      const offset = slots[k] ?? 0;
+      if (node)
+        agent.crew = {
+          building: site.building,
+          at: node.id,
+          dx: site.x + offset - node.x,
+          facing: offset > 0 ? -1 : 1,
+        };
+    });
+    pool.crews.set(
+      site.building,
+      men.map((a) => a.id),
+    );
+  }
+}
+
+/**
+ * The builders of `building`'s scaffold (M2-29 D): `none` (no scaffold, or no man to come - it starts at once),
+ * `coming` (on their way) or `ready` (one of them is hammering: the stages start, art-director).
+ */
+export function crewState(pool: AgentPool, building: NodeBuilding): 'none' | 'coming' | 'ready' {
+  const ids = pool.crews.get(building);
+  if (!ids || ids.length === 0) return 'none';
+  for (const a of pool.agents) if (a.activity.kind === 'build' && ids.includes(a.id)) return 'ready';
+  return 'coming';
+}
+
+/**
+ * Whether chat spot `node` is among a crew's builders now (within `BUILDERS.clearPx` of a builder's slot): closed while
+ * they are there, so passers-by do not stand among them (art-director). Crews change only between steps, so every agent
+ * reads the same.
+ */
+function crowded(pool: AgentPool, node: PathNode): boolean {
+  if (pool.crews.size === 0) return false;
+  for (const b of pool.agents) {
+    if (!b.crew) continue;
+    const at = nodeOf(pool.graph, b.crew.at);
+    if (Math.hypot(at.x + b.crew.dx - node.x, at.ground - node.ground) <= BUILDERS.clearPx) return true;
+  }
+  return false;
+}
+
 /** Steps every agent of `pool` by `ticks` fixed steps, in place; `pool.done` then holds that step's finished work. */
 export function stepInPlace(pool: AgentPool, ticks: number, ctx: AgentContext): void {
   pool.done.count = 0;
+  assignCrews(ctx, pool);
   // People step on their own (each reads only itself and the clock); the carts tick together, tick by tick.
   for (const agent of pool.agents) {
     if (agent.spawn.routine === 'cart') continue;
@@ -1095,6 +1328,10 @@ function place(ctx: AgentContext, pool: AgentPool, agent: Agent): void {
   }
   if (spawn.routine === 'visitor') {
     visitorStep(ctx, pool, agent, spawn);
+    return;
+  }
+  if (!settled(ctx, agent)) {
+    setActivity(agent, { kind: 'absent' });
     return;
   }
   const night = !workingHours(ctx.minutes);
@@ -1159,8 +1396,10 @@ export function createAgents(
     },
     ticks: 0,
     carts: { next: null, turn: 0 },
+    crews: new Map(),
   };
   let enlist = 0;
+  let settle = 0;
   for (const [i, spawn] of spawns.entries()) {
     const home = nodeOf(graph, spawn.home);
     if (!mayEnter(home, spawn.role))
@@ -1181,7 +1420,9 @@ export function createAgents(
       goals,
       offset: spawn.routine === 'wander' || spawn.routine === 'cart' || spawn.routine === 'visitor' ? 0 : spotOffset(i),
       enlist: spawn.routine === 'cossack' ? enlist++ : -1,
+      settle: spawn.role === 'villager' ? settle++ : -1,
       reviewed: -1,
+      crew: null,
       at: home.id,
       goal: -1,
       x: home.x,
@@ -1214,6 +1455,7 @@ export const clonePool = (pool: AgentPool): AgentPool => ({
   done: { count: pool.done.count, slots: pool.done.slots.map((s) => ({ ...s })) },
   ticks: pool.ticks,
   carts: { ...pool.carts },
+  crews: new Map(pool.crews),
 });
 
 /** The pool `ticks` fixed steps later (a new pool; the old one is untouched). */
@@ -1238,6 +1480,8 @@ function animOf(a: Activity, animTicks: number, t: number): { readonly anim: Per
       return { anim: a.gait, ticks: animTicks };
     case 'work':
       return { anim: a.anim, ticks: animTicks };
+    case 'build':
+      return { anim: 'work-build', ticks: animTicks };
     case 'chat':
       return { anim: 'talk', ticks: animTicks };
     case 'night':

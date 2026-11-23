@@ -7,7 +7,8 @@ import { createStore } from '../../../src/core/store.ts';
 import { windAt } from '../../../src/core/systems/village-mechanics/wind.ts';
 import type { WorldTap } from '../../../src/render/App.ts';
 import { WIND_STRENGTH } from '../../../src/render/atmosphere/config.ts';
-import { connectWorld, sceneOf } from '../../../src/render/bridge.ts';
+import { connectWorld, sceneOf, type GameView } from '../../../src/render/bridge.ts';
+import type { GameEvent } from '../../../src/core/events.ts';
 import { AGENT_BUDGET } from '../../../src/content/agents.ts';
 import { SHAKE } from '../../../src/content/juice.ts';
 import { agentPoses, createAgents, stepInPlace, type AgentContext } from '../../../src/render/agents/sim.ts';
@@ -28,6 +29,7 @@ function fakeWorld() {
   const coins: [number, number][] = [];
   const built: string[] = [];
   const celebrated: string[] = [];
+  const bumped: string[] = [];
   const shakes = { n: 0 };
   let tap: ((t: WorldTap) => void) | null = null;
   return {
@@ -35,6 +37,7 @@ function fakeWorld() {
     coins,
     built,
     celebrated,
+    bumped,
     shakes,
     tapAt: (x: number, y: number, building: WorldTap['building'] = null) =>
       tap?.({ clientX: 0, clientY: 0, x, y, building }),
@@ -49,6 +52,7 @@ function fakeWorld() {
       spawnCoin: (x: number, y: number) => coins.push([x, y]),
       construct: (b: string) => built.push(b),
       celebrate: (b: string) => celebrated.push(b),
+      bump: (b: string) => bumped.push(b),
       shake: () => {
         shakes.n += 1;
       },
@@ -174,6 +178,61 @@ describe('construction and tier juice (M2-12)', () => {
     store.dispatch({ type: 'buySich', id: 'walls', mode: 10 }, T0 + 300);
     expect(f.built).toEqual(['kurins', 'walls']);
     expect(f.celebrated).toEqual(['walls']);
+  });
+});
+
+describe('ordinary upgrade juice (M2-29 D, SPEC §6.5)', () => {
+  it('a level past the first squashes the building; the first level builds instead', () => {
+    const s = rich();
+    const store = createStore({ ...s, currencies: { ...s.currencies, glory: Big.from(1e9) } });
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 1 }, T0 + 100);
+    expect(f.bumped).toEqual([]);
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 1 }, T0 + 200);
+    store.dispatch({ type: 'buySich', id: 'kurins', mode: 1 }, T0 + 300);
+    store.dispatch({ type: 'buySich', id: 'kurins', mode: 10 }, T0 + 400);
+    expect(f.bumped).toEqual(['field', 'kurins']);
+  });
+
+  it('never on load, a tick, offline time or a refused purchase', () => {
+    const store = createStore(rich());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 1 }, T0 + 100);
+    const leveled = rich();
+    store.replace({ ...leveled, village: { ...leveled.village, levels: { ...leveled.village.levels, field: 40 } } });
+    store.tick(T0 + 3_600_000);
+    store.dispatch({ type: 'buySich', id: 'kurins', mode: 1 }, T0 + 3_600_100);
+    expect(f.bumped).toEqual([]);
+  });
+});
+
+describe('ordinary upgrade juice: exactly which events bump (M2-29 D, code review)', () => {
+  it('only BuildingUpgraded / SichUpgraded from ≥ 1: never from 0, TierReached or ActionRejected', () => {
+    const state = rich();
+    const listeners: ((e: GameEvent) => void)[] = [];
+    const game: GameView = {
+      getState: () => state,
+      onEvent: (l) => {
+        listeners.push(l);
+        return () => undefined;
+      },
+    };
+    const f = fakeWorld();
+    connectWorld(f.world, game);
+    const events: readonly GameEvent[] = [
+      { type: 'BuildingUpgraded', id: 'field', from: 0, to: 1 },
+      { type: 'SichUpgraded', id: 'kurins', from: 0, to: 1 },
+      { type: 'TierReached', zone: 'farm', id: 'field', tier: 2 },
+      { type: 'ActionRejected', action: 'buyBuilding', reason: 'ducats' },
+      { type: 'BuildingUpgraded', id: 'apiary', from: 1, to: 2 },
+      { type: 'SichUpgraded', id: 'kurins', from: 3, to: 13 },
+    ];
+    for (const e of events) for (const l of listeners) l(e);
+    expect(f.bumped).toEqual(['apiary', 'kurins']);
+    expect(f.built).toEqual(['field', 'kurins']);
+    expect(f.celebrated).toEqual(['field']);
   });
 });
 

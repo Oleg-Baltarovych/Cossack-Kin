@@ -6,7 +6,7 @@ import { chunksLoaded } from '../platform/chunkReload.ts';
 import { driveGame } from '../platform/lifecycle.ts';
 import type { WorldApp } from '../render/index.ts';
 import { BootNotice } from './components/BootNotice.tsx';
-import { CoinFlight } from './components/CoinFlight.tsx';
+import { CoinFlight, type BuildingAt } from './components/CoinFlight.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel, type Reveal } from './components/Panel.tsx';
@@ -93,9 +93,11 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
       }),
     [world],
   );
+  // The upgrade coins fly to the building where the player sees it (M2-29 D).
+  const buildingAt = useCallback<BuildingAt>((b) => world?.buildingOnScreen(b) ?? null, [world]);
   return (
     <div className={styles.ui}>
-      <CoinFlight>
+      <CoinFlight buildingAt={buildingAt}>
         <TapFeedback world={world} />
         <div className={styles.layer} inert={windowOpen}>
           <Hud />

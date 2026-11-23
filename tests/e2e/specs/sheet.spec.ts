@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { SPEC_MAX_DRAW_CALLS } from '../helpers/budgets.ts';
+import type { PlotBuilding } from '../../../src/content/villages/khortytsia.layout.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
 
 const today = (): string => {
@@ -54,7 +55,7 @@ async function drag(page: Page, dy: number): Promise<void> {
 }
 
 /** The first client point (and its building) where the world draws a building, in the part of the screen left free. */
-async function findBuilding(page: Page): Promise<{ x: number; y: number; building: string }> {
+async function findBuilding(page: Page): Promise<{ x: number; y: number; building: PlotBuilding }> {
   const pt = await page.evaluate(() => {
     const top = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
     const bottom = document.querySelector('section[data-state]')?.getBoundingClientRect().top ?? innerHeight;
@@ -90,6 +91,24 @@ test.describe('M2-13 bottom sheet', () => {
     expect(box?.height ?? 0).toBeLessThanOrEqual(60);
     await toggle(page).click();
     await settled(page, 'half');
+  });
+
+  test('the upgrade coins aim only at a building the player sees: none under the full sheet (M2-29 D)', async ({
+    page,
+  }) => {
+    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=mid&ui=1');
+    await toggle(page).click(); // full
+    await toggle(page).click(); // collapsed
+    await settled(page, 'collapsed');
+    const seen = await findBuilding(page);
+    const aim = await page.evaluate((b) => window.__CK__?.buildingAt(b) ?? null, seen.building);
+    expect(aim).not.toBeNull();
+    await toggle(page).click(); // half
+    await settled(page, 'half');
+    await toggle(page).click(); // full: the sheet covers the world
+    await settled(page, 'full');
+    const hidden = await page.evaluate((b) => window.__CK__?.buildingAt(b) ?? null, seen.building);
+    expect(hidden).toBeNull();
   });
 
   test('tap on a building opens half with its row marked and earns nothing; open ground earns', async ({ page }) => {

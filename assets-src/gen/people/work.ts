@@ -8,7 +8,8 @@
 //
 // Animation keys (frame names `<entity>.<variant>/<key>/<nn>`): `work-<building>` for the five workplaces
 // (field — mow with a scythe / reap with a sickle; apiary — lift honeycombs into a pail; smithy — strike the anvil /
-// pump the bellows; potter — throw a pot at the kick wheel; fair — offer a jug over a basket), `talk`, `sit`, `cheer`.
+// pump the bellows; potter — throw a pot at the kick wheel; fair — offer a jug over a basket), `work-build` (M2-29 D:
+// hammer a scaffold post at chest height), `talk`, `sit`, `cheer`.
 import type { RampName } from '../lib/buffer.ts';
 import type { Outfit } from '../lib/doll.ts';
 import type { Plot } from '../lib/plot.ts';
@@ -501,6 +502,31 @@ function forge(g: BodyGeom, t: ToolInks, f: number): WorkPose {
   });
 }
 
+/**
+ * Builder at a scaffold post (M2-29 D, art-director): the smith's swing raised to the chest — hammer up, coming down,
+ * strike on the post at shoulder height, rebound (4 frames). No props (the scaffold is the post); on the strike a
+ * 1-px pale wood chip flies off where the head meets the wood. Body-agnostic (the kozak can take it later).
+ */
+function hammerPost(g: BodyGeom, t: ToolInks, f: number): WorkPose {
+  const k = [
+    { lean: 0, hand: [1, -6], head: [-2, -3] },
+    { lean: 1, hand: [4, -4], head: [3, -2] },
+    { lean: 1, hand: [5, -1], head: [3, 0] },
+    { lean: 1, hand: [4, -2], head: [2, -2] },
+  ][f];
+  if (!k) throw new Error(`hammerPost: no frame ${String(f)}`);
+  const hand = at(shoulder(g, 0, k.lean), k.hand[0] ?? 0, k.hand[1] ?? 0);
+  const head = at(hand, k.head[0] ?? 0, k.head[1] ?? 0);
+  const chip = f === 2 ? [ink(at(head, 3, -2), t.wood, t.woodTop)] : [];
+  return pose(g, {
+    lower: 'stance',
+    lean: k.lean,
+    near: hand,
+    tools: [...chip, ...hammer(hand, head, t)],
+    shadow: wide(g, g.cx + 4),
+  });
+}
+
 /** At the bellows: the hand rides the top board's handle down and up (4 frames). */
 function pump(g: BodyGeom, t: ToolInks, f: number): WorkPose {
   const open = [2, 1, 0, 1][f];
@@ -592,6 +618,7 @@ export const WORK_FRAMES = {
   'work-smithy': 4,
   'work-potter': 4,
   'work-fair': 4,
+  'work-build': 4,
   talk: 2,
   sit: 2,
   cheer: 4,
@@ -612,6 +639,8 @@ function choreograph(anim: WorkAnim, f: number, g: BodyGeom, t: ToolInks, hands:
       return throwPot(g, t, f);
     case 'work-fair':
       return trade(g, t, f);
+    case 'work-build':
+      return hammerPost(g, t, f);
     case 'talk':
       return talk(g, f);
     case 'sit':

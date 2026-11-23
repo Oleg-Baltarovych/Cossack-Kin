@@ -3,9 +3,12 @@
 // (`?freeze=<s>`) has no step cap: its one jump is stepped in full, so that frame is exactly a run of round(s × 60)
 // ticks. A live clock steps at most `MAX_CATCH_UP_S` per frame and drops the rest of a longer gap (a hidden tab, a
 // debugger pause): cosmetic people need no history, and a resumed tab must not stall on minutes of ticks.
+// `crew(building)` tells the build fx whether a scaffold's builders are there (M2-29 D).
 // `ticks()` reports the pool's own ticks (skipped time excluded).
 import {
   agentCounts,
+  assignCrews,
+  crewState,
   stepInPlace,
   TICK_HZ,
   workingCount,
@@ -17,6 +20,7 @@ import {
   type PoseSlot,
   type WorkDoneLog,
 } from './sim.ts';
+import type { NodeBuilding } from '../../content/agents.ts';
 
 /** Longest stretch a live clock steps in one frame (s); the rest of a longer gap is skipped. */
 export const MAX_CATCH_UP_S = 3;
@@ -39,6 +43,8 @@ export interface AgentDriver {
   working(): number;
   /** Ticks the pool has been stepped (skipped time excluded). */
   ticks(): number;
+  /** The builders of a scaffold (M2-29 D, `crewState`); `none` before the pool exists. */
+  crew(building: NodeBuilding): 'none' | 'coming' | 'ready';
 }
 
 const NO_COUNTS: AgentCounts = { total: 0, villager: 0, cossack: 0, visitor: 0, cart: 0 };
@@ -59,6 +65,8 @@ export function createAgentDriver(make: (ctx: AgentContext) => AgentPool, cap: n
         poses = writePoses(pool, slots);
       }
       pool.done.count = 0;
+      // A scaffold put up this frame gets its builders even when no tick is due (else it reads `none` and starts).
+      assignCrews(ctx, pool);
       if (target <= clockTicks) return;
       const n = Math.min(target - clockTicks, cap);
       clockTicks = target;
@@ -71,5 +79,6 @@ export function createAgentDriver(make: (ctx: AgentContext) => AgentPool, cap: n
     counts: () => (pool ? agentCounts(pool) : NO_COUNTS),
     working: () => (pool ? workingCount(pool) : 0),
     ticks: () => poolTicks,
+    crew: (building) => (pool ? crewState(pool, building) : 'none'),
   };
 }

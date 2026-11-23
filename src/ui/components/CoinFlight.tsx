@@ -3,12 +3,17 @@
 // (`useCoinLaunch`) — coins of that currency fly a Bézier curve from the button that was pressed to the HUD counter of
 // that currency. Large = worth at least COIN_FLIGHT's first tier in seconds of that currency's income now (ui/coins.ts).
 // Decoration only (aria-hidden): the counter and the read-outs say the same. «Менше руху»: none.
+// An ordinary upgrade (M2-29 D, SPEC §6.5; a level past the first, `BuildingUpgraded` / `SichUpgraded` from ≥ 1):
+// UPGRADE_JUICE.coins coins of the currency spent fly the other way, from its counter to the building — when the world
+// says where the player sees it (`buildingAt`, render's `WorldApp.buildingOnScreen`); the world squashes it as they
+// land. Only a purchase emits those events: never on load, offline or the return.
 // The claim button tells where the press was (`useFlightOrigin`), the way the world's tap point waits for `Tapped`.
 // One animation frame loop for every coin in the air: each coin's transforms were made at launch (`flightFrames`), so
 // a frame only assigns a ready string when the coin moved to its next one; React renders a flight's coins once and
 // removes them when it lands. The loop stops when nothing flies and is cancelled on unmount.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { COIN_FLIGHT } from '../../content/juice.ts';
+import { COIN_FLIGHT, UPGRADE_JUICE } from '../../content/juice.ts';
+import type { PlotBuilding } from '../../content/villages/khortytsia.layout.ts';
 import type { Big } from '../../core/big.ts';
 import type { GameEvent } from '../../core/events.ts';
 import { hudView } from '../../core/selectors.ts';
@@ -26,6 +31,8 @@ interface Flights {
   /** Where the next claim was pressed (client px); `null` until a claim button is pressed. */
   readonly origin: { current: Point | null };
   readonly launch: (from: Point, currency: Currency, amount: Big) => void;
+  /** An upgrade's coins from the counter of `currency` to the building seen at `at` (none for `null`). */
+  readonly spend: (currency: Currency, at: Point | null) => void;
 }
 
 const Context = createContext<Flights | null>(null);
@@ -127,7 +134,16 @@ function stepCoins(active: readonly Flight[], now: number): boolean {
 
 let nextId = 0;
 
-export function CoinFlight({ children }: { readonly children: ReactNode }) {
+/** Where the player sees a building now (client px), or `null`: off screen, under the HUD or the sheet, no world. */
+export type BuildingAt = (building: PlotBuilding) => Point | null;
+
+export function CoinFlight({
+  children,
+  buildingAt,
+}: {
+  readonly children: ReactNode;
+  readonly buildingAt?: BuildingAt | undefined;
+}) {
   const read = useGameReader();
   const [flights, setFlights] = useState<readonly Flight[]>([]);
   const loop = useRef<{ active: Flight[]; frame: number; tick: () => void } | null>(null);
@@ -150,12 +166,10 @@ export function CoinFlight({ children }: { readonly children: ReactNode }) {
 
   const flightsApi = useMemo<Flights>(() => {
     const origin: { current: Point | null } = { current: null };
-    const launch = (from: Point, currency: Currency, amount: Big): void => {
+    /** `n` coins of `currency` from `from` to `target` (client px). */
+    const fly = (from: Point, target: Point, currency: Currency, n: number): void => {
       const l = loop.current;
-      if (!l || lessMotion()) return;
-      const n = coinsFor(amount, perSec(read(), currency));
-      const target = counterAt(currency);
-      if (n === 0 || !target) return;
+      if (!l || n === 0) return;
       const px = logicalPx();
       const start = snap(from, px);
       const to = snap(target, px);
@@ -179,12 +193,26 @@ export function CoinFlight({ children }: { readonly children: ReactNode }) {
       setFlights(l.active.slice());
       if (l.frame === 0) l.frame = requestAnimationFrame(l.tick);
     };
-    return { origin, launch };
+    const launch = (from: Point, currency: Currency, amount: Big): void => {
+      if (lessMotion()) return;
+      const target = counterAt(currency);
+      if (target) fly(from, target, currency, coinsFor(amount, perSec(read(), currency)));
+    };
+    const spend = (currency: Currency, at: Point | null): void => {
+      if (lessMotion() || !at) return;
+      const from = counterAt(currency);
+      if (from) fly(from, at, currency, UPGRADE_JUICE.coins);
+    };
+    return { origin, launch, spend };
   }, [read]);
 
   useGameEvent(
     useCallback(
       (e: GameEvent) => {
+        if ((e.type === 'BuildingUpgraded' || e.type === 'SichUpgraded') && e.from >= 1) {
+          flightsApi.spend(e.type === 'SichUpgraded' ? 'glory' : 'ducats', buildingAt?.(e.id) ?? null);
+          return;
+        }
         if (e.type !== 'QuestClaimed' && e.type !== 'ReturnClaimed') return;
         const from = flightsApi.origin.current;
         flightsApi.origin.current = null;
@@ -196,7 +224,7 @@ export function CoinFlight({ children }: { readonly children: ReactNode }) {
           flightsApi.launch(from, e.granted.currency, e.granted.amount);
         }
       },
-      [flightsApi],
+      [flightsApi, buildingAt],
     ),
   );
   useEffect(
