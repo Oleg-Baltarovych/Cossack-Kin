@@ -55,6 +55,8 @@ const HANDLE: readonly { readonly x: number; readonly y: number }[] = [
   { x: 6, y: 2 },
   { x: 6, y: 3 },
 ];
+/** The px inside the front handle's loop (jug-local), between it and the neck. */
+const HOLE = { x: 5, y: 2 } as const;
 const JUG_INK: PropLegend = { H: ['gold', 3], L: ['gold', 2], m: ['gold', 1], d: ['gold', 0] };
 /** The jugs' swing (px) per walk frame: back and front swing opposite. */
 const SWING = [0, 1, 1, 0, -1, -1];
@@ -93,6 +95,15 @@ const HANCHAR: Traveller = {
       ...HANDLE.map((h) => ({ x: back + JUG_W - 1 - h.x, y: JUG_Y + h.y + t, ramp: 'gold' as const, shade: 3 })),
       ...HANDLE.map((h) => ({ x: front + h.x, y: JUG_Y + h.y + t, ramp: 'gold' as const, shade: 2 })),
       { x: HEAD_AT.x + NOSE.x, y: HEAD_AT.y + NOSE.y + t, ramp: 'skin', shade: NOSE.shade },
+    ];
+  },
+  // The hole inside each handle loop (art-director M2-29 B1): open air between handle and neck, so the handle breaks
+  // the silhouette instead of filling it with outline.
+  holes: (f) => {
+    const s = swing(f.anim, f.frame);
+    return [
+      { x: BACK_X + s + JUG_W - 1 - HOLE.x, y: JUG_Y + HOLE.y + f.top },
+      { x: FRONT_X - s + HOLE.x, y: JUG_Y + HOLE.y + f.top },
     ];
   },
   shadow: [-6, 24],

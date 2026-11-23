@@ -1,7 +1,8 @@
 // Wind sway and foreground fading (plan ART-14). Pure: driven only by animation seconds and the wind strength, so
 // `?freeze=<s>` frames repeat. The plant sprites carry SWAY.frames baked lean frames (whole-px row offsets in the
 // generator, frame (n − 1)/2 upright); here we only pick which one shows — no filter, no sub-px resampling.
-import { FOREGROUND, SWAY } from './atmosphere/config.ts';
+import type { Animate } from '../content/villages/khortytsia.layout.ts';
+import { FOREGROUND, sailFps, SWAY, WIND_GALE_FROM } from './atmosphere/config.ts';
 
 /** The upright frame. */
 export const SWAY_UPRIGHT = (SWAY.frames - 1) / 2;
@@ -41,4 +42,14 @@ export function foregroundAlpha(plant: Rect, people: readonly Rect[]): number {
     (p) => p.x < plant.x + plant.w && plant.x < p.x + p.w && p.y < plant.y + plant.h && plant.y < p.y + p.h,
   );
   return hit ? FOREGROUND.fadeAlpha : 1;
+}
+
+/**
+ * Frame of a `cycle` animation at animation time `seconds` (Ground layer): at its fixed rate, or the sails' rate for
+ * `fps: 'wind'`. A `gale` sprite carries a second bank (frames … 2·frames − 1, a pennant streaming longer, M2-29 B4)
+ * drawn from `WIND_GALE_FROM` on — in a storm.
+ */
+export function cycleFrame(seconds: number, a: Extract<Animate, { kind: 'cycle' }>, strength: number): number {
+  const i = Math.floor(seconds * (a.fps === 'wind' ? sailFps(strength) : a.fps)) % a.frames;
+  return a.gale === true && strength >= WIND_GALE_FROM ? a.frames + i : i;
 }

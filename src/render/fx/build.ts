@@ -15,6 +15,7 @@ import {
   confettiPieces,
   dustPuffs,
   knocksBetween,
+  scaffoldBays,
   scaffoldSize,
   STANDARD_FRAMES,
   type FxPiece,
@@ -48,6 +49,8 @@ interface Site {
   /** Half the base frame's width right of its pivot. */
   readonly right: number;
   readonly size: 's' | 'l';
+  /** Scaffolds side by side (`scaffoldBays`), centred on the pivot. */
+  readonly bays: number;
   readonly seed: number;
 }
 
@@ -103,6 +106,7 @@ export function createBuildFx(
       above: Math.round(base.height * anchor.y),
       right: Math.round(base.width * (1 - anchor.x)),
       size: scaffoldSize(base.width, base.height),
+      bays: scaffoldBays(base.width, scaffoldSize(base.width, base.height)),
       seed: t.x,
     });
   }
@@ -116,7 +120,7 @@ export function createBuildFx(
   // One running sequence per building at a time (a second purchase restarts nothing: levels only go up).
   const builds = new Map<
     PlotBuilding,
-    { start: number; scaffold: Sprite; dust: Sprite[]; confetti: Sprite[]; knockedMs: number }
+    { start: number; scaffold: Sprite[]; dust: Sprite[]; confetti: Sprite[]; knockedMs: number }
   >();
   const parties = new Map<PlotBuilding, { start: number; flash: Sprite; standard: Sprite; glint: Sprite }>();
   const claim = claimParticles();
@@ -132,8 +136,7 @@ export function createBuildFx(
     construct(building, nowMs) {
       const site = sites.get(building);
       if (!site || builds.has(building)) return;
-      const scaffold = pool(world, scaffolds[site.size], 1)[0];
-      if (!scaffold) return;
+      const scaffold = pool(world, scaffolds[site.size], site.bays);
       builds.set(building, {
         start: nowMs,
         knockedMs: -1,
@@ -170,19 +173,23 @@ export function createBuildFx(
         for (let k = knocksBetween(b.knockedMs, nowMs - b.start); k > 0; k--) onKnock(building);
         b.knockedMs = nowMs - b.start;
         if (!site || f.kind === 'done') {
-          dispose([b.scaffold, ...b.dust, ...b.confetti]);
+          dispose([...b.scaffold, ...b.dust, ...b.confetti]);
           builds.delete(building);
           continue;
         }
         const at = { x: site.x, y: y0 + site.ground, seed: site.seed };
-        b.scaffold.visible = f.kind === 'scaffold';
+        for (const s of b.scaffold) s.visible = f.kind === 'scaffold';
         if (f.kind === 'scaffold') {
           // The building waits behind its scaffold: drawn as the empty plot until the reveal.
           if (tiers) tiers = { ...tiers, [building]: 0 };
           const t = scaffolds[site.size][f.stage];
-          if (t) b.scaffold.texture = t;
-          b.scaffold.position.set(at.x, at.y);
-          const dust = b.dust.length > 0 ? dustPuffs(at, nowMs - b.start, BUILD.scaffoldW[site.size]) : [];
+          const bay = BUILD.scaffoldW[site.size];
+          b.scaffold.forEach((s, i) => {
+            if (t) s.texture = t;
+            // Bays abut, centred on the pivot (whole px).
+            s.position.set(at.x + Math.round((i - (site.bays - 1) / 2) * bay), at.y);
+          });
+          const dust = b.dust.length > 0 ? dustPuffs(at, nowMs - b.start, bay * site.bays) : [];
           place(b.dust, dust, dustFrames);
           live += dust.length;
           continue;

@@ -116,8 +116,8 @@ describe('plot variant add-ons (M2-10)', () => {
   });
 
   // Big, eye-catching add-ons read as copy-paste when two plots show the same one on one screen (art-director M2-10:
-  // two laundry lines; M2-29 B3: seed 1's fair and smithy carts).
-  it.each(['laundry', 'cart'])('never shows two %s add-ons in one phone view', (sprite) => {
+  // two laundry lines; M2-29 B3: seed 1's fair and smithy carts; M2-29 B4: seeds 2 and 7 the mill's and the potter's nests).
+  it.each(['laundry', 'cart', 'stork-nest'])('never shows two %s add-ons in one phone view', (sprite) => {
     const same = addOns.filter((p) => p.sprite === sprite);
     const close = same.flatMap((a, i) =>
       same

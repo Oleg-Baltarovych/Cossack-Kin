@@ -61,6 +61,8 @@ export interface Traveller {
   readonly front?: (f: FrameInfo) => readonly PropStamp[];
   /** 1-px props, unoutlined, over everything (a staff, a strap, a whip, cords). */
   readonly thin?: (f: FrameInfo) => readonly Thin[];
+  /** Body-local px cleared after the outline (a jug handle's hole, M2-29 B4): open air, not the outline colour. */
+  readonly holes?: (f: FrameInfo) => readonly Pt[];
   /** The near arm's mask index (kozak ARM: 0 hang, 1 forward, 2 back) when it holds something; absent = the walk table's. */
   readonly arm?: number;
   /** Ground shadow span (body-local x), wider under a pack or a pole. */
@@ -184,6 +186,7 @@ export function travellerGenerator(t: Traveller): SpriteGenerator {
     generate(_rng, { anim, frame, buffer, layers, rampSize }) {
       const plot = new Plot();
       const thin = new Plot();
+      let holes: readonly Pt[] = [];
       if (anim === 'play') {
         if (!t.play) throw new Error(`${t.id}: no play`);
         t.play(plot, thin, { anim: 'play', frame, bob: 0, top: SIT_DROP });
@@ -201,6 +204,7 @@ export function travellerGenerator(t: Traveller): SpriteGenerator {
         for (const p of t.front?.(f) ?? []) paintProp(plot, p);
         paintBody(plot, t.outfit, [{ mask: pick(ARM, t.arm ?? pose.arm), x: ARM_AT.x, y: ARM_AT.y + f.top }]);
         paintThin(thin, t.thin?.(f) ?? []);
+        holes = t.holes?.(f) ?? [];
       }
       compose(buffer, [plot.part(1, 1), thin.part(1, 2)], rampSize, {
         light: false,
@@ -208,6 +212,7 @@ export function travellerGenerator(t: Traveller): SpriteGenerator {
         outline: { mode: 'outer', drop: 2, parts: [1] },
         selective: PEOPLE_SELECTIVE,
       });
+      for (const h of holes) if (buffer.inBounds(h.x + PAD, h.y)) buffer.clear(h.x + PAD, h.y);
       const shadow = layers.shadow;
       if (shadow)
         contactShadow(shadow, { x0: t.shadow[0] + PAD, x1: t.shadow[1] + PAD, groundY: VISITOR_GROUND, height: 3 });

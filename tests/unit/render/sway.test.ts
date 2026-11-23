@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { foregroundAlpha, SWAY_UPRIGHT, swayFrame } from '../../../src/render/sway.ts';
-import { FOREGROUND, SWAY } from '../../../src/render/atmosphere/config.ts';
+import { cycleFrame, foregroundAlpha, SWAY_UPRIGHT, swayFrame } from '../../../src/render/sway.ts';
+import { FOREGROUND, SWAY, WIND_STRENGTH } from '../../../src/render/atmosphere/config.ts';
 
 const sample = (amp: number, strength: number, still = false): number[] =>
   Array.from({ length: 1200 }, (_, i) => swayFrame(i / 20, { amp, phase: 0.3 }, strength, still));
@@ -54,5 +54,21 @@ describe('foregroundAlpha (ART-14: foreground thins out over people)', () => {
   });
   it('fades when a person overlaps it', () => {
     expect(foregroundAlpha(plant, [{ x: 130, y: 230, w: 16, h: 40 }])).toBe(FOREGROUND.fadeAlpha);
+  });
+});
+
+describe('cycleFrame (M2-29 B4: a pennant streams longer in a storm)', () => {
+  const pennant = { kind: 'cycle', frames: 4, fps: 'wind', gale: true } as const;
+  it('cycles the first bank at the wind rate in a breeze, the second (frames … 2·frames − 1) in a storm', () => {
+    const at = (s: number, wind: number): number => cycleFrame(s, pennant, wind);
+    const breeze = Array.from({ length: 40 }, (_, i) => at(i * 0.05, WIND_STRENGTH.breeze));
+    const storm = Array.from({ length: 40 }, (_, i) => at(i * 0.05, WIND_STRENGTH.storm));
+    expect(new Set(breeze)).toEqual(new Set([0, 1, 2, 3]));
+    expect(new Set(storm)).toEqual(new Set([4, 5, 6, 7]));
+    expect(at(1, WIND_STRENGTH.calm)).toBeLessThan(4);
+  });
+  it('a cycle without a gale bank never leaves it; a fixed rate ignores the wind', () => {
+    expect(cycleFrame(1.3, { kind: 'cycle', frames: 4, fps: 'wind' }, WIND_STRENGTH.storm)).toBeLessThan(4);
+    expect(cycleFrame(0.25, { kind: 'cycle', frames: 6, fps: 10 }, WIND_STRENGTH.storm)).toBe(2);
   });
 });

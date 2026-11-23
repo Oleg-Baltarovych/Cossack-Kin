@@ -40,6 +40,15 @@ export function scaffoldSize(w: number, h: number): 's' | 'l' {
   return h >= BUILD.largeMinH && h >= w * BUILD.largeMinRatio ? 'l' : 's';
 }
 
+/**
+ * How many `l` scaffolds stand side by side over a building `w` px wide (art-director M2-29 B4: one 56-px scaffold hid
+ * a 104-px kurin, which then doubled on the pop): one per scaffold width of its drawn body (`bayFill` of the padded
+ * frame). A low plot (`s`) keeps one: a field is not scaffolded across.
+ */
+export function scaffoldBays(w: number, size: 's' | 'l'): number {
+  return size === 's' ? 1 : Math.max(1, Math.round((w * BUILD.bayFill) / BUILD.scaffoldW.l));
+}
+
 /** A point in world px (ground space) and the seed that desyncs one site from another. */
 export interface FxSite {
   readonly x: number;

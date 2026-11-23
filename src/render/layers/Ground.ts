@@ -19,7 +19,6 @@ import {
   MOON_RIM_LEVELS,
   RAIN_SHADOWS,
   QUALITY_TIERS,
-  sailFps,
   SWAY,
 } from '../atmosphere/config.ts';
 import { outlineSets, type OutlineItem, type Outlines } from '../fx/outline.ts';
@@ -31,7 +30,7 @@ import { plotShown } from '../scene.ts';
 import type { VisualTiers } from '../../core/selectors.ts';
 import { cloudShadowLevel, emissiveLevel, keyLevel } from '../atmosphere/emissive.ts';
 import type { Quality, Weather } from '../settings.ts';
-import { swayFrame } from '../sway.ts';
+import { cycleFrame, swayFrame } from '../sway.ts';
 import { riverRowEnd } from '../zones.ts';
 import { personAnim } from '../agents/sim.ts';
 import type { AgentSprite, PersonAnim } from '../../content/agents.ts';
@@ -154,7 +153,11 @@ export function createGroundLayer({
     const placed = layout.props.map((p) => {
       const names = propFrames(p.sprite);
       // Animated props cycle (windmill sails) or sway (trees) over `<sprite>/idle/NN` frames; others show frame 00.
-      const count = p.animate ? (p.animate.kind === 'cycle' ? p.animate.frames : SWAY.frames) : 0;
+      const count = p.animate
+        ? p.animate.kind === 'cycle'
+          ? p.animate.frames * (p.animate.gale ? 2 : 1)
+          : SWAY.frames
+        : 0;
       const anim = frameList(p.sprite, 'idle', count);
       const sprite = new Sprite({ texture: frame(names.base), roundPixels: true });
       // Atlas anchors put the pivot at the bottom-centre of the ground row (or the hub, for lifted props).
@@ -359,9 +362,7 @@ export function createGroundLayer({
           const a = prop.animate;
           if (!a || anim.length === 0) continue;
           const index =
-            a.kind === 'sway'
-              ? swayFrame(ambient, a, scene.wind, lessMotion)
-              : Math.floor(ambient * (a.fps === 'wind' ? sailFps(scene.wind) : a.fps)) % anim.length;
+            a.kind === 'sway' ? swayFrame(ambient, a, scene.wind, lessMotion) : cycleFrame(ambient, a, scene.wind);
           const texture = anim[index];
           if (texture) sprite.texture = texture;
         }

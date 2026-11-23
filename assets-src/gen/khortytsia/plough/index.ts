@@ -15,7 +15,7 @@ const R = 5;
 /** The forecarriage's near wheel (the far one is hidden behind it, like the cart's). */
 const WHEEL = { x: 8, y: GROUND - R } as const;
 
-/** A spoked wheel like the cart's (integer distances, no trig). */
+/** A wheel with a spoke cross (art-director M2-29 B3: 8 spokes at r 5 read as 4 holes; integer distances, no trig). */
 function wheel(p: Plot, cx: number, cy: number): void {
   for (let dy = -R; dy <= R; dy++) {
     for (let dx = -R; dx <= R; dx++) {
@@ -23,7 +23,7 @@ function wheel(p: Plot, cx: number, cy: number): void {
       if (d2 > R * R + R) continue;
       const rim = d2 >= (R - 1) * (R - 1);
       const hub = d2 === 0;
-      const spoke = dx === 0 || dy === 0 || dx === dy || dx === -dy;
+      const spoke = dx === 0 || dy === 0;
       if (rim) p.set(cx + dx, cy + dy, 'wood', dx + dy < 0 ? 3 : 1);
       else if (hub) p.set(cx + dx, cy + dy, 'wood', 5);
       else if (spoke) p.set(cx + dx, cy + dy, 'wood', dx + dy < 0 ? 4 : 2);

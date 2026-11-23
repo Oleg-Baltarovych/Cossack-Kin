@@ -3,7 +3,7 @@
 // import core/actions.ts; ESLint `imports[render-actions]`). On connect and on every event it recomputes the plots' tiers,
 // their cosmetic variants (M2-10, from the seed), the Cossacks the army has (M2-19: `CossackHired` → one more walks out
 // of the kurin), the food carts' period (M2-20: from the kharch), the visitors' seed and clock (M2-21) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
-// M2-12: `BuildingUpgraded` 0 → 1 builds the plot on screen (scaffold → pop → confetti), `TierReached` celebrates it
+// M2-12: `BuildingUpgraded` / `SichUpgraded` 0 → 1 builds the plot on screen (scaffold → pop → confetti), `TierReached` celebrates it
 // (flash, rising standard) — the level is already in the state; the animation never holds the economy back.
 // M2-26: the big events in content SHAKE shake the camera (`world.shake`; none under «менше руху»).
 import { SHAKE } from '../content/juice.ts';
@@ -100,6 +100,7 @@ export function connectWorld(
       case 'ActionRejected':
         return;
       case 'BuildingUpgraded':
+      case 'SichUpgraded':
         // Before the refresh: the new plot must not stand for a frame before its scaffold does.
         if (e.from === 0) world.construct(e.id);
         refresh();
