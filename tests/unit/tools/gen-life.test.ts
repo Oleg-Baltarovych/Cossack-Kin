@@ -90,9 +90,9 @@ describe('pennants', () => {
     }
   });
 
-  it('flies in the wind: 4 frames at the wind rate, no ground shadow', () => {
+  it('flies in the wind: 4 frames at the wind rate (4 longer in a storm), no ground shadow', () => {
     for (const p of KHORTYTSIA_WORLD.props.filter((q) => q.sprite.startsWith('pennant.'))) {
-      expect(p.animate).toEqual({ kind: 'cycle', frames: 4, fps: 'wind' });
+      expect(p.animate).toEqual({ kind: 'cycle', frames: 4, fps: 'wind', gale: true });
       expect(p.shadow).toBe(false);
     }
   });

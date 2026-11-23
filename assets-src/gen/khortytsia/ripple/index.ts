@@ -18,6 +18,9 @@ const DASHES: readonly (readonly [number, number, number])[] = [
   [2, 13, 3],
 ];
 
+/** Foam along the hull (1 = foam), one period across the 18-px waterline: runs of 1–4 px, gaps of 1–2. */
+const FOAM = [1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0] as const;
+
 const ripple: SpriteGenerator = {
   atlas: 'khortytsia',
   id: 'ripple',
@@ -43,9 +46,13 @@ const ripple: SpriteGenerator = {
         p.set(CX + from, row + 1, 'water', 3);
       }
     }
-    // Along the hull itself: a broken light line where the water laps the waterline.
-    for (let x = CX - 9; x < CX + 9; x++)
-      if ((x + frame) % 3 !== 0) p.set(x, 1, 'water', ((x + frame) % 3 === 1 ? 6 : 4) - dim);
+    // Along the hull itself: a broken light line where the water laps the waterline — uneven runs and gaps (art-director
+    // M2-29 B3: a 2-on/1-off period read as a dashed rule), drifting a px per frame; a run's first px is the crest.
+    for (let x = CX - 9; x < CX + 9; x++) {
+      const at = (i: number): number => FOAM[(((i - frame) % FOAM.length) + FOAM.length) % FOAM.length] ?? 0;
+      const i = x - (CX - 9);
+      if (at(i) === 1) p.set(x, 1, 'water', (at(i - 1) === 0 ? 6 : 4) - dim);
+    }
     compose(buffer, [p.part(1, 1)], rampSize, { light: false, occlusion: false });
   },
 };

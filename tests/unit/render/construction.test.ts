@@ -12,6 +12,7 @@ import {
   dustPuffs,
   knocksBetween,
   popSize,
+  scaffoldBays,
   scaffoldSize,
   SCAFFOLD_MS,
 } from '../../../src/render/fx/construction.ts';
@@ -168,5 +169,23 @@ describe('knocksBetween (plan M2-18: the builders knock as each scaffold stage g
     expect(knocksBetween(0, BUILD.stageMs)).toBe(1);
     expect(knocksBetween(-1, SCAFFOLD_MS * 10)).toBe(3);
     expect(knocksBetween(BUILD.stageMs * 2, SCAFFOLD_MS * 10)).toBe(0);
+  });
+});
+
+describe('scaffoldBays (M2-29 B4: the scaffold covers a long house)', () => {
+  it('a tall wide building gets a bay per scaffold width it spans; a narrow one or a low plot one bay', () => {
+    expect(scaffoldBays(112, 'l')).toBe(2); // kurin: the pop no longer doubles the scaffold's width
+    expect(scaffoldBays(132, 'l')).toBe(2); // tavern
+    expect(scaffoldBays(76, 'l')).toBe(1); // khata
+    expect(scaffoldBays(80, 'l')).toBe(1); // the Sich gate
+    expect(scaffoldBays(32, 'l')).toBe(1); // the watchtower
+    expect(scaffoldBays(112, 's')).toBe(1); // a field is not scaffolded across
+  });
+  it('the bays together are never much narrower than the building', () => {
+    for (const w of [56, 90, 112, 150, 200]) {
+      expect(scaffoldBays(w, 'l') * BUILD.scaffoldW.l).toBeGreaterThanOrEqual(
+        Math.round(w * BUILD.bayFill) - BUILD.scaffoldW.l / 2,
+      );
+    }
   });
 });

@@ -189,7 +189,13 @@ export interface SmokeVent {
 type TierNo = 1 | 2 | 3 | 4 | 5 | 6;
 
 export type Animate =
-  | { readonly kind: 'cycle'; readonly frames: number; readonly fps: number | 'wind' }
+  | {
+      readonly kind: 'cycle';
+      readonly frames: number;
+      readonly fps: number | 'wind';
+      /** The sprite has a second bank of `frames` for a storm (render `cycleFrame`): a pennant streams longer. */
+      readonly gale?: true;
+    }
   | { readonly kind: 'sway'; readonly amp: number; readonly phase: number };
 
 /** One sprite of a building's look at a tier: the base or a building-specific add-on (sails, hives). */
@@ -667,17 +673,17 @@ function toSteppe(from: number): GroundRow[] {
 }
 
 /**
- * The farm's plot variants (art-director M2-10): the stork's pole by the mill's yard fence or beside the potter's khata,
+ * The farm's plot variants (art-director M2-10): the stork's pole by the mill's yard fence (one nest on the farm, B4),
  * the kennel in the potter's yard, pumpkins and flowers at a fence or a bed end; one laundry line on the farm (the
  * potter's), so a screen never shows two.
  */
 const FARM_VARIANTS: readonly Prop[] = [
   addOn('windmill', 0, 'woodpile', 258, 122),
-  addOn('windmill', 1, 'stork-nest', 366, 96), // clear of the V–VI sails' 42-px reach (M2-29 B2)
+  addOn('windmill', 1, 'stork-nest', 371, 96), // clear of the V–VI sails' 42-px reach (M2-29 B2), not touching (B4)
   addOn('windmill', 2, 'pumpkins', 258, 122),
   addOn('potter', 0, 'laundry', 406, 238),
   addOn('potter', 1, 'kennel', 318, 254),
-  addOn('potter', 2, 'stork-nest', 196, 238),
+  addOn('potter', 2, 'pumpkins', 196, 238), // not a 2nd stork nest: the mill's shares a screen (M2-29 B4)
   addOn('field', 0, 'pumpkins', 470, 116),
   addOn('field', 1, 'flowers.a', 440, 114),
   addOn('field', 1, 'flowers.b', 500, 116),
@@ -907,14 +913,14 @@ const TAVERN: TierSprite = {
   ],
 };
 
-/** A pennant in the wind (4 frames at the wind's rate, plan M2-11), hung at a pole's hoist (`lift` above `dground`). */
+/** A pennant in the wind (4 frames at the wind's rate, plan M2-11; 4 longer ones in a storm, M2-29 B4), hung at a pole's hoist (`lift` above `dground`). */
 const pennant = (variant: 'a' | 'b', dx: number, lift: number, dground = 0): TierPart => ({
   sprite: `pennant.${variant}`,
   dx,
   dground,
   lift,
   shadow: false,
-  animate: { kind: 'cycle', frames: 4, fps: 'wind' },
+  animate: { kind: 'cycle', frames: 4, fps: 'wind', gale: true },
 });
 const STALL_DGROUND = -8;
 /** A stall stands behind the goods row (sorted behind the mats). */

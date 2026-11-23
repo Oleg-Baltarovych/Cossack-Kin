@@ -8,12 +8,14 @@ import { compose } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { RampName, SpriteGenerator } from '../../lib/types.ts';
 
-/** Cloth length and its height at the hoist. */
-export const PENNANT_CLOTH = { w: 10, h: 5 } as const;
+/** Cloth length and its height at the hoist; `storm` = the length in a gale (frames 4–7, art-director M2-29 B3). */
+export const PENNANT_CLOTH = { w: 10, h: 5, storm: 13 } as const;
 const PAD = 2;
-const W = PENNANT_CLOTH.w;
+const W = PENNANT_CLOTH.storm;
 const H = PENNANT_CLOTH.h + PAD * 2;
 export const PENNANT_FRAMES = 4;
+/** Frames 0–3 a breeze, 4–7 the same wave on the longer storm cloth (render `cycleFrame`, `gale`). */
+const BANKS = 2;
 /** One wave period (8 columns) sampled per column; each frame moves it 2 columns. Neighbours differ by ≤ 1 row. */
 const WAVE = [0, 0, 1, 1, 0, 0, -1, -1] as const;
 
@@ -24,7 +26,8 @@ export function pennantOffset(c: number, f: number): number {
 
 /** Rows of column `c` (taper from the hoist) — the last 2 columns are the swallow-tail's two prongs. */
 function columnRows(c: number, h: number, w: number): readonly number[] {
-  const n = h - Math.floor(c / 4);
+  // The taper scales with the length: the storm cloth keeps a 3-row tail with its notch.
+  const n = h - Math.floor((c * PENNANT_CLOTH.w) / (w * 4));
   const rows = Array.from({ length: n }, (_, r) => r);
   return c >= w - 2 ? rows.filter((r) => r === 0 || r === n - 1) : rows;
 }
@@ -46,18 +49,21 @@ const pennant: SpriteGenerator = {
   atlas: 'khortytsia',
   id: 'pennant',
   size: { w: W, h: H },
-  frames: { idle: PENNANT_FRAMES },
+  frames: { idle: PENNANT_FRAMES * BANKS },
   variants: Object.keys(LOOKS),
   anchor: { x: 0, y: PAD / H },
   generate(_rng, { variant, frame, buffer, rampSize }) {
     const look = LOOKS[variant ?? 'a'] ?? LOOKS.a;
     if (!look) return;
     const cloth = new Plot();
-    const { w, h } = PENNANT_CLOTH;
+    const storm = frame >= PENNANT_FRAMES;
+    const f = frame % PENNANT_FRAMES;
+    const { h } = PENNANT_CLOTH;
+    const w = storm ? PENNANT_CLOTH.storm : PENNANT_CLOTH.w;
     for (let c = 0; c < w; c++) {
-      const dy = pennantOffset(c, frame);
+      const dy = pennantOffset(c, f);
       // A column turning down toward the tip lies in the fold's shade.
-      const fold = pennantOffset(c + 1, frame) > dy ? 1 : 0;
+      const fold = pennantOffset(c + 1, f) > dy ? 1 : 0;
       const band = variant === 'b' ? c >= w - 3 : c < 2;
       const [top, body, hem] = band ? look.bandShades : look.shades;
       const rows = columnRows(c, h, w);

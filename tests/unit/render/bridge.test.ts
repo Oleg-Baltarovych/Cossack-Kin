@@ -159,6 +159,22 @@ describe('construction and tier juice (M2-12)', () => {
     expect(f.built).toEqual(['field', 'garden']);
     expect(f.celebrated).toEqual(['field', 'garden']);
   });
+
+  it('a Sich building goes up under scaffolding on its first level too (M2-12 tail), and only then', () => {
+    const s = rich();
+    const store = createStore({ ...s, currencies: { ...s.currencies, glory: Big.from(1e9) } });
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.dispatch({ type: 'buySich', id: 'kurins', mode: 1 }, T0 + 100);
+    expect(store.getState().village.sichLevels.kurins).toBe(1);
+    expect(f.built).toEqual(['kurins']);
+    store.dispatch({ type: 'buySich', id: 'kurins', mode: 1 }, T0 + 200);
+    expect(f.built).toEqual(['kurins']);
+    // 0 → 10 at once (a milestone): built, then celebrated after the reveal (render waits).
+    store.dispatch({ type: 'buySich', id: 'walls', mode: 10 }, T0 + 300);
+    expect(f.built).toEqual(['kurins', 'walls']);
+    expect(f.celebrated).toEqual(['walls']);
+  });
 });
 
 describe('camera shake (M2-26)', () => {

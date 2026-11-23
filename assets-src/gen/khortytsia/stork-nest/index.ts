@@ -62,11 +62,12 @@ const storkNest: SpriteGenerator = {
     for (let y = body; y <= body + 4; y++) {
       for (let x = 7; x <= 17; x++) {
         if ((y === body || y === body + 4) && (x === 7 || x === 17)) continue;
-        const feathers = x >= 13 && y >= body + 1;
+        // The black rump rounds over the back's end (art-director M2-29 B3: a white top over a black tail read as a
+        // second beak at night); no tail px poking out.
+        const feathers = x >= 13 && (y >= body + 1 || x >= 15);
         p.set(x, y, feathers ? 'ink' : 'plaster', feathers ? 1 : x <= 9 ? 6 : 5);
       }
     }
-    p.set(18, body + 3, 'ink', 1);
     // Neck (2 px) up to the head, the beak 3 px forward, its underside darker.
     for (let y = body - 2; y <= body - 1; y++) p.set(8, y, 'plaster', 6);
     const head = body - 4;

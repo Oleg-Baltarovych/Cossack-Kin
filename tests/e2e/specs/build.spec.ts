@@ -6,6 +6,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';
 import { BUILD } from '../../../src/render/atmosphere/config.ts';
 import { split } from '../../../src/render/camera.ts';
@@ -24,6 +25,8 @@ const FRAME_MS = 16;
 const SETTLE_MS = 3 * FRAME_MS;
 /** The field (x 450) and the apiary (660) on the farm's second screen. */
 const CAM = 330;
+/** The Sich zone's left edge (its camera anchor): the kurins (local x 92) and the gate (198) in view. */
+const SICH_CAM = KHORTYTSIA_WORLD.zones.find((z) => z.id === 'sich')?.anchorX ?? 0;
 
 const today = (): string => {
   const d = new Date();
@@ -155,6 +158,35 @@ test.describe('M2-12 construction and tiers', () => {
       await shot(page, testInfo, `${key}-tier-3-raised`);
       await page.clock.runFor(BUILD.celebrationMs);
       await expect(banner).toHaveText('');
+    });
+  }
+
+  for (const time of ['13:00', '23:00'] as const) {
+    test(`a Sich building goes up under scaffolding too (M2-12 tail, ${time})`, async ({ page }, testInfo) => {
+      const key = time.replace(':', '');
+      // The camera at the Sich anchor (its left edge): the «Січ» tab then glides nowhere.
+      await openPaused(page, `/?seed=1&freeze&time=${time}&cam=${String(SICH_CAM)}&ui=1&state=rich`);
+      await page.getByRole('tab', { name: 'Січ' }).click();
+      await page.clock.runFor(SETTLE_MS);
+      const rows = await worldRows(page, testInfo);
+      for (const [name, label] of [
+        ['kurins', /«Курені»/],
+        ['walls', /«Вали, частокіл і брама»/],
+      ] as const) {
+        const empty = region(await shot(page, testInfo, `sich-${key}-${name}-0-empty`), rows);
+        await page.getByRole('button', { name: label }).click();
+        expect((await gameState(page)).village.sichLevels[name]).toBe(1);
+        await page.clock.runFor(SETTLE_MS + 40);
+        const stage0 = region(await shot(page, testInfo, `sich-${key}-${name}-1-stage0`), rows);
+        await page.clock.runFor(2 * BUILD.stageMs);
+        const stage2 = region(await shot(page, testInfo, `sich-${key}-${name}-2-stage2`), rows);
+        await page.clock.runFor(SCAFFOLD_MS + BUILD.confettiMs);
+        const built = region(await shot(page, testInfo, `sich-${key}-${name}-3-built`), rows);
+        expect(stage0.equals(empty), 'the scaffold stands on the empty plot').toBe(false);
+        expect(stage2.equals(stage0), 'the scaffold grows').toBe(false);
+        expect(built.equals(stage2), 'the building stands').toBe(false);
+      }
+      expect((await readStats(page)).knocks).toBe(6);
     });
   }
 

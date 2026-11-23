@@ -685,6 +685,8 @@ export const WIND = { strength: 0.55 } as const;
  * sails and stills the grass, a storm bends everything. Breeze = the M-ART look.
  */
 export const WIND_STRENGTH = { calm: 0.15, breeze: WIND.strength, storm: 0.95 } as const;
+/** From this strength on a `gale` cycle (pennants) shows its storm bank: longer cloth (M2-29 B4). */
+export const WIND_GALE_FROM = 0.8;
 /**
  * Sail frames per second for a wind strength: 8 frames make a quarter turn, so 2 fps (a lazy turn in light air) to
  * 10 fps (a full turn in 3.2 s in a gale). Whole frames only: the sails never sit at a sub-px angle.
@@ -1112,6 +1114,8 @@ export const BUILD = {
   largeMinRatio: 0.5,
   /** Footprints of the `scaffold.s|l` looks (the generator's SCAFFOLD_LOOKS; a gen test holds them equal). */
   scaffoldW: { s: 40, l: 56 },
+  /** Share of a padded base frame the building's body spans: tall wide buildings get one `l` bay per 56 px of it. */
+  bayFill: 0.9,
 } as const;
 
 /**

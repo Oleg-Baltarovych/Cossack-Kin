@@ -215,9 +215,9 @@ const tavern: SpriteGenerator = {
 
     // Whitewash (art-director M2-08): at night the long wall read brighter than its windows, so it was stepped down two;
     // by day that read a step greyer than the farm's khatas (M2-29 B3). Now the lit front and its shaded end are the
-    // khata's (plaster 5 / 4), and only the corner, the side wall and the foot stay a step down (3 → 2, 2 → 1): the
-    // front matches the farm by day, and at night the darker corner and side wall frame the windows.
-    const REMAP = [1, 1, 1, 2, 4, 5, 5] as const;
+    // khata's (plaster 5 / 4), and so is the side wall (plaster 3, M2-29 B4: a step down read greyer than the khata's
+    // side across the street); only the top white (6 → 5) and the darkest outline step (0 → 1) stay remapped.
+    const REMAP = [1, 1, 2, 3, 4, 5, 5] as const;
     for (const [key, px] of body.px) {
       if (px.ramp === 'plaster') body.px.set(key, { ...px, shade: REMAP[px.shade] ?? px.shade });
     }
