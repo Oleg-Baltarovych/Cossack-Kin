@@ -58,10 +58,10 @@ describe('materials-1 swatches', () => {
     },
   );
 
-  it('grass keeps to ≤ 6 grass colors plus gold flecks (recipe)', () => {
+  it('grass keeps to ≤ 6 grass colors plus thatch flecks (recipe)', () => {
     const img = frames[MATERIAL_SWATCHES.indexOf('grass')]?.image;
     if (!img) throw new Error('missing frame');
-    expect(colorStats(img, palette).ramps).toEqual(['gold', 'grass']);
+    expect(colorStats(img, palette).ramps).toEqual(['grass', 'thatch']);
     expect(colorStats(img, palette).colors).toBeLessThanOrEqual(7);
   });
 

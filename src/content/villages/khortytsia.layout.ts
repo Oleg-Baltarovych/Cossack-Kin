@@ -50,7 +50,9 @@ export type GroundTile =
   | 'trodden'
   | 'moat'
   | 'rampart'
-  | 'ditch';
+  | 'ditch'
+  | 'steppe'
+  | 'steppe-edge';
 
 export interface GroundRow {
   readonly tile: GroundTile;
@@ -142,7 +144,12 @@ export interface Prop {
     | 'stork-nest'
     | 'pumpkins'
     | 'pennant.a'
-    | 'pennant.b';
+    | 'pennant.b'
+    | 'kovyla.a'
+    | 'kovyla.b'
+    | 'sorrel.a'
+    | 'sorrel.b'
+    | 'kurgan';
   /** Pivot (bottom-centre of the ground row the prop stands on), world x. */
   readonly x: number;
   /** Pivot y below the horizon; also the Y-sort key. */
@@ -609,6 +616,56 @@ const addOn = (building: VariantPlot, variant: number, sprite: Prop['sprite'], x
 });
 
 /**
+ * The dry steppe at the bottom of the world (M2-29 A5, Q13 item 5): every zone's near grass runs down to `top`, gives
+ * way to the steppe over the ragged `steppe-edge` row, and the steppe fills the rest of the view. It lies under the
+ * half bottom sheet at the normal zoom (the sheet's top is ≈ row 300) and shows when the sheet is collapsed, in the
+ * closer level panned down, and in shots without UI.
+ */
+export const STEPPE_BAND = {
+  top: 384,
+  /** The deepest ground row a steppe prop stands on: inside the view on the shortest reference phone (360×800). */
+  propsMax: 480,
+} as const;
+
+/** How far the steppe plants lean in the wind (share of the full sway): the feather grass all the way, sorrel stiffer. */
+export const STEPPE_SWAY = { kovyla: 1, sorrel: 0.6 } as const;
+
+/** A steppe plant: feather grass or sorrel, zone-local x, ground row. */
+type SteppePlant = readonly ['kovyla.a' | 'kovyla.b' | 'sorrel.a' | 'sorrel.b', number, number];
+
+/** Steppe plants as swaying props; the phase follows x so neighbours never move in step. */
+function steppePlants(plants: readonly SteppePlant[]): Prop[] {
+  return plants.map(([sprite, x, ground]) => ({
+    sprite,
+    x,
+    ground,
+    animate: {
+      kind: 'sway',
+      amp: STEPPE_SWAY[sprite.startsWith('kovyla') ? 'kovyla' : 'sorrel'],
+      phase: (x % 97) / 97,
+    },
+  }));
+}
+
+/**
+ * A feather-grass drift (art-director A5: ковила reads as a silvery sheet, not lone tufts): `n` overlapping tufts
+ * from x across about 6 px each, the ground wandering ±5 rows, `a`/`b` alternating.
+ */
+export const STEPPE_DRIFT = { stepPx: 6, wander: 5 } as const;
+function steppeDrift(x: number, ground: number, n: number): SteppePlant[] {
+  return Array.from({ length: n }, (_, i): SteppePlant => {
+    const wobble = ((i * 7 + x) % (2 * STEPPE_DRIFT.wander + 1)) - STEPPE_DRIFT.wander;
+    return [i % 2 === 0 ? 'kovyla.b' : 'kovyla.a', x + i * STEPPE_DRIFT.stepPx + ((i * 5) % 3), ground + wobble];
+  });
+}
+
+/** A zone's rows from `from` (where its own bands end) to the steppe: near grass, then the seam row. */
+function toSteppe(from: number): GroundRow[] {
+  const grass: GroundRow[] = from < STEPPE_BAND.top ? [{ tile: 'grass', top: from, h: STEPPE_BAND.top - from }] : [];
+  return [...grass, { tile: 'steppe-edge', top: STEPPE_BAND.top, h: GROUND_TILE.h }];
+}
+
+/**
  * The farm's plot variants (art-director M2-10): the stork's pole by the mill's yard fence or beside the potter's khata,
  * the kennel in the potter's yard, pumpkins and flowers at a fence or a bed end; one laundry line on the farm (the
  * potter's), so a screen never shows two.
@@ -642,9 +699,9 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     { tile: 'path', top: 128, h: 32 }, // the path with ruts
     // Front row: khata tier III, down to the near corner's fence end (M2-29; the same grass tiles as the fill below).
     { tile: 'grass', top: 160, h: 192 },
+    ...toSteppe(352),
   ],
-  // Under the future bottom sheet: quiet grass (a large earth fill shows its tile repeat).
-  fill: 'grass',
+  fill: 'steppe',
   // Trodden yards, centred a little in front of each house base (art-director ART-05 review).
   decals: [
     { sprite: 'yard', x: 116, ground: 104 },
@@ -726,6 +783,15 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     // with marigolds at its foot, low enough to stay fully under the half sheet at the normal level on 360/390/412.
     { sprite: 'tyn-end', x: 64, ground: 346 },
     { sprite: 'flowers.a', x: 92, ground: 348 },
+    // The steppe band (M2-29 A5): drifts of feather grass, rust sorrel between them.
+    ...steppePlants([
+      ...steppeDrift(110, 432, 8),
+      ...steppeDrift(410, 454, 10),
+      ...steppeDrift(640, 428, 6),
+      ['sorrel.a', 300, 442],
+      ['sorrel.b', 560, 468],
+      ['sorrel.a', 740, 436],
+    ]),
   ],
   // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
   // mallows at the corners of the first screen, the rest spread for the pan.
@@ -951,8 +1017,9 @@ export const KHORTYTSIA_SUBURB: ZoneScene = {
     // Worn where people and horses go (the road, the fair, the smithy), plain grass again further down.
     { tile: 'trodden', top: 160, h: 96 },
     { tile: 'grass', top: 256, h: 32 },
+    ...toSteppe(288),
   ],
-  fill: 'grass',
+  fill: 'steppe',
   decals: [
     // Where the Dnipro ends: its bank (sand lip on the 2:1 waterline, boulders, reeds) — row ends from the world's river.
     { sprite: 'bank', x: 324, ground: 0 },
@@ -967,6 +1034,14 @@ export const KHORTYTSIA_SUBURB: ZoneScene = {
     FAIR,
     SMITHY,
     ...SUBURB_VARIANTS,
+    // The steppe band (M2-29 A5): one kurgan, the centre of the world's bottom edge, feather grass on its flanks.
+    { sprite: 'kurgan', x: 214, ground: 462 },
+    ...steppePlants([
+      ...steppeDrift(20, 440, 6),
+      ...steppeDrift(300, 474, 7),
+      ['sorrel.a', 100, 424],
+      ['sorrel.b', 330, 432],
+    ]),
   ],
   paths: SUBURB_PATHS,
   foreground: [
@@ -1164,15 +1239,17 @@ export const KHORTYTSIA_SICH: ZoneScene = {
       top: 32,
       h: 32,
       plot: { building: 'walls', from: 1 },
+      alt: 'grass',
       upgrades: [
         { from: 2, tile: 'moat' },
         { from: 3, tile: 'rampart' },
       ],
     },
-    { tile: 'maidan', top: 64, h: 224, plot: { building: 'kurins', from: 1 } }, // the maidan, down to ~75 %
-    { tile: 'maidan-end', top: 288, h: 32, plot: { building: 'kurins', from: 1 } }, // a ragged edge into the grass
+    { tile: 'maidan', top: 64, h: 224, plot: { building: 'kurins', from: 1 }, alt: 'grass' }, // the maidan, ~75 %
+    { tile: 'maidan-end', top: 288, h: 32, plot: { building: 'kurins', from: 1 }, alt: 'grass' }, // ragged into grass
+    ...toSteppe(320),
   ],
-  fill: 'grass',
+  fill: 'steppe',
   // Worn paths from the gate to the two курінь doors (they lead the eye to the gate).
   decals: [
     // The zone's left edge (M2-01 seam review): the maidan's ragged grass edge, the road's mouth bending up toward the
@@ -1228,6 +1305,15 @@ export const KHORTYTSIA_SICH: ZoneScene = {
     { sprite: 'campfire', x: 196, ground: 176, animate: { kind: 'cycle', frames: 6, fps: 10 } },
     // Gathered for building, by the fire: the first Sich is a camp (art-director M1-19).
     { sprite: 'logpile', x: 226, ground: 186 },
+    // The steppe band (M2-29 A5).
+    ...steppePlants([
+      ...steppeDrift(80, 436, 9),
+      ...steppeDrift(390, 458, 11),
+      ...steppeDrift(630, 428, 7),
+      ['sorrel.a', 250, 450],
+      ['sorrel.b', 540, 426],
+      ['sorrel.a', 730, 466],
+    ]),
   ],
   paths: SICH_PATHS,
   // Puddles on the trodden maidan (rain only).

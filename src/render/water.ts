@@ -13,7 +13,7 @@
 import type { River } from '../content/villages/khortytsia.layout.ts';
 import type { Weather } from './settings.ts';
 import { Container, Rectangle, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
-import { RIVER_END, WATER, WATER_LOOKS, type ColorRef } from './atmosphere/config.ts';
+import { RAIN_WATER_TINT, RIVER_END, WATER, WATER_LOOKS, type ColorRef, type SkyKeyId } from './atmosphere/config.ts';
 import type { DayCycle } from './atmosphere/dayCycle.ts';
 import { moonShown, skyPixel } from './atmosphere/skyPaint.ts';
 import { rampColor } from './palette.ts';
@@ -192,6 +192,8 @@ const BANK_SHADE = 0.85;
 export function createWater(worldRT: RenderTexture, river: River | null, weather: Weather): Water {
   const rows = river?.rows ?? 0;
   const fog = weather === 'fog';
+  const rainTint = weather === 'rain' ? RAIN_WATER_TINT : {};
+  const tintOf = (key: SkyKeyId): number => rainTint[key] ?? WATER_LOOKS[key].tint;
   const mirrorScene = new Container({ label: 'water-mirror' });
   const band = new Container({ label: 'water' });
   let waterRT: RenderTexture | null = null;
@@ -300,7 +302,7 @@ export function createWater(worldRT: RenderTexture, river: River | null, weather
       const a = WATER_LOOKS[cycle.keyA];
       const b = WATER_LOOKS[cycle.keyB];
       const dominant = cycle.t < 0.5 ? a : b;
-      const tint = lerpTint(a.tint, b.tint, cycle.t);
+      const tint = lerpTint(tintOf(cycle.keyA), tintOf(cycle.keyB), cycle.t);
       const depth = a.depth + (b.depth - a.depth) * cycle.t;
       const wave = a.wave + (b.wave - a.wave) * cycle.t;
 

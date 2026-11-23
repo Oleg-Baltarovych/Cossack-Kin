@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildAllLuts, buildLut, lutLookup, paletteColors, type Rgb } from '../../../assets-src/luts/gen.ts';
+import { GRASS_FLECK } from '../../../assets-src/gen/lib/recipes.ts';
 import {
   GRADE_LOOKS,
   LUT_SIZE,
@@ -128,6 +129,20 @@ describe('buildLut', () => {
       expect(luma(wall)).toBeGreaterThan(130);
       expect(luma(wall)).toBeLessThan(luma(ramp('water', 6)));
     }
+  });
+
+  it('golden hour drops the grass flecks with the meadow, unlike sunlit thatch (M2-29 A5: no «confetti»)', () => {
+    const day = buildLut(GRADE_LOOKS.day, palette);
+    const golden = buildLut(GRADE_LOOKS.golden, palette);
+    const ground = ramp('grass', 2);
+    const fleck = ramp(GRASS_FLECK.ramp, GRASS_FLECK.shade);
+    const contrast = (lut: Uint8Array): number => luma(lutLookup(lut, fleck)) - luma(lutLookup(lut, ground));
+    // By day a fleck still reads on the grass; at golden hour it stands out about as much as by day (gold 4 gained
+    // ×1.13 and glowed like the sunlit roofs).
+    expect(contrast(day)).toBeGreaterThan(40);
+    expect(contrast(golden)).toBeLessThanOrEqual(contrast(day) * 1.06);
+    // Not a step the golden curve keeps bright (sunlit thatch, gold): those are the glowing roofs.
+    expect(luma(lutLookup(golden, fleck))).toBeLessThan(luma(fleck) * 0.95);
   });
 
   it('golden hour spares the reds and the sunlit timber the curve would sink (M2-29 A4)', () => {

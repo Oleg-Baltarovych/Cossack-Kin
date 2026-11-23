@@ -79,6 +79,8 @@ const TILE_VARIANTS: Readonly<Record<GroundTile, readonly string[]>> = {
   moat: ['moat'],
   rampart: ['rampart'],
   ditch: ['ditch'],
+  steppe: ['steppe', 'steppe-b', 'steppe-c'],
+  'steppe-edge': ['steppe-edge', 'steppe-edge-b', 'steppe-edge-c'],
 };
 
 /** Deterministic variant pick for the tile at column `col`, world row `row` (no RNG: same scene, same tiles). */

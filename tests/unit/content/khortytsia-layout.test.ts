@@ -7,6 +7,7 @@ import {
   KHORTYTSIA_SICH,
   KHORTYTSIA_SUBURB,
   KHORTYTSIA_WORLD,
+  STEPPE_BAND,
   sceneProps,
 } from '../../../src/content/villages/khortytsia.layout.ts';
 
@@ -35,10 +36,11 @@ describe('khortytsia farm layout', () => {
     }
   });
 
-  it('in every zone, props stand inside the zone and inside its ground rows', () => {
+  it('in every zone, props stand inside the zone and inside its ground rows (or the steppe fill, M2-29 A5)', () => {
     for (const [id, scene] of SCENES) {
       const last = scene.rows.at(-1);
-      const depth = last ? last.top + last.h : 0;
+      // The steppe fill runs to the bottom of the view: its plants may stand down to STEPPE_BAND.propsMax.
+      const depth = scene.fill === 'steppe' ? STEPPE_BAND.propsMax + 1 : last ? last.top + last.h : 0;
       for (const p of sceneProps(scene.props)) {
         expect(p.x, `${id} ${p.sprite}`).toBeGreaterThanOrEqual(0);
         expect(p.x, `${id} ${p.sprite}`).toBeLessThan(scene.width);

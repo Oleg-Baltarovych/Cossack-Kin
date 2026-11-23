@@ -628,6 +628,13 @@ export const WATER_LOOKS: Readonly<Record<SkyKeyId, WaterLook>> = {
   },
 };
 
+/**
+ * The river's tint under rain where it differs from `WATER_LOOKS` (M2-29 A5): at golden hour the warm clear-sky tint
+ * made the mirrored crimson glow more saturated than the sky itself — a cooler, darker tint keeps the reflection about
+ * one step muter than its source.
+ */
+export const RAIN_WATER_TINT: Readonly<Partial<Record<SkyKeyId, number>>> = { golden: 0x9890a4 };
+
 // --- Light shafts (ART-10 spike) -----------------------------------------------------------------------
 /**
  * Per-key light shafts: strength 0..1, light colour and dust colour. Only a low sun (dawn, golden hour) casts them
@@ -978,8 +985,9 @@ export const RAIN_LOOKS: Readonly<
   dawn: { streak: ['stone', 4], wet: 0.25, puddle: ['stone', 4], ripple: ['water', 6] },
   morning: { streak: ['stone', 4], wet: 0.25, puddle: ['stone', 4], ripple: ['water', 6] },
   day: { streak: ['stone', 5], wet: 0.25, puddle: ['stone', 5], ripple: ['water', 7] },
-  // Golden streaks grey (M2-29 A4): warm drops over the greyed land read as orange specks.
-  golden: { streak: ['stone', 4], wet: 0.25, puddle: ['sky', 5], ripple: ['sky', 6] },
+  // Golden streaks grey (M2-29 A4): warm drops over the greyed land read as orange specks. Puddles stone 3 (A5): the
+  // overcast they mirror is grey; sky 5 read as orange glints on the roads and the maidan.
+  golden: { streak: ['stone', 4], wet: 0.25, puddle: ['stone', 3], ripple: ['sky', 6] },
   dusk: { streak: ['stone', 3], wet: 0.18, puddle: ['sky', 3], ripple: ['water', 5] },
   night: { streak: ['stone', 2], wet: 0.12, puddle: ['stone', 3], ripple: ['water', 4] },
 };

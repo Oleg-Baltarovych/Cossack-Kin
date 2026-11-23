@@ -429,6 +429,14 @@ export function grassTuft(plot: Plot, cx: number, baseY: number, width: 3 | 5, h
 }
 
 /** Grass tile: ground + `tufts` tufts on a loose 3×3 grid (±3 px jitter) + gold flower flecks. */
+/**
+ * The grass's 1-px flower/seed-head flecks (M2-29 A5): a mid ochre step of their own, not gold 4 — gold 4 is the
+ * sunlit-thatch value the golden-hour curve keeps bright, so the flecks lit up as «confetti» on the sunk meadow at
+ * 19:30. Thatch 3 sits in the band the curve sinks: by day it still reads on grass 2, at golden hour it drops with the
+ * meadow (luts.test).
+ */
+export const GRASS_FLECK = { ramp: 'thatch', shade: 3 } as const;
+
 export function grassField(
   plot: Plot,
   area: Rect,
@@ -457,7 +465,7 @@ export function grassField(
       const fy = area.y + int(rng, 1, area.h - 2);
       const under = plot.get(fx, fy);
       if (under && under.shade <= 2) {
-        plot.set(fx, fy, 'gold', 4);
+        plot.set(fx, fy, GRASS_FLECK.ramp, GRASS_FLECK.shade);
         break;
       }
     }
