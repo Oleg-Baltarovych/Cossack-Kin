@@ -1,7 +1,7 @@
 // The Sich's people (plan M2-19): as many Cossacks as the army has (≤ 16), the drill on the maidan with the otaman by
 // day, free Cossacks in the suburb, pipes by the fire and torches on the rampart at night. `@screens @cossacks` writes
 // the review shots to reports/screens/<date>/cossacks-*.png: the Sich west and east and the suburb at 07:00 / 13:00 /
-// 23:00 on `state=showcase` (army 40 → 16 on the scene; the east on the top tiers, `state=tiers&tier=6`) on 390×844;
+// 23:00 on `state=showcase` (army 37, all the food feeds → 16 on the scene; the east on the top tiers, `state=tiers&tier=6`) on 390×844;
 // one Sich day shot on 360 and 412.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,7 +25,7 @@ const url = (state: string, time: string, cam: number) =>
 test.describe('M2-19 Cossacks', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
 
-  test('the army is on the scene: 6 on `mid`, the budget of 16 on `showcase` (army 40), none on `fresh`', async ({
+  test('the army is on the scene: 6 on `mid`, the budget of 16 on `showcase` (army 37), none on `fresh`', async ({
     page,
   }) => {
     await gotoReady(page, url('mid', '13:00', 1152));

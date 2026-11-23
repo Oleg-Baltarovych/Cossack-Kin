@@ -8,16 +8,17 @@
 //   ?seed=<n>         — the game seed (the same param seeds the cosmetic RNG)
 //   ?lang=uk|en       — the starting language
 //   ?ui=0             — no DOM UI: world-only screenshots (the e2e helper adds it unless a test asks for ui=1)
-import { TIER_LEVELS } from '../../content/economy.ts';
+import { START, TIER_LEVELS } from '../../content/economy.ts';
 import type { Action } from '../../core/actions.ts';
 import { SICH_BUILDINGS } from '../../content/sich.ts';
+import { FARM_BUILDING_IDS } from '../../content/villages/khortytsia.ts';
 import { Big } from '../../core/big.ts';
 import { createInitialState, LANGS, type GameState, type Lang } from '../../core/state.ts';
 import { newQuests } from '../../core/systems/quests.ts';
 import { dueBeats } from '../../core/systems/story.ts';
 import type { GameStore } from '../../core/store.ts';
 import { tier } from '../../core/economy.ts';
-import { villageOf } from '../../core/modifiers.ts';
+import { maxCossacks, sichUnlocked, villageOf } from '../../core/modifiers.ts';
 import { visualTiers, type VisualTiers } from '../../core/selectors.ts';
 import { applyOffline } from '../../core/offline.ts';
 import { isDebugMode } from '../../render/debug/modes.ts';
@@ -104,13 +105,18 @@ export function installGameDebug(store: GameStore, now: () => number): () => voi
  * Every plot at the tier the M-ART scene was made at: the potter's khata III (level 25), the windmill; in the Sich the
  * second kurin, cannon and tower and the belfry (Sich tier II = level 10). The church needs every farm building at 25.
  */
-/** The host of `showcase` and `tiers` (≥ the 16 the scene shows, plan Q11). */
+/**
+ * The host of `showcase` and `tiers` (≥ the 16 the scene shows, plan Q11), held to what the food feeds (M2-30): play
+ * never hires past `maxCossacks` (`canHire`), so showcase has 37, tiers I and II 2 and 21.
+ */
 const SHOWCASE_ARMY = 40;
+
+const fedHost = (s: GameState): GameState => ({ ...s, army: { infantry: Math.min(SHOWCASE_ARMY, maxCossacks(s)) } });
 
 function showcase(s: GameState): GameState {
   const farm = Object.fromEntries(Object.keys(s.village.levels).map((id) => [id, 25]));
   const sich = Object.fromEntries(Object.keys(s.village.sichLevels).map((id) => [id, id === 'cannonry' ? 0 : 10]));
-  return {
+  return fedHost({
     ...s,
     currencies: { ...s.currencies, ducats: Big.from(2.5e9), glory: Big.from(4_200) },
     village: {
@@ -118,44 +124,39 @@ function showcase(s: GameState): GameState {
       levels: { ...s.village.levels, ...farm },
       sichLevels: { ...s.village.sichLevels, ...sich },
     },
-    army: { infantry: SHOWCASE_ARMY },
-  };
+  });
 }
 
 /**
  * Every building at visual tier `n` (plan M2-05): the level where tier n starts (content TIER_LEVELS), the Sich capped
- * at its top tier. A Sich building held back for a later land stays empty. The game still keeps the church locked below
- * farm level 25; the scene shows it anyway through `tiersIgnoringUnlocks`.
+ * at its top tier. A Sich building the game keeps locked has no level (M2-30: play cannot buy it) — the church below
+ * farm level 25, one held back for a later land; the scene shows the church anyway through `tiersIgnoringUnlocks`.
  */
 function atTier(s: GameState, n: number): GameState {
-  const land = villageOf(s).number;
   const level = (levels: readonly number[]): number => (n === 0 ? 0 : (levels[Math.min(n, levels.length) - 1] ?? 0));
-  const farm = Object.fromEntries(Object.keys(s.village.levels).map((id) => [id, level(TIER_LEVELS.farm)]));
-  const sich = Object.fromEntries(
-    SICH_BUILDINGS.map((b) => [b.id, b.unlock.kind === 'land' && b.unlock.land > land ? 0 : level(TIER_LEVELS.sich)]),
-  );
-  return {
-    ...s,
-    village: {
-      ...s.village,
-      levels: { ...s.village.levels, ...farm },
-      sichLevels: { ...s.village.sichLevels, ...sich },
-    },
-    // A full host on the scene (M2-19): the Sich's people at the tier shown — its guards, both fires — as with `showcase`.
-    army: { infantry: n === 0 ? 0 : SHOWCASE_ARMY },
+  const levels = {
+    ...s.village.levels,
+    ...Object.fromEntries(FARM_BUILDING_IDS.map((id) => [id, level(TIER_LEVELS.farm)])),
   };
+  const facts = { village: { ...s.village, levels } };
+  const sich = Object.fromEntries(
+    SICH_BUILDINGS.map((b) => [b.id, sichUnlocked(b, facts) ? level(TIER_LEVELS.sich) : 0]),
+  );
+  // A full host on the scene (M2-19): the Sich's people at the tier shown — its guards, both fires — as with `showcase`.
+  return fedHost({ ...s, village: { ...s.village, levels, sichLevels: { ...s.village.sichLevels, ...sich } } });
 }
 
 /**
- * `?state=tiers` only: the plots' visual tiers from the levels alone, so every Sich building of the land shows at its
- * tier even while the game keeps it locked (the church before farm level 25). Buildings of a later land stay empty.
+ * `?state=tiers` only: every Sich building of the land at the Sich's tier, even one the game keeps locked and the
+ * preset leaves unbuilt (the church before farm level 25). Buildings of a later land stay empty.
  */
 export function tiersIgnoringUnlocks(s: GameState): VisualTiers {
   const land = villageOf(s).number;
   const out = { ...visualTiers(s) };
+  const sichTier = Math.max(...SICH_BUILDINGS.map((b) => tier(s.village.sichLevels[b.id], TIER_LEVELS.sich)));
   for (const b of SICH_BUILDINGS) {
     const later = b.unlock.kind === 'land' && b.unlock.land > land;
-    out[b.id] = later ? 0 : tier(s.village.sichLevels[b.id], TIER_LEVELS.sich);
+    out[b.id] = later ? 0 : sichTier;
   }
   return out;
 }
@@ -183,11 +184,11 @@ export function presetState(preset: Preset, seed: number, now: number, tier = TO
   // Nothing built yet, but a purse for the first buildings (e2e: a purchase puts a building on its empty plot). The
   // welcome beat («Берег Дніпра») counts as seen: its modal (M2-25) would cover the first purchase of every rich shot.
   if (preset === 'rich')
-    return {
+    return earned({
       ...s,
       currencies: { ...s.currencies, ducats: Big.from(1e6), glory: Big.from(1e3) },
       story: { seen: dueBeats(s, s.story.seen).map((b) => b.id) },
-    };
+    });
   if (preset === 'showcase') return played(showcase(s));
   if (preset === 'tiers') return played(atTier(s, tier));
   return played({
@@ -205,16 +206,25 @@ export function presetState(preset: Preset, seed: number, now: number, tier = TO
 /**
  * A preset of a game already played (M2-22): its Cossacks counted as hired and the story beats it has reached seen,
  * as the v1 → v2 migration does (levels bought = Σ levels) — the first click must not fire the beats (and their glory) of a past it never had.
- * Its quests start as the v2 → v3 migration starts them (M2-23): the chain on the first step not met yet.
+ * Its quests start as the v2 → v3 migration starts them (M2-23): the chain on the first step not met yet. M2-30: one
+ * purchase per building standing (the fewest that buy its levels), and its ducats earned (`earned`).
  */
 function played(s: GameState): GameState {
-  const sum = (r: Readonly<Record<string, number>>): number => Object.values(r).reduce((a, b) => a + b, 0);
+  const all = [...Object.values(s.village.levels), ...Object.values(s.village.sichLevels)];
   const stats = {
     ...s.stats,
     hires: s.army.infantry,
-    levelsBought: sum(s.village.levels) + sum(s.village.sichLevels),
+    purchases: all.filter((l) => l > 0).length,
+    levelsBought: all.reduce((a, b) => a + b, 0),
   };
   const due = dueBeats({ ...s, stats }, s.story.seen).map((b) => b.id);
   const quests = newQuests({ ...s, stats }, s.seed, s.time.maxSeen, s.settings.tzOffsetMin);
-  return { ...s, stats, story: { seen: [...s.story.seen, ...due] }, quests };
+  return earned({ ...s, stats, story: { seen: [...s.story.seen, ...due] }, quests });
+}
+
+/** The purse of a preset as income (M2-30): play only adds ducats through `lifetimeDucats`, past the start money. */
+function earned(s: GameState): GameState {
+  const income = s.currencies.ducats.sub(START.ducats);
+  const lifetimeDucats = income.gt(s.village.lifetimeDucats) ? income : s.village.lifetimeDucats;
+  return { ...s, village: { ...s.village, lifetimeDucats } };
 }

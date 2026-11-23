@@ -133,7 +133,8 @@ test.describe('M2-14 HUD and prices', () => {
   }
 
   test('×10 and Max on hiring hire the count the button names', async ({ page }) => {
-    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=showcase&ui=1');
+    // `mid` (6 of 20 the food feeds, M2-30): room for ×10 and then Max; showcase's host is at its food limit.
+    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=mid&ui=1');
     await page.getByRole('tab', { name: 'Січ' }).click();
     const hire = page.getByRole('button', { name: /^Найняти/ });
     const cossacks = page.locator('header li').first();
@@ -141,7 +142,7 @@ test.describe('M2-14 HUD and prices', () => {
     for (const mode of ['×10', 'Макс']) {
       await page.getByRole('button', { name: mode, exact: true }).click();
       const label = (await hire.getAttribute('aria-label')) ?? '';
-      if (await hire.isDisabled()) continue;
+      await expect(hire).toBeEnabled();
       const n = Number(/Найняти (\d+)/.exec(label)?.[1]);
       expect(n).toBeGreaterThan(0);
       const before = await count();
