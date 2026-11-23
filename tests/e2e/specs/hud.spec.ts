@@ -66,6 +66,18 @@ function splitBlocks(img: RgbaImage, scale: number, phaseX: number, phaseY: numb
   return bad;
 }
 
+/** The device px of `img` under a CSS box given in device px (outer edges rounded out, clamped to the image). */
+function crop(img: RgbaImage, x: number, y: number, w: number, h: number): RgbaImage {
+  const x0 = Math.max(0, Math.floor(x));
+  const y0 = Math.max(0, Math.floor(y));
+  const x1 = Math.min(img.width, Math.ceil(x + w));
+  const y1 = Math.min(img.height, Math.ceil(y + h));
+  const data = new Uint8Array((x1 - x0) * (y1 - y0) * 4);
+  for (let row = y0; row < y1; row++)
+    data.set(img.data.subarray((row * img.width + x0) * 4, (row * img.width + x1) * 4), (row - y0) * (x1 - x0) * 4);
+  return { width: x1 - x0, height: y1 - y0, data };
+}
+
 /** Buttons in the open list whose price overflows the button or grows it past one tap-target line. */
 const overflowing = (page: Page) =>
   page.evaluate(() => {
@@ -105,9 +117,21 @@ test.describe('M2-14 HUD and prices', () => {
     }
     // What the player sees: every icon px is a solid block of whole device px (no blur, no split columns).
     const scale = Math.round(icons[0]?.perIconPx ?? 0);
-    const shots = page.locator('header [data-icon]');
-    for (let n = 0; n < (await shots.count()); n++) {
-      const img = decodePng(await shots.nth(n).screenshot({ scale: 'device' }));
+    // One shot of the HUD, cut per icon: six element shots (each waits for a stable box and a 3.5x compositor frame)
+    // took 46–90 s of the test's 90 s on CI SwiftShader at 412×915@3.5.
+    const box = await header.boundingBox();
+    if (!box) throw new Error('no HUD box');
+    const hud = decodePng(await page.screenshot({ clip: box, scale: 'device' }));
+    const dpr = await page.evaluate(() => devicePixelRatio);
+    const rects = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('header [data-icon]')].map((e) => {
+        const r = e.getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+      }),
+    );
+    for (const [n, r] of rects.entries()) {
+      const img = crop(hud, (r.x - box.x) * dpr, (r.y - box.y) * dpr, r.w * dpr, r.h * dpr);
+      expect(Math.min(img.width, img.height), `icon ${String(n)} crop`).toBeGreaterThanOrEqual(16 * scale);
       // The element crop may start a device px before or after the snapped box: accept the best phase.
       const best = Math.min(
         ...Array.from({ length: scale * scale }, (_, k) => splitBlocks(img, scale, k % scale, Math.floor(k / scale))),

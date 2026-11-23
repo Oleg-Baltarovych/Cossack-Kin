@@ -59,8 +59,10 @@ export async function waitReady(page: Page): Promise<void> {
  * GPU process falls behind by seconds per second played, and after a reload the new page's first synchronous GL call
  * (Pixi's WebGL probe in `app.init`) waits out that backlog — over 20 s after a long run (M2-24). Frames from the native
  * `requestAnimationFrame` run at the pace the GPU keeps up with. The callback gets the fake `performance.now()`, the
- * clock the Pixi ticker reads, so frame times stay on one timeline across a reload. Not for paused clocks
- * (`pauseAt`/`runFor`): those specs step every frame by hand. It leans on Playwright internals (`__pwClock.builtins`,
+ * clock the Pixi ticker reads, so frame times stay on one timeline across a reload. A paused clock has the same
+ * backlog on a long `runFor` (every 16-ms fake frame fires at once: `runFor(2400)` = 150 WebGL frames, a 64-s screenshot
+ * on CI, M2-29): build.spec pairs it with `nativeFrames` and waits for one native frame after each `runFor` — nothing is
+ * drawn while the clock stands, so an animation anchored at its first frame starts at the first `runFor`. It leans on Playwright internals (`__pwClock.builtins`,
  * pinned `@playwright/test` 1.65.1): recheck it on every Playwright upgrade — `assertNativeFrames` fails if they moved.
  */
 export async function nativeFrames(page: Page): Promise<void> {

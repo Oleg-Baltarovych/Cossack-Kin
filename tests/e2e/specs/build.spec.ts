@@ -1,8 +1,8 @@
 // Construction and tier juice (plan M2-12, SPEC §6.5/§6.7, Q5): buying a building's first level puts the level in the
 // state at once while the world plays scaffold stages → pop → confetti; a milestone shows the «Тір II» banner, the
 // flash and the rising standard. «Менше руху» keeps the information (the stages, the banner text) and drops the pop and
-// the confetti. Time is Playwright's fake clock (paused, `runFor`), so every frame of the sequence is exact; each stage
-// is written to reports/screens/<date>/build-*.png (day and night) for the art review.
+// the confetti. Time is Playwright's fake clock (paused, `runFor`; frames are native, `nativeFrames`), so every shot is
+// of an exact moment; each stage is written to reports/screens/<date>/build-*.png (day and night) for the art review.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
@@ -15,7 +15,7 @@ import { PARTICLE_BUDGET } from '../../../src/render/fx/registry.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { SPEC_MAX_DRAW_CALLS } from '../helpers/budgets.ts';
-import { gotoReady, readStats } from '../helpers/world.ts';
+import { assertNativeFrames, gotoReady, nativeFrames, readStats } from '../helpers/world.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 
@@ -43,9 +43,30 @@ async function gameState(page: Page): Promise<GameState> {
 
 async function openPaused(page: Page, url: string): Promise<void> {
   await page.clock.install({ time: T0 });
+  // `runFor(2400)` would fire 150 fake 16-ms frames at once, each a full WebGL frame: the next screenshot waited out
+  // that backlog on CI SwiftShader (≈ 0.4 s a frame, 64 s for one shot). One native frame draws the moment instead.
+  await nativeFrames(page);
   await gotoReady(page, url);
+  await assertNativeFrames(page);
   await page.clock.pauseAt(T0 + 60_000);
-  await page.clock.runFor(SETTLE_MS);
+  await advance(page, SETTLE_MS);
+}
+
+/**
+ * Runs the paused clock for `ms`, then waits for one native frame: the world is drawn at the new moment. With native
+ * frames nothing is drawn while the clock stands, so the frame after a buy's first `advance` is where its build starts
+ * (`BuildFx` anchors the stages at the first frame that presents it): the offsets below count from there.
+ */
+async function advance(page: Page, ms: number): Promise<void> {
+  await page.clock.runFor(ms);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      }),
+  );
 }
 
 /** The world between the HUD and the panel (device px rows). */
@@ -102,18 +123,19 @@ test.describe('M2-12 construction and tiers', () => {
       // The economy never waits for the animation.
       expect((await gameState(page)).village.levels.field).toBe(1);
 
+      await advance(page, SETTLE_MS); // the build starts at this frame
       const frames: Buffer[] = [];
       let at = 0;
       const step = async (ms: number, name: string): Promise<Buffer> => {
-        await page.clock.runFor(ms - at);
+        await advance(page, ms - at);
         at = ms;
         const png = await shot(page, testInfo, `${key}-${name}`);
         frames.push(region(png, rows));
         return png;
       };
-      await step(SETTLE_MS + 40, '1-stage0');
-      await step(BUILD.stageMs + SETTLE_MS + 40, '2-stage1');
-      await step(2 * BUILD.stageMs + SETTLE_MS + 40, '3-stage2');
+      await step(40, '1-stage0');
+      await step(BUILD.stageMs + 40, '2-stage1');
+      await step(2 * BUILD.stageMs + 40, '3-stage2');
       const pop = await step(SCAFFOLD_MS + Math.round(BUILD.popMs / 2), '4-pop');
       // Q5: the pop scales in the low-res target — whole scale×scale blocks, the grid holds.
       const report = checkPixelGrid(decodePng(pop), { scale, fracDevicePx: split(CAM, scale).fracDevicePx, ...rows });
@@ -139,7 +161,8 @@ test.describe('M2-12 construction and tiers', () => {
       const key = time.replace(':', '');
       await openPaused(page, `/?seed=1&freeze&time=${time}&cam=${String(CAM)}&ui=1&state=rich`);
       await page.getByRole('button', { name: /Пшеничне поле/ }).click();
-      await page.clock.runFor(SCAFFOLD_MS + BUILD.confettiMs + SETTLE_MS);
+      await advance(page, SETTLE_MS); // the build starts
+      await advance(page, SCAFFOLD_MS + BUILD.confettiMs + SETTLE_MS);
 
       await page.getByRole('button', { name: '×10' }).click();
       await page.getByRole('button', { name: /Пшеничне поле/ }).click();
@@ -150,13 +173,13 @@ test.describe('M2-12 construction and tiers', () => {
       // The banner never takes taps: a tap through it reaches the world.
       expect(await banner.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
 
-      await page.clock.runFor(SETTLE_MS + 20);
+      await advance(page, SETTLE_MS + 20);
       await shot(page, testInfo, `${key}-tier-1-flash`);
-      await page.clock.runFor(250);
+      await advance(page, 250);
       await shot(page, testInfo, `${key}-tier-2-rising`);
-      await page.clock.runFor(700);
+      await advance(page, 700);
       await shot(page, testInfo, `${key}-tier-3-raised`);
-      await page.clock.runFor(BUILD.celebrationMs);
+      await advance(page, BUILD.celebrationMs);
       await expect(banner).toHaveText('');
     });
   }
@@ -167,7 +190,7 @@ test.describe('M2-12 construction and tiers', () => {
       // The camera at the Sich anchor (its left edge): the «Січ» tab then glides nowhere.
       await openPaused(page, `/?seed=1&freeze&time=${time}&cam=${String(SICH_CAM)}&ui=1&state=rich`);
       await page.getByRole('tab', { name: 'Січ' }).click();
-      await page.clock.runFor(SETTLE_MS);
+      await advance(page, SETTLE_MS);
       const rows = await worldRows(page, testInfo);
       for (const [name, label] of [
         ['kurins', /«Курені»/],
@@ -176,11 +199,12 @@ test.describe('M2-12 construction and tiers', () => {
         const empty = region(await shot(page, testInfo, `sich-${key}-${name}-0-empty`), rows);
         await page.getByRole('button', { name: label }).click();
         expect((await gameState(page)).village.sichLevels[name]).toBe(1);
-        await page.clock.runFor(SETTLE_MS + 40);
+        await advance(page, SETTLE_MS); // the build starts
+        await advance(page, 40);
         const stage0 = region(await shot(page, testInfo, `sich-${key}-${name}-1-stage0`), rows);
-        await page.clock.runFor(2 * BUILD.stageMs);
+        await advance(page, 2 * BUILD.stageMs);
         const stage2 = region(await shot(page, testInfo, `sich-${key}-${name}-2-stage2`), rows);
-        await page.clock.runFor(SCAFFOLD_MS + BUILD.confettiMs);
+        await advance(page, SCAFFOLD_MS + BUILD.confettiMs);
         const built = region(await shot(page, testInfo, `sich-${key}-${name}-3-built`), rows);
         expect(stage0.equals(empty), 'the scaffold stands on the empty plot').toBe(false);
         expect(stage2.equals(stage0), 'the scaffold grows').toBe(false);
@@ -198,15 +222,16 @@ test.describe('M2-12 construction and tiers', () => {
 
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     expect((await gameState(page)).village.levels.field).toBe(1);
-    await page.clock.runFor(SETTLE_MS + 40);
+    await advance(page, SETTLE_MS); // the build starts
+    await advance(page, 40);
     const stage = region(await shot(page, testInfo, 'still-1-stage0'), rows);
     expect(stage.equals(before)).toBe(false); // the scaffold is information: it stays
     expect((await readStats(page)).particles).toBe(idle); // no dust
 
-    await page.clock.runFor(SCAFFOLD_MS - SETTLE_MS - 40 + Math.round(BUILD.popMs / 2));
+    await advance(page, SCAFFOLD_MS - 40 + Math.round(BUILD.popMs / 2));
     const popTime = region(await shot(page, testInfo, 'still-2-pop-time'), rows);
     expect((await readStats(page)).particles).toBe(idle); // no confetti
-    await page.clock.runFor(BUILD.confettiMs + SETTLE_MS);
+    await advance(page, BUILD.confettiMs + SETTLE_MS);
     const built = region(await shot(page, testInfo, 'still-3-built'), rows);
     expect(popTime.equals(built), 'no squash: the building stands at its size from the reveal').toBe(true);
 

@@ -7,9 +7,11 @@ import {
   RAY_ALPHA_STEPS,
   shadowMap,
   shaftBands,
+  shaftLevel,
   shaftLight,
   shaftStep,
 } from '../../../src/render/atmosphere/rays.ts';
+import { dayCycle } from '../../../src/render/atmosphere/dayCycle.ts';
 import { rayVariant } from '../../../src/render/layers/Light.ts';
 
 const sun = { x: 50, y: 50 };
@@ -140,5 +142,19 @@ describe('quality tier → variant (ART-10 decision)', () => {
     expect(rayVariant('med')).toBe('occlusion-half');
     expect(rayVariant(null)).toBe('occlusion-half');
     expect(rayVariant('low')).toBe('beams');
+  });
+});
+
+describe('shaftLevel', () => {
+  const at = (hhmm: string): ReturnType<typeof dayCycle> =>
+    dayCycle(Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(2)));
+
+  it('shines with a low sun under a clear sky (dawn, morning, golden hour)', () => {
+    for (const hhmm of ['0530', '0700', '1930']) expect(shaftLevel(at(hhmm), 'clear'), hhmm).toBeGreaterThan(0);
+  });
+
+  it('is off at noon, with the sun down, and in rain or fog', () => {
+    for (const hhmm of ['1300', '2300']) expect(shaftLevel(at(hhmm), 'clear'), hhmm).toBe(0);
+    for (const weather of ['rain', 'fog'] as const) expect(shaftLevel(at('1930'), weather), weather).toBe(0);
   });
 });

@@ -40,6 +40,7 @@ import {
   paintShafts,
   polarGrid,
   shadowMap,
+  shaftLevel,
   shaftStep,
   type Occluders,
   type Point,
@@ -85,15 +86,9 @@ function cpuTexture(w: number, h: number, pixels: Uint8Array<ArrayBuffer> = new 
   return { w, h, pixels, source, texture: new Texture({ source }) };
 }
 
-const rayLook = (cycle: DayCycle): { level: number; color: number; dust: number } => {
-  const a = RAY_LOOKS[cycle.keyA];
-  const b = RAY_LOOKS[cycle.keyB];
-  const dominant = cycle.t < 0.5 ? a : b;
-  return {
-    level: a.level + (b.level - a.level) * cycle.t,
-    color: rampColor(...dominant.color),
-    dust: rampColor(...dominant.dust),
-  };
+const rayLook = (cycle: DayCycle): { color: number; dust: number } => {
+  const dominant = cycle.t < 0.5 ? RAY_LOOKS[cycle.keyA] : RAY_LOOKS[cycle.keyB];
+  return { color: rampColor(...dominant.color), dust: rampColor(...dominant.dust) };
 };
 
 export interface LightLayerOptions {
@@ -401,17 +396,18 @@ export function createLightLayer({ weather, quality, layout, findFrame, lessMoti
           });
         }
 
-        // Shafts: only with a low sun on screen, never in fog (ART-17 decides fog light).
+        // Shafts: only with a low sun on screen, never in rain or fog (ART-17 decides fog light).
         const look = rayLook(cycle);
         const sunPx = skyPixel(cycle.sun, size.viewW, horizon);
         const sun: Point = { x: sunPx.x, y: sunPx.y + skyY };
-        const on = look.level > 0.01 && weather === 'clear' && cycle.sun.y > -0.02 && sun.y < horizon + 4;
+        const shaft = shaftLevel(cycle, weather);
+        const on = shaft > 0 && sun.y < horizon + 4;
         rays.visible = on;
         dust.visible = on;
         const dt = Number.isNaN(lastSeconds) ? 0 : Math.max(0, seconds - lastSeconds);
         lastSeconds = seconds;
         if (!on) return;
-        rays.alpha = look.level;
+        rays.alpha = shaft;
 
         // A moved camera shifts the far planes and clouds that cast the shafts: repaint for it, rate-limited while moving.
         const camDue = camX !== paintedCam && (!cameraMoving || nowMs - paintedAt >= 1000 / tier.repaintHz);
