@@ -544,7 +544,7 @@ const FARM_PLOTS: readonly TierSprite[] = [
       { parts: [{ sprite: 'apiary.t1' }, { sprite: 'hive.stump' }, bees(0)] },
       { parts: [{ sprite: 'apiary.t2' }, ...hives(-7, 4), bees(-2)] },
       { parts: [{ sprite: 'apiary.t3' }, ...hives(-12, -2, 8), bees(-2)] },
-      { parts: [{ sprite: 'apiary.t4' }, ...hives(-8, 2, 12, 22), bees(-3), bees(17)] },
+      { parts: [{ sprite: 'apiary.t4' }, ...hives(-18, -8, 2, 12), bees(-13), bees(7)] },
       {
         parts: [
           { sprite: 'apiary-hut', dx: -36, dground: -7 },
@@ -672,7 +672,7 @@ function toSteppe(from: number): GroundRow[] {
  */
 const FARM_VARIANTS: readonly Prop[] = [
   addOn('windmill', 0, 'woodpile', 258, 122),
-  addOn('windmill', 1, 'stork-nest', 362, 96),
+  addOn('windmill', 1, 'stork-nest', 366, 96), // clear of the V–VI sails' 42-px reach (M2-29 B2)
   addOn('windmill', 2, 'pumpkins', 258, 122),
   addOn('potter', 0, 'laundry', 406, 238),
   addOn('potter', 1, 'kennel', 318, 254),
@@ -794,7 +794,8 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     ]),
   ],
   // Nearest the viewer (parallax 1.2, ~786 px wide on a 390 px phone): clumps along the bottom, sunflowers and
-  // mallows at the corners of the first screen, the rest spread for the pan.
+  // mallows at the corners of the first screen, the rest spread for the pan. No near sunflowers while the garden's
+  // own (5-px heads) are in view (art-director M2-06: they read ×2 the garden's) — the second clump is the suburb's.
   foreground: [
     { sprite: 'plant.sunflowers', x: 30, ground: 376, amp: 1, phase: 0 },
     { sprite: 'plant.grass', x: 70, ground: 380, amp: 1, phase: 0.35 },
@@ -802,7 +803,7 @@ export const KHORTYTSIA_FARM: ZoneScene = {
     { sprite: 'plant.mallows', x: 330, ground: 377, amp: 1, phase: 0.2 },
     { sprite: 'plant.grass', x: 372, ground: 381, amp: 1, phase: 0.5 },
     { sprite: 'plant.grass', x: 470, ground: 380, amp: 1, phase: 0.9 },
-    { sprite: 'plant.sunflowers', x: 560, ground: 377, amp: 1, phase: 0.45 },
+    { sprite: 'plant.grass', x: 560, ground: 377, amp: 1, phase: 0.45 },
     { sprite: 'plant.reeds', x: 660, ground: 381, amp: 1, phase: 0.1 },
     { sprite: 'plant.grass', x: 750, ground: 379, amp: 1, phase: 0.8 },
   ],
@@ -1046,7 +1047,7 @@ export const KHORTYTSIA_SUBURB: ZoneScene = {
   paths: SUBURB_PATHS,
   foreground: [
     { sprite: 'plant.grass', x: 40, ground: 380, amp: 1, phase: 0.3 },
-    { sprite: 'plant.grass', x: 190, ground: 381, amp: 1, phase: 0.75 },
+    { sprite: 'plant.sunflowers', x: 190, ground: 381, amp: 1, phase: 0.75 },
     { sprite: 'plant.reeds', x: 320, ground: 379, amp: 1, phase: 0.55 },
   ],
   // Puddles in the road's ruts and on the fair's square.

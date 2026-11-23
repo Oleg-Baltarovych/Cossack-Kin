@@ -9,7 +9,14 @@ import field from '../../../assets-src/gen/khortytsia/field/index.ts';
 import garden from '../../../assets-src/gen/khortytsia/garden/index.ts';
 import khata from '../../../assets-src/gen/khortytsia/khata/index.ts';
 import mill, { millPoleTop, millSailLift } from '../../../assets-src/gen/khortytsia/mill/index.ts';
-import { isTierSprite, KHORTYTSIA_FARM, KHORTYTSIA_SUBURB } from '../../../src/content/villages/khortytsia.layout.ts';
+import millSails from '../../../assets-src/gen/khortytsia/mill-sails/index.ts';
+import windmillSails from '../../../assets-src/gen/khortytsia/windmill-sails/index.ts';
+import {
+  isTierSprite,
+  KHORTYTSIA_FARM,
+  KHORTYTSIA_SUBURB,
+  KHORTYTSIA_WORLD,
+} from '../../../src/content/villages/khortytsia.layout.ts';
 import smithy, { smithyForge } from '../../../assets-src/gen/khortytsia/smithy/index.ts';
 import tavern from '../../../assets-src/gen/khortytsia/tavern/index.ts';
 import fair from '../../../assets-src/gen/khortytsia/fair/index.ts';
@@ -155,6 +162,37 @@ describe('windmill add-ons', () => {
     const vane = partsAt(6).find((p) => p.sprite === 'gilt.vane');
     const top = millPoleTop('t6');
     expect([vane?.dx, vane?.lift]).toEqual([top.dx, top.lift]);
+  });
+
+  // M2-29 B2: the V–VI sails reach 42 px (art-director M2-07: they read short) — the tip of every frame stays under
+  // the river band, which would cover it.
+  it('keeps the top sail tip of every tier and frame below the river band', () => {
+    const rows = KHORTYTSIA_WORLD.river?.rows ?? 0;
+    expect(rows).toBeGreaterThan(0);
+    const reach = new Map<string, number>();
+    for (const gen of [windmillSails, millSails]) {
+      for (const f of renderGenerator(gen, palette, [])) {
+        const stem = f.name.slice(0, f.name.indexOf('/'));
+        const py = Math.round(f.anchor.y * f.image.height);
+        let top = py;
+        for (let y = 0; y < f.image.height && top === py; y++) {
+          for (let x = 0; x < f.image.width; x++) {
+            if ((f.image.data[(y * f.image.width + x) * 4 + 3] ?? 0) > 0) {
+              top = y;
+              break;
+            }
+          }
+        }
+        reach.set(stem, Math.max(reach.get(stem) ?? 0, py - top));
+      }
+    }
+    expect(reach.get('mill-sails.l')).toBeGreaterThan(reach.get('mill-sails.m') ?? 0);
+    for (const tier of [1, 2, 3, 4, 5, 6]) {
+      const sails = partsAt(tier).find((p) => p.sprite.includes('sails'));
+      const up = reach.get(sails?.sprite ?? '') ?? Infinity;
+      const tip = (windmillSprite?.ground ?? 0) - (sails?.lift ?? 0) - up;
+      expect(tip, `t${String(tier)}`).toBeGreaterThanOrEqual(rows);
+    }
   });
 });
 

@@ -46,7 +46,7 @@ const field: SpriteGenerator = {
     const x = FIELD_PIVOT_X - tier.w / 2;
     const plot = new Plot();
     const { standX1 } = wheatField(plot, { seed: `field.${variant ?? 't1'}`, x, ground: FIELD_GROUND, ...tier });
-    if (tier.gold) boroda(plot, standX1 + 5, FIELD_GROUND - 2);
+    if (tier.gold) boroda(plot, standX1 + 9, FIELD_GROUND - 2);
     composeOutlined(buffer, [plot.part(1, 1)], rampSize);
     const shadow = layers.shadow;
     if (!shadow) return;
