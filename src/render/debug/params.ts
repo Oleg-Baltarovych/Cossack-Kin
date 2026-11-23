@@ -7,11 +7,13 @@ import {
   QUALITIES,
   SEASONS,
   WEATHERS,
+  WINDS,
   ZONES,
   type Quality,
   type RenderSettings,
   type Season,
   type Weather,
+  type Wind,
   type Zone,
 } from '../settings.ts';
 import type { ZoomLevel } from '../viewport.ts';
@@ -37,6 +39,8 @@ export interface DebugParams {
   readonly still: boolean;
   /** Every villager animation in two rows instead of the agents (M2-17 review shots). */
   readonly lineup: boolean;
+  /** Wind level for shots of calm / storm (M2-29 B3); `null` = the game's wind. */
+  readonly wind: Wind | null;
 }
 
 export const DEBUG_DEFAULTS: DebugParams = {
@@ -52,6 +56,7 @@ export const DEBUG_DEFAULTS: DebugParams = {
   zoom: 0,
   still: false,
   lineup: false,
+  wind: null,
 };
 
 type Parser<T> = (raw: string) => T | undefined;
@@ -132,6 +137,7 @@ export function parseDebugParams(search: string, mode: string): DebugParams {
     zoom: read('zoom', parseZoom),
     still: read('still', parseFlag),
     lineup: read('lineup', parseFlag),
+    wind: read('wind', oneOf(WINDS)),
   };
 }
 
@@ -155,5 +161,6 @@ export function toRenderSettings(params: DebugParams): RenderSettings {
     zoom: params.zoom,
     lessMotion: params.still,
     lineup: params.lineup,
+    fixedWind: params.wind,
   };
 }

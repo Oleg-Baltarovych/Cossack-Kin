@@ -2,7 +2,7 @@
 // hidden), a sloping awning with a scalloped hem, wares on the counter. Variants: `a` crimson-and-linen striped
 // awning over glazed pots; `b` a blue cloth awning over калачі (ring loaves); `c` a reed roof over hanging ribbons and
 // kerchiefs. Stall `a` carries a pennant pole up through its awning (the green `pennant.b` add-on flies from it,
-// `STALL_PENNANT`, plan M2-11). Linen is plaster 3–4, never white (art-director: it glowed at night). Ramps: wood + 2–3 by variant (prop budget ≤ 16 colours). 40×42, pivot at the base centre; cast shadow.
+// `STALL_PENNANT`, plan M2-11). Linen is plaster 2–3, never white (art-director: it glowed at night). Ramps: wood + 2–3 by variant (prop budget ≤ 16 colours). 40×42, pivot at the base centre; cast shadow.
 import { castShadow, compose } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import { pennantHoist, pennantPole, smallPot } from '../../lib/recipes-suburb.ts';
@@ -65,7 +65,8 @@ const stall: SpriteGenerator = {
     // The awning: back edge high, front edge low, a scalloped hem; or a reed roof (c).
     const cloth = (x: number, row: number): [RampName, number] => {
       if (variant === 'a') {
-        return Math.floor((x - 3) / 4) % 2 === 0 ? ['crimson', row === 0 ? 4 : 3] : ['plaster', row === 0 ? 4 : 3];
+        // Linen one step down (M2-29 B3, art-director M2-08: at night the stripes were the palest thing on the square).
+        return Math.floor((x - 3) / 4) % 2 === 0 ? ['crimson', row === 0 ? 4 : 3] : ['plaster', row === 0 ? 3 : 2];
       }
       if (variant === 'b') return ['cloth', row === 0 ? 3 : x > 28 ? 1 : 2];
       return ['thatch', row === 0 ? 4 : (x + row) % 3 === 0 ? 2 : x > 28 ? 2 : 3];

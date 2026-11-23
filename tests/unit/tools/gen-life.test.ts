@@ -3,7 +3,7 @@
 // float inside the river's rows.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BOAT_STAKE } from '../../../assets-src/gen/khortytsia/boat/index.ts';
+import { BOAT_PIER } from '../../../assets-src/gen/khortytsia/boat/index.ts';
 import { fairPennant } from '../../../assets-src/gen/khortytsia/fair/index.ts';
 import { STALL_PENNANT } from '../../../assets-src/gen/khortytsia/stall/index.ts';
 import { loadPalette } from '../../../assets-src/gen/lib/palette.ts';
@@ -125,11 +125,19 @@ describe('boats', () => {
     }
   });
 
-  it("the moored boat's stake stands on the shore, below the last water row", () => {
+  // M2-29 B3: the plank walk (кладка) the boat is tied to runs from the shore out into the water past its bow.
+  it("the moored boat's plank walk rests on the shore and reaches out over the water", () => {
     const moored = KHORTYTSIA_WORLD.boats.find((b) => b.sprite === 'boat.a');
-    const rows = KHORTYTSIA_WORLD.river?.rows ?? 0;
-    expect(moored?.drift).toBe(0);
-    // The waterline row is ground − 1; the stake's top row is BOAT_STAKE.top rows under it.
-    expect((moored?.ground ?? 0) - 1 + BOAT_STAKE.top).toBeGreaterThanOrEqual(rows);
+    const river = KHORTYTSIA_WORLD.river;
+    if (!moored || !river) throw new Error('no moored boat or river');
+    expect(moored.drift).toBe(0);
+    // The waterline row is ground − 1.
+    const waterline = moored.ground - 1;
+    expect(waterline - BOAT_PIER.far).toBeGreaterThanOrEqual(0);
+    expect(waterline + BOAT_PIER.foot).toBeGreaterThanOrEqual(river.rows);
+    // Every deck row in the river is water across the walk's width.
+    for (let row = waterline - BOAT_PIER.far; row < river.rows; row++) {
+      expect(moored.x + BOAT_PIER.dx1, `row ${String(row)}`).toBeLessThan(riverRowEnd(river, row));
+    }
   });
 });

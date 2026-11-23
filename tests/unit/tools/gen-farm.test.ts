@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import apiary from '../../../assets-src/gen/khortytsia/apiary/index.ts';
 import field from '../../../assets-src/gen/khortytsia/field/index.ts';
 import garden from '../../../assets-src/gen/khortytsia/garden/index.ts';
+import gilt from '../../../assets-src/gen/khortytsia/gilt/index.ts';
 import khata from '../../../assets-src/gen/khortytsia/khata/index.ts';
 import mill, { millPoleTop, millSailLift } from '../../../assets-src/gen/khortytsia/mill/index.ts';
 import millSails from '../../../assets-src/gen/khortytsia/mill-sails/index.ts';
@@ -162,6 +163,25 @@ describe('windmill add-ons', () => {
     const vane = partsAt(6).find((p) => p.sprite === 'gilt.vane');
     const top = millPoleTop('t6');
     expect([vane?.dx, vane?.lift]).toEqual([top.dx, top.lift]);
+  });
+
+  // M2-29 B3 (art-director M2-07): the vane stood on the band's last row and slid over the passing blade. Now it is
+  // drawn before the sails (they turn in front of the roof, pole and banner) and clears the river band by ≥ 4 rows.
+  it('stands the VI vane under the sails and at least 4 rows below the river band', () => {
+    const parts = partsAt(6);
+    const vaneAt = parts.findIndex((p) => p.sprite === 'gilt.vane');
+    const sailsAt = parts.findIndex((p) => p.sprite.includes('sails'));
+    expect(vaneAt).toBeGreaterThanOrEqual(0);
+    expect(vaneAt).toBeLessThan(sailsAt);
+    const f = renderGenerator(gilt, palette, []).find((g) => g.name.startsWith('gilt.vane/'));
+    if (!f) throw new Error('gilt.vane has no frame');
+    const py = Math.round(f.anchor.y * f.image.height);
+    let top = py;
+    for (let y = py - 1; y >= 0; y--) {
+      for (let x = 0; x < f.image.width; x++) if ((f.image.data[(y * f.image.width + x) * 4 + 3] ?? 0) > 0) top = y;
+    }
+    const row = (windmillSprite?.ground ?? 0) - (parts[vaneAt]?.lift ?? 0) - (py - top);
+    expect(row).toBeGreaterThanOrEqual((KHORTYTSIA_WORLD.river?.rows ?? Infinity) + 4);
   });
 
   // M2-29 B2: the V–VI sails reach 42 px (art-director M2-07: they read short) — the tip of every frame stays under

@@ -213,9 +213,11 @@ const tavern: SpriteGenerator = {
       porch.set(mid, door.y - 4 - Math.ceil((p1 - p0) / 2), 'wood', 5);
     }
 
-    // Whitewash two steps down (art-director M2-08): at night the long wall read brighter than its windows, so the
-    // lit front is plaster 4 (not 5–6), the corner 3, the side wall 2 — the windows stay the focal point.
-    const REMAP = [1, 1, 1, 2, 3, 4, 4] as const;
+    // Whitewash (art-director M2-08): at night the long wall read brighter than its windows, so it was stepped down two;
+    // by day that read a step greyer than the farm's khatas (M2-29 B3). Now the lit front and its shaded end are the
+    // khata's (plaster 5 / 4), and only the corner, the side wall and the foot stay a step down (3 → 2, 2 → 1): the
+    // front matches the farm by day, and at night the darker corner and side wall frame the windows.
+    const REMAP = [1, 1, 1, 2, 4, 5, 5] as const;
     for (const [key, px] of body.px) {
       if (px.ramp === 'plaster') body.px.set(key, { ...px, shade: REMAP[px.shade] ?? px.shade });
     }
