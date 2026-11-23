@@ -17,7 +17,9 @@ const coin: SpriteGenerator = {
   id: 'coin',
   size: { w: SIZE, h: SIZE },
   frames: { idle: HALF_W.length },
-  anchor: { x: 0.5, y: 0.5 },
+  // Whole-px pivot at the centre px's top-left corner (as hive/scarecrow): a half-px anchor is a texel tie that the
+  // atlas packing decides, so the spinning coin could jitter by 1 px between frames.
+  anchor: { x: C / SIZE, y: C / SIZE },
   generate(_rng, { buffer, frame, rampSize }) {
     const hw = HALF_W[frame] ?? R;
     const plot = new Plot();

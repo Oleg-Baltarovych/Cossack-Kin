@@ -1,8 +1,9 @@
 // Пасіка, tiers I–VI (plan M2-06, ART-BIBLE §6 «вулики-колоди на пасіці»): the ground of the apiary — a flower
 // meadow for the bees that widens with the tier — and its furniture: II mallows, III a bench, from IV on a reed курінь
-// (shelter) that stays, VI a голубець with the beekeepers' icon (the gold accent). The hives (`hive.stump` at I,
-// `hive.log` ×2…6 after), the bees (`bees`) and the beekeeper's hut (`apiary-hut`, tiers V–VI, a lit window at night)
-// are add-ons placed by the layout; the apiary's height only grows from tier to tier.
+// (shelter) that stays at the right end (art-director M2-06: it no longer jumps sides at V), VI a голубець with the
+// beekeepers' icon (the gold accent). The hives (`hive.stump` at I, `hive.log` ×2…6 after), the bees (`bees`) and the
+// beekeeper's hut (`apiary-hut`, tiers V–VI, a lit window at night) are add-ons placed by the layout; the apiary's
+// height only grows from tier to tier.
 import { castShadow } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import { mallow } from '../../lib/recipes.ts';
@@ -29,7 +30,7 @@ export const APIARY_TIERS: Readonly<Record<string, Tier>> = {
   t1: { w: 28, depth: 6 },
   t2: { w: 40, depth: 7, mallows: [-17] },
   t3: { w: 52, depth: 8, bench: -12, mallows: [-23, 22] },
-  t4: { w: 64, depth: 9, bench: -2, shelter: -22, mallows: [28] },
+  t4: { w: 64, depth: 9, bench: -12, shelter: 24, mallows: [-28] },
   t5: { w: 80, depth: 10, shelter: 30, mallows: [37, -38] },
   t6: { w: 92, depth: 10, shelter: 24, mallows: [-44], holubets: 41 },
 };

@@ -17,8 +17,11 @@ const WIDTH = 7;
 
 const q = (v: number): number => Math.round(v * 4096) / 4096;
 
-/** Paints sail frame `frame` (of `SAIL_FRAMES`) on an `s`×`s` canvas, sails `reach` px long from the hub (centre). */
-export function paintSails(p: Plot, frame: number, s: number, reach: number): void {
+/**
+ * Paints sail frame `frame` (of `SAIL_FRAMES`) on an `s`×`s` canvas, sails `reach` px long from the hub (centre). The
+ * canvas covers the lattice from INNER over the share `canvas` of its length (default ¾; the rest is open lattice).
+ */
+export function paintSails(p: Plot, frame: number, s: number, reach: number, canvas = 0.72): void {
   const c0 = (s - 1) / 2;
   const base = (frame / SAIL_FRAMES) * (Math.PI / 2);
   for (let k = 0; k < 4; k++) {
@@ -41,7 +44,7 @@ export function paintSails(p: Plot, frame: number, s: number, reach: number): vo
         const edge = v > WIDTH - 1 || u > reach - 1 || u < INNER + 1;
         // Laths on a blade-relative grid (rounded, so a lath keeps its place along the blade frame to frame).
         const cross = Math.round(u) % 4 === 0;
-        const open = u > INNER + (reach - INNER) * 0.72; // the outer quarter is open lattice: grass shows through
+        const open = u > INNER + (reach - INNER) * canvas; // the outer quarter is open lattice: grass shows through
         // The open tip's frame one step darker (wood 2), so the tips fade out instead of reading heavier.
         if (edge || cross) p.set(x, y, 'wood', open ? 2 : 3);
         else if (!open) {

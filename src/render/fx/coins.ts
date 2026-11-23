@@ -40,7 +40,9 @@ export function createCoinFx(frames: readonly Texture[], lessMotion: boolean, lo
   const claim = claimParticles();
   const pool: Live[] = Array.from({ length: look.max }, () => {
     const sprite = new Sprite({ texture: first, roundPixels: true });
-    sprite.anchor.set(0.5);
+    // The frame's own whole-px pivot (coin/glint generators), never 0.5 of an odd-sized disc: a half-px anchor is a
+    // texel tie that the atlas packing decides (art-director M2-07).
+    sprite.anchor.copyFrom(first.defaultAnchor ?? { x: 0.5, y: 0.5 });
     sprite.visible = false;
     container.addChild(sprite);
     return { sprite, x: 0, y: 0, born: -Infinity };

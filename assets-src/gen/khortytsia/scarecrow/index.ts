@@ -70,6 +70,13 @@ const scarecrow: SpriteGenerator = {
     for (let x = CX - 5; x <= CX + 6; x++) p.set(x, 4, 'thatch', x < CX ? 4 : 2);
     for (let y = 1; y <= 3; y++) for (let x = CX - 2; x <= CX + 3; x++) p.set(x, y, 'thatch', x < CX ? 5 : 3);
     for (let x = CX - 2; x <= CX + 3; x++) p.set(x, 3, 'crimson', x < CX + 1 ? 4 : 2);
+    // An old shirt in half-tone (art-director M2-06), remapped down the plaster ramp like the tavern's whitewash: lit
+    // plaster 4 (not 5–6), the shaded side 2. At night a white shirt glowed next to the khata's window, which must stay
+    // the only warm bright point; by day it reads as worn linen.
+    const HALF_TONE = [1, 1, 1, 2, 3, 4, 4] as const;
+    for (const [key, px] of p.px) {
+      if (px.ramp === 'plaster') p.px.set(key, { ...px, shade: HALF_TONE[px.shade] ?? px.shade });
+    }
     composeOutlined(buffer, [p.part(1, 1)], rampSize);
     if (layers.shadow) {
       castShadow(layers.shadow, { x0: CX - 1, x1: CX + 3, groundY: SCARECROW_GROUND, reach: 5, depth: 2 });

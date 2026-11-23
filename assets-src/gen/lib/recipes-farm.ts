@@ -96,8 +96,8 @@ function soil(plot: Plot, spec: FieldSpec, sprouts: boolean): void {
 /**
  * Wheat field (пшеничне поле): ploughed soil and, for `green`/`ripe`, rows of standing wheat on the ridges, back to
  * front — each nearer row hides the stalks of the one behind, so the field reads as bands of ears receding in depth
- * (more soil rows = more bands = a taller field). Ripe ears are kept dark-warm (thatch 2, a thatch 3 glint at most 1 in
- * 6) so the night grade does not turn the field white; between ear tufts the top 3 rows are a 50 % checker of thatch 1
+ * (more soil rows = more bands = a taller field). Ripe ears are kept dark-warm (thatch 2 under a 1-px thatch 3 rim on
+ * the tip row; never thatch 4+) so the night grade does not turn the field white; between ear tufts the top 3 rows are a 50 % checker of thatch 1
  * and earth 1. The left end lit, the right end — and the cut face of a half-reaped field — shaded; the reaped part
  * shows stubble. Ripe = thatch, green = grass.
  */
@@ -141,7 +141,8 @@ export function wheatField(plot: Plot, spec: FieldSpec): FieldInfo {
             continue;
           }
           let shade: number;
-          if (k <= 1) shade = k === 0 && rand2(c, y, s + 8) < 1 / 6 ? tone.glint : tone.ear;
+          // Ripe ears: a 1-px light rim on the tip row (the glint shade swapped in, no px added; art-director M2-06).
+          if (k <= 1) shade = k === 0 && (!green || rand2(c, y, s + 8) < 1 / 6) ? tone.glint : tone.ear;
           else if (front && y >= spec.ground - 2) shade = strokeCol ? tone.footStroke : tone.foot;
           else shade = strokeCol ? tone.stroke : tone.body;
           if (k > 1 && !front) shade -= 1;
@@ -153,11 +154,35 @@ export function wheatField(plot: Plot, spec: FieldSpec): FieldInfo {
       }
     });
   }
-  // Stubble on the reaped ridge tops: short straw stumps (thatch 1, the stump's top thatch 2/3).
+  // The reaped part's dark furrow lines break every 6–10 px into 2–3 px of ridge earth (art-director M2-29 B2): unbroken
+  // they read as planks or the wattle behind.
+  for (let y = back + 2; cut && y < spec.ground; y += FURROW) {
+    for (let c = standX1 + 3 + Math.floor(rand2(y, 1, s + 15) * 6); c < spec.x + spec.w - 2;) {
+      const gap = 2 + Math.floor(rand2(c, y, s + 16) * 2);
+      for (let k = 0; k < gap && c + k < spec.x + spec.w - 1; k++) plot.set(c + k, y, 'earth', 3);
+      c += gap + 6 + Math.floor(rand2(c, y, s + 17) * 5);
+    }
+  }
+  // Stubble on the reaped ridge tops: short straw stumps (thatch 1, the stump's top thatch 2/3) at uneven steps — 1–3 px
+  // apart, 1 or 2 rows tall, now and then a missed patch or a straw lying flat — so the rows never line up into a
+  // grid (art-director M2-06).
   for (let y = back; y < spec.ground; y += FURROW) {
-    for (let c = standX1 + 1 + ((y - back) % 2); c < spec.x + spec.w - 1; c += 2) {
+    let c = standX1 + 1 + Math.floor(rand2(y, 0, s + 9) * 3);
+    while (c < spec.x + spec.w - 1) {
+      const r = rand2(c, y, s + 10);
+      if (r < 0.08 && c + 2 < spec.x + spec.w - 1) {
+        // A straw lying along the ridge.
+        plot.set(c, y, 'thatch', 2);
+        plot.set(c + 1, y, 'thatch', 1);
+        c += 3 + Math.floor(rand2(c, y, s + 11) * 2);
+        continue;
+      }
       plot.set(c, y, 'thatch', 1);
+      const tall = rand2(c, y, s + 12) < 0.55;
       plot.set(c, y - 1, 'thatch', rand2(c, y, s + 6) < 0.3 ? 3 : 2);
+      if (tall && rand2(c, y, s + 13) < 0.5) plot.set(c, y - 2, 'thatch', 2);
+      const gap = rand2(c, y, s + 14);
+      c += gap < 0.35 ? 1 : gap < 0.8 ? 2 : gap < 0.94 ? 3 : 5;
     }
   }
   if (spec.flowers && standW > 0) fieldFlowers(plot, spec.x + 3, standX1 - 3, spec.ground - 1, `${spec.seed}:flowers`);
@@ -178,44 +203,59 @@ function fieldFlowers(plot: Plot, x0: number, x1: number, y: number, seed: strin
 
 /** «Борода» rows top → foot: [first, last] column offsets from the centre (fanned ears, the tie, the flared foot). */
 const BORODA_ROWS: readonly (readonly [number, number])[] = [
-  [-2, -2],
-  [-3, 2],
+  [-1, 0],
+  [-3, 1],
+  [-4, 3],
+  [-4, 4],
+  [-4, 4],
+  [-3, 4],
   [-3, 3],
   [-2, 3],
   [-2, 2],
   [-1, 2],
-  [-1, 1],
-  [0, 1], // tie
-  [0, 1], // tie
+  [-1, 1], // tie
+  [-1, 1], // tie
   [-1, 1],
   [-1, 2],
-  [-2, 1],
   [-2, 2],
+  [-2, 2],
+  [-2, 3],
+  [-3, 3],
+  [-3, 3],
 ];
-const BORODA_TIE = 7;
+const BORODA_TIE = 10;
+/** Ear rows (with gaps between the ears) from the top. */
+const BORODA_EARS = 7;
 
 /**
  * «Борода» — the last tuft of wheat left uncut in a reaped field, bound with a ribbon (a harvest custom): ears fanned
- * 5–6 px wide at the top, pinched to 2 px at a 2-row crimson tie, flaring to 4 px at the foot; ragged sides (13 rows +
- * single ear tips). Ears thatch 3 (lit) / 2; stalks thatch 2 / 1; tie crimson 4 / 2.
+ * 8–9 px wide at the top, pinched to 3 px at a 2-row crimson tie whose ends flutter to the right, flaring to 7 px at
+ * the foot; ragged sides (19 rows + single ear tips — art-director M2-06: big enough to read on a phone). Ears thatch 3
+ * (lit) / 2; stalks thatch 2 / 1; tie crimson 4 / 3 / 2.
  */
 export function boroda(plot: Plot, cx: number, ground: number): void {
   const top = ground - BORODA_ROWS.length + 1;
-  plot.set(cx - 1, top - 1, 'thatch', 3);
-  plot.set(cx + 2, top - 1, 'thatch', 2);
+  plot.set(cx - 2, top - 1, 'thatch', 3);
+  plot.set(cx + 2, top, 'thatch', 2);
+  plot.set(cx + 5, top + 2, 'thatch', 2);
+  plot.set(cx - 5, top + 3, 'thatch', 3);
   BORODA_ROWS.forEach(([a, b], r) => {
     const y = top + r;
     for (let d = a; d <= b; d++) {
       if (r === BORODA_TIE || r === BORODA_TIE + 1) {
-        plot.set(cx + d, y, 'crimson', d === a ? 4 : 2);
+        plot.set(cx + d, y, 'crimson', d === a ? 4 : d === b ? 2 : 3);
         continue;
       }
-      const ear = r < 5;
+      const ear = r < BORODA_EARS;
       if (ear && (d + r) % 3 === 2 && d !== a && d !== b) continue; // gaps between ears
       const lit = d < 0;
       plot.set(cx + d, y, 'thatch', ear ? (lit ? 3 : 2) : lit ? 2 : 1);
     }
   });
+  // The ribbon's two ends hang off the knot to the right.
+  plot.set(cx + 2, top + BORODA_TIE + 1, 'crimson', 3);
+  plot.set(cx + 3, top + BORODA_TIE + 2, 'crimson', 2);
+  plot.set(cx + 2, top + BORODA_TIE + 3, 'crimson', 2);
 }
 
 // ── sheaves, stooks ──────────────────────────────────────────────────────────────────────────────────────────
@@ -362,7 +402,8 @@ export function marigolds(plot: Plot, x0: number, x1: number, ground: number, s:
 
 /**
  * Погріб: a grassed earth mound (half ellipse w × h; grass 4 lit top-left, grass 3, grass 2 shaded right) with a plank
- * door in a wood frame at its front, a tiny ridge board over it.
+ * door at its front: a dark wood 1 frame (the doorway's depth, art-director M2-06), planks wood 3 / 2 with a wood 4
+ * latch, under a gabled plank cap (wood 4 lit left, wood 2 shaded right) that overhangs the frame by 2 px a side.
  */
 export function cellarMound(plot: Plot, cx: number, ground: number, w: number, h: number): void {
   const rx = w / 2;
@@ -375,17 +416,21 @@ export function cellarMound(plot: Plot, cx: number, ground: number, w: number, h
       plot.set(c, y, 'grass', y === ground - h + 1 ? 4 : u > 0.75 ? 2 : shade);
     }
   }
-  // Door: 5×6 frame, planks, an iron-dark latch.
+  // Door: a 7×7 dark frame round 5 px of planks, the latch on the right plank.
   const dx = cx - 2;
   const top = ground - 6;
   for (let y = top; y <= ground; y++) {
     for (let c = dx - 1; c <= dx + 5; c++) {
       const frame = c === dx - 1 || c === dx + 5 || y === top;
-      plot.set(c, y, 'wood', frame ? (c === dx - 1 || y === top ? 4 : 2) : c % 2 === 0 ? 3 : 2);
+      plot.set(c, y, 'wood', frame ? 1 : c % 2 === 0 ? 3 : 2);
     }
   }
-  plot.set(dx + 3, top + 3, 'wood', 1);
-  for (let c = dx - 2; c <= dx + 6; c++) plot.set(c, top - 1, 'wood', c < cx ? 4 : 2);
+  plot.set(dx + 3, top + 3, 'wood', 4);
+  // Cap: three rows stepping in, 11 → 7 → 3 px.
+  [5, 3, 1].forEach((half, r) => {
+    const y = top - 1 - r;
+    for (let c = cx - half; c <= cx + half; c++) plot.set(c, y, 'wood', c < cx ? 4 : c === cx ? 3 : 2);
+  });
 }
 
 /**

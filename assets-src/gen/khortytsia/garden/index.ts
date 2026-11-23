@@ -35,7 +35,7 @@ interface Tier {
   /** Beds back to front. */
   readonly beds: readonly Crop[];
   readonly marigolds?: boolean;
-  /** Bean teepees at these offsets from the right end. */
+  /** Bean teepees at these offsets from the right end (left of where the cellar stands from V, so its door shows). */
   readonly beans?: readonly number[];
   /** Pumpkins at these offsets from the left end, in front of the front bed. */
   readonly pumpkins?: readonly number[];
@@ -50,13 +50,13 @@ const BEDS3: readonly Crop[] = ['onion', 'cabbage', 'beet'];
 export const GARDEN_TIERS: Readonly<Record<string, Tier>> = {
   t1: { w: 56, beds: ['seedling', 'seedling'] },
   t2: { w: 76, beds: BEDS3, marigolds: true },
-  t3: { w: 92, beds: BEDS3, marigolds: true, beans: [8, 20] },
-  t4: { w: 108, beds: BEDS3, marigolds: true, beans: [8, 20], pumpkins: [14, 34], sunflowers: [6, 14] },
+  t3: { w: 92, beds: BEDS3, marigolds: true, beans: [30, 42] },
+  t4: { w: 108, beds: BEDS3, marigolds: true, beans: [30, 42], pumpkins: [14, 34], sunflowers: [6, 14] },
   t5: {
     w: 124,
     beds: BEDS3,
     marigolds: true,
-    beans: [8, 20],
+    beans: [30, 42],
     pumpkins: [14, 34, 54],
     sunflowers: [6, 14],
     cellar: true,
@@ -65,7 +65,7 @@ export const GARDEN_TIERS: Readonly<Record<string, Tier>> = {
     w: 140,
     beds: BEDS3,
     marigolds: true,
-    beans: [8, 20, 32],
+    beans: [30, 42, 51], // the left teepee clear of the wattle's pot stake
     pumpkins: [16, 36, 56],
     sunflowers: [6, 14, 22],
     cellar: true,
