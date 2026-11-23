@@ -1,0 +1,7 @@
+# gitleaks exceptions: exact fingerprints only (<commit>:<path>:<rule>:<line>), one per line, no globs.
+# CI ("Refuse in-repo gitleaks allowlists" in .github/workflows/ci.yml) fails on any other non-comment line.
+# Each entry: reviewed by security-reviewer and approved by the owner; give the reason above it.
+
+# 2026-11-23: generic-api-key false positive. The match is a list of quest-id strings
+# ('khortytsia.<building><count>') in src/content/quests.ts, not a secret. Only this commit/line is exempt.
+ac3ec94457b7bd74ff8932ec4b4be93eb7ef7fd1:src/content/quests.ts:generic-api-key:55

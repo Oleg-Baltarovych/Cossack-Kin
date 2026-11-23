@@ -246,13 +246,34 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP/gitleaks" gitleaks
           "$RUNNER_TEMP/gitleaks/gitleaks" version
 
-      # gitleaks reads allowlists from the scanned repo; a change could hide a committed secret. Any such file
-      # must be added deliberately together with an edit to this step (security-reviewer, M0-09).
+      # gitleaks reads allowlists from the scanned repo; a change could hide a committed secret. `.gitleaks.toml`
+      # is refused outright (M0-09). The exception file `.gitleaksignore` may only hold exact fingerprints
+      # (<40-hex commit>:<path>:<rule>:<line>, one per line; empty and `#` comment lines allowed), each reviewed by
+      # security-reviewer and approved by the owner; anything else (globs, extra text) fails this step.
       - name: Refuse in-repo gitleaks allowlists
         run: |
-          for f in .gitleaks.toml .gitleaksignore; do
-            if [ -e "$f" ]; then echo "::error file=$f::in-repo gitleaks config is not allowed"; exit 1; fi
-          done
+          if [ -e .gitleaks.toml ] || [ -L .gitleaks.toml ]; then
+            echo "::error file=.gitleaks.toml::in-repo gitleaks config is not allowed"; exit 1
+          fi
+          f=.gitleaksignore
+          if [ -L "$f" ] || { [ -e "$f" ] && [ ! -f "$f" ]; }; then
+            echo "::error file=$f::$f must be a regular file"; exit 1
+          fi
+          if [ -f "$f" ]; then
+            # Byte-exact, text-forced (-a: a NUL must not make grep call the file binary and print nothing).
+            # Allowed lines: empty, `#` + printable ASCII, or <40-hex commit>:<path>:<rule>:<line>. No leading or
+            # trailing whitespace/CR. The commit is required: gitleaks also accepts a commit-less
+            # <path>:<rule>:<line> that exempts every commit, so never relax this. Path is plain [A-Za-z0-9._/-]
+            # (every tracked path fits), so globs are refused. grep exit 1 = all lines valid; 2 = error (fails).
+            bad=$(LC_ALL=C grep -anvE '^(#[ -~]*|[0-9a-f]{40}:[A-Za-z0-9._/-]+:[a-z0-9-]+:[0-9]+|)$' "$f") || [ $? -eq 1 ]
+            if [ -n "$bad" ]; then
+              printf '%s\n' "$bad" | while IFS=: read -r n _; do
+                echo "::error file=$f,line=$n::only exact gitleaks fingerprints (<commit>:<path>:<rule>:<line>) are allowed"
+              done
+              exit 1
+            fi
+            echo "$f: $(LC_ALL=C grep -acE '^[0-9a-f]{40}:' "$f" || true) exact fingerprint(s)"
+          fi
 
       # Whole history; findings are redacted in the log.
       - run: '"$RUNNER_TEMP/gitleaks/gitleaks" git --redact --no-banner --exit-code 1 .'
