@@ -6,7 +6,7 @@
 // M2-19: the Sich's set from people/cossack.ts — `drill` (the musket drill), `sit-smoke` (on a log by the fire with a
 // люлька), `cheer` (arms up); the canvas is padded to 32 px for the musket (the pivot column is unchanged).
 import { compose, contactShadow } from '../../lib/passes.ts';
-import { checkMask, paintDoll, type Mask, type Outfit, type Stamp } from '../../lib/doll.ts';
+import { checkMask, paintDoll, type Mask, type Outfit, type Stamp, PEOPLE_SELECTIVE } from '../../lib/doll.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 import { paintArm, paintInks, type BodyGeom } from '../work.ts';
@@ -375,7 +375,7 @@ const kozak: SpriteGenerator = {
       light: false,
       occlusion: false,
       outline: { mode: 'outer', drop: 2, parts: [1] },
-      selective: { lit: 'lighter' },
+      selective: PEOPLE_SELECTIVE,
     });
     const shadow = layers.shadow;
     if (shadow)

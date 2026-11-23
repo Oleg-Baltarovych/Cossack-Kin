@@ -5,6 +5,21 @@
 // colored outer outline (one ramp, 2 steps darker) and lightens it on the sun side.
 import { Plot } from './plot.ts';
 import type { RampName } from './buffer.ts';
+import type { SelectiveOptions } from './passes.ts';
+
+/**
+ * Every person's selective outline (ART-BIBLE §3, §7): the sunny side one step lighter, except where a light material
+ * meets the air — a white shirt (plaster ≥ 4) or a shaved head / bare face (skin ≥ 3), whose lighter step vanished on
+ * the light maidan and in the crowd: there a warm brown 1-px contour (ART-19 deferred 7, M2-29 A4). Skin only, so no
+ * figure gains a ramp.
+ */
+export const PEOPLE_SELECTIVE: SelectiveOptions = {
+  lit: 'lighter',
+  warm: [
+    { ramp: 'plaster', from: 4, to: ['skin', 2] },
+    { ramp: 'skin', from: 3, to: ['skin', 1] },
+  ],
+};
 
 /** Clothing / body slots a mask can paint. */
 export const SLOTS = ['skin', 'hair', 'shirt', 'lower', 'accent', 'belt', 'boots', 'hat'] as const;

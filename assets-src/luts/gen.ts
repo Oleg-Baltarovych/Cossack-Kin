@@ -5,8 +5,11 @@
 import {
   GRADE_LOOKS,
   LUT_SIZE,
+  RAIN_GRADE_LOOKS,
+  SKY_KEY_IDS,
   type ColorRef,
   type GradeLook,
+  type HueKeep,
   type SkyKeyId,
 } from '../../src/render/atmosphere/config.ts';
 
@@ -58,7 +61,9 @@ function grade(look: GradeLook, palette: PaletteColors, input: Rgb): [number, nu
   // night vision (greens and blues stay brighter than reds), which keeps equally bright green and brown apart.
   if (look.curve) {
     const yIn = look.scotopic ? 0.05 * r + 0.55 * g + 0.4 * b : luma(r, g, b);
-    const yOut = curveAt(look.curve, yIn);
+    let yOut = curveAt(look.curve, yIn);
+    // Spared hues get part of what the curve took back (M2-29 A4).
+    if (look.hueKeep) yOut += (luma(r, g, b) - yOut) * keepWeight(look.hueKeep, r, g, b);
     const yNow = luma(r, g, b);
     if (yNow > 0) {
       const k = yOut / yNow;
@@ -102,6 +107,31 @@ function grade(look: GradeLook, palette: PaletteColors, input: Rgb): [number, nu
     b += (pb / 255 - b) * look.snap;
   }
   return [r, g, b];
+}
+
+const smooth = (e0: number, e1: number, x: number): number => {
+  const t = clamp01(e1 > e0 ? (x - e0) / (e1 - e0) : x >= e1 ? 1 : 0);
+  return t * t * (3 - 2 * t);
+};
+
+/** Strongest `keep` of the hue bands `r, g, b` (0..1) falls in, by HSV hue (feathered) and saturation. */
+function keepWeight(bands: readonly HueKeep[], r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d <= 0 || max <= 0) return 0;
+  const h6 = max === r ? (g - b) / d : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  const hue = (h6 * 60 + 360) % 360;
+  const sat = d / max;
+  let best = 0;
+  for (const band of bands) {
+    const width = (band.to - band.from + 360) % 360;
+    const into = (hue - band.from + 360) % 360;
+    // Degrees outside the band (0 inside), toward the nearer edge.
+    const out = into <= width ? 0 : Math.min(into - width, 360 - into);
+    const inHue = band.feather > 0 ? 1 - smooth(0, band.feather, out) : out === 0 ? 1 : 0;
+    best = Math.max(best, band.keep * inHue * smooth(band.sat[0], band.sat[1], sat));
+  }
+  return best;
 }
 
 /** Piecewise-linear curve through `[in, out]` points sorted by `in` (clamped at both ends). */
@@ -153,15 +183,17 @@ export function buildLut(look: GradeLook, palette: PaletteColors): Uint8Array {
   return out;
 }
 
-export function buildAllLuts(palette: PaletteColors): Record<SkyKeyId, Uint8Array> {
-  return {
-    dawn: buildLut(GRADE_LOOKS.dawn, palette),
-    morning: buildLut(GRADE_LOOKS.morning, palette),
-    day: buildLut(GRADE_LOOKS.day, palette),
-    golden: buildLut(GRADE_LOOKS.golden, palette),
-    dusk: buildLut(GRADE_LOOKS.dusk, palette),
-    night: buildLut(GRADE_LOOKS.night, palette),
-  };
+export type LutSetBytes = Record<SkyKeyId, Uint8Array>;
+
+function buildSet(looks: Readonly<Record<SkyKeyId, GradeLook>>, palette: PaletteColors): LutSetBytes {
+  const set: Partial<LutSetBytes> = {};
+  for (const id of SKY_KEY_IDS) set[id] = buildLut(looks[id], palette);
+  return set as LutSetBytes; // every key was set by the loop over SKY_KEY_IDS
+}
+
+/** Both weather sets: `clear` (also fog) and `rain` (M2-29 A4). */
+export function buildAllLuts(palette: PaletteColors): { readonly clear: LutSetBytes; readonly rain: LutSetBytes } {
+  return { clear: buildSet(GRADE_LOOKS, palette), rain: buildSet(RAIN_GRADE_LOOKS, palette) };
 }
 
 /** Trilinear lookup of a 0..255 color, like the shader does (for tests and tools). */

@@ -254,6 +254,18 @@ export function outline(buf: IndexBuffer, rampSize: RampSize, options: OutlineOp
 export interface SelectiveOptions {
   /** Lit-side (top-left) silhouette: `lighter` = one step less dark, `vanish` = no outline there. */
   readonly lit?: 'lighter' | 'vanish';
+  /**
+   * Lit-side outer outline of light materials in a warm colour instead (ART-19 deferred 7, M2-29 A4): a px whose
+   * outline came from `ramp` at shade ≥ `from` becomes `to` — a white shirt's or a shaved head's sunny edge, whose
+   * lighter outline step would vanish against a light ground.
+   */
+  readonly warm?: readonly WarmRim[];
+}
+
+export interface WarmRim {
+  readonly ramp: RampName;
+  readonly from: number;
+  readonly to: readonly [RampName, number];
 }
 
 /** Selective outline (ART-BIBLE §3): on the side facing the sun the outline lightens or disappears. */
@@ -268,7 +280,21 @@ export function selectiveOutline(buf: IndexBuffer, map: OutlineMap, options: Sel
     const y = Math.floor(i / buf.width);
     const source = Math.round(map.source[i] ?? 0);
     const lighter = Math.min(source, (buf.shade[i] ?? 0) + 1);
-    if (facing > 0 && lit === 'vanish') {
+    const warm =
+      facing > 0 && kind === 1
+        ? options.warm?.find((w) => w.ramp === buf.get(x, y).ramp && source >= w.from)
+        : undefined;
+    if (warm) {
+      const px = buf.get(x, y);
+      buf.set(x, y, {
+        ramp: warm.to[0],
+        shade: warm.to[1],
+        material: px.material,
+        partId: px.partId,
+        depth: px.depth,
+        normal: px.normal,
+      });
+    } else if (facing > 0 && lit === 'vanish') {
       if (kind === 1) buf.clear(x, y);
       else buf.shade[i] = source;
     } else if (facing > 0 || lit === 'vanish') {

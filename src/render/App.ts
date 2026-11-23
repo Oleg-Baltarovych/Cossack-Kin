@@ -167,7 +167,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
 
   // Atlases and LUTs first, so the first frame already has everything. A failed load releases what did load (a partial
   // atlas set inside loadAtlases; the whole set when the LUTs fail).
-  const [atlasesLoad, lutsLoad] = await Promise.allSettled([loadAtlases(), loadLuts()]);
+  const [atlasesLoad, lutsLoad] = await Promise.allSettled([loadAtlases(), loadLuts(settings.weather)]);
   if (atlasesLoad.status === 'rejected') throw atlasesLoad.reason;
   const atlases = atlasesLoad.value;
   if (lutsLoad.status === 'rejected') {

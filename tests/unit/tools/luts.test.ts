@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { buildLut, lutLookup, paletteColors, type Rgb } from '../../../assets-src/luts/gen.ts';
-import { GRADE_LOOKS, LUT_SIZE, SKY_KEY_IDS } from '../../../src/render/atmosphere/config.ts';
+import { buildAllLuts, buildLut, lutLookup, paletteColors, type Rgb } from '../../../assets-src/luts/gen.ts';
+import {
+  GRADE_LOOKS,
+  LUT_SIZE,
+  RAIN_GRADE_LOOKS,
+  SKY_KEY_IDS,
+  type GradeLook,
+} from '../../../src/render/atmosphere/config.ts';
 
 const master = JSON.parse(readFileSync('assets-src/palettes/master.json', 'utf8')) as {
   ramps: Record<string, string[]>;
@@ -122,6 +128,58 @@ describe('buildLut', () => {
       expect(luma(wall)).toBeGreaterThan(130);
       expect(luma(wall)).toBeLessThan(luma(ramp('water', 6)));
     }
+  });
+
+  it('golden hour spares the reds and the sunlit timber the curve would sink (M2-29 A4)', () => {
+    const lut = buildLut(GRADE_LOOKS.golden, palette);
+    const noKeep = buildLut({ ...GRADE_LOOKS.golden, hueKeep: [] }, palette);
+    // Mallow and banner reds keep most of their value (A3: they drowned in the olive).
+    for (const i of [3, 4]) {
+      const src = ramp('crimson', i);
+      expect(luma(lutLookup(lut, src)), `crimson ${String(i)}`).toBeGreaterThan(luma(lutLookup(noKeep, src)) * 1.15);
+      expect(luma(lutLookup(lut, src)), `crimson ${String(i)}`).toBeGreaterThanOrEqual(luma(src) * 0.85);
+    }
+    // Lit log faces of the Sich (wood 4) keep more light than with the plain curve.
+    const wood = ramp('wood', 4);
+    expect(luma(lutLookup(lut, wood))).toBeGreaterThan(luma(lutLookup(noKeep, wood)) * 1.1);
+    // The meadow is not spared: grass 2–4 grade as with the plain curve.
+    for (const i of [2, 3, 4]) {
+      const src = ramp('grass', i);
+      expect(Math.abs(luma(lutLookup(lut, src)) - luma(lutLookup(noKeep, src))), `grass ${String(i)}`).toBeLessThan(3);
+    }
+  });
+
+  it('rain (M2-29 A4): the daylight keys grey the land, and rain at golden hour is no longer sunk below the rain morning', () => {
+    const chroma = ([r, g, b]: Rgb): number => Math.max(r, g, b) - Math.min(r, g, b);
+    // Dusk and night tint the land to one cool hue already: their rain grade is the clear one.
+    for (const id of ['dawn', 'morning', 'day', 'golden'] as const) {
+      const clear = buildLut(GRADE_LOOKS[id], palette);
+      const rain = buildLut(RAIN_GRADE_LOOKS[id], palette);
+      for (const [name, i] of [
+        ['grass', 3],
+        ['grass', 4],
+        ['crimson', 4],
+      ] as const) {
+        const src = ramp(name, i);
+        expect(chroma(lutLookup(rain, src)), `${id} ${name} ${String(i)}`).toBeLessThan(
+          chroma(lutLookup(clear, src)) * 0.85,
+        );
+      }
+    }
+    const meadow = (look: GradeLook): number => luma(lutLookup(buildLut(look, palette), ramp('grass', 3)));
+    expect(meadow(RAIN_GRADE_LOOKS.golden)).toBeGreaterThan(meadow(GRADE_LOOKS.golden) * 1.15);
+    expect(meadow(RAIN_GRADE_LOOKS.golden)).toBeGreaterThanOrEqual(meadow(RAIN_GRADE_LOOKS.morning) * 0.85);
+    expect(meadow(RAIN_GRADE_LOOKS.golden)).toBeLessThan(meadow(RAIN_GRADE_LOOKS.day));
+    // Still warm in the evening: a mid grey leans red.
+    const grey = lutLookup(buildLut(RAIN_GRADE_LOOKS.golden, palette), [128, 128, 128]);
+    expect(grey[0]).toBeGreaterThan(grey[2] + 8);
+  });
+
+  it('builds the clear and the rain set, deterministic', () => {
+    const a = buildAllLuts(palette);
+    expect(Object.keys(a.rain)).toEqual([...SKY_KEY_IDS]);
+    expect(a.rain.golden).not.toEqual(a.clear.golden);
+    expect(buildAllLuts(palette).rain.day).toEqual(a.rain.day);
   });
 
   it('golden hour warms a mid grey, dusk and night darken it', () => {
