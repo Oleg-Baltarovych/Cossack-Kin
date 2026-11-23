@@ -165,14 +165,18 @@ export function paintInks(plot: Plot, inks: readonly Ink[], ox: number): void {
 
 // ── props and tools ────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Low stool (дзиґлик) under a seated body: seat and two legs; the seat hides under the hips. */
+/**
+ * Low stool (дзиґлик) under a seated body: seat and two legs; the seat hides under the hips. Legs 2 px (lit left):
+ * an outlined 1-px leg is 3 px wide, which the moon rim treats as a thin strand and dims below its top (M2-29 A5:
+ * the stool by the khata keeps its moonlit corner).
+ */
 function stool(g: BodyGeom, t: ToolInks): Ink[] {
   const seat = g.ground - 4;
   const x0 = g.cx - 5;
   return [
     ...rect(x0, seat, 8, 1, t.wood, (x) => (x === 0 ? 4 : 3)),
     ...rect(x0, seat + 1, 8, 1, t.wood, () => 1),
-    ...[x0 + 1, x0 + 6].flatMap((x) => rect(x, seat + 2, 1, 3, t.wood, (_, y) => (y === 0 ? 1 : 2))),
+    ...[x0, x0 + 6].flatMap((x) => rect(x, seat + 2, 2, 3, t.wood, (dx, y) => (y === 0 ? 1 : dx === 0 ? 3 : 2))),
   ];
 }
 

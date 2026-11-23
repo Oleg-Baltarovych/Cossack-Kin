@@ -17,6 +17,9 @@
 // - `rampart` walls III+: the moat plus a plank fighting walk under the palisade and a revetment of short stake heads
 //            under a turf lip (periods divide 64: tiles meet seamlessly);
 // - `ditch`  the moat outside the walls (walls II+) in the row behind the palisade, turfed with the `meadow` tile.
+// - `steppe`, `steppe-b`, `steppe-c` the dry steppe at the bottom of the world (M2-29 A5): ochre sward over a green
+//            under-layer, dry blades (recipes-steppe.ts); `steppe-edge(-b, -c)` the near grass giving way to it over a
+//            ragged seam (tongues of dry grass up, green bays down) — every variant meets its neighbours at STEPPE_SEAM.
 // Recipe parts: `light: false`, `occlusion: false` (the recipes already place every shade), no outline (tiles meet
 // edge to edge).
 import { compose } from '../../lib/passes.ts';
@@ -24,6 +27,7 @@ import { seedOf, valueNoise } from '../../lib/noise.ts';
 import { seededRng } from '../../lib/rng.ts';
 import { Plot } from '../../lib/plot.ts';
 import { grassField, pathField, pebbles } from '../../lib/recipes.ts';
+import { steppeEdge, steppeField, tussock } from '../../lib/recipes-steppe.ts';
 import type { SpriteGenerator } from '../../lib/types.ts';
 
 export const GROUND_TILE = { w: 64, h: 32 } as const;
@@ -287,6 +291,45 @@ function paintTrodden(plot: Plot, seed: string, wear: number): void {
   }
 }
 
+/** The `steppe-edge` seam: its middle row, how far it wanders (rows), and over how many px it eases back at the sides. */
+export const STEPPE_SEAM = { row: 16, range: 11, ease: 10 } as const;
+
+/**
+ * The grass → steppe seam tile (M2-29 A5): the near-grass recipe (same counts as `grass`) above, the steppe sward from
+ * the seam down (it wanders ±STEPPE_SEAM.range rows), a 1-row fray where they meet, a few dry tussocks out in the
+ * grass and green runs left standing in the steppe.
+ */
+function paintSteppeEdge(plot: Plot, seed: string): void {
+  grassField(plot, { x: 0, y: 0, w: HALF, h: H }, `${seed}:a`, { tufts: 6, flecks: 1 });
+  grassField(plot, { x: HALF, y: 0, w: HALF, h: H }, `${seed}:b`, { tufts: 6, flecks: 1 });
+  const steppe = new Plot();
+  steppeField(steppe, { w: W, h: H }, 'ground.steppe');
+  const edge = steppeEdge(W, STEPPE_SEAM.row, STEPPE_SEAM.range, STEPPE_SEAM.ease, seed);
+  for (let x = 0; x < W; x++) {
+    const top = edge[x] ?? STEPPE_SEAM.row;
+    for (let y = top - 1; y < H; y++) {
+      const px = steppe.get(x, y);
+      if (!px) continue;
+      // The row above the seam: dry grass on every other px (the meadow frays into the steppe).
+      if (y === top - 1 && (x + y) % 2 === 0) continue;
+      plot.set(x, y, px.ramp, px.shade);
+    }
+  }
+  // Frayed both ways: a few dry tussocks out in the grass above the seam, green runs left standing in the steppe.
+  const rng = seededRng(`${seed}:fray`);
+  for (let i = 0; i < 3; i++) {
+    const x = 8 + Math.floor(rng() * (W - 20));
+    const top = Math.min(...edge.slice(x, x + 7));
+    if (top > 8) tussock(plot, x, top - 2 - Math.floor(rng() * 4), 5 + Math.floor(rng() * 3), rng, W);
+  }
+  for (let i = 0; i < 6; i++) {
+    const x = Math.floor(rng() * (W - 5));
+    const y = (edge[x] ?? STEPPE_SEAM.row) + 2 + Math.floor(rng() * 6);
+    if (y >= H) continue;
+    for (let k = 0; k < 3 + Math.floor(rng() * 3); k++) plot.set(x + k, y, 'grass', 2);
+  }
+}
+
 const ground: SpriteGenerator = {
   atlas: 'khortytsia',
   id: 'ground',
@@ -313,6 +356,12 @@ const ground: SpriteGenerator = {
     'moat',
     'rampart',
     'ditch',
+    'steppe',
+    'steppe-b',
+    'steppe-c',
+    'steppe-edge',
+    'steppe-edge-b',
+    'steppe-edge-c',
   ],
   anchor: { x: 0, y: 0 },
   generate(_rng, { variant, buffer, rampSize }) {
@@ -354,6 +403,16 @@ const ground: SpriteGenerator = {
         break;
       case 'ditch':
         paintDitch(plot, seed);
+        break;
+      case 'steppe':
+      case 'steppe-b':
+      case 'steppe-c':
+        steppeField(plot, { w: W, h: H }, seed);
+        break;
+      case 'steppe-edge':
+      case 'steppe-edge-b':
+      case 'steppe-edge-c':
+        paintSteppeEdge(plot, seed);
         break;
       case 'maidan-end': {
         // Where the maidan meets the grass (art-director ART-11 note): earth 3 giving way to grass over a ragged edge
