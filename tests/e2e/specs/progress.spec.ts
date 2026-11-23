@@ -13,6 +13,8 @@ import { waitReady } from '../helpers/world.ts';
 const URL = '/?time=13:00&seed=5&ui=1';
 const T0 = new Date('2026-06-01T09:00:00Z').getTime();
 const HOUR = 3600_000;
+/** How far the fixed clock is stepped once after the first frame: one second, ten loop ticks. */
+const TICK_STEP_MS = 1000;
 
 async function gameState(page: Page): Promise<GameState> {
   const r = validateState(JSON.parse(await page.evaluate(() => window.__CK_GAME__?.state() ?? 'null')));
@@ -28,6 +30,19 @@ async function savedState(page: Page): Promise<GameState> {
   return choice.state;
 }
 
+/**
+ * A new game on the fixed clock, its welcome beat closed (M2-25). The beat fires on the first tick in which time moves
+ * (`advance` does nothing for now ≤ lastSeen), and a fixed clock never moves by itself: step it once past the new
+ * game's `lastSeen`, so the 10 Hz loop's next tick advances and fires the beat.
+ */
+async function newGame(page: Page): Promise<void> {
+  await page.clock.setFixedTime(T0);
+  await page.goto(URL);
+  await waitReady(page);
+  await page.clock.setFixedTime(T0 + TICK_STEP_MS);
+  await closeWelcome(page);
+}
+
 async function hide(page: Page): Promise<void> {
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
@@ -37,13 +52,12 @@ async function hide(page: Page): Promise<void> {
 
 test.describe('M1-20 progress across reloads', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
+  // As on the CI runner. Off UTC the loop's start dispatches `setSettings` (the zone differs from the new game's 0),
+  // and that action checks the story beats — which hid the frozen-clock case below on a UTC+2 machine.
+  test.use({ timezoneId: 'UTC' });
 
   test('buy → reload: the same levels and the same ducats (clock fixed)', async ({ page }) => {
-    await page.clock.setFixedTime(T0);
-    await page.goto(URL);
-    await waitReady(page);
-    // A new game: its welcome beat first (M2-25).
-    await closeWelcome(page);
+    await newGame(page);
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     const before = await gameState(page);
     expect(before.village.levels.field).toBe(1);
@@ -59,11 +73,7 @@ test.describe('M1-20 progress across reloads', () => {
   test('3 hours later (fake clock): the return window shows what the core computes for the saved game', async ({
     page,
   }) => {
-    await page.clock.setFixedTime(T0);
-    await page.goto(URL);
-    await waitReady(page);
-    // A new game: its welcome beat first (M2-25).
-    await closeWelcome(page);
+    await newGame(page);
     await page.getByRole('button', { name: /Пшеничне поле/ }).click();
     // Hiding the page saves it (lifecycle onPause): that save is what the reload loads.
     await hide(page);
