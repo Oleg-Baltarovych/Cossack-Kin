@@ -98,3 +98,17 @@ export const SHAKE = {
   stepMs: 30,
   events: ['TierReached'],
 } as const;
+
+/**
+ * Opening a raid's chest (plan M3-12, §0.1 П4): the chest shakes `shakeMs` (± `shakePx` logical px, a step every
+ * `shakeStepMs`), opens, then the items come one by one every `itemStepMs`; a relic is its own beat of `relicMs` with
+ * its name and fact. A tap or Enter shows the whole list at once; «Забрати» works from the first frame. «Менше руху»:
+ * the list at once — no shake, no coins.
+ */
+export const RAID_REVEAL = {
+  shakeMs: 480,
+  shakeStepMs: 60,
+  shakePx: 1,
+  itemStepMs: 300,
+  relicMs: 1200,
+} as const;

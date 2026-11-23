@@ -106,6 +106,17 @@ describe('keys built at run time exist in both languages (M1-17 review)', () => 
   it('uk and en have the same key set', () => {
     expect(Object.keys(enTable).sort()).toEqual(Object.keys(ukTable).sort());
   });
+
+  it('every key has the same {placeholders} in uk and en (plural forms together)', () => {
+    const placeholders = (v: unknown): string => {
+      const texts = typeof v === 'string' ? [v] : Object.values(v as Record<string, string>);
+      return [...new Set(texts.flatMap((s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1])))].sort().join(',');
+    };
+    const uk = ukTable as Record<string, unknown>;
+    const en = enTable as Record<string, unknown>;
+    const differ = Object.keys(uk).filter((k) => k in en && placeholders(uk[k]) !== placeholders(en[k]));
+    expect(differ).toEqual([]);
+  });
 });
 
 describe('formatDuration (M1-18)', () => {

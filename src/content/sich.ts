@@ -25,6 +25,8 @@ export interface SichEffects {
   readonly gloryPerLevel?: number;
   /** +seconds of glory the store holds (offline glory cap) per level (the treasury). */
   readonly gloryCapSecPerLevel?: number;
+  /** +raid loot per level (share, into lootMult; the treasury, SPEC §3.2.1; read from M3-06). */
+  readonly lootPerLevel?: number;
 }
 
 export interface SichBuilding {
@@ -72,7 +74,8 @@ export const SICH_BUILDINGS: readonly SichBuilding[] = [
     base: 150,
     growth: 1.18,
     unlock: { kind: 'start' },
-    effects: { defencePerLevel: 1, gloryCapSecPerLevel: 600 },
+    // lootPerLevel: гіпотеза (M3-08) — ≈ +25 % loot by the Розквіт (treasury ≈ 25), more than one relic's +10 %.
+    effects: { defencePerLevel: 1, gloryCapSecPerLevel: 600, lootPerLevel: 0.01 },
     nameKey: 'sich.treasury.name',
     descKey: 'sich.treasury.desc',
   },
