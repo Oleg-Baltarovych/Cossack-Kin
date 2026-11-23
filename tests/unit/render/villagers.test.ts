@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AGENT_BUDGET,
+  BUILDERS,
   VILLAGER_DAY,
   type AgentSpawn,
   type NodeBuilding,
@@ -15,8 +16,10 @@ import type { VisualTiers } from '../../../src/core/selectors.ts';
 import { findPath } from '../../../src/render/agents/graph.ts';
 import { createAgentDriver, stepCap } from '../../../src/render/agents/driver.ts';
 import {
+  agentCounts,
   agentPoses,
   createAgents,
+  crewState,
   stepAgents,
   stepInPlace,
   TICK_HZ,
@@ -300,5 +303,234 @@ describe('agents over a changing context (M2-18 review)', () => {
   it('counts the villagers at work from the pool', () => {
     expect(workingCount(createAgents(V, [villager], AGENT_BUDGET, 1, day()))).toBe(1);
     expect(workingCount(createAgents(V, [villager], AGENT_BUDGET, 1, night()))).toBe(0);
+  });
+});
+
+describe('the household grows and shrinks (M2-29 D, SPEC §6.6)', () => {
+  const wanderer: AgentSpawn = {
+    routine: 'wander',
+    role: 'villager',
+    sprite: 'divchyna.a',
+    home: 'r',
+    goals: ['c', 'h'],
+    order: 'cycle',
+    speed: 20,
+    rest: 1,
+    indoors: 'h',
+    phase: 0,
+  };
+  const three: readonly AgentSpawn[] = [villager, { ...villager, sprite: 'selianka.a' }, wanderer];
+  const at = (n: number | undefined, minutes = 12 * 60): AgentContext => ({ minutes, tiers: ALL, villagers: n });
+  const ids = (pool: AgentPool): number[] => agentPoses(pool).map((p) => p.id);
+
+  it('shows the first N villager spawns in authored order; the rest are not on the scene', () => {
+    const pool = createAgents(V, three, AGENT_BUDGET, 1, at(2));
+    expect(ids(pool)).toEqual([0, 1]);
+    expect(createAgents(V, three, AGENT_BUDGET, 1, at(undefined)).agents).toHaveLength(3);
+    expect(ids(createAgents(V, three, AGENT_BUDGET, 1, at(undefined)))).toEqual([0, 1, 2]);
+  });
+
+  it('counts only the villagers on the scene', () => {
+    const pool = createAgents(V, three, AGENT_BUDGET, 1, at(1));
+    expect(agentCounts(pool).villager).toBe(1);
+    expect(agentCounts(stepAgents(pool, s(1), at(3))).villager).toBe(3);
+  });
+
+  it('a newcomer walks out of its door, never popping up elsewhere', () => {
+    const pool = createAgents(V, three, AGENT_BUDGET, 1, at(1));
+    const next = stepAgents(pool, 1, at(3));
+    const girl = agentPoses(next).find((p) => p.id === 2);
+    const door = nodeAt('h');
+    expect(girl).toBeDefined();
+    // One tick out of the door (indoors door `h` for the wanderer).
+    expect(Math.abs((girl?.x ?? 0) - (door?.x ?? 0))).toBeLessThanOrEqual(1);
+    expect(girl?.ground).toBe(door?.ground);
+  });
+
+  it('one the household no longer has walks in at its door, then is gone', () => {
+    const pool = createAgents(V, three, AGENT_BUDGET, 1, at(3));
+    const before = agentPoses(pool).find((p) => p.id === 1);
+    const soon = stepAgents(pool, 1, at(1));
+    // Still there, walking to its door.
+    const going = agentPoses(soon).find((p) => p.id === 1);
+    expect(going?.anim).toBe('walk');
+    expect(before).toBeDefined();
+    // Ten seconds on, it has gone in or is still on its way: never seen doing anything else.
+    const mid = stepAgents(pool, s(10), at(1));
+    const walking = agentPoses(mid).find((p) => p.id === 1);
+    if (walking) expect(walking.anim).toBe('walk');
+    const later = stepAgents(pool, s(60), at(1));
+    expect(ids(later)).toEqual([0]);
+  });
+
+  it('turns back on the way in when the household has it again', () => {
+    const pool = createAgents(V, three, AGENT_BUDGET, 1, at(3));
+    const leaving = stepAgents(pool, 2, at(1));
+    const back = stepAgents(leaving, s(60), at(3));
+    expect(ids(back)).toEqual([0, 1, 2]);
+  });
+
+  it('is deterministic: the same seed and history give the same poses', () => {
+    const run = () => {
+      let p = createAgents(V, three, AGENT_BUDGET, 5, at(1));
+      p = stepAgents(p, s(10), at(3));
+      p = stepAgents(p, s(10), at(2));
+      return agentPoses(p);
+    };
+    expect(run()).toEqual(run());
+  });
+});
+
+describe('builders at a scaffold (M2-29 D, SPEC §6.5; owner 2026-11-23: builders always come)', () => {
+  const men: readonly AgentSpawn[] = [
+    villager,
+    { ...villager, sprite: 'selianka.a' },
+    { ...villager, sprite: 'selianyn.b', phase: 3 },
+    { ...villager, sprite: 'selianyn.c', phase: 5 },
+  ];
+  const site = { building: 'potter', x: 150, ground: 100, size: 's' } as const;
+  const at = (builds: AgentContext['builds'], minutes = 12 * 60): AgentContext => ({ minutes, tiers: ALL, builds });
+  const building = (pool: AgentPool) => agentPoses(pool).filter((p) => p.anim === 'work-build');
+
+  it('the nearest men walk over and hammer (work-build) at the slots, facing in', () => {
+    let pool = createAgents(V, men, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, 1, at([site]));
+    expect(crewState(pool, 'potter')).toBe('coming');
+    pool = stepAgents(pool, s(30), at([site]));
+    expect(crewState(pool, 'potter')).toBe('ready');
+    const builders = building(pool);
+    expect(builders.map((b) => b.x - site.x).sort((a, b) => a - b)).toEqual([...BUILDERS.slots.s]);
+    for (const b of builders) {
+      expect(b.sprite.startsWith('selianyn')).toBe(true);
+      expect(b.facing).toBe(b.x < site.x ? 1 : -1);
+    }
+  });
+
+  it('back to the day when the scaffold comes down', () => {
+    let pool = createAgents(V, men, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, s(30), at([site]));
+    pool = stepAgents(pool, s(2), at([]));
+    expect(crewState(pool, 'potter')).toBe('none');
+    expect(building(pool)).toHaveLength(0);
+  });
+
+  it('the scaffold is ready as soon as the first builder hammers', () => {
+    let pool = createAgents(V, men, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, 1, at([site]));
+    for (let k = 0; k < s(30) && crewState(pool, 'potter') === 'coming'; k++) pool = stepAgents(pool, 1, at([site]));
+    expect(crewState(pool, 'potter')).toBe('ready');
+    // The other one is still on his way (they set out from different places).
+    expect(building(pool)).toHaveLength(1);
+  });
+
+  it('a large scaffold: one man per slot, centred on it (art-director)', () => {
+    const crew: readonly AgentSpawn[] = [...men, { ...villager, sprite: 'selianyn.d', phase: 7 }];
+    let pool = createAgents(V, crew, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, s(30), at([{ ...site, size: 'l' }]));
+    const xs = building(pool)
+      .map((p) => p.x - site.x)
+      .sort((a, b) => a - b);
+    expect(xs).toEqual([...BUILDERS.slots.l]);
+  });
+
+  it('however far or slow, the men are sent and come (no route limit)', () => {
+    const slow = men.map((m) => ({ ...m, speed: 1 }));
+    let pool = createAgents(V, slow, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, 1, at([site]));
+    expect(crewState(pool, 'potter')).toBe('coming');
+    pool = stepAgents(pool, s(120), at([site]));
+    expect(crewState(pool, 'potter')).toBe('ready');
+  });
+
+  it('the nearest by route, not by x: a man just across the side path is passed over', () => {
+    // Standing still at their homes (no work, no chat). The site by the field spot f (x 180): P at the potter's door s
+    // is 50 px away by route; Q at the apiary spot g is the nearest by x (30) but 90 by route (down to the road first);
+    // R at the door h is 90 by route too. Two slots: P and R (the lower id of the tie), never Q.
+    const still = (sprite: VillagerSpawn['sprite'], home: string): VillagerSpawn => ({
+      ...villager,
+      sprite,
+      home,
+      work: [],
+      chat: [],
+    });
+    const crew = [still('selianyn.a', 'h'), still('selianyn.b', 's'), still('selianyn.c', 'g')];
+    const there = { ...site, x: 170 };
+    let pool = createAgents(V, crew, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, s(60), at([there]));
+    expect(
+      building(pool)
+        .map((p) => p.id)
+        .sort(),
+    ).toEqual([0, 1]);
+  });
+
+  it('at night the men come out of their doors too', () => {
+    let pool = createAgents(V, men, AGENT_BUDGET, 1, at(undefined, 23 * 60));
+    pool = stepAgents(pool, s(60), at(undefined, 23 * 60));
+    pool = stepAgents(pool, s(60), at([site], 23 * 60));
+    expect(crewState(pool, 'potter')).toBe('ready');
+    expect(building(pool)).toHaveLength(BUILDERS.slots.s.length);
+  });
+
+  it('no man in the household (only women): nobody comes, it starts at once', () => {
+    const women = men.filter((m) => m.sprite.startsWith('selianka'));
+    let pool = createAgents(V, women, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, 1, at([site]));
+    expect(crewState(pool, 'potter')).toBe('none');
+  });
+
+  it('a site no villager may reach (the Sich) gets nobody: it starts at once', () => {
+    let pool = createAgents(V, men, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, 1, at([{ ...site, x: 900 }]));
+    expect(crewState(pool, 'potter')).toBe('none');
+  });
+
+  it('a chat spot among the builders is closed while they are there (art-director)', () => {
+    // The site right at chat spot c: a woman whose only chat spot is c stays off it while the crew hammers.
+    const woman: VillagerSpawn = { ...villager, sprite: 'selianka.a', work: [] };
+    const crew: readonly AgentSpawn[] = [
+      woman,
+      { ...villager, sprite: 'selianyn.b' },
+      { ...villager, sprite: 'selianyn.c' },
+    ];
+    const there = { ...site, x: 140, ground: 140 };
+    let pool = createAgents(V, crew, AGENT_BUDGET, 1, at(undefined));
+    pool = stepAgents(pool, s(20), at([there]));
+    for (let k = 0; k < 40; k++) {
+      pool = stepAgents(pool, s(1), at([there]));
+      expect(agentPoses(pool).find((p) => p.id === 0)?.anim, `${String(k)} s`).not.toBe('talk');
+    }
+    // Once the scaffold is down, c is open again.
+    let talked = false;
+    for (let k = 0; k < 60 && !talked; k++) {
+      pool = stepAgents(pool, s(1), at([]));
+      talked = agentPoses(pool).find((p) => p.id === 0)?.anim === 'talk';
+    }
+    expect(talked).toBe(true);
+  });
+
+  it('nobody works a building while its scaffold stands; the work starts once it is down', () => {
+    const reaper: VillagerSpawn = { ...villager, sprite: 'selianka.a', work: ['f'] };
+    const field = { ...site, building: 'field', x: 180 } as const;
+    // Before the purchase the field is not there (nobody at work on it); then it is bought and its scaffold goes up.
+    let pool = createAgents(V, [reaper], AGENT_BUDGET, 1, { ...at(undefined), tiers: tiers({ apiary: 1, potter: 1 }) });
+    for (let k = 0; k < 60; k++) {
+      pool = stepAgents(pool, s(1), at([field]));
+      expect(agentPoses(pool)[0]?.anim, `${String(k)} s`).not.toBe('work-field');
+    }
+    let worked = false;
+    for (let k = 0; k < 60 && !worked; k++) {
+      pool = stepAgents(pool, s(1), at([]));
+      worked = agentPoses(pool)[0]?.anim === 'work-field';
+    }
+    expect(worked).toBe(true);
+  });
+
+  it('a frame shorter than a tick right after the scaffold goes up already reads `coming` (driver race)', () => {
+    const driver = createAgentDriver((ctx) => createAgents(V, men, AGENT_BUDGET, 1, ctx), stepCap(false));
+    driver.advance(1, at(undefined));
+    // Less than one tick later: no step is due, yet the new scaffold must not read `none` (it would start at once).
+    driver.advance(1 + 0.4 / TICK_HZ, at([site]));
+    expect(driver.crew('potter')).toBe('coming');
   });
 });

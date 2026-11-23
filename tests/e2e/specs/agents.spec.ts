@@ -24,7 +24,7 @@ test.describe('M2-16 agents', () => {
   test('stats.agents counts the pool by role within the Q11 budgets', async ({ page }) => {
     await gotoReady(page, '/?time=13:00&freeze=6&seed=1&zone=farm');
     const { agents, drawCalls } = await readStats(page);
-    // People: every spawn is on the scene. Food carts (M2-20) and visitors (M2-21) come and go: those in the village
+    // People: every spawn is on the scene (showcase: the household at its full budget, M2-29 D; the whole army). Food carts (M2-20) and visitors (M2-21) come and go: those in the village
     // count — carts on the road (≤ 3), visitors on a visit (agents, one at a time; the чумак's віз is his, not a cart).
     const comeAndGo: readonly AgentRole[] = ['cart', 'visitor'];
     const people = KHORTYTSIA_WORLD.agents.filter((a) => !comeAndGo.includes(a.role));

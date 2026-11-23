@@ -1,5 +1,5 @@
 // The villagers' day (plan M2-18): at work by day where the buildings stand, at the doors and the forge at night, no
-// work on an empty plot; ≥ 8 villagers on `rich`. `@screens @villagers` writes the shots for review to
+// work on an empty plot; the household grows with the levels (M2-29 D: 3 on `rich`, ≥ 8 at tier I, 25 on `showcase`). `@screens @villagers` writes the shots for review to
 // reports/screens/<date>/villagers-*.png: farm (west, east), suburb and Sich at 07:00 / 13:00 / 23:00 for `state=rich`
 // (nothing built yet) and `state=showcase` (every plot built), on 390×844; one day shot on 360 and 412.
 import { mkdirSync } from 'node:fs';
@@ -10,8 +10,9 @@ import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
 import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
+import { AGENT_BUDGET, VILLAGER_GROWTH } from '../../../src/content/agents.ts';
 
-/** AC: at least this many villagers in the scene on `rich`. */
+/** AC 2: at least this many villagers in the scene once the village is built (`showcase`, every building at tier I). */
 const MIN_VILLAGERS = 8;
 
 const url = (state: string, time: string, cam = 40) =>
@@ -20,11 +21,22 @@ const url = (state: string, time: string, cam = 40) =>
 test.describe('M2-18 villagers', () => {
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
 
-  test('rich (nothing built): ≥ 8 villagers, nobody at work', async ({ page }) => {
+  test('rich (nothing built): the base household, nobody at work (M2-29 D)', async ({ page }) => {
     await gotoReady(page, url('rich', '13:00'));
     const stats = await readStats(page);
-    expect(stats.agents.villager).toBeGreaterThanOrEqual(MIN_VILLAGERS);
+    expect(stats.agents.villager).toBe(VILLAGER_GROWTH.base);
     expect(stats.working).toBe(0);
+  });
+
+  test('the household grows with the levels: ≥ 8 at tier I, the full budget on showcase (M2-29 D)', async ({
+    page,
+  }) => {
+    for (const time of ['13:00', '23:00']) {
+      await gotoReady(page, url('tiers&tier=1', time));
+      expect((await readStats(page)).agents.villager, `tier I ${time}`).toBeGreaterThanOrEqual(MIN_VILLAGERS);
+      await gotoReady(page, url('showcase', time));
+      expect((await readStats(page)).agents.villager, `showcase ${time}`).toBe(AGENT_BUDGET.villager);
+    }
   });
 
   test('every plot built: most villagers at work by day, none at night', async ({ page }) => {

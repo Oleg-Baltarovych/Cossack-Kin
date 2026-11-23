@@ -3,6 +3,7 @@
 // Playwright's clock). Cosmetic only: the level is already in the state when this starts — render/bridge.ts merely
 // reacts to `BuildingUpgraded` 0 → 1 and `TierReached`. Seeded hashes (no Math.random), whole px.
 // The builders knock as each scaffold stage goes up (`knocksBetween`, M2-18): a hook for the audio (M7).
+import { UPGRADE_JUICE } from '../../content/juice.ts';
 import { BUILD } from '../atmosphere/config.ts';
 
 /** The scaffold stands this long (3 stages) before the building is revealed. */
@@ -28,6 +29,28 @@ export function buildFrame(ms: number, lessMotion: boolean): BuildFrame {
   const t = burstMs / BUILD.popMs;
   const scale = t < 1 ? 1 + (BUILD.popPeak - 1) * 4 * t * (1 - t) : 1;
   return { kind: 'reveal', scale, burstMs };
+}
+
+/**
+ * The construction clock while builders hammer (M2-29 D, content BUILDERS.stretch): `ms` real ms since the stages
+ * started → the ms `buildFrame` reads, the scaffold stages `stretch` × slower; the pop and the confetti after them at
+ * their own pace. `stretch` 1 = the plain clock.
+ */
+export function stretchedMs(ms: number, stretch: number): number {
+  const up = SCAFFOLD_MS * stretch;
+  return ms < up ? ms / stretch : ms - up + SCAFFOLD_MS;
+}
+
+/**
+ * An ordinary upgrade's squash `ms` after the purchase (M2-29 D, content UPGRADE_JUICE): 1 while the coins fly in, then
+ * 1 → peak → 1 over `squashMs` (the pop's parabola); `null` once it is over, and always under «менше руху».
+ */
+export function squashScale(ms: number, lessMotion: boolean): number | null {
+  const { squashDelayMs, squashMs, squashPeak } = UPGRADE_JUICE;
+  if (lessMotion || ms >= squashDelayMs + squashMs) return null;
+  if (ms < squashDelayMs) return 1;
+  const t = (ms - squashDelayMs) / squashMs;
+  return 1 + (squashPeak - 1) * 4 * t * (1 - t);
 }
 
 /** The pop's drawn size: whole px (Q5 — rows and columns repeat under nearest sampling, the grid stays whole). */

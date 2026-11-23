@@ -50,7 +50,7 @@ import { createAgentDriver, stepCap } from './agents/driver.ts';
 import { createVisitClock } from './agents/visits.ts';
 import { LINEUP, lineupPoses } from './debug/lineup.ts';
 import type { AgentContext, AgentCounts } from './agents/sim.ts';
-import { AGENT_BUDGET } from '../content/agents.ts';
+import { AGENT_BUDGET, BUILDERS } from '../content/agents.ts';
 import { propFrames } from './layers/Ground.ts';
 import { horizonY } from './layers/Layer.ts';
 import { createWater } from './water.ts';
@@ -62,6 +62,7 @@ import type { Quality, RenderSettings } from './settings.ts';
 import { createFpsProbe } from './quality.ts';
 import { AUTO_QUALITY, CAMERA, FRAMING, PLOT_MARK, PLOT_TAP, WIND_STRENGTH, WORK_GLINT } from './atmosphere/config.ts';
 import { plotAt, plotSpan } from './plotHit.ts';
+import { clientToGround, groundToClient } from './screenMap.ts';
 import { propTargets } from './plotTargets.ts';
 import { createCoinFx } from './fx/coins.ts';
 import { createBuildFx } from './fx/build.ts';
@@ -153,6 +154,14 @@ export interface WorldApp {
   construct(building: PlotBuilding): void;
   /** A new tier (M2-12): the flash and the rising standard (after the reveal if it is still being built). */
   celebrate(building: PlotBuilding): void;
+  /** An ordinary upgrade (M2-29 D): the building squashes as the coins land; none under «менше руху». */
+  bump(building: PlotBuilding): void;
+  /**
+   * The client point (CSS px) of `building`'s middle in the last frame, when the player sees it there — drawn, and the
+   * world canvas is the topmost element at that point (not under the HUD or the sheet) — else `null` (M2-29 D: the
+   * upgrade coins fly to it).
+   */
+  buildingOnScreen(building: PlotBuilding): { readonly x: number; readonly y: number } | null;
   /** A big event (M2-26, content SHAKE): the camera shakes SHAKE.px logical px for SHAKE.ms; none under «менше руху». */
   shake(): void;
   destroy(): void;
@@ -264,8 +273,10 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       minutes: 0,
       tiers: null,
       cossacks: undefined,
+      villagers: undefined,
       cartPeriodS: undefined,
       visit: null,
+      builds: undefined,
     };
     // The visitors' timetable (M2-21): the core's, on the game's seed and time, read through the scene's feed.
     const visits = createVisitClock(settings.frozenAt !== null);
@@ -341,16 +352,23 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     // confetti and the flash after the grade, like the coins.
     // The builders' knocks (M2-18): counted for the debug stats until the audio (M7) plays them.
     let knocks = 0;
+    /** «Менше руху» now (the settings screen may change it while the world runs: `setLessMotion`). */
+    let lessMotion = settings.lessMotion;
+    const groundLayer = layers.find((l) => l.id === 'ground');
     const build = createBuildFx(
       layout,
       sceneFrame,
-      settings.lessMotion,
+      () => lessMotion,
       () => horizonY(target.height),
       () => {
         knocks += 1;
       },
+      // M2-29 D: the scaffold waits for its first builder (not under `?freeze`: shots keep the plain clock) and stands
+      // Y-sorted among the props, so the men before it are drawn over its rails.
+      (building) => agents.crew(building),
+      settings.frozenAt === null ? BUILDERS.waitMaxS * 1000 : 0,
+      groundLayer?.container.getChildByLabel('props', true) ?? undefined,
     );
-    const groundLayer = layers.find((l) => l.id === 'ground');
     graded.addChildAt(
       build.world,
       groundLayer ? graded.getChildIndex(groundLayer.container) + 1 : graded.children.length,
@@ -376,7 +394,6 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     let motion = createMotion(settings.camX ?? anchorX(settings.zone));
     /** `?lineup` stands from the start camera's left edge (dev/test). */
     const lineupX = Math.round(motion.x);
-    let lessMotion = settings.lessMotion;
     /** When the running camera shake began (performance.now ms), or null (M2-26). */
     let shakeFrom: number | null = null;
     const zoneListeners = new Set<(zone: ZoneId) => void>();
@@ -480,8 +497,10 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       agentCtx.minutes = minutes;
       agentCtx.tiers = scene.tiers;
       agentCtx.cossacks = scene.cossacks;
+      agentCtx.villagers = scene.villagers;
       agentCtx.cartPeriodS = scene.cartPeriodS;
       agentCtx.visit = visits.at(scene.visitors, seconds);
+      agentCtx.builds = build.scaffolds();
       agents.advance(seconds, agentCtx);
       // A finished work spell sparks a glint over the worker (M2-18, decoration only — never the coin; at most
       // `perFrame` at once after a catch-up). Not under `?freeze`: its one jump finishes many spells, and a glint in
@@ -633,11 +652,10 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
         };
       return targets.list;
     };
-    /** Ground-space px of a screen logical point in the frame on screen. */
-    const groundAt = (p: { x: number; y: number }): { x: number; y: number } => ({
-      x: Math.floor(p.x + lastCam.fracDevicePx / lastCam.scale + lastCam.worldPx),
-      y: Math.floor(p.y + lastCam.y),
-    });
+    const dprNow = (): number => (window.devicePixelRatio > 0 ? window.devicePixelRatio : 1);
+    /** Ground-space px under a client point in the frame on screen (render/screenMap.ts: one model with the coins'). */
+    const groundAtClient = (clientX: number, clientY: number): { x: number; y: number } =>
+      clientToGround({ x: clientX, y: clientY }, lastCam, canvas.getBoundingClientRect(), dprNow());
     const hit = (g: { x: number; y: number }) => plotAt(targetsNow(), g, drawn, PLOT_TAP.slopPx);
     const pointer = (e: PointerEvent): PointerSample => ({
       id: e.pointerId,
@@ -669,8 +687,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const r = release(motion, p, cameraView());
       motion = r.motion;
       if (!r.tap) return;
-      // Ground-space px of the frame on screen: the same sample plus that frame's camera.
-      const g = groundAt(p);
+      // Ground-space px of the frame on screen.
+      const g = groundAtClient(e.clientX, e.clientY);
       const building = hit(g);
       // A (double) tap on a building opens its row: the camera stays (M2-02 hook).
       if (building) motion = skipCentre(motion);
@@ -786,7 +804,19 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       setScene: (next) => {
         scene = withWind(next);
       },
-      plotAtClient: (clientX, clientY) => hit(groundAt(screenAt(clientX, clientY))),
+      plotAtClient: (clientX, clientY) => hit(groundAtClient(clientX, clientY)),
+      buildingOnScreen: (building) => {
+        const span = plotSpan(targetsNow(), building, drawn);
+        const site = layout.tierSprites.find((t) => t.building === building);
+        if (!span || !site) return null;
+        const p = groundToClient(
+          { x: site.x + 0.5, y: Math.round((span.top + span.bottom) / 2) + 0.5 },
+          lastCam,
+          canvas.getBoundingClientRect(),
+          dprNow(),
+        );
+        return document.elementFromPoint(p.x, p.y) === canvas ? p : null;
+      },
       reveal: (building, sheetTop) => {
         const view = cameraView();
         const lv = view.levels[motion.level];
@@ -822,6 +852,9 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       },
       celebrate: (building) => {
         build.celebrate(building, performance.now());
+      },
+      bump: (building) => {
+        build.bump(building, performance.now());
       },
       shake: () => {
         if (!lessMotion) shakeFrom = performance.now();

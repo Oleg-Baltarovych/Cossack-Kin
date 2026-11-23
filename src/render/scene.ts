@@ -17,6 +17,8 @@ export interface SceneState {
   readonly wind: number;
   /** Cossacks the army has on the scene (core `populationView`, M2-19); absent = no game: every Cossack walks. */
   readonly cossacks?: number;
+  /** Villagers the household has on the scene (core `populationView`, M2-29 D); absent = no game: every villager. */
+  readonly villagers?: number;
   /**
    * Seconds between food carts leaving the farm (core `populationView`, M2-20); `null` = no food, no carts; absent =
    * no game: the busiest traffic.

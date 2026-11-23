@@ -5,6 +5,8 @@
 // of the kurin), the food carts' period (M2-20: from the kharch), the visitors' seed and clock (M2-21) and the wind (a new scene only if something shows differently); on `Tapped` it pops a coin where the player tapped.
 // M2-12: `BuildingUpgraded` / `SichUpgraded` 0 → 1 builds the plot on screen (scaffold → pop → confetti), `TierReached` celebrates it
 // (flash, rising standard) — the level is already in the state; the animation never holds the economy back.
+// M2-29 D: a level past the first (`from` ≥ 1) squashes the building as the coins from the counter land (`world.bump`).
+// M2-29 D: the household's size (`populationView.villagers`) goes into the scene with the army's.
 // M2-26: the big events in content SHAKE shake the camera (`world.shake`; none under «менше руху»).
 import { SHAKE } from '../content/juice.ts';
 import type { GameEvent } from '../core/events.ts';
@@ -46,6 +48,7 @@ export function sceneOf(
     variants: variantsOf(state),
     wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen, villageOf(state))],
     cossacks: people.cossacks,
+    villagers: people.villagers,
     cartPeriodS: people.cartPeriodS,
   };
 }
@@ -58,7 +61,7 @@ function sameRecord<T extends Readonly<Record<string, number>>>(a: T | null, b: 
 
 /** Connects `world` to `game`; returns the disconnect function. Call it before UI tap handlers subscribe. */
 export function connectWorld(
-  world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin' | 'construct' | 'celebrate' | 'shake'>,
+  world: Pick<WorldApp, 'setScene' | 'onTap' | 'spawnCoin' | 'construct' | 'celebrate' | 'bump' | 'shake'>,
   game: GameView,
   tiersOf: TiersOf = visualTiers,
   variantsOf: VariantsOf = plotVariants,
@@ -75,6 +78,7 @@ export function connectWorld(
     if (
       next.wind === scene.wind &&
       next.cossacks === scene.cossacks &&
+      next.villagers === scene.villagers &&
       next.cartPeriodS === scene.cartPeriodS &&
       sameRecord(next.tiers, scene.tiers) &&
       sameRecord(next.variants, scene.variants)
@@ -103,6 +107,8 @@ export function connectWorld(
       case 'SichUpgraded':
         // Before the refresh: the new plot must not stand for a frame before its scaffold does.
         if (e.from === 0) world.construct(e.id);
+        // An ordinary upgrade (M2-29 D): the squash as the coins land. Only actions emit it: never on load/offline.
+        else world.bump(e.id);
         refresh();
         return;
       case 'TierReached':

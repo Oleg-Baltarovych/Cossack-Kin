@@ -16,7 +16,7 @@ import {
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { windLookAt } from '../../../src/core/systems/village-mechanics/wind.ts';
 import { applyAction } from '../../../src/core/actions.ts';
-import { AGENT_BUDGET, CART_PERIOD } from '../../../src/content/agents.ts';
+import { AGENT_BUDGET, CART_PERIOD, VILLAGER_GROWTH } from '../../../src/content/agents.ts';
 
 const T0 = 1_763_400_000_000;
 
@@ -312,6 +312,45 @@ describe('populationView (plan M2-19, Q11)', () => {
     const { state } = applyAction(s, { type: 'hire', n: 1 }, T0);
     expect(state.army.infantry).toBe(4);
     expect(populationView(state).cossacks).toBe(4);
+  });
+});
+
+describe('populationView: villagers (M2-29 D, SPEC §6.6 «від 3 до ~25 за Σ рівнів»)', () => {
+  const villagers = (over: Parameters<typeof makeState>[0]): number => populationView(makeState(over)).villagers;
+
+  it('a new game has the base household', () => {
+    expect(villagers({})).toBe(VILLAGER_GROWTH.base);
+  });
+
+  it('grows with the total of building levels, farm and Sich alike, never shrinking as levels rise', () => {
+    let last = villagers({});
+    for (const field of [1, 2, 5, 10, 25, 50, 100]) {
+      const n = villagers({ levels: { field } });
+      expect(n).toBeGreaterThanOrEqual(last);
+      last = n;
+    }
+    expect(villagers({ levels: { field: 10 } })).toBeGreaterThan(villagers({}));
+    expect(villagers({ levels: { field: 5 }, sich: { kurins: 5 } })).toBe(villagers({ levels: { field: 10 } }));
+  });
+
+  it('the first purchases already bring people: one more at the first level', () => {
+    expect(villagers({ levels: { field: 1 } })).toBe(VILLAGER_GROWTH.base + 1);
+  });
+
+  it('every unlocked building at tier I (Σ 13) already has at least 8 villagers (M2 AC 2)', () => {
+    const farm = Object.fromEntries(KHORTYTSIA.buildings.map((b) => [b.id, 1]));
+    expect(
+      villagers({ levels: farm, sich: { kurins: 1, maidan: 1, walls: 1, treasury: 1, special: 1 } }),
+    ).toBeGreaterThanOrEqual(8);
+  });
+
+  it('is capped by the scene budget', () => {
+    const top = Object.fromEntries(KHORTYTSIA.buildings.map((b) => [b.id, FARM.levelMax]));
+    expect(villagers({ levels: top })).toBe(AGENT_BUDGET.villager);
+  });
+
+  it('a locked Sich building (a crafted save) adds nobody', () => {
+    expect(villagers({ sich: { cannonry: 40 } })).toBe(VILLAGER_GROWTH.base);
   });
 });
 

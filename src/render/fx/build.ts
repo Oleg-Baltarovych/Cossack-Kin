@@ -13,6 +13,8 @@ import {
   celebrationFrame,
   celebrationStart,
   confettiPieces,
+  squashScale,
+  stretchedMs,
   dustPuffs,
   knocksBetween,
   scaffoldBays,
@@ -24,14 +26,27 @@ import { BUILD, PLOT_MARK } from '../atmosphere/config.ts';
 import { rampColor } from '../palette.ts';
 import type { PlotMark } from './outline.ts';
 import type { SceneState } from '../scene.ts';
+import type { BuildSite } from '../agents/sim.ts';
+import { BUILDERS } from '../../content/agents.ts';
 
 export interface BuildFx {
   /** Graded world content (insert right after the ground layer's container). */
   readonly world: Container;
   /** After the grade, at ground parallax. */
   readonly top: Container;
+  /**
+   * A new building (0 -> 1): its scaffold's first stage stands while its builders walk over (M2-29 D) - until `crew`
+   * says the first is there or `waitMs` has passed - then the stages go up, a knock each, and it pops.
+   */
   construct(building: PlotBuilding, nowMs: number): void;
+  /**
+   * The scaffolds standing now (gathering or going up): where the builders go (render/agents, M2-29 D). One array,
+   * refilled on each call (read it before the next).
+   */
+  scaffolds(): readonly BuildSite[];
   celebrate(building: PlotBuilding, nowMs: number): void;
+  /** An ordinary upgrade (M2-29 D): the squash once the coins land (`squashScale`); none while it is being built. */
+  bump(building: PlotBuilding, nowMs: number): void;
   /**
    * Steps every running sequence to `nowMs`; returns the scene to draw this frame. `emissive` 0..1 = the night masks'
    * opacity (atmosphere/emissive.ts): the standard's gold finial glints with the windows, and from
@@ -52,6 +67,8 @@ interface Site {
   /** Scaffolds side by side (`scaffoldBays`), centred on the pivot. */
   readonly bays: number;
   readonly seed: number;
+  /** The site as the builders see it (one object, handed out every frame by `scaffolds()`). */
+  readonly build: BuildSite;
 }
 
 const frames = (frame: (name: string) => Texture, stem: string, n: number): Texture[] =>
@@ -84,10 +101,23 @@ function place(sprites: readonly Sprite[], pieces: readonly FxPiece[], textures:
 export function createBuildFx(
   layout: WorldLayout,
   frame: (name: string) => Texture,
-  lessMotion: boolean,
+  /** «Менше руху» now (read each time: the setting can change while the world runs). */
+  lessMotion: () => boolean,
   horizon: () => number,
   /** Called once per scaffold stage as it goes up (the builders' knocking, M2-18): the audio hook (M7). */
   onKnock: (building: PlotBuilding) => void = () => undefined,
+  /**
+   * The builders of a scaffold (M2-29 D; no agents: none): `coming` holds the first stage, `ready` (one hammers) starts
+   * the stages `BUILDERS.stretch` × slower, `none` at the plain pace.
+   */
+  crew: (building: PlotBuilding) => 'none' | 'coming' | 'ready' = () => 'none',
+  /** The longest a scaffold waits for its first builder (ms; 0 under `?freeze`, where it never waits). */
+  waitMs = 0,
+  /**
+   * Where the scaffold stands: the ground layer's Y-sorted props, so the builders in front of it are drawn over its
+   * rails (M2-29 D, art-director); default `world` (over every prop).
+   */
+  sorted?: Container,
 ): BuildFx {
   const world = new Container({ label: 'build' });
   const top = new Container({ label: 'build-top' });
@@ -108,6 +138,7 @@ export function createBuildFx(
       size: scaffoldSize(base.width, base.height),
       bays: scaffoldBays(base.width, scaffoldSize(base.width, base.height)),
       seed: t.x,
+      build: { building: t.building, x: t.x, ground: t.ground, size: scaffoldSize(base.width, base.height) },
     });
   }
   const scaffolds = { s: frames(frame, 'scaffold.s', 3), l: frames(frame, 'scaffold.l', 3) };
@@ -120,9 +151,24 @@ export function createBuildFx(
   // One running sequence per building at a time (a second purchase restarts nothing: levels only go up).
   const builds = new Map<
     PlotBuilding,
-    { start: number; scaffold: Sprite[]; dust: Sprite[]; confetti: Sprite[]; knockedMs: number }
+    {
+      start: number;
+      scaffold: Sprite[];
+      dust: Sprite[];
+      confetti: Sprite[];
+      knockedMs: number;
+      /** When the builders were sent for (ms); `null` once the stages go up. */
+      gather: number | null;
+      /** The stages' slowdown: `BUILDERS.stretch` when builders hammer, else 1. */
+      stretch: number;
+      /** The scaffold stands (gathering or a stage): its builders stay. */
+      up: boolean;
+    }
   >();
   const parties = new Map<PlotBuilding, { start: number; flash: Sprite; standard: Sprite; glint: Sprite }>();
+  /** Ordinary upgrades squashing (M2-29 D): their start (ms); the latest purchase restarts it. */
+  const bumps = new Map<PlotBuilding, number>();
+  const standing: BuildSite[] = [];
   const claim = claimParticles();
   const rimSteps = PLOT_MARK.flashRimSteps.map(([until, [ramp, shade]]) => ({ until, color: rampColor(ramp, shade) }));
 
@@ -136,13 +182,17 @@ export function createBuildFx(
     construct(building, nowMs) {
       const site = sites.get(building);
       if (!site || builds.has(building)) return;
-      const scaffold = pool(world, scaffolds[site.size], site.bays);
+      const scaffold = pool(sorted ?? world, scaffolds[site.size], site.bays);
+      const still = lessMotion();
       builds.set(building, {
         start: nowMs,
         knockedMs: -1,
+        gather: nowMs,
+        stretch: 1,
+        up: true,
         scaffold,
-        dust: lessMotion ? [] : pool(world, dustFrames, BUILD.dust),
-        confetti: lessMotion ? [] : pool(top, confettiFrames, BUILD.confetti),
+        dust: still ? [] : pool(world, dustFrames, BUILD.dust),
+        confetti: still ? [] : pool(top, confettiFrames, BUILD.confetti),
       });
     },
     celebrate(building, nowMs) {
@@ -156,12 +206,25 @@ export function createBuildFx(
       const start = celebrationStart(nowMs, builds.get(building)?.start ?? null);
       parties.set(building, { start, flash, standard, glint });
     },
+    scaffolds() {
+      standing.length = 0;
+      for (const [building, b] of builds) {
+        const site = sites.get(building);
+        if (site && b.up) standing.push(site.build);
+      }
+      return standing;
+    },
+    bump(building, nowMs) {
+      if (!sites.has(building) || builds.has(building) || lessMotion()) return;
+      bumps.set(building, nowMs);
+    },
     present(scene, nowMs, emissive) {
-      if (builds.size === 0 && parties.size === 0) {
+      if (builds.size === 0 && parties.size === 0 && bumps.size === 0) {
         claim.set(0);
         return scene;
       }
       const y0 = horizon();
+      const still = lessMotion();
       let tiers = scene.tiers;
       let pop: Partial<Record<PlotBuilding, number>> | undefined;
       let live = 0;
@@ -169,9 +232,23 @@ export function createBuildFx(
       const rims: PlotMark[] = [];
       for (const [building, b] of builds) {
         const site = sites.get(building);
-        const f = buildFrame(nowMs - b.start, lessMotion);
-        for (let k = knocksBetween(b.knockedMs, nowMs - b.start); k > 0; k--) onKnock(building);
-        b.knockedMs = nowMs - b.start;
+        if (b.gather !== null) {
+          // The first stage stands while the builders walk over; the stages (and knocks) start when they are there.
+          const state = crew(building);
+          if (state !== 'coming' || nowMs - b.gather >= waitMs) {
+            b.gather = null;
+            if (state === 'ready') b.stretch = BUILDERS.stretch;
+          }
+          b.start = nowMs;
+        }
+        const ms = stretchedMs(nowMs - b.start, b.stretch);
+        const f = buildFrame(ms, still);
+        b.up = f.kind === 'scaffold';
+        // No knock while the first stage waits for its builders: the first comes as the stages start.
+        if (b.gather === null) {
+          for (let k = knocksBetween(b.knockedMs, ms); k > 0; k--) onKnock(building);
+          b.knockedMs = ms;
+        }
         if (!site || f.kind === 'done') {
           dispose([...b.scaffold, ...b.dust, ...b.confetti]);
           builds.delete(building);
@@ -188,6 +265,7 @@ export function createBuildFx(
             if (t) s.texture = t;
             // Bays abut, centred on the pivot (whole px).
             s.position.set(at.x + Math.round((i - (site.bays - 1) / 2) * bay), at.y);
+            s.zIndex = at.y;
           });
           const dust = b.dust.length > 0 ? dustPuffs(at, nowMs - b.start, bay * site.bays) : [];
           place(b.dust, dust, dustFrames);
@@ -203,9 +281,14 @@ export function createBuildFx(
         place(b.confetti, pieces, confettiFrames);
         live += pieces.length;
       }
+      for (const [building, start] of bumps) {
+        const scale = squashScale(nowMs - start, still);
+        if (scale === null || builds.has(building)) bumps.delete(building);
+        else if (scale !== 1) pop = { ...pop, [building]: scale };
+      }
       for (const [building, p] of parties) {
         const site = sites.get(building);
-        const f = celebrationFrame(nowMs - p.start, lessMotion);
+        const f = celebrationFrame(nowMs - p.start, still);
         if (!site || f.kind === 'done') {
           dispose([p.flash, p.standard, p.glint]);
           parties.delete(building);
@@ -219,7 +302,7 @@ export function createBuildFx(
         if (waiting) continue;
         const rimAt = nowMs - p.start;
         const step = rimSteps.find(({ until }) => rimAt < until * PLOT_MARK.flashRimMs);
-        if (night && !lessMotion && step) rims.push({ building, color: step.color, alpha: 1, rim: true });
+        if (night && !still && step) rims.push({ building, color: step.color, alpha: 1, rim: true });
         const t = standardFrames[f.standard];
         if (t) p.standard.texture = t;
         // Planted just right of the building, a row in front of its pivot.
@@ -245,8 +328,11 @@ export function createBuildFx(
     },
     destroy() {
       claim.release();
+      // The scaffolds may live in the ground layer's props, outside `world`.
+      for (const b of builds.values()) dispose(b.scaffold);
       builds.clear();
       parties.clear();
+      bumps.clear();
       world.destroy({ children: true });
       top.destroy({ children: true });
     },

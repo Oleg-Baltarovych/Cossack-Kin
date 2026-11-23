@@ -51,6 +51,21 @@ export const COIN_FLIGHT = {
 } as const;
 
 /**
+ * An ordinary upgrade — a level past the first (M2-29 D, SPEC §6.5 «звичайне покращення»): `coins` coins fly from the
+ * HUD counter of the currency spent (ducats for the farm, glory for the Sich) to the building, on COIN_FLIGHT's curve
+ * and timing (only while the building is in view above the sheet); when the first lands (`squashDelayMs`) the building
+ * swells to `squashPeak` and back over `squashMs`, drawn in whole px in the low-res world like the construction pop
+ * (plan Q5, ART-BIBLE §2). Only on a player's purchase — never on load, offline or the return. «Менше руху»: neither
+ * (the row's level and the counter still say it).
+ */
+export const UPGRADE_JUICE = {
+  coins: 3,
+  squashPeak: 1.08,
+  squashMs: 120,
+  squashDelayMs: COIN_FLIGHT.flightMs,
+} as const;
+
+/**
  * The HUD counters (SPEC §6.7): a new amount rolls from the one shown to it in `lerpMs` (ease-out), restarting from
  * where it is on every change (10 Hz ticks keep it rolling). «Менше руху»: the new amount at once. The screen-reader
  * text is always the exact amount, at once.

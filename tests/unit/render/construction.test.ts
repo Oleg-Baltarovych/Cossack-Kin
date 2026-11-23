@@ -15,7 +15,10 @@ import {
   scaffoldBays,
   scaffoldSize,
   SCAFFOLD_MS,
+  squashScale,
+  stretchedMs,
 } from '../../../src/render/fx/construction.ts';
+import { UPGRADE_JUICE } from '../../../src/content/juice.ts';
 
 const SITE = { x: 200, y: 150, seed: 7 };
 
@@ -187,5 +190,38 @@ describe('scaffoldBays (M2-29 B4: the scaffold covers a long house)', () => {
         Math.round(w * BUILD.bayFill) - BUILD.scaffoldW.l / 2,
       );
     }
+  });
+});
+
+describe('squashScale (M2-29 D: an ordinary upgrade, SPEC §6.5 «1.0 → 1.08 → 1.0 за 120 мс»)', () => {
+  const { squashPeak, squashMs, squashDelayMs } = UPGRADE_JUICE;
+  it('waits for the coins to land, then swells to the peak and back over squashMs', () => {
+    expect(squashScale(0, false)).toBe(1);
+    expect(squashScale(squashDelayMs - 1, false)).toBe(1);
+    expect(squashScale(squashDelayMs, false)).toBe(1);
+    expect(squashScale(squashDelayMs + squashMs / 2, false)).toBeCloseTo(squashPeak, 10);
+    const quarter = squashScale(squashDelayMs + squashMs / 4, false) ?? 0;
+    expect(quarter).toBeGreaterThan(1);
+    expect(quarter).toBeLessThan(squashPeak);
+  });
+  it('is over after its time (null), and never under «менше руху»', () => {
+    expect(squashScale(squashDelayMs + squashMs, false)).toBeNull();
+    expect(squashScale(squashDelayMs + squashMs / 2, true)).toBeNull();
+  });
+  it('drawn in whole px like the pop: a 40×30 building at the peak is 43×32', () => {
+    expect(popSize(40, 30, squashScale(squashDelayMs + squashMs / 2, false) ?? 1)).toEqual({ w: 43, h: 32 });
+  });
+});
+
+describe('stretchedMs (M2-29 D: the stages go up slower while the builders hammer, art-director)', () => {
+  it('the scaffold stages take `stretch` × as long; the pop and the confetti keep their pace', () => {
+    expect(stretchedMs(0, 2)).toBe(0);
+    expect(buildFrame(stretchedMs(2 * BUILD.stageMs - 1, 2), false)).toEqual({ kind: 'scaffold', stage: 0 });
+    expect(buildFrame(stretchedMs(2 * BUILD.stageMs + 1, 2), false)).toEqual({ kind: 'scaffold', stage: 1 });
+    expect(buildFrame(stretchedMs(2 * SCAFFOLD_MS - 1, 2), false).kind).toBe('scaffold');
+    expect(stretchedMs(2 * SCAFFOLD_MS + 50, 2)).toBe(SCAFFOLD_MS + 50);
+  });
+  it('no builders: the plain clock', () => {
+    expect(stretchedMs(700, 1)).toBe(700);
   });
 });

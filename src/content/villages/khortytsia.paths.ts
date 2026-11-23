@@ -38,7 +38,11 @@ export type KhortytsiaNode =
   | 'farm.potter'
   | 'farm.potter.wheel'
   | 'farm.garden'
+  | 'farm.garden.bed'
+  | 'farm.apiary.b'
+  | 'farm.mill.front'
   | 'suburb.road.w'
+  | 'suburb.road.fair'
   | 'suburb.road.tavern'
   | 'suburb.road.well'
   | 'suburb.road.e'
@@ -99,7 +103,10 @@ export const FARM_PATHS: ZonePaths<KhortytsiaNode> = {
     { id: 'farm.road.e', kind: 'way', x: 760, ground: 146 },
     { id: 'farm.khata', kind: 'door', x: 116, ground: 108 },
     { id: 'farm.fence', kind: 'way', x: 160, ground: 128 },
-    { id: 'farm.mill', kind: 'way', x: 296, ground: 130, building: 'windmill' },
+    // A place to stop by the mill: on the road verge left of it, clear of the trestle's legs (art-director M2-29 D).
+    { id: 'farm.mill', kind: 'way', x: 268, ground: 134, building: 'windmill' },
+    // Before the mill's posts, off the road edge: where its builders hammer (nobody's chat spot; M2-29 D).
+    { id: 'farm.mill.front', kind: 'way', x: 312, ground: 128, building: 'windmill' },
     { id: 'farm.field.a', kind: 'work', x: 424, ground: 106, building: 'field', work: 'work-field' },
     { id: 'farm.field.b', kind: 'work', x: 450, ground: 108, building: 'field', work: 'work-field' },
     { id: 'farm.field.c', kind: 'work', x: 476, ground: 106, building: 'field', work: 'work-field' },
@@ -109,6 +116,9 @@ export const FARM_PATHS: ZonePaths<KhortytsiaNode> = {
     { id: 'farm.potter', kind: 'door', x: 296, ground: 248, building: 'potter' },
     { id: 'farm.potter.wheel', kind: 'work', x: 274, ground: 247, building: 'potter', work: 'work-potter' },
     { id: 'farm.garden', kind: 'way', x: 452, ground: 272, building: 'garden' },
+    // M2-29 D: a second hand in the garden beds and at the hives, for the larger households.
+    { id: 'farm.garden.bed', kind: 'work', x: 481, ground: 268, building: 'garden', work: 'work-field' },
+    { id: 'farm.apiary.b', kind: 'work', x: 682, ground: 128, building: 'apiary', work: 'work-apiary' },
   ],
   edges: [
     ['farm.road.w', 'farm.road.khata'],
@@ -120,6 +130,7 @@ export const FARM_PATHS: ZonePaths<KhortytsiaNode> = {
     ['farm.road.khata', 'farm.fence'],
     ['farm.fence', 'farm.khata'],
     ['farm.road.mill', 'farm.mill'],
+    ['farm.road.mill', 'farm.mill.front'],
     ['farm.road.field', 'farm.field.b'],
     ['farm.field.b', 'farm.field.a'],
     ['farm.field.b', 'farm.field.c'],
@@ -128,6 +139,8 @@ export const FARM_PATHS: ZonePaths<KhortytsiaNode> = {
     ['farm.potter.yard', 'farm.potter'],
     ['farm.potter.yard', 'farm.potter.wheel'],
     ['farm.road.field', 'farm.garden'],
+    ['farm.garden', 'farm.garden.bed'],
+    ['farm.road.apiary', 'farm.apiary.b'],
   ],
 };
 
@@ -139,6 +152,8 @@ export const SUBURB_PATHS: ZonePaths<KhortytsiaNode> = {
   nodes: [
     { id: 'suburb.road.w', kind: 'way', x: 16, ground: 146 },
     { id: 'suburb.road.tavern', kind: 'way', x: 96, ground: 146 },
+    // Where the drawn trodden path leaves the road for the fair (M2-29 D, art-director: not across the meadow).
+    { id: 'suburb.road.fair', kind: 'way', x: 184, ground: 146 },
     { id: 'suburb.road.well', kind: 'way', x: 214, ground: 146 },
     { id: 'suburb.road.e', kind: 'way', x: 340, ground: 146 },
     { id: 'suburb.tavern', kind: 'door', x: 96, ground: 120, building: 'tavern' },
@@ -157,11 +172,13 @@ export const SUBURB_PATHS: ZonePaths<KhortytsiaNode> = {
   ],
   edges: [
     ['suburb.road.w', 'suburb.road.tavern'],
-    ['suburb.road.tavern', 'suburb.road.well'],
+    ['suburb.road.tavern', 'suburb.road.fair'],
+    ['suburb.road.fair', 'suburb.road.well'],
+    // Down the trodden path to the second stall; the square beyond it.
+    ['suburb.road.fair', 'suburb.fair.b'],
     ['suburb.road.well', 'suburb.road.e'],
     ['suburb.road.tavern', 'suburb.tavern'],
     ['suburb.road.well', 'suburb.well'],
-    ['suburb.road.well', 'suburb.square'],
     ['suburb.square', 'suburb.fair.b'],
     ['suburb.fair.b', 'suburb.fair'],
     ['suburb.road.e', 'suburb.smithy'],
@@ -413,6 +430,51 @@ const VISITORS: readonly AgentSpawn<KhortytsiaNode>[] = [
   ]),
 ];
 
+/** A villager who comes and goes about the village: no work of its own, from one chat spot to another; indoors at night. */
+const neighbour = (
+  sprite: VillagerSprite,
+  chat: readonly KhortytsiaNode[],
+  night: KhortytsiaNode,
+  speed: number,
+  phase: number,
+  work: readonly KhortytsiaNode[] = [],
+): AgentSpawn<KhortytsiaNode> => ({
+  routine: 'villager',
+  role: 'villager',
+  sprite,
+  home: 'farm.khata',
+  work,
+  chat,
+  night: { at: night, anim: 'indoors' },
+  speed,
+  phase,
+});
+
+/**
+ * The household as it grows (M2-29 D, SPEC §6.6: villagers from 3 to ~25 with the total of building levels — core
+ * `populationView(state).villagers`; the first that many villager spawns in authored order are on the scene, a new one
+ * walks out of the khata door). Two more hands in the garden beds and at the hives; the rest go about the village —
+ * the farm roads and yards, the tavern, the smithy — and go indoors after hours (night spots stay at the cap). Spread
+ * along the world (art-director, M2-29 D): at most one settler each for the fence, the well and the fair square, whose
+ * spots share one x lane with the path down to the fair — more there and they stand in a column.
+ */
+const SETTLERS: readonly AgentSpawn<KhortytsiaNode>[] = [
+  neighbour('selianka.b', ['farm.garden', 'farm.potter.yard'], 'farm.khata', 16, 1.5, ['farm.garden.bed']),
+  neighbour('selianyn.a', ['farm.road.apiary', 'farm.road.e'], 'farm.khata', 18, 3.5, ['farm.apiary.b']),
+  neighbour('selianka.d', ['farm.road.lane', 'farm.mill'], 'farm.khata', 16, 2),
+  neighbour('selianyn.c', ['suburb.tavern.porch', 'suburb.road.tavern'], 'suburb.tavern', 18, 8),
+  neighbour('selianka.c', ['suburb.fair.c', 'suburb.road.e'], 'suburb.tavern', 16, 4.5),
+  neighbour('selianyn.d', ['farm.road.field', 'farm.garden'], 'farm.khata', 18, 6.5),
+  neighbour('selianka.a', ['suburb.road.w', 'farm.road.e'], 'farm.khata', 16, 1),
+  neighbour('selianyn.b', ['suburb.smithy.yard', 'suburb.road.e'], 'suburb.tavern', 18, 5.5),
+  neighbour('selianka.b', ['farm.potter.yard', 'farm.road.mill'], 'farm.khata', 16, 7.5),
+  neighbour('selianyn.a', ['suburb.square', 'farm.road.mill'], 'suburb.tavern', 18, 2.8),
+  neighbour('selianka.d', ['farm.road.apiary', 'farm.road.field'], 'farm.khata', 16, 9.5),
+  neighbour('selianyn.c', ['farm.fence', 'farm.road.khata'], 'farm.khata', 18, 0.4),
+  neighbour('selianka.c', ['suburb.well', 'farm.road.w'], 'suburb.tavern', 16, 6),
+  neighbour('selianyn.d', ['farm.road.w', 'farm.road.field'], 'farm.khata', 18, 3.2),
+];
+
 /** Every villager's door: the khata stands from the start, so whoever has no night spot standing goes in there. */
 const HOME = 'farm.khata';
 
@@ -552,4 +614,6 @@ export const KHORTYTSIA_AGENTS: readonly AgentSpawn<KhortytsiaNode>[] = [
   ...SICH_COSSACKS,
   ...FOOD_CARTS,
   ...VISITORS,
+  // After everyone else, so the first eleven keep their ids (seeded walks) when the household grows (M2-29 D).
+  ...SETTLERS,
 ];
