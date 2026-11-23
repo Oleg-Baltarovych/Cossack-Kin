@@ -19,6 +19,15 @@ One continuous `WorldLayout` per land; the camera is a render-side position over
 - **Zoom.** Exactly 2 levels: normal and closer = scale + 1 (`computeViewport(…, zoom)`; 390×844@3 → ×4, 292×633). worldRT and every layer stay laid out for the normal level; the closer level shows a window of it via the upscale sprite ×(s+1), y = −camY·(s+1) with camY in whole logical px. Culling, water, shafts, zone sync and draw calls are the normal level's. The flip is instant (a tween = fractional scale breaks the grid). Vertical pan exists only at the closer level, y ∈ [0, maxY]; back to normal → y = 0. The level is not persisted.
 - **skyShift.** At the closer level the sky band moves down by whole rows, just enough to keep the sun (else the moon) in the window, ≤ camY and not below the horizon; light-shaft origin (`LayerFrame.skyY`) and water glints use the same shift; clouds do not move.
 
+## Amendment 1 (2026-11-23, M2 as built — M2-13…M2-29)
+- **River end.** `river { x0, x1, rows, bank }`: `bank` is a per-row px profile before `x1` (held cuts + 1–9 px steps; `taper` = its last value), replacing the straight 2:1 diagonal. `riverRowEnd` (water, rain, boats, shore) and the `bank` decal read the same profile.
+- **Seams.** Edge decals now also `val-end.val|moat|rampart` (one per walls tier, `plot { from, until }`), `ditch-end` (rounded head of the outer ditch) and the farm-end `tyn-end`; still art, never a cut.
+- **Framing.** The horizon row is `horizonRow(viewH, FRAMING)` (`render/camera.ts`): 35 % of the world window between the HUD bottom and the half-sheet top (≈ 32 % of the frame; `horizonRatio` 0.42 in the layout is gone). `?zoom=1` starts at `framedY(…, FRAMING.closer)`; pinch and wheel keep their anchor.
+- **Bottom band.** Every zone's ground rows run grass → `steppe-edge` → `steppe` from `STEPPE_BAND.top` (384); plot bands name their empty look (`alt: 'grass'`).
+- **World-wide content.** Paths and agent spawns are authored per zone (`ZoneScene.paths`, links) and composed into `KHORTYTSIA_WORLD.paths` like props (node ids `<zone>.<name>`); boats (`WorldLayout.boats`) sit in their own graded container over the water.
+- **Reveal.** A building tap at the closer level moves camera y so the building stands above the sheet (`revealY`); the normal level has no vertical room.
+- **Draw calls.** World `@screens` ≤ 14 (+2 while a boat is on screen, +3 moon rim at dusk/night under a clear sky; +4 per marked building outline) — budget 30.
+
 ## Alternatives considered
 - Separate zone scenes with a cut/fade between them — breaks «one living settlement» (ADR 007) and gives no drag/inertia.
 - Re-layout worldRT at the closer scale — doubles layout/culling/water/shaft paths and draw-call variance; the window of one RT measured equal cost.
@@ -29,4 +38,4 @@ One continuous `WorldLayout` per land; the camera is a render-side position over
 ## Consequences
 - Positive: seamless pan farm → Sich; `?zone=`/`?cam=` give stable shots anywhere; draw calls 5–9 (budget 30); culling keeps CPU flat (M-ART 1.12/1.51 ms vs world 1.25/1.62 ms, within noise on SwiftShader); zoom costs nothing extra.
 - Negative / trade-offs: zone frames change in parallax < 1 layers when the world grows; light-pool flicker seeds are index-based, so prop inserts can shift night frames; particle claims are world-wide worst cases; at the closer level HUD and sheet cover more (M2-13 `revealY`).
-- Follow-ups: parallax under «менше руху» not flattened (far planes are painted for parallax widths — art-director/architect decision); «Ближчий вигляд» setting without a gesture (WCAG 2.5.1, M2-26/M9); culling gain and high-tier shafts while panning measured on A56 (M2-15/M2-28); new lands reuse `ZoneScene` + `composeWorld`.
+- Follow-ups (open after M2): parallax under «менше руху» not flattened (far planes are painted for parallax widths — product/art decision, with the settings screen); «Ближчий вигляд» setting without a gesture (WCAG 2.5.1, M9); culling gain and high-tier shafts while panning measured on the owner's phone (M2-28 steps, before M2-30); new lands reuse `ZoneScene` + `composeWorld` (a land change must rebuild the world and the agent pool, M5).
