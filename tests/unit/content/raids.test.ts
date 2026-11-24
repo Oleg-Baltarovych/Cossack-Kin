@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AGENT_BUDGET } from '../../../src/content/agents.ts';
-import { ARMY } from '../../../src/content/economy.ts';
+import { ARMY, SICH } from '../../../src/content/economy.ts';
 import { RAID_REVEAL } from '../../../src/content/juice.ts';
 import {
   BOARD,
@@ -15,6 +15,8 @@ import {
 } from '../../../src/content/raids.ts';
 import { pityThreshold, RELIC_DEFS, RELIC_IDS, RELICS } from '../../../src/content/relics.ts';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
+import { collectModifiers } from '../../../src/core/modifiers.ts';
+import { createInitialState } from '../../../src/core/state.ts';
 
 const locale = (lang: 'uk' | 'en'): Record<string, unknown> =>
   JSON.parse(readFileSync(`src/i18n/locales/${lang}.json`, 'utf8')) as Record<string, unknown>;
@@ -94,11 +96,24 @@ describe('raid rules (M3-02, SPEC §3.4, plan §0)', () => {
 
   it('every slot claimed at once brings at most a full glory store (claims bypass gloryCapSec, SPEC §3.8)', () => {
     // A claim's glory goes straight in; the store caps passive and offline accrual only. The bound keeps raids from
-    // out-earning the store they bypass: maxSlots × the longest gloryLootSec × the strongest lootMult. lootMult is the
-    // rumour only until M3-06 adds the treasury and the relics — that task keeps this test true (plan M3-06 AC).
-    const maxLootMult = 1 + Math.max(0, ...BOARD.rumors.map((r) => (r.effect.kind === 'loot' ? r.effect.share : 0)));
+    // out-earning the store they bypass: maxSlots × the longest gloryLootSec × the strongest lootMult — the real one
+    // of collectModifiers (the treasury, every relic) plus the strongest loot rumour (M3-06). The treasury raises both
+    // sides, so the bound is checked over its levels.
+    const rumour = Math.max(0, ...BOARD.rumors.map((r) => (r.effect.kind === 'loot' ? r.effect.share : 0)));
     const longest = Math.max(...RAID_TIERS.map((t) => t.gloryLootSec));
-    expect(RAIDS.maxSlots * longest * maxLootMult).toBeLessThanOrEqual(ARMY.gloryCapSec);
+    const s0 = createInitialState({ seed: 1, now: 0 });
+    for (const treasury of [0, 1, 10, 25, SICH.levelMax]) {
+      const s = {
+        ...s0,
+        relics: [...RELIC_IDS],
+        village: { ...s0.village, sichLevels: { ...s0.village.sichLevels, treasury } },
+      };
+      const mods = collectModifiers(s, 0);
+      expect(mods.lootMult, String(treasury)).toBeGreaterThan(1);
+      expect(RAIDS.maxSlots * longest * (mods.lootMult + rumour), String(treasury)).toBeLessThanOrEqual(
+        mods.gloryCapSec,
+      );
+    }
   });
 
   it('the treasury adds loot per level (SPEC §3.2.1)', () => {
@@ -158,6 +173,8 @@ describe('relics (M3-02, Q5, Q16)', () => {
       expect(REGIONS[r.village].length, r.id).toBeGreaterThan(0);
       expect(r.effect.share, r.id).toBeGreaterThan(0);
       expect(r.effect.share, r.id).toBeLessThan(1);
+      // `{value}` of its text is share × 100: a whole percent, never «+12.5 %».
+      expect(Number.isInteger(Math.round(r.effect.share * 100 * 1e6) / 1e6), r.id).toBe(true);
     }
   });
 

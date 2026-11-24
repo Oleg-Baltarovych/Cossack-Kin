@@ -25,7 +25,7 @@ export interface SichEffects {
   readonly gloryPerLevel?: number;
   /** +seconds of glory the store holds (offline glory cap) per level (the treasury). */
   readonly gloryCapSecPerLevel?: number;
-  /** +raid loot per level (share, into lootMult; the treasury, SPEC §3.2.1; read from M3-06). */
+  /** +raid loot per level (share, into Modifiers.lootMult; the treasury, SPEC §3.2.1). */
   readonly lootPerLevel?: number;
 }
 

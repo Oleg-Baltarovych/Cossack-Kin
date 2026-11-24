@@ -1,8 +1,9 @@
 // Food, defence and the single modifier collector (SPEC §3.0, §3.2, §3.2.1, §9.6; plan M1-06). Every multiplier the
 // systems use comes from `collectModifiers(state, now)` — systems never read buff buildings directly. Sich effects
-// count only for unlocked buildings: the save gate does not enforce unlocks, so a crafted save with a level on a
-// locked building gains nothing from it (security review M1-04). No cache yet (measure first, plan §0).
+// count only for unlocked buildings, relics only once found (plan M3-06): the save gate does not enforce unlocks, so a
+// crafted save with a level on a locked building gains nothing from it (security review M1-04). No cache yet (measure first, plan §0).
 import { ARMY, DEFENCE, FOOD, OFFLINE } from '../content/economy.ts';
+import { RELIC_DEFS, type RelicEffect } from '../content/relics.ts';
 import { SICH_BUILDINGS, type SichBuilding } from '../content/sich.ts';
 import { FARM_BUILDING_IDS, KHORTYTSIA, type FarmBuildingId, type Village } from '../content/villages/khortytsia.ts';
 import type { Big } from './big.ts';
@@ -23,6 +24,15 @@ export interface Modifiers {
   readonly offlineCapSec: number;
   /** How many seconds of glory income the store holds (the treasury raises it). */
   readonly gloryCapSec: number;
+  /** Raid loot (the treasury, «Порохівниця»); a raid adds its rumour's share on top (systems/raids.ts). */
+  readonly lootMult: number;
+  /** Relic chance of a raid success (a relic rumour adds on top). 1 in M3: no relic or hero raises it yet. */
+  readonly relicChanceMult: number;
+  /**
+   * Raid duration. 1 until the M4 Характерник and not applied yet: the save v4 gate checks `returnAt = startedAt +
+   * durationSec` to the ms, so the change that applies it widens the gate to the multiplier's range too.
+   */
+  readonly raidTimeMult: number;
 }
 
 const VILLAGES: Readonly<Record<GameState['village']['id'], Village>> = { khortytsia: KHORTYTSIA };
@@ -86,6 +96,15 @@ function farmEffect(state: GameState, kind: 'armyPower' | 'glory'): number {
   return sum;
 }
 
+/** Σ share of the found relics whose effect is `kind` (SPEC §3.4: a relic acts only through the modifiers). */
+function relicShare(state: GameState, kind: RelicEffect['kind']): number {
+  let sum = 0;
+  for (const r of RELIC_DEFS) {
+    if (r.effect.kind === kind && state.relics.includes(r.id)) sum += r.effect.share;
+  }
+  return sum;
+}
+
 /** All multipliers in force at `now` (ms) (SPEC §9.6): the wind on the windmill depends on the time. */
 export function collectModifiers(state: GameState, now: number): Modifiers {
   return modifiersUnder(state, windLookAt(state.seed, now, villageOf(state)).windmillMult);
@@ -108,10 +127,14 @@ function modifiersUnder(state: GameState, windmillMult: number): Modifiers {
     buildingMult,
     costMult: 1,
     gloryMult: 1 + farmEffect(state, 'glory') + sichSum(state, (b) => b.effects.gloryPerLevel),
-    powerMult: 1 + farmEffect(state, 'armyPower') + sichSum(state, (b) => b.effects.powerPerLevel),
+    powerMult:
+      1 + farmEffect(state, 'armyPower') + sichSum(state, (b) => b.effects.powerPerLevel) + relicShare(state, 'power'),
     offlineMult: OFFLINE.mult,
     offlineCapSec: OFFLINE.capSec,
     gloryCapSec: ARMY.gloryCapSec + sichSum(state, (b) => b.effects.gloryCapSecPerLevel),
+    lootMult: 1 + sichSum(state, (b) => b.effects.lootPerLevel) + relicShare(state, 'loot'),
+    relicChanceMult: 1,
+    raidTimeMult: 1,
   };
 }
 

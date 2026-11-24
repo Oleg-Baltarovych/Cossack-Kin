@@ -20,7 +20,7 @@ import {
 } from './modifiers.ts';
 import type { GameEvent } from './events.ts';
 import type { GameState } from './state.ts';
-import { gloryRate, hireLimit, INFANTRY } from './systems/army.ts';
+import { armyPower, gloryRate, hireLimit, INFANTRY } from './systems/army.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
 import { PLOT_VARIANTS, VARIANT_SALT, type VariantPlot } from '../content/variants.ts';
 import { pickStable } from './rng.ts';
@@ -47,6 +47,8 @@ export interface HudView {
   readonly kharch: number;
   readonly cossacks: number;
   readonly maxCossacks: number;
+  /** ArmyPower (SPEC §3.4) with every modifier («Пернач» included). */
+  readonly power: number;
   /** Income bonus from defence, in percent. */
   readonly defencePct: number;
   readonly wind: WindLevel;
@@ -62,6 +64,8 @@ export function hudView(state: GameState): HudView {
     kharch: kharch(state),
     cossacks: state.army.infantry,
     maxCossacks: maxCossacks(state),
+    // = the raid board's power (steady mods): the wind moves only the windmill's income, never powerMult.
+    power: armyPower(state, mods),
     defencePct: defence(state) * DEFENCE.incomePerPoint * PERCENT,
     wind: windLookAt(state.seed, state.time.lastSeen, villageOf(state)).id,
   };
