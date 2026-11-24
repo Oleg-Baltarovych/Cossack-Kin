@@ -3,7 +3,10 @@
 // the (advanced) state as it is and adds `ActionRejected` with the reason — never a throw for a player error. An
 // accepted action is followed by the story check (M2-22): a beat its trigger now meets fires in the same turn; then
 // the quests finished by it report `QuestCompleted` (M2-23: only actions move levels and counters).
+// Raids (M3-05, ADR 012): `startRaid` rolls on the advanced state at the effective time; `claimRaid` / `claimAllRaids`
+// grant what was rolled. `RaidClaimed` / `RelicFound` come only from here; `RaidReturned` only from time.
 import { FARM, SICH, TAP } from '../content/economy.ts';
+import type { RaidTierId } from '../content/raids.ts';
 import { SICH_BUILDINGS, type SichBuildingId } from '../content/sich.ts';
 import type { FarmBuildingId } from '../content/villages/khortytsia.ts';
 import { advance } from './advance.ts';
@@ -15,6 +18,7 @@ import { TZ_OFFSET_MIN, type GameState, type Lang, type NumberFormat } from './s
 import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
 import { claimQuest, questCompletions, type QuestKind } from './systems/quests.ts';
+import { claimAllRaids, claimRaid, startRaid } from './systems/raids.ts';
 import { checkStory } from './systems/story.ts';
 
 export type Action =
@@ -24,6 +28,12 @@ export type Action =
   | { readonly type: 'tap' }
   | { readonly type: 'claimReturn' }
   | { readonly type: 'claimQuest'; readonly kind: QuestKind }
+  /** Send a raid of `tier` (the day's board offer) from `slot` (SPEC §3.4). */
+  | { readonly type: 'startRaid'; readonly slot: number; readonly tier: RaidTierId }
+  /** Take the loot of the returned raid in `slot` (Q9: manual). */
+  | { readonly type: 'claimRaid'; readonly slot: number }
+  /** «Забрати все» (Q17): claimRaid on every returned slot. */
+  | { readonly type: 'claimAllRaids' }
   | {
       readonly type: 'setSettings';
       readonly lang?: Lang;
@@ -155,7 +165,10 @@ function setSettings(s: GameState, a: Extract<Action, { type: 'setSettings' }>):
   };
 }
 
-/** Advances to `now`, then applies `action`; refusals come back as `ActionRejected` with the state unchanged. */
+/**
+ * Advances to `now`, then applies `action`. A refusal is exactly `advance(state, now)` + `ActionRejected`: the state is
+ * the one advanced to `now` (income, wind, raid returns), with nothing of the action in it — no RNG draw, no slot change.
+ */
 export function applyAction(state: GameState, action: Action, now: number): ActionResult {
   const advanced = advance(state, now);
   const s = advanced.state;
@@ -185,6 +198,15 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
       break;
     case 'setSettings':
       result = setSettings(s, action);
+      break;
+    case 'startRaid':
+      result = startRaid(s, action.slot, action.tier, at);
+      break;
+    case 'claimRaid':
+      result = claimRaid(s, action.slot);
+      break;
+    case 'claimAllRaids':
+      result = claimAllRaids(s);
       break;
   }
   if (result === null) return advanced;

@@ -17,8 +17,7 @@ import { tick } from '../../../src/core/offline.ts';
 import { farmRowView, sichRowView, visibleSichIds } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { canHire } from '../../../src/core/systems/army.ts';
-import { canStart, rollRaid, type RaidSlot } from '../../../src/core/systems/raids.ts';
-import { RAID_TIER_IDS, type RaidTierId } from '../../../src/content/raids.ts';
+import { RAID_TIER_IDS } from '../../../src/content/raids.ts';
 import { chainQuest, choreQuest, questRef } from '../../../src/core/systems/quests.ts';
 import { tier } from '../../../src/core/economy.ts';
 import { bloomStatus } from '../../../src/core/systems/bloom.ts';
@@ -34,19 +33,6 @@ const HIRE_SHARE = 0.25;
 const MAX_PRESSES_PER_STEP = 40;
 /** Monday 2026-01-05 00:00 UTC: day 0 of every run (any fixed date; only the wind schedule depends on it). */
 export const DEFAULT_EPOCH = Date.UTC(2026, 0, 5);
-
-/**
- * Stand-in for `startRaid` (M3-04, until the bot raids). M3-08 replaces this with the bot's real raids; from M3-05 it
- * must go through the real `startRaid` action. Rolls a raid of `tier` into `slot` at `startedAt` (the state's time)
- * through `canStart` + `rollRaid` and stores what the action will store — the running roll, the RNG, pity,
- * `rumorDay`, `raidsSent` + 1. null when the raid cannot start.
- */
-export function standInRaid(s: GameState, slot: number, tier: RaidTierId, startedAt: number): GameState | null {
-  if (!canStart(s, slot, tier).ok) return null;
-  const { roll, rng, pity, rumorDay } = rollRaid(s, tier, startedAt);
-  const slots = s.raids.slots.map((x, i): RaidSlot => (i === slot ? { kind: 'running', raid: roll } : x));
-  return { ...s, rng, raids: { slots, rumorDay, pity }, stats: { ...s.stats, raidsSent: s.stats.raidsSent + 1 } };
-}
 
 export interface SimOptions {
   readonly seed: number;
@@ -289,11 +275,16 @@ export function simulate(options: SimOptions): SimResult {
 
   /** Claims every finished quest now (a claimed chain step can start one already met: claimed in turn). */
   const claimAll = (t: number, claims: { chain: number; chore: number; choreRewards: number }): void => {
-    // M3-08 replaces this with the bot's real raids: on the chain step `raid1` (Q7) send the first-tier raid.
+    // M3-08 replaces this with the bot's own raids: on the chain step `raid1` (Q7) send the first-tier raid through
+    // the real `startRaid` (kept out of the session's action count, as the stand-in of M3-04 was).
     const active = chainQuest(state);
     if (active && !active.done && active.goal.kind === 'count' && active.goal.stat === 'raidsSent') {
       const [first] = RAID_TIER_IDS;
-      state = standInRaid(state, 0, first, t) ?? state;
+      const r = applyAction(state, { type: 'startRaid', slot: 0, tier: first }, t);
+      if (!r.events.some((e) => e.type === 'ActionRejected')) {
+        state = r.state;
+        record(r.events, t);
+      }
     }
     for (;;) {
       const q = chainQuest(state);

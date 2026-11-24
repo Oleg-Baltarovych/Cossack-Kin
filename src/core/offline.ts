@@ -8,7 +8,8 @@
 // Glory is held to the store (gloryCapSec of income). What was earned goes into `returnReport`, and `claimReturn`
 // credits it (room for the M8 doubling); an unclaimed report is credited first. Under returnMinSec there is no
 // report: the income goes straight in. `tick` routes a short gap to `advance` and a long one here, so a long
-// "online" gap cannot bypass the caps.
+// "online" gap cannot bypass the caps. Raids are not capped (ADR 012): the income is integrated to the capped window,
+// but raids come back up to the real `now` — a forward jump too (Q8); with the clock behind nothing returns.
 import { OFFLINE } from '../content/economy.ts';
 import { advance, integrate, type AdvanceResult } from './advance.ts';
 import { Big } from './big.ts';
@@ -16,6 +17,7 @@ import type { GameEvent } from './events.ts';
 import { collectModifiers } from './modifiers.ts';
 import type { GameState, ReturnReport } from './state.ts';
 import { gloryGain, gloryRate } from './systems/army.ts';
+import { returnRaids } from './systems/raids.ts';
 import { checkStory } from './systems/story.ts';
 
 const MS_PER_SEC = 1000;
@@ -82,8 +84,10 @@ export function applyOffline(input: GameState, now: number): AdvanceResult {
     village: { ...counted.village, lifetimeDucats: s.village.lifetimeDucats },
     time: { ...s.time, lastSeen: now, maxSeen: Math.max(s.time.maxSeen, now) },
   };
+  // Raids finish to the real now, past the cap.
+  const back = returnRaids(restored, now);
   // Beats due by now fire on the state kept (their rewards go straight in, not into the report).
-  const story = checkStory(restored);
+  const story = checkStory(back.state);
   const r = report(
     story.state,
     {
@@ -95,7 +99,8 @@ export function applyOffline(input: GameState, now: number): AdvanceResult {
     ducats,
     glory,
   );
-  return { state: r.state, events: [...before, ...story.events, ...r.events] };
+  const returned = back.returns.map((x) => x.event);
+  return { state: r.state, events: [...before, ...returned, ...story.events, ...r.events] };
 }
 
 /** One step of the game loop: a short gap is plain time (`advance`), a long one is an absence (`applyOffline`). */

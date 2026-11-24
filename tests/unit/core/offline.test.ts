@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ARMY, OFFLINE } from '../../../src/content/economy.ts';
+import { applyAction } from '../../../src/core/actions.ts';
 import { advance } from '../../../src/core/advance.ts';
 import { Big } from '../../../src/core/big.ts';
 import { collectModifiers } from '../../../src/core/modifiers.ts';
@@ -174,10 +175,33 @@ describe('resume (M1-18 review): the tick a returning page makes', () => {
 });
 
 describe('no level events from time alone (M2-12: an offline return never spams tier banners)', () => {
-  it('tick, applyOffline and resume never emit BuildingUpgraded, SichUpgraded or TierReached; levels stay', () => {
-    const s = { ...midGame(), currencies: { ...midGame().currencies, ducats: Big.from(1e30), glory: Big.from(1e20) } };
-    const level = new Set(['BuildingUpgraded', 'SichUpgraded', 'TierReached']);
-    for (const r of [tick(s, T0 + 2000), tick(s, T0 + 3 * HOUR), applyOffline(s, T0 + 9 * HOUR), resume(s, T0 + DAY)]) {
+  it('tick, applyOffline and resume never emit level, quest or raid-claim events; levels stay (M3-05: raids back)', () => {
+    const rich = {
+      ...midGame(),
+      currencies: { ...midGame().currencies, ducats: Big.from(1e30), glory: Big.from(1e20) },
+    };
+    // Two 5-min raids under way, back in every window but the first: time returns them, but never claims them.
+    const s = applyAction(
+      applyAction(rich, { type: 'startRaid', slot: 0, tier: 'm5' }, T0).state,
+      {
+        type: 'startRaid',
+        slot: 1,
+        tier: 'm5',
+      },
+      T0,
+    ).state;
+    const level = new Set([
+      'BuildingUpgraded',
+      'SichUpgraded',
+      'TierReached',
+      'QuestCompleted',
+      'RaidStarted',
+      'RaidClaimed',
+      'RelicFound',
+    ]);
+    const runs = [tick(s, T0 + 2000), tick(s, T0 + 3 * HOUR), applyOffline(s, T0 + 9 * HOUR), resume(s, T0 + DAY)];
+    expect(runs.map((r) => r.events.filter((e) => e.type === 'RaidReturned').length)).toEqual([0, 2, 2, 2]);
+    for (const r of runs) {
       expect(r.events.filter((e) => level.has(e.type))).toEqual([]);
       expect(r.state.village.levels).toEqual(s.village.levels);
       expect(r.state.village.sichLevels).toEqual(s.village.sichLevels);
