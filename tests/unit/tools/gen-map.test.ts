@@ -79,9 +79,13 @@ describe('raid map (M3-10)', () => {
     for (const pts of Object.values(RIVERS)) expect(nearRiver(pts, ...at('dykePole')).m).toBeGreaterThan(8);
   });
 
-  it('keeps every tier marker (and the squad) inside the inner rule at every region', () => {
+  it('keeps every tier marker (and the squad beside it) inside the inner rule at every region', () => {
     const inside = MAP_FRAME.inner + 1;
-    const boxes = [...frames(raidMarker), ...frames(raidSquad)].map((f) => ({ name: f.name, b: box(f) }));
+    const shift = (b: ReturnType<typeof box>) => ({ ...b, x0: b.x0 + RAID_MAP.squadDx, x1: b.x1 + RAID_MAP.squadDx });
+    const boxes = [
+      ...frames(raidMarker).map((f) => ({ name: f.name, b: box(f) })),
+      ...frames(raidSquad).map((f) => ({ name: f.name, b: shift(box(f)) })),
+    ];
     for (const r of REGIONS.khortytsia)
       for (const { name, b } of boxes) {
         const where = `${name} at ${r.id}`;
@@ -116,6 +120,46 @@ describe('raid map (M3-10)', () => {
       expect(s.colors, f.name).toBeLessThanOrEqual(16);
       expect(s.ramps.length, f.name).toBeLessThanOrEqual(4);
       expect(s.ramps, f.name).toContain('ink');
+    }
+  });
+
+  it('puts the rumour glint on dry land, inside the frame, clear of every flag and of the squad (M3-11)', () => {
+    const [map] = frames(raidMap);
+    if (!map) throw new Error('no map');
+    const ramp = (x: number, y: number): string | undefined => {
+      const i = (y * map.image.width + x) * 4;
+      const d = map.image.data;
+      return palette.colors.get(((d[i] ?? 0) << 16) | ((d[i + 1] ?? 0) << 8) | (d[i + 2] ?? 0))?.ramp;
+    };
+    const [glint] = frames(raidRumor);
+    if (!glint) throw new Error('no glint');
+    const g = box(glint);
+    const others = [
+      ...frames(raidMarker).map(box),
+      ...frames(raidSquad).map((f) => {
+        const b = box(f);
+        return { ...b, x0: b.x0 + RAID_MAP.squadDx, x1: b.x1 + RAID_MAP.squadDx };
+      }),
+    ];
+    const inside = MAP_FRAME.inner + 1;
+    for (const r of REGIONS.khortytsia) {
+      const cx = r.x + r.glint.dx;
+      const cy = r.y + r.glint.dy;
+      // The glint's opaque box inside the inner rule…
+      expect(Math.min(cx + g.x0, cy + g.y0), r.id).toBeGreaterThanOrEqual(inside);
+      expect(cx + g.x1, r.id).toBeLessThan(RAID_MAP.w - inside);
+      expect(cy + g.y1, r.id).toBeLessThan(RAID_MAP.h - inside);
+      // …and with one px of air around it, no water under it and no flag or squad in it.
+      const x0 = cx + g.x0 - 1;
+      const y0 = cy + g.y0 - 1;
+      const x1 = cx + g.x1 + 1;
+      const y1 = cy + g.y1 + 1;
+      for (let y = y0; y <= y1; y++)
+        for (let x = x0; x <= x1; x++) expect(ramp(x, y), `${r.id} at ${String(x)},${String(y)}`).not.toBe('water');
+      for (const o of others) {
+        const apart = x1 < r.x + o.x0 || r.x + o.x1 < x0 || y1 < r.y + o.y0 || r.y + o.y1 < y0;
+        expect(apart, r.id).toBe(true);
+      }
     }
   });
 

@@ -57,7 +57,7 @@ export interface PanelProps {
   readonly onSelect?: ((building: PlotBuilding | null) => void) | undefined;
   /** The state to start in (half by default). */
   readonly initial?: SheetState;
-  /** «Обрати похід» on an idle slot: open the raid map for it (M3-11 passes it; until then the button is off). */
+  /** «Обрати похід» on an idle slot: open the raid map for it (GameUi, M3-11; absent: the idle cards have no button). */
   readonly onChooseRaid?: ((slot: number) => void) | undefined;
 }
 

@@ -62,7 +62,7 @@ function mount(state: GameState, props: PanelProps = {}) {
   };
   const view = render(
     <GameProvider store={recording} now={() => store.getState().time.lastSeen}>
-      <Panel {...props} />
+      <Panel onChooseRaid={() => undefined} {...props} />
     </GameProvider>,
   );
   if (props.initial !== 'collapsed') fireEvent.click(screen.getByRole('tab', { name: /^(Січ|Sich)/ }));
@@ -126,11 +126,10 @@ describe('idle: «Обрати похід» (§0.1 П1)', () => {
     expect(description(b)).toBe('Спершу найми козака');
   });
 
-  it('until the map is there (M3-11), off with its reason — never a button that does nothing', () => {
-    mount(game());
-    const b = within(card(1)).getByRole('button', { name: 'Загін 1: обрати похід' });
-    expect(b).toHaveProperty('disabled', true);
-    expect(description(b)).toBe('Мапа — незабаром');
+  it('a list shown without the map (no onChooseRaid): no button at all — never one that does nothing (M3-11)', () => {
+    mount(game(), { onChooseRaid: undefined });
+    expect(within(card(1)).queryByRole('button')).toBeNull();
+    expect(within(card(1)).getByText('Чекає наказу')).toBeTruthy();
   });
 });
 

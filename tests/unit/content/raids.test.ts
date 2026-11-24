@@ -25,6 +25,11 @@ const tierIndex = (id: RaidTierId): number => RAID_TIER_IDS.indexOf(id);
 const unique = (ids: readonly string[]): boolean => new Set(ids).size === ids.length;
 
 describe('raid tiers (M3-02, SPEC §3.4)', () => {
+  it('the first tier is the shortest (the onboarding raid, raidGuide and the map fall back to it)', () => {
+    const first = RAID_TIERS.find((t) => t.id === RAID_TIER_IDS[0]);
+    for (const t of RAID_TIERS) expect(first?.durationSec ?? Infinity, t.id).toBeLessThanOrEqual(t.durationSec);
+  });
+
   it('ids are unique and listed in RAID_TIER_IDS order', () => {
     expect(RAID_TIERS.map((t) => t.id)).toEqual([...RAID_TIER_IDS]);
     expect(unique(RAID_TIER_IDS)).toBe(true);

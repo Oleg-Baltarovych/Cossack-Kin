@@ -1,0 +1,480 @@
+/* The raid map window (plan M3-11): the whole screen in wood, the parchment map at --k logical px per map px (×2 on a
+   phone, ART M3-10), its flags as buttons, the offer card under it. Every size in whole logical px (--px); a map
+   position is `map px × --mpx` (whole device px: --k × --px × dpr is the world scale × --k). Text on wood-0/1 ≥ 5.9:1. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  /* Takes every tap (the .ui overlay lets taps through by default). */
+  pointer-events: auto;
+  background: var(--c-wood-0);
+}
+
+.dialog {
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(env(safe-area-inset-top) + 4 * var(--px)) env(safe-area-inset-right)
+    calc(env(safe-area-inset-bottom) + 8 * var(--px)) env(safe-area-inset-left);
+  color: var(--c-plaster-5);
+  line-height: 1.5;
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+.top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(6 * var(--px));
+  padding: 0 calc(6 * var(--px));
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(6 * var(--px));
+  font-size: var(--font-m);
+  font-weight: normal;
+  line-height: 1.2;
+  color: var(--c-thatch-6);
+}
+
+.slot {
+  align-self: center;
+  font-size: var(--font-s);
+  color: var(--c-plaster-3);
+}
+
+/* --- the map ------------------------------------------------------------------------------------------------- */
+
+.frame {
+  --mpx: calc(var(--k, 2) * var(--px));
+  flex: none;
+  display: flex;
+  justify-content: center;
+}
+
+.map {
+  position: relative;
+  flex: none;
+  width: calc(var(--map-w) * var(--mpx));
+  height: calc(var(--map-h) * var(--mpx));
+  /* The parchment's own tone while the art loads (or if it never comes): the flags stand on it all the same. */
+  background: var(--c-thatch-5);
+  outline: var(--px) solid var(--c-ink-0);
+}
+
+/* The art never came: no empty parchment the size of the map — a strip with the note; the list under it is the board. */
+.map[data-map='failed'] {
+  width: calc(100% - 12 * var(--px));
+  height: auto;
+}
+
+.map[data-map='failed'] .mapNote {
+  position: static;
+  padding: calc(4 * var(--px)) calc(6 * var(--px));
+}
+
+.mapNote {
+  position: absolute;
+  inset: auto 0 calc(4 * var(--px));
+  margin: 0;
+  padding: 0 calc(6 * var(--px));
+  text-align: center;
+  color: var(--c-ink-0);
+}
+
+/* A frame of the map atlas at 1 css px per atlas px, its pivot on map px (--x, --y), scaled to --k logical px per atlas
+   px (whole device px) about its top-left corner. */
+.sprite {
+  position: absolute;
+  left: calc(var(--x) * var(--mpx));
+  top: calc(var(--y) * var(--mpx));
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  transform: scale(calc(var(--k, 2) * var(--px-n, 1)));
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* The squad on the road trots through its march frames (side by side in the atlas, `squadStride`). */
+.march {
+  animation: march 480ms steps(var(--frames, 4)) infinite;
+}
+
+@keyframes march {
+  from {
+    background-position-x: calc(var(--sx) * 1px);
+  }
+
+  to {
+    background-position-x: calc((var(--sx) - var(--frames, 4) * var(--stride)) * 1px);
+  }
+}
+
+/* A 1-px dark ground under the pole's foot: the flag stands on the water of the rapids and the crossing (ART M3-10). */
+.foot {
+  position: absolute;
+  left: calc((var(--x) - 1) * var(--mpx));
+  top: calc(var(--y) * var(--mpx));
+  width: calc(4 * var(--mpx));
+  height: var(--mpx);
+  background: var(--c-earth-1);
+  pointer-events: none;
+}
+
+.markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.place {
+  display: contents;
+}
+
+/* The tier's short name on a parchment plate beside the flag's cloth: `RAID_MAP.tag` (map px off the pole, clear of
+   its tap box), on the region's side (content). */
+.tag {
+  position: absolute;
+  left: calc((var(--x) + var(--tag-right)) * var(--mpx));
+  top: calc((var(--y) + var(--tag-dy)) * var(--mpx));
+  padding: 0 calc(2 * var(--px));
+  font-size: var(--font-s);
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--c-ink-0);
+  background: var(--c-thatch-6);
+  border: var(--px) solid var(--c-ink-0);
+  pointer-events: none;
+}
+
+.tagLeft {
+  left: auto;
+  right: calc((var(--map-w) - var(--x) + var(--tag-left)) * var(--mpx));
+}
+
+/* The flag's button: a --tap square centred on the cloth (larger than the sprite), drawn only when chosen or focused.
+   Its corner on whole logical px (round(), where supported). */
+.marker {
+  position: absolute;
+  left: calc(var(--x) * var(--mpx) - var(--tap) / 2);
+  left: calc(var(--x) * var(--mpx) - round(down, var(--tap) / 2, var(--px)));
+  top: calc(var(--y) * var(--mpx) - var(--tap) / 2);
+  top: calc(var(--y) * var(--mpx) - round(down, var(--tap) / 2, var(--px)));
+  width: var(--tap, 44px);
+  height: var(--tap, 44px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* Chosen: a gold rim with an ink line inside (not by colour alone — the card names it, and its tag shows). */
+.marker[aria-pressed='true'] {
+  outline: var(--px) solid var(--c-ink-0);
+  box-shadow: inset 0 0 0 var(--px) var(--c-gold-4);
+}
+
+.marker:focus-visible,
+.listButton:focus-visible {
+  outline: calc(2 * var(--px)) solid var(--c-plaster-6);
+  outline-offset: 0;
+}
+
+/* The onboarding flag (П9): lit for SHEET.highlightMs, a slow gold pulse — steady under «менше руху». */
+.marker[data-lit],
+.listButton[data-lit] {
+  box-shadow:
+    inset 0 0 0 var(--px) var(--c-gold-5),
+    0 0 0 var(--px) var(--c-gold-4);
+  animation: lit 700ms steps(2) infinite alternate;
+}
+
+@keyframes lit {
+  to {
+    box-shadow:
+      inset 0 0 0 var(--px) var(--c-gold-3),
+      0 0 0 calc(2 * var(--px)) var(--c-gold-5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .march,
+  .marker[data-lit],
+  .listButton[data-lit] {
+    animation: none;
+  }
+}
+
+:global([data-motion='reduced']) .march,
+:global([data-motion='reduced']) .marker[data-lit],
+:global([data-motion='reduced']) .listButton[data-lit] {
+  animation: none;
+}
+
+/* --- the list of offers (no art yet, no art at all, or a screen too narrow for the map at ×2) ------------------ */
+
+.list {
+  flex: none;
+  display: grid;
+  gap: calc(2 * var(--px));
+  padding: 0 calc(6 * var(--px));
+}
+
+.listItem {
+  display: contents;
+}
+
+.listButton {
+  min-height: var(--tap, 44px);
+  padding: calc(2 * var(--px)) calc(6 * var(--px));
+  font: inherit;
+  word-spacing: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  color: var(--c-plaster-5);
+  background: var(--c-wood-1);
+  border: var(--px) solid var(--c-ink-0);
+  cursor: pointer;
+}
+
+.listButton[aria-pressed='true'] {
+  color: var(--c-thatch-6);
+  box-shadow: inset calc(2 * var(--px)) 0 0 var(--c-gold-4);
+}
+
+/* --- under the map ------------------------------------------------------------------------------------------- */
+
+.below {
+  flex: none;
+  display: grid;
+  gap: calc(2 * var(--px));
+  padding: 0 calc(6 * var(--px));
+}
+
+.below p {
+  margin: 0;
+}
+
+.quiet {
+  margin: 0;
+  color: var(--c-plaster-3);
+}
+
+.away {
+  color: var(--c-thatch-5);
+}
+
+/* Read out, not shown: which offer was chosen (the card under the map changes with it). */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- the offer card: at the bottom of the window, «Вирушити» in thumb reach ---------------------------------- */
+
+.cardArea {
+  flex: none;
+  margin-top: auto;
+}
+
+.empty {
+  margin: 0;
+  padding: calc(6 * var(--px));
+  color: var(--c-plaster-4);
+  text-align: center;
+}
+
+.card {
+  display: grid;
+  gap: calc(3 * var(--px));
+  margin: 0 calc(6 * var(--px));
+  padding: calc(6 * var(--px));
+  background: var(--c-wood-1);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow: inset 0 var(--px) 0 var(--c-wood-2);
+}
+
+.cardHead {
+  display: grid;
+  gap: var(--px);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: inherit;
+  font-weight: normal;
+  color: var(--c-thatch-6);
+}
+
+.when {
+  margin: 0;
+  color: var(--c-plaster-4);
+}
+
+.dotSep {
+  color: var(--c-plaster-3);
+}
+
+/* Off for want of power: how much is missing, in place of the chance (only its floor then). */
+.need {
+  margin: 0;
+  color: var(--c-sky-6);
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  gap: calc(2 * var(--px));
+}
+
+/* «Шанс успіху   80 %»: the label left, the value right; a long value (the loot) wraps under its label. */
+.fact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 calc(6 * var(--px));
+}
+
+.fact dt {
+  color: var(--c-thatch-5);
+}
+
+.fact dd {
+  min-width: 0;
+  margin: 0 0 0 auto;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The chance and the success first; the rest a step quieter. */
+.major dd {
+  color: var(--c-plaster-5);
+}
+
+.minor dt,
+.minor dd {
+  color: var(--c-plaster-3);
+}
+
+/* What a raid out of reach would bring: quieter still (plaster-2 on wood-1 is 4.35:1 — text stays ≥ 6.3:1 here). */
+.dim dt,
+.dim dd {
+  color: var(--c-plaster-3);
+}
+
+.good {
+  color: var(--c-grass-6);
+}
+
+/* The rumour: one gold line, left-aligned, no label (its name says what it is). */
+.rumor {
+  margin: 0;
+  color: var(--c-gold-4);
+}
+
+.sure {
+  margin: 0;
+  color: var(--c-gold-5);
+}
+
+/* The footer — the reason and «Вирушити» — sticks to the window's bottom while a long card (larger text, a small
+   phone) runs past it: the button stays in thumb reach without scrolling. */
+.go {
+  position: sticky;
+  bottom: 0;
+  margin: 0 calc(-6 * var(--px)) calc(-6 * var(--px));
+  padding: calc(3 * var(--px)) calc(6 * var(--px)) calc(6 * var(--px) + env(safe-area-inset-bottom));
+  background: var(--c-wood-1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(3 * var(--px)) calc(6 * var(--px));
+  border-top: var(--px) solid var(--c-wood-0);
+  /* A whole-px ink shade above the rim, so a card running under the footer reads as scrolling, not cut (static). */
+  box-shadow: 0 calc(-2 * var(--px)) 0 var(--c-ink-0);
+}
+
+.note {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--c-sky-6);
+}
+
+.note:empty {
+  display: none;
+}
+
+.button {
+  flex: none;
+  min-width: calc(72 * var(--px));
+  min-height: var(--tap, 44px);
+  padding: calc(3 * var(--px)) calc(8 * var(--px));
+  font: inherit;
+  word-spacing: inherit;
+  color: var(--c-ink-0);
+  background: var(--c-gold-4);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
+    inset 0 var(--px) 0 var(--c-gold-5);
+  cursor: pointer;
+}
+
+.second {
+  color: var(--c-plaster-5);
+  background: var(--c-wood-2);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-wood-1),
+    inset 0 var(--px) 0 var(--c-wood-3);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(var(--press-y));
+  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+}
+
+/* Off: plaster-3 on wood-1 (6.3:1) with a dashed rim — not by colour alone, the reason stands beside it. */
+.button:disabled {
+  color: var(--c-plaster-3);
+  background: var(--c-wood-1);
+  border-style: dashed;
+  border-color: var(--c-plaster-1);
+  box-shadow: none;
+  cursor: default;
+}
+
+.button:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+:global([data-motion='reduced']) .button:active:not(:disabled) {
+  transform: none;
+}
