@@ -35,8 +35,9 @@ export const FORBIDDEN: readonly (readonly [string, RegExp])[] = [
   ['debug param key "freeze"', /(["'`])freeze\1/g],
   // read("zoom", …) (M2-03). React's unitless-CSS list has `zoom` only inside one longer string, never quoted alone.
   ['debug param key "zoom"', /(["'`])zoom\1/g],
-  // query.get("tier") of `?state=tiers&tier=N` (M2-05); the game's `tier` fields are unquoted property names.
-  ['debug param key "tier"', /(["'`])tier\1/g],
+  // query.get("tier") of `?state=tiers&tier=N` (M2-05). Only the read is matched: since save v4 (M3-04) the game's
+  // own validator lists `"tier"` as a key of a raid roll — a plain quoted string, not a debug param.
+  ['debug param key "tier"', /\.get\(\s*(["'`])tier\1\s*\)/g],
   // read("lineup", …) (M2-17): the villager animation lineup is dev/test only.
   ['debug param key "lineup"', /(["'`])lineup\1/g],
   ['URL query parsing (debug params)', /location\.search|URLSearchParams/g],

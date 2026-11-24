@@ -49,6 +49,7 @@ describe('findLeaks', () => {
     ['React unitless CSS list', '"opacity order orphans scale tabSize widows zIndex zoom fillOpacity"'],
     ['zoom as a property', 'camY:()=>k.y,zoom:()=>k.level'],
     ['tier as a property', 'tier:a(l,i),levelMax:50'],
+    ['tier as a save key (M3-04 validator)', 'o=B(e,t,[`region`,`tier`,`startedAt`])'],
     ['unrelated strings', 'const a="frozen",b="overlay",c="seed";'],
     // Pixi's bundled unsafe-eval probe after minification (never called: pixi.js/unsafe-eval replaces it).
     ['Pixi probe (minified)', 'try{E=Function(`param1`,`param2`,`param3`,`return param1[param2] === param3;`)'],
