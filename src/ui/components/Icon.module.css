@@ -25,6 +25,18 @@
   transform-origin: 0 0;
 }
 
+/* ×2: two logical px per icon px (whole device px still); the margin shifts back twice as far. */
+.big {
+  width: calc(32 * var(--px));
+  height: calc(32 * var(--px));
+}
+
+.big .sprite {
+  left: calc(-2 * var(--px));
+  top: calc(-2 * var(--px));
+  transform: scale(calc(2 * var(--px-n, 1)));
+}
+
 /* The atlas never came: a price keeps its currency as short text instead. */
 .fallback {
   flex: none;

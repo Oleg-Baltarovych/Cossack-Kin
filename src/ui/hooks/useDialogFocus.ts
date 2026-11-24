@@ -22,18 +22,52 @@ export function trapTab(e: KeyboardEvent<HTMLElement>, box: HTMLElement): void {
   }
 }
 
+/** The ancestors of `el`, nearest first. */
+function ancestors(el: Element | null): Element[] {
+  const up: Element[] = [];
+  for (let p = el?.parentElement ?? null; p; p = p.parentElement) up.push(p);
+  return up;
+}
+
 export function useDialogFocus(open: boolean): void {
   const opener = useRef<Element | null>(null);
   // The opener's ancestors when the window opened: a removed element has no parent left to walk up from.
   const around = useRef<readonly Element[]>([]);
+  // The press that opens a window may remove its own button in the same render (a raid's «Забрати» turns the card
+  // idle and opens the chest, M3-12), so by the time the window opens the focus is already on the body. The element
+  // pressed is kept only for the rest of that press's task: a window that opens later on its own (a story beat from a
+  // tick) must not send the focus to the surroundings of some button that went away long before.
+  const pressed = useRef<{ el: Element; up: readonly Element[] } | null>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onClick = (e: MouseEvent): void => {
+      if (!(e.target instanceof Element)) return;
+      pressed.current = { el: e.target, up: ancestors(e.target) };
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        pressed.current = null;
+      }, 0);
+    };
+    document.addEventListener('click', onClick, true);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      clearTimeout(timer);
+    };
+  }, []);
   // A layout effect: it runs after React set `inert`, before the browser's focus fix-up moves the focus away (that
   // waits for the next rendering update), and before the window's own passive effect focuses its button.
   useLayoutEffect(() => {
     if (!open || opener.current !== null) return;
-    opener.current = document.activeElement;
-    const up: Element[] = [];
-    for (let p = opener.current?.parentElement ?? null; p; p = p.parentElement) up.push(p);
-    around.current = up;
+    const active = document.activeElement;
+    const lost = pressed.current;
+    pressed.current = null;
+    if ((active === null || active === document.body) && lost && !lost.el.isConnected) {
+      opener.current = lost.el;
+      around.current = lost.up;
+      return;
+    }
+    opener.current = active;
+    around.current = ancestors(active);
   }, [open]);
   // Passive: by now `inert` is gone from the rest of the UI, so the old element can take the focus again.
   useEffect(() => {

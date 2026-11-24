@@ -1,0 +1,174 @@
+/* The raid's chest (plan M3-12): the return window's wood panel (one look for every window), the chest ×2 in a framed
+   niche, the loot under it. Lines wait in their place, only invisible; a relic's card appears on its beat. */
+.backdrop {
+  composes: backdrop from './ReturnModal.module.css';
+}
+
+.dialog {
+  composes: dialog from './ReturnModal.module.css';
+}
+
+.title {
+  composes: title from './ReturnModal.module.css';
+}
+
+.claim {
+  composes: claim from './ReturnModal.module.css';
+}
+
+.body {
+  composes: body scroll from './ReturnModal.module.css';
+}
+
+.body p {
+  margin: 0;
+}
+
+/* The chest on a lighter wood ground with a floor line, like the portraits' frame. */
+.chest {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: calc(48 * var(--px));
+  height: calc(40 * var(--px));
+  background: var(--c-wood-2);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 0 0 var(--px) var(--c-gold-3),
+    inset 0 calc(-5 * var(--px)) 0 var(--c-wood-3);
+}
+
+/* The shake: ± shakePx logical px sideways, a jump every step (no tween — whole px), shakeMs in all. */
+.chest[data-phase='shake'] > * {
+  animation: shake calc(2 * var(--shake-step)) step-end var(--shake-n);
+}
+
+@keyframes shake {
+  0% {
+    translate: calc(-1 * var(--shake-px) * var(--px)) 0;
+  }
+
+  50% {
+    translate: calc(var(--shake-px) * var(--px)) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chest[data-phase='shake'] > * {
+    animation: none;
+  }
+}
+
+:global([data-motion='reduced']) .chest[data-phase='shake'] > * {
+  animation: none;
+}
+
+.skip {
+  text-align: center;
+  color: var(--c-thatch-5);
+}
+
+.skip[data-hide] {
+  visibility: hidden;
+}
+
+/* One squad's part of the chest. */
+.squad {
+  display: grid;
+  gap: calc(4 * var(--px));
+  padding: calc(6 * var(--px));
+  background: var(--c-wood-1);
+  border: var(--px) solid var(--c-ink-0);
+}
+
+.squadLine {
+  color: var(--c-thatch-5);
+}
+
+/* The outcome: words first, colour only seconds them (success green, «з частиною здобичі» a calm sky). */
+/* Small lines keep their place while hidden (the window does not jump); the relic's card is tall, so it joins the
+   layout only on its own beat (an empty card-sized hole read as a broken window). */
+.won,
+.lost,
+.item {
+  visibility: hidden;
+}
+
+.relic:not([data-shown]) {
+  display: none;
+}
+
+.won {
+  color: var(--c-grass-6);
+}
+
+.lost {
+  color: var(--c-sky-6);
+}
+
+.won[data-shown],
+.lost[data-shown],
+.item[data-shown] {
+  visibility: visible;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: calc(4 * var(--px));
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--px));
+  font-size: var(--font-m);
+  color: var(--c-plaster-6);
+  overflow-wrap: anywhere;
+}
+
+/* A relic: its own beat — a gold-rimmed card with the relic ×2, its name, its bonus and a fact. */
+.relic {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: calc(6 * var(--px));
+  padding: calc(6 * var(--px));
+  background: var(--c-wood-2);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow: inset 0 0 0 var(--px) var(--c-gold-3);
+}
+
+.relicText {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: calc(4 * var(--px));
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.relicHead {
+  color: var(--c-gold-4);
+}
+
+.relicName {
+  font-size: var(--font-m);
+  color: var(--c-thatch-6);
+}
+
+.fact {
+  color: var(--c-plaster-4);
+}
+
+/* The whole loot in words, for screen readers only. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

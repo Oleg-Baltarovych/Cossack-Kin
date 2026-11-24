@@ -24,17 +24,24 @@ export interface GameStore {
   subscribe(listener: () => void): () => void;
   /** Called with every event, in order; returns the unsubscribe function. */
   onEvent(listener: (event: GameEvent) => void): () => void;
+  /**
+   * Called once per change that has events, with all of them, after every `onEvent` listener saw them (one action's
+   * claims open one window — M3-12); returns the unsubscribe function.
+   */
+  onEvents(listener: (events: readonly GameEvent[]) => void): () => void;
 }
 
 export function createStore(initial: GameState): GameStore {
   let state = initial;
   const listeners = new Set<() => void>();
   const eventListeners = new Set<(event: GameEvent) => void>();
+  const batchListeners = new Set<(events: readonly GameEvent[]) => void>();
 
   const commit = (next: GameState, events: readonly GameEvent[]): readonly GameEvent[] => {
     const changed = next !== state;
     state = next;
     for (const e of events) for (const l of [...eventListeners]) l(e);
+    if (events.length > 0) for (const l of [...batchListeners]) l(events);
     if (changed) for (const l of [...listeners]) l();
     return events;
   };
@@ -66,6 +73,10 @@ export function createStore(initial: GameState): GameStore {
     onEvent(listener) {
       eventListeners.add(listener);
       return () => eventListeners.delete(listener);
+    },
+    onEvents(listener) {
+      batchListeners.add(listener);
+      return () => batchListeners.delete(listener);
     },
   };
 }

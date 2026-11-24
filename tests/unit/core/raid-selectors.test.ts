@@ -2,7 +2,7 @@
 // count, the relics, the render's slot states and the notification hook. Pure reads; the UI never does economy.
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { RAID_TIER_IDS, RAIDS, type RaidTierId } from '../../../src/content/raids.ts';
-import { RELIC_DEFS, type RelicId } from '../../../src/content/relics.ts';
+import { pityThreshold, RELIC_DEFS, RELICS, type RelicId } from '../../../src/content/relics.ts';
 import { Big } from '../../../src/core/big.ts';
 import {
   raidAlerts,
@@ -13,11 +13,14 @@ import {
   wholePercent,
   raidSceneView,
   raidSlotsView,
+  relicHint,
   relicsView,
   type RaidSceneView,
   type RaidSlotView,
 } from '../../../src/core/raid-selectors.ts';
 import { QUEST_CHAIN } from '../../../src/content/quests.ts';
+import { applyAction } from '../../../src/core/actions.ts';
+import { createRng } from '../../../src/core/rng.ts';
 import { hudView } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { previewRaid, raidPower, raidTier, type RaidRoll, type RaidSlot } from '../../../src/core/systems/raids.ts';
@@ -259,6 +262,53 @@ describe('relicsView and raidSceneView', () => {
       expect(r.value, r.id).toBe(Math.round((def?.effect.share ?? 0) * 100));
       expect([r.nameKey, r.textKey, r.factKey]).toEqual([def?.nameKey, def?.textKey, def?.factKey]);
     }
+  });
+
+  it('relicHint (M3-12, §0.1 П5): where to look — the shortest tier that can find one — and the pity, as the card says', () => {
+    const first = RAID_TIER_IDS.find((t) => tierOf(t).relicChance > 0);
+    expect(first).toBe('m30');
+    expect(relicHint(st())).toEqual({ fromTier: first, near: false });
+    // One qualifying success short of the pity: the next one is sure — the same fact as the card's relicSure.
+    const near = (s: GameState, pity: number): GameState => ({ ...s, raids: { ...s.raids, pity } });
+    const sure = near(st(), pityThreshold(0) - 1);
+    expect(relicHint(sure)).toEqual({ fromTier: first, near: true });
+    expect(raidBoardView(sure).offers.find((o) => o.tier === RELICS.pityMinTier)?.relicSure).toBe(true);
+    // The last unfound relic already rides home in a slot: nothing left to be sure of, the silhouette still has its hint.
+    const riding = st({
+      relics: ['pernach'],
+      slots: [
+        { kind: 'running', raid: roll('h1', T0, { loot: { ...roll('h1', T0).loot, relic: 'porokhivnytsia' } }) },
+        IDLE,
+        IDLE,
+      ],
+    });
+    expect(relicHint(near(riding, 0))).toEqual({ fromTier: first, near: false });
+    // Every relic found: no hint at all.
+    expect(relicHint(st({ relics: RELIC_DEFS.map((r) => r.id) }))).toBeNull();
+  });
+
+  it('accepted leak (M3-12 decision, §3.4): «реліквія близько» follows the real pity, raids on the road included', () => {
+    // A sure success (chance 1) one step short of the pity's threshold: its start already counts it (the roll is made
+    // at the start), so the hint — and the card's relicSure — say «близько» while that raid is still away. That
+    // tells the player it succeeded without a relic; shown = rolled wins over hiding it (never a failure, no gain).
+    let checked = 0;
+    for (let seed = 1; seed <= 12; seed += 1) {
+      const base = st({ infantry: 2000 });
+      const s: GameState = {
+        ...base,
+        rng: createRng(seed),
+        raids: { ...base.raids, pity: pityThreshold(0) - 2 },
+      };
+      expect(relicHint(s)?.near).toBe(false);
+      const r = applyAction(s, { type: 'startRaid', slot: 0, tier: RELICS.pityMinTier }, T0);
+      const slot = r.state.raids.slots[0];
+      if (slot?.kind !== 'running' || slot.raid.loot.relic !== null) continue;
+      expect(slot.raid.success).toBe(true);
+      expect(relicHint(r.state)?.near).toBe(true);
+      expect(raidBoardView(r.state).offers.find((o) => o.tier === RELICS.pityMinTier)?.relicSure).toBe(true);
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('the scene sees only which open slots are away or back — no economy numbers (type)', () => {

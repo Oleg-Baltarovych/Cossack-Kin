@@ -88,7 +88,7 @@ const MS_PER_MIN = SEC_PER_MIN * 1000;
 const MS_PER_DAY = SEC_PER_DAY * 1000;
 /** uk «об» before a vowel: of the 24 hours only 11 is said with one («об одинадцятій»). */
 const UK_VOWEL_HOURS: readonly number[] = [11];
-const NBSP = String.fromCharCode(0xa0);
+export const NBSP = String.fromCharCode(0xa0);
 const MIN_PER_HOUR = 60;
 /** Every clock reading is of `ms + offset` in UTC: the game's own zone (`settings.tzOffsetMin`), not the device's. */
 const UTC = 'UTC';

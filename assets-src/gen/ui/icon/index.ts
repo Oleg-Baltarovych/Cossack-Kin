@@ -32,7 +32,7 @@ export const ICONS = [
 ] as const;
 export type IconId = (typeof ICONS)[number];
 
-interface Px {
+export interface Px {
   readonly ramp: RampName;
   readonly shade: number;
   /** Takes part in the edge lighting and gets the outline around it. */
@@ -47,7 +47,8 @@ const STEP = 1;
 /** Gradient threshold: (dx + dy) / r beyond ±EDGE lightens / darkens the px. */
 const EDGE = 0.55;
 
-class Icon {
+/** A 16×16 icon being drawn (shared with the `loot` atlas's icons, M3-12). */
+export class Icon {
   private readonly px = new Map<number, Px>();
   private readonly flat = new Set<number>();
 

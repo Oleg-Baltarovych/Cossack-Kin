@@ -7,10 +7,20 @@ import { useDeviceSnap } from '../hooks/useDeviceSnap.ts';
 import { useIconAtlas, type IconId } from '../icons.ts';
 import styles from './Icon.module.css';
 
-export const Icon = memo(function Icon({ id, fallback }: { readonly id: IconId; readonly fallback?: string }) {
-  const atlas = useIconAtlas();
+export const Icon = memo(function Icon({
+  id,
+  fallback,
+  big = false,
+}: {
+  readonly id: IconId;
+  readonly fallback?: string;
+  /** Two logical px per icon px (the chest and the relics of M3-12, like the ×2 portraits): still whole px. */
+  readonly big?: boolean;
+}) {
+  const atlas = useIconAtlas(id);
   const snapRef = useDeviceSnap([atlas]);
-  if (atlas === 'loading') return <span className={styles.icon} aria-hidden="true" data-icon={id} />;
+  const box = big ? [styles.icon, styles.big].join(' ') : styles.icon;
+  if (atlas === 'loading') return <span className={box} aria-hidden="true" data-icon={id} />;
   const f = atlas === 'failed' ? undefined : atlas.frames.get(id);
   if (atlas === 'failed' || !f)
     return fallback === undefined ? null : (
@@ -22,7 +32,7 @@ export const Icon = memo(function Icon({ id, fallback }: { readonly id: IconId; 
   // outline row — art-director M2-14, 412@3.5) is cut at its natural size (whole css px, exact) and scaled by a transform: a `background-size` in
   // `--px` units is rounded to 1/64 css px by layout, which on a 3.5-dpr phone puts a 1-px seam through the icon.
   return (
-    <span ref={snapRef} className={styles.icon} aria-hidden="true" data-icon={id}>
+    <span ref={snapRef} className={box} aria-hidden="true" data-icon={id}>
       <span
         className={styles.sprite}
         style={{

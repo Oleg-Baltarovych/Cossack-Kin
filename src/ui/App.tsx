@@ -10,6 +10,7 @@ import { CoinFlight, type BuildingAt } from './components/CoinFlight.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel, type Reveal } from './components/Panel.tsx';
+import { RaidChest } from './components/RaidChest.tsx';
 import { RaidMap } from './components/RaidMap.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
 import { StoryModal } from './components/StoryModal.tsx';
@@ -18,9 +19,10 @@ import { TierBanner } from './components/TierBanner.tsx';
 import { WorldError } from './components/WorldError.tsx';
 import { installGameDebug } from './debug/gameDebug.ts';
 import type { Game } from './game.ts';
-import { GameProvider, useGame, useGameEvent } from './hooks/useGame.ts';
+import { GameProvider, useGame, useGameEvent, useGameEvents } from './hooks/useGame.ts';
 import { useDialogFocus } from './hooks/useDialogFocus.ts';
 import { useWorld, type StartWorld } from './hooks/useWorld.ts';
+import { chestQueue, EMPTY_CHESTS } from './raidReveal.ts';
 import { EMPTY_QUEUE, shownBeat, storyQueue } from './storyQueue.ts';
 import styles from './App.module.css';
 
@@ -72,7 +74,9 @@ export function App({ game }: { game: Game }) {
  * HUD and panel, made inert (no focus, no screen reader) while a window is open — aria-modal alone is not. Windows
  * come one at a time: the save notice, then the return window, then the story beats in their queue (M2-25). The raid
  * map (M3-11) is a window the player opens from a squad's «Обрати похід»: story beats wait while it is open, and the
- * save notice or the return window close it (nothing is lost: the board is the day's, the map opens again).
+ * save notice or the return window close it (nothing is lost: the board is the day's, the map opens again). A raid's
+ * chest (M3-12) opens on a claim — one window per action, so «Забрати все» is one — after the save notice and the
+ * return window, before the story beats (a beat a claim fired waits for the chest).
  */
 export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notice'] }) {
   const away = useGame((s) => s.returnReport !== null);
@@ -84,13 +88,20 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
       if (e.type === 'StoryBeatReached' || e.type === 'StateReplaced') toQueue(e);
     }, []),
   );
+  const [chests, toChests] = useReducer(chestQueue, EMPTY_CHESTS);
+  useGameEvents(
+    useCallback((events) => {
+      toChests({ type: 'events', events });
+    }, []),
+  );
   const [mapSlot, setMapSlot] = useState<number | null>(null);
   useEffect(() => {
     if (away || noticeOpen) setMapSlot(null);
   }, [away, noticeOpen]);
-  const mapOpen = mapSlot !== null && !away && !noticeOpen;
-  const beat = shownBeat(queue, away || noticeOpen || mapOpen);
-  const windowOpen = away || noticeOpen || mapOpen || beat !== null;
+  const chest = away || noticeOpen ? null : (chests.waiting[0] ?? null);
+  const mapOpen = mapSlot !== null && !away && !noticeOpen && chest === null;
+  const beat = shownBeat(queue, away || noticeOpen || mapOpen || chest !== null);
+  const windowOpen = away || noticeOpen || mapOpen || chest !== null || beat !== null;
   useDialogFocus(windowOpen);
   // A tap on a building opens its row in the sheet (SPEC §3.3, M2-13); a tap on open ground earns (TapFeedback).
   const [reveal, setReveal] = useState<Reveal | null>(null);
@@ -137,6 +148,15 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
           />
         ) : (
           <ReturnModal />
+        )}
+        {chest && (
+          <RaidChest
+            key={chest.key}
+            chest={chest}
+            onClose={() => {
+              toChests({ type: 'close', key: chest.key });
+            }}
+          />
         )}
         {beat && (
           <StoryModal

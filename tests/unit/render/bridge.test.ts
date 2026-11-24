@@ -245,11 +245,33 @@ describe('camera shake (M2-26)', () => {
     store.dispatch({ type: 'buyBuilding', id: 'field', mode: 1 }, T0 + 200);
     store.dispatch({ type: 'tap' }, T0 + 300);
     store.tick(T0 + 400);
-    expect(SHAKE.events).toEqual(['TierReached']);
+    expect(SHAKE.events).toEqual(['TierReached', 'RelicFound']);
     expect(f.shakes.n).toBe(0);
     // Field 2 → 11 crosses the tier-II level: one shake for the one new tier.
     store.dispatch({ type: 'buyBuilding', id: 'field', mode: 10 }, T0 + 500);
     expect(f.celebrated).toEqual(['field']);
+    expect(f.shakes.n).toBe(1);
+  });
+  it('a raid claim shakes only when it finds a relic (M3-12); a plain claim does not', () => {
+    const raid = (relic: 'pernach' | null) => ({
+      kind: 'returned' as const,
+      raid: {
+        region: 'porohy' as const,
+        tier: 'h4' as const,
+        startedAt: T0 - 4 * 3600_000,
+        returnAt: T0,
+        success: true,
+        rumor: false,
+        loot: { ducats: Big.from(10), glory: Big.from(1), pysanky: 0, relic },
+      },
+    });
+    const s = rich();
+    const store = createStore({ ...s, raids: { ...s.raids, slots: [raid(null), raid('pernach'), { kind: 'idle' }] } });
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.dispatch({ type: 'claimRaid', slot: 0 }, T0 + 100);
+    expect(f.shakes.n).toBe(0);
+    store.dispatch({ type: 'claimRaid', slot: 1 }, T0 + 200);
     expect(f.shakes.n).toBe(1);
   });
   it('never on load, offline catch-up or the return: only a player action reaches a tier (no shake behind the window)', () => {

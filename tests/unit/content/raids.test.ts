@@ -205,6 +205,8 @@ describe('the chest reveal timing (M3-02, plan §0.1 П4)', () => {
     expect(RAID_REVEAL.relicMs).toBeGreaterThan(RAID_REVEAL.itemStepMs);
     expect(Number.isInteger(RAID_REVEAL.shakePx)).toBe(true);
     expect(RAID_REVEAL.shakePx).toBeGreaterThan(0);
+    // The CSS shake runs shakeCycles left–right cycles of two steps: exactly shakeMs.
+    expect(RAID_REVEAL.shakeCycles * 2 * RAID_REVEAL.shakeStepMs).toBe(RAID_REVEAL.shakeMs);
   });
 });
 

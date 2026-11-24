@@ -233,6 +233,9 @@ describe('claimRaid (M3-05)', () => {
       {
         type: 'RaidClaimed',
         slot: 0,
+        // M3-12: the chest window names the raid it opens (the slot is idle by the time the event arrives).
+        tier: raid.tier,
+        region: raid.region,
         success: true,
         granted: { ducats: raid.loot.ducats, glory: raid.loot.glory, pysanky: raid.loot.pysanky },
         relic: raid.loot.relic,

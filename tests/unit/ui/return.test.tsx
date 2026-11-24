@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { OFFLINE } from '../../../src/content/economy.ts';
+import { Big } from '../../../src/core/big.ts';
 import { KHORTYTSIA } from '../../../src/content/villages/khortytsia.ts';
 import { applyOffline } from '../../../src/core/offline.ts';
 import { formatBig } from '../../../src/i18n/index.ts';
@@ -99,5 +100,59 @@ describe('ReturnModal (M1-18)', () => {
   it('the claim button gets the focus (Enter claims at once)', () => {
     mount(applyOffline(farm(), T0 + HOUR).state, T0 + HOUR);
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Забрати' }));
+  });
+});
+
+describe('ReturnModal: the raids line (M3-12, §0.1 П8)', () => {
+  const MIN = 60_000;
+  const roll = (region: 'porohy' | 'tavan' | 'samara', startedAt: number, tier: 'm30' | 'h4' = 'm30') => ({
+    region,
+    tier,
+    startedAt,
+    returnAt: startedAt + (tier === 'm30' ? 30 : 240) * MIN,
+    success: true,
+    rumor: false,
+    loot: { ducats: Big.from(100), glory: Big.from(10), pysanky: 0, relic: null },
+  });
+  const withRaids = (slots: GameState['raids']['slots'], lang: GameState['settings']['lang'] = 'uk'): GameState => {
+    const s = farm(lang, 30);
+    return { ...s, raids: { ...s.raids, slots }, stats: { ...s.stats, raidsSent: 3 } };
+  };
+
+  it('what came back while away waits on «Січ»: the count with plurals and the regions; one still away says when', () => {
+    const idle = { kind: 'idle' } as const;
+    const s = withRaids([
+      { kind: 'running', raid: roll('porohy', T0) },
+      { kind: 'running', raid: roll('tavan', T0) },
+      idle,
+    ]);
+    const now = T0 + HOUR;
+    mount(applyOffline(s, now).state, now);
+    expect(screen.getByRole('dialog').textContent).toContain(
+      'Походи: 2 повернулися (Пороги, Тавань) — скрині чекають на Січі',
+    );
+    cleanup();
+    const one = withRaids([
+      { kind: 'running', raid: roll('samara', T0) },
+      { kind: 'running', raid: roll('porohy', T0, 'h4') },
+      idle,
+    ]);
+    mount(applyOffline(one, now).state, now);
+    const text = screen.getByRole('dialog').textContent;
+    expect(text).toContain('Походи: 1 повернувся (Самара) — скриня чекає на Січі');
+    expect(text).toMatch(/Ще в дорозі: 1 загін\. Повернуться о \d\d:\d\d/u);
+  });
+
+  it('no raid back or away: no line; English plurals', () => {
+    mount(applyOffline(farm(), T0 + HOUR).state, T0 + HOUR);
+    expect(screen.getByRole('dialog').textContent).not.toContain('Походи');
+    cleanup();
+    const s = withRaids(
+      [{ kind: 'running', raid: roll('porohy', T0) }, { kind: 'running', raid: roll('samara', T0) }, { kind: 'idle' }],
+      'en',
+    );
+    mount(applyOffline(s, T0 + HOUR).state, T0 + HOUR);
+    expect(screen.getByRole('dialog').textContent).toContain('Raids: 2 came back (');
+    expect(screen.getByRole('dialog').textContent).toContain('the chests wait at the Sich');
   });
 });

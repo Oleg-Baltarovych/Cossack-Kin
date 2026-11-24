@@ -79,7 +79,8 @@ test.describe('M3-11 raid map', () => {
     await page.clock.pauseAt(left.time.lastSeen + (raidTier('m5').durationSec + 60) * 1000);
     await setVisibility(page, 'visible');
     // Two steps on coming back: the return window (the farm's income while away) comes first and holds the rest of
-    // the UI inert; once it is taken, the squad's own «Забрати» on «Січ» claims the raid — its status line says what.
+    // the UI inert; once it is taken, the squad's own «Забрати» on «Січ» claims the raid — its status line says what,
+    // and the chest window shows it (M3-12).
     const back = page.getByRole('dialog', { name: 'З поверненням!' });
     await expect(back).toBeVisible();
     await back.getByRole('button', { name: 'Забрати' }).click();
@@ -87,6 +88,16 @@ test.describe('M3-11 raid map', () => {
     const block = page.getByRole('region', { name: 'Походи' });
     await block.getByRole('button', { name: T.uk.collect }).click();
     await expect(block.getByRole('status')).toHaveText(`Отримано: ${success}`);
+    // M3-12: the claim opens the chest — a tap shows it all, and its loot is the card's «Успіх», piece by piece.
+    const chest = page.getByRole('dialog', { name: 'Здобич походу' });
+    await expect(chest).toBeVisible();
+    await chest.getByRole('heading').click();
+    await expect(chest).toHaveAttribute('data-reveal', 'done');
+    await expect(chest.getByText('Удача: уся здобич', { exact: true })).toBeVisible();
+    const items = await chest.getByRole('listitem').allInnerTexts();
+    expect(items.map((x) => x.replace(/\s+/g, ' ').trim()).join(', ')).toBe(success);
+    await chest.getByRole('button', { name: 'Забрати' }).click();
+    await expect(chest).toBeHidden();
   });
 
   test('arrows walk the flags, Enter opens a card, Esc closes the map and gives the focus back', async ({ page }) => {
@@ -135,6 +146,11 @@ const problems = (page: Page) =>
 async function openRaids(page: Page, lang: (typeof LANGS)[number]) {
   await page.getByRole('tab', { name: T[lang].sich }).click();
   await page.getByRole('button', { name: T[lang].collect }).click();
+  // The claim's chest (M3-12) first.
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: lang === 'uk' ? 'Забрати' : 'Collect' })
+    .click();
   await page.getByRole('button', { name: T[lang].choose }).click();
   return page.getByRole('dialog', { name: T[lang].map });
 }

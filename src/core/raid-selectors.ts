@@ -3,8 +3,8 @@
 // countdown and «returned» take the live `now` the UI already ticks the HUD with (core does not tick for a timer).
 // A running slot's view carries no result: success and loot are rolled at start but stay hidden until «Забрати» (П4) —
 // enforced by the type, not by the UI's discipline. The scene's view has no economy numbers at all.
-import { RAID_TIER_IDS, RAIDS, type RaidTierId, type RegionId, type RumorId } from '../content/raids.ts';
-import { RELIC_DEFS, type RelicId } from '../content/relics.ts';
+import { RAID_TIER_IDS, RAIDS, tierRank, type RaidTierId, type RegionId, type RumorId } from '../content/raids.ts';
+import { RELIC_DEFS, RELICS, type RelicId } from '../content/relics.ts';
 import {
   MS_PER_SEC,
   powerEnough,
@@ -246,6 +246,26 @@ export function relicsView(state: GameState): readonly RelicView[] {
     factKey: r.factKey,
     value: Math.round(r.effect.share * PERCENT),
   }));
+}
+
+/** The treasury's hint under the silhouettes (§0.1 П5): where to look, and whether the pity makes the next find sure. */
+export interface RelicHintView {
+  /** The shortest tier that can find a relic (a relic chance, or counted by the pity): «від 30 хв походу». */
+  readonly fromTier: RaidTierId;
+  /**
+   * «Старі козаки кажуть: реліквія близько» — the next success of a tier ≥ RELICS.pityMinTier is sure to give one: the
+   * same fact as the offer card's `relicSure` (one source, `previewRaid`).
+   */
+  readonly near: boolean;
+}
+
+/** Null once every relic of the collection is found (nothing left to look for). */
+export function relicHint(state: GameState): RelicHintView | null {
+  if (RELIC_DEFS.every((r) => state.relics.includes(r.id))) return null;
+  const pityRank = tierRank(RELICS.pityMinTier);
+  const fromTier =
+    RAID_TIER_IDS.find((t) => raidTier(t).relicChance > 0 || tierRank(t) >= pityRank) ?? RELICS.pityMinTier;
+  return { fromTier, near: previewRaid(state, RELICS.pityMinTier).relicSure };
 }
 
 /** What render may know of raids (plan §0): which open slots' squads are away or back — no economy numbers. */

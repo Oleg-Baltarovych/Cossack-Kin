@@ -5,6 +5,8 @@
 // that is back (never for an empty slot). Everything comes from the core's selectors; the cards only dispatch.
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// A no-break space keeps «+5 %» on one line (M3-12 review).
+import { NBSP } from '../../../src/i18n/index.ts';
 import { raidTier } from '../../../src/core/systems/raids.ts';
 import type { Action } from '../../../src/core/actions.ts';
 import { Big } from '../../../src/core/big.ts';
@@ -98,7 +100,9 @@ describe('the block on «Січ»: one card per open slot, the army power and th
     const items = within(badges).getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual(['Пернач']);
     // The badge's name carries what the relic does.
-    expect(items[0]?.getAttribute('aria-label')).toBe('Пернач: Військо слухає того, хто тримає пернач: +5 % сили.');
+    expect(items[0]?.getAttribute('aria-label')).toBe(
+      `Пернач: Військо слухає того, хто тримає пернач: +5${NBSP}% сили.`,
+    );
     // 61 × 1.05 = 64.05: the power is shown whole, rounded down.
     expect(within(block()).getByText('Сила війська 64')).toBeTruthy();
   });

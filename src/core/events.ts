@@ -72,6 +72,9 @@ export type GameEvent =
   | {
       readonly type: 'RaidClaimed';
       readonly slot: number;
+      /** The raid claimed (the chest window names it; the slot is idle by the time the event arrives — M3-12). */
+      readonly tier: RaidTierId;
+      readonly region: RegionId;
       readonly success: boolean;
       readonly granted: RaidGranted;
       readonly relic: RelicId | null;

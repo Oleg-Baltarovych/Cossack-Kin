@@ -1,7 +1,7 @@
 // The UI icon atlas reader (plan M2-14): the atlas JSON is untrusted input, so only well-formed frames get through,
 // and the icons left without a frame are reported (they draw their text fallback).
 import { describe, expect, it } from 'vitest';
-import { ICON_IDS, parseIconAtlas } from '../../../src/ui/icons.ts';
+import { ICON_IDS, LOOT_ICON_IDS, parseIconAtlas } from '../../../src/ui/icons.ts';
 
 const META = { image: 'ui.png', size: { w: 140, h: 40 } };
 const atlas = (frames: unknown, meta: unknown = META) => ({ frames, meta });
@@ -52,5 +52,18 @@ describe('parseIconAtlas', () => {
     expect([...a.frames.keys()]).toEqual(['milestone']);
     expect(a.missing).toContain('ducat');
     expect(a.missing).toContain('lock');
+  });
+});
+
+describe('parseIconAtlas: the loot sheet (M3-12)', () => {
+  it('reads its own generator prefix only', () => {
+    const a = parseIconAtlas(
+      { frames: { 'loot-icon.chest/idle/00': frame(0, 0), 'icon.pernach/idle/00': frame(19, 0) }, meta: META },
+      '/atlases/',
+      LOOT_ICON_IDS,
+      'loot-icon',
+    );
+    expect([...a.frames.keys()]).toEqual(['chest']);
+    expect(a.missing).toContain('pernach');
   });
 });

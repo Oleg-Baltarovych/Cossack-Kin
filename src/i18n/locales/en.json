@@ -268,10 +268,10 @@
   "region.khortytsia.dykePole.name": "The Wild Fields",
   "region.khortytsia.dykePole.text": "Endless steppe east and south of the Sich, with grass up to a rider’s stirrups.",
   "relic.pernach.name": "Pernach",
-  "relic.pernach.text": "The Host follows whoever holds the pernach: +{value} % power.",
+  "relic.pernach.text": "The Host follows whoever holds the pernach: +{value}% power.",
   "relic.pernach.fact": "A pernach is a mace with metal ribs, the «feathers». Among the Cossacks it was a sign of authority, notably a colonel’s.",
   "relic.porokhivnytsia.name": "Powder flask",
-  "relic.porokhivnytsia.text": "An old carved powder flask brings luck on the road: +{value} % loot.",
+  "relic.porokhivnytsia.text": "An old carved powder flask brings luck on the road: +{value}% loot.",
   "relic.porokhivnytsia.fact": "Powder flasks were made of horn, wood or leather and often carved; a Cossack wore his at the belt.",
   "time.seconds": {
     "one": "{count} second",
@@ -366,5 +366,31 @@
   "ui.map.refused.power": "Not sent: too little power",
   "ui.map.refused.other": "The squad did not set off",
   "ui.map.chosen": "Chosen: {offer}",
-  "ui.map.chanceOf": "{chance} chance"
+  "ui.map.chanceOf": "{chance} chance",
+  "ui.chest.title.many": {
+    "one": "Loot of {count} raid",
+    "other": "Loot of {count} raids"
+  },
+  "ui.chest.squad": "Squad {n} · {where}",
+  "ui.chest.won": "Success: the full loot",
+  "ui.chest.lost": "Back with part of the loot",
+  "ui.chest.loot": "Loot",
+  "ui.chest.relic": "A relic found!",
+  "ui.chest.skip": "Tap to see it all",
+  "ui.chest.claim": "Collect",
+  "ui.chest.said": "{squad}. {outcome}: {loot}.",
+  "return.raidsBack": {
+    "one": "Raids: {count} came back ({regions}) — its chest waits at the Sich",
+    "other": "Raids: {count} came back ({regions}) — the chests wait at the Sich"
+  },
+  "return.raidsAway": {
+    "one": "Still on the road: {count} squad. {back}",
+    "other": "Still on the road: {count} squads. {back}"
+  },
+  "ui.treasury.title": "Treasury",
+  "ui.treasury.count": "Found {found} of {total}",
+  "ui.treasury.unknown": "Unknown relic",
+  "ui.treasury.hint": "Found on raids of {time} or longer",
+  "ui.treasury.all": "Every relic of this land is found",
+  "ui.chest.title": "Raid loot"
 }
