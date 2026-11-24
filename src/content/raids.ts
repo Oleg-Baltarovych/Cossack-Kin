@@ -138,9 +138,9 @@ function region(id: RegionId, x: number, y: number): Region {
 /** Regions per land; the board picks one per tier a day (`raidBoard`, M3-03). Rough real layout of the Lower Dnipro. */
 export const REGIONS = {
   khortytsia: [
-    region('samara', 96, 18), // the Samara joins the Dnipro from the east, above the rapids
+    region('samara', 96, 25), // the Samara joins the Dnipro from the east, above the rapids (M3-10: y 18 → 25, the 8-h flag stays inside the map's frame)
     region('vovchiVody', 150, 30), // the Vovcha, a tributary of the Samara, far east in the steppe
-    region('porohy', 86, 48), // the rapids, between the Samara mouth and Khortytsia
+    region('porohy', 89, 48), // the rapids, between the Samara mouth and Khortytsia (M3-10: x 86 → 89, the flag clears the ridges)
     region('kinskiVody', 122, 96), // the Konka runs from the east to the Velykyi Luh below Khortytsia
     region('tavan', 44, 128), // the Tavan crossing, down the Dnipro to the south-west
     region('dykePole', 142, 130), // the open steppe, south-east
