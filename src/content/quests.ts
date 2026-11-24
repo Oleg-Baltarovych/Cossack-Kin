@@ -21,7 +21,7 @@ export type LevelGoal =
   | { readonly kind: 'sich'; readonly id: SichBuildingId; readonly level: number };
 
 /** The monotone counters a quest can count (`GameState.stats`). */
-export type StatId = 'taps' | 'purchases' | 'levelsBought' | 'hires' | 'tapIncomeSec' | 'raidsSent';
+export type StatId = 'taps' | 'purchases' | 'levelsBought' | 'hires' | 'tapIncomeSec' | 'raidsSent' | 'raidsDone';
 
 /** `stat` grown by `n` since the quest began. */
 export interface CountGoal {
@@ -34,10 +34,10 @@ export type QuestGoal = LevelGoal | CountGoal;
 
 /**
  * Systems a quest can need that this build may not have: a chore with `requires` is offered only when its system is in
- * `BUILD_SYSTEMS`. Raids («Відправ похід», with a `raidsSent` counter) come with M3, storks with M6.
+ * `BUILD_SYSTEMS`. Raids came with M3 (plan M3-07: «Відправ похід», «Заверши 2 походи»), storks come with M6.
  */
 export type SystemId = 'raids' | 'storks';
-export const BUILD_SYSTEMS: readonly SystemId[] = [];
+export const BUILD_SYSTEMS: readonly SystemId[] = ['raids'];
 
 export const CHAIN_STEP_IDS = [
   'khortytsia.field1',
@@ -154,6 +154,9 @@ export const CHORE_IDS = [
   'chore.purchases10',
   'chore.hire3',
   'chore.hire10',
+  // M3-07: appended (never reorder) — they join the rotation by the reservoir pick (CHORES.moduloCount).
+  'chore.raid1',
+  'chore.raids2',
 ] as const;
 export type ChoreId = (typeof CHORE_IDS)[number];
 
@@ -167,8 +170,9 @@ export interface ChoreDef {
   readonly titleKey: string;
 }
 
-function chore(id: ChoreId, stat: StatId, n: number, reward: Reward): ChoreDef {
-  return { id, goal: { kind: 'count', stat, n }, reward, titleKey: `quest.${id}.title` };
+function chore(id: ChoreId, stat: StatId, n: number, reward: Reward, requires?: SystemId): ChoreDef {
+  const def: ChoreDef = { id, goal: { kind: 'count', stat, n }, reward, titleKey: `quest.${id}.title` };
+  return requires === undefined ? def : { ...def, requires };
 }
 
 /** Every chore pays the SPEC §3.10 floor (3 min): ten a day are already ~30 min of income (M2-27). */
@@ -184,6 +188,9 @@ const CHORE_POOL: readonly ChoreDef[] = [
   chore('chore.purchases10', 'purchases', 10, income(CHORE_MINUTES)),
   chore('chore.hire3', 'hires', 3, glory(CHORE_MINUTES)),
   chore('chore.hire10', 'hires', 10, glory(CHORE_MINUTES)),
+  // Raids (M3-07; SPEC §3.10 «Відправ похід»): a start moves `raidsSent`, a claim `raidsDone`. Army chores pay glory.
+  chore('chore.raid1', 'raidsSent', 1, glory(CHORE_MINUTES), 'raids'),
+  chore('chore.raids2', 'raidsDone', 2, glory(CHORE_MINUTES), 'raids'),
 ];
 
 export const CHORES = {
@@ -191,6 +198,13 @@ export const CHORES = {
   maxClaimsPerDay: 10,
   /** Keys the `hash32` stream of the chore picks; frozen (the active chore is stored, but the rotation should stay). */
   salt: 0xc407,
+  /**
+   * FROZEN: the first `moduloCount` chores of the pool (the M2 eight) keep the M2-23 pick, `hash32 % options`, so the
+   * rotation of a shipped seed stays. Every chore appended after them joins by a reservoir step in pool order: the
+   * `k`-th offered takes the pick with chance 1 / (offered so far), so each chore is as likely as any other and adding
+   * one moves a pick only onto itself (core `nextChore`, test M3-07).
+   */
+  moduloCount: 8,
   /** In the order of CHORE_IDS. */
   pool: CHORE_POOL,
 } as const;

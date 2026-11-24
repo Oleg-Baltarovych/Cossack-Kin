@@ -11,7 +11,6 @@
 //            never goes back: a clock set back (or a time zone moved west) gives no new day.
 import { TIER_LEVELS } from '../../content/economy.ts';
 import {
-  BUILD_SYSTEMS,
   CHAIN,
   CHORES,
   QUEST_CHAIN,
@@ -165,20 +164,35 @@ export function choreQuest(
 }
 
 /**
- * The chore that starts as the `n`-th: `hash32` under the content salt picks among the chores whose system is in the
- * build (`requires`), leaving out `previous` when there is a choice.
+ * The chore that starts as the `n`-th, among the chores whose system is in `systems` (`requires`; the caller passes
+ * the systems the game can do now — the build's, raids only once the army can start one), leaving out
+ * `previous` when there is a choice. The first `CHORES.moduloCount` chores of the pool (M2) are picked as in M2-23 —
+ * `hash32(hash32(seed, salt), n) % options`; each later chore offered then takes the pick by a reservoir step (chance
+ * 1 / offered so far, its own hash), so every offered chore is equally likely and an appended chore moves a pick only
+ * onto itself: the rotation of a seed stays except where a new chore comes up.
  */
 export function nextChore(
   seed: number,
   n: number,
   previous: ChoreId | null,
-  pool: readonly ChoreDef[] = CHORES.pool,
-  systems: readonly SystemId[] = BUILD_SYSTEMS,
+  pool: readonly ChoreDef[],
+  systems: readonly SystemId[],
 ): ChoreDef {
-  const available = pool.filter((c) => c.requires === undefined || systems.includes(c.requires));
-  const others = available.filter((c) => c.id !== previous);
-  const options = others.length > 0 ? others : available;
-  const pick = options[hash32(hash32(seed, CHORES.salt), n) % options.length];
+  const offered = (c: ChoreDef): boolean => c.requires === undefined || systems.includes(c.requires);
+  const first = pool.slice(0, CHORES.moduloCount).filter(offered);
+  const later = pool.slice(CHORES.moduloCount).filter(offered);
+  const many = first.length + later.length > 1;
+  const left = (list: readonly ChoreDef[]): readonly ChoreDef[] =>
+    many ? list.filter((c) => c.id !== previous) : list;
+  const firstLeft = left(first);
+  const laterLeft = left(later);
+  const h = hash32(hash32(seed, CHORES.salt), n);
+  let pick = firstLeft[h % Math.max(1, firstLeft.length)];
+  let count = firstLeft.length;
+  for (const c of laterLeft) {
+    count += 1;
+    if (hash32(h, pool.indexOf(c)) % count === 0) pick = c;
+  }
   // The pool always holds chores without `requires` (content test).
   if (!pick) throw new Error('chores: none available');
   return pick;
@@ -235,7 +249,8 @@ export function newQuests(facts: QuestFacts, seed: number, now: number, tzOffset
     const goal = listedStep(facts, index).goal;
     if (goal.kind === 'count' || level(facts, goal) < goal.level) break;
   }
-  const first = nextChore(seed, 0, null);
+  // The first chore needs no system: a new game has no army, and a save from before quests (v2) none of the M3 ones.
+  const first = nextChore(seed, 0, null, CHORES.pool, []);
   return {
     chain: chainAt(facts, index),
     chores: {
@@ -260,8 +275,15 @@ export function choreRewardsLeft(state: Pick<GameState, 'time' | 'settings' | 'q
   return Math.max(0, CHORES.maxClaimsPerDay - choreDayOf(state).claims);
 }
 
-/** Grants the finished quest of `kind` and starts the next; 'notDone' when it is not finished (or none is left). */
-export function claimQuest(state: GameState, kind: QuestKind): { state: GameState; events: GameEvent[] } | 'notDone' {
+/**
+ * Grants the finished quest of `kind` and starts the next (a chore among those needing only `systems`, the ones the
+ * game can do now); 'notDone' when it is not finished (or none is left).
+ */
+export function claimQuest(
+  state: GameState,
+  kind: QuestKind,
+  systems: readonly SystemId[],
+): { state: GameState; events: GameEvent[] } | 'notDone' {
   const q = kind === 'chain' ? chainQuest(state) : choreQuest(state);
   if (!q?.done) return 'notDone';
   if (kind === 'chain') {
@@ -276,7 +298,7 @@ export function claimQuest(state: GameState, kind: QuestKind): { state: GameStat
   // One source with the UI warning (questLineView `rewarded`): a claim pays exactly while rewards are left today.
   const g = choreRewardsLeft(state) > 0 ? grantReward(state, q.reward) : null;
   const s = g ? g.state : state;
-  const next = nextChore(s.seed, c.n + 1, c.active);
+  const next = nextChore(s.seed, c.n + 1, c.active, CHORES.pool, systems);
   const chores: ChoresState = {
     day,
     n: c.n + 1,

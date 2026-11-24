@@ -1,7 +1,15 @@
 // «Наказ кошового» and chores (plan M2-23, SPEC §3.10, §3.9 «День»).
 import { describe, expect, it } from 'vitest';
 import { FARM_BUILDING_IDS } from '../../../src/content/villages/khortytsia.ts';
-import { CHAIN, CHORES, QUEST_CHAIN, type ChoreDef, type QuestGoal } from '../../../src/content/quests.ts';
+import {
+  BUILD_SYSTEMS,
+  CHAIN,
+  CHORE_IDS,
+  CHORES,
+  QUEST_CHAIN,
+  type ChoreDef,
+  type QuestGoal,
+} from '../../../src/content/quests.ts';
 import { applyAction } from '../../../src/core/actions.ts';
 import { Big } from '../../../src/core/big.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
@@ -205,7 +213,7 @@ describe('chores (M2-23)', () => {
       let prev: ChoreDef | null = null;
       const out: string[] = [];
       for (let n = 0; n < 40; n++) {
-        prev = nextChore(seed, n, prev?.id ?? null);
+        prev = nextChore(seed, n, prev?.id ?? null, CHORES.pool, BUILD_SYSTEMS);
         out.push(prev.id);
       }
       return out;
@@ -216,7 +224,7 @@ describe('chores (M2-23)', () => {
       for (let i = 1; i < seq.length; i++) expect(seq[i]).not.toBe(seq[i - 1]);
     // Over many picks every chore of the pool comes up.
     const seen = new Set<string>();
-    for (let n = 0; n < 400; n++) seen.add(nextChore(7, n, null).id);
+    for (let n = 0; n < 400; n++) seen.add(nextChore(7, n, null, CHORES.pool, BUILD_SYSTEMS).id);
     expect([...seen].sort()).toEqual(CHORES.pool.map((c) => c.id).sort());
   });
 
@@ -233,6 +241,61 @@ describe('chores (M2-23)', () => {
       Array.from({ length: 300 }, (_, n) => nextChore(3, n, null, pool, systems));
     expect(picks([]).some((c) => c === raid)).toBe(false);
     expect(picks(['raids']).some((c) => c === raid)).toBe(true);
+  });
+
+  /** The pick sequence of `seed` (each pick leaves out the one before) as CHORE_IDS indices. */
+  const stream = (seed: number, systems: readonly ('raids' | 'storks')[]): string => {
+    let prev: ChoreDef | null = null;
+    let out = '';
+    for (let n = 0; n < 30; n++) {
+      prev = nextChore(seed, n, prev?.id ?? null, CHORES.pool, systems);
+      out += String(CHORE_IDS.indexOf(prev.id));
+    }
+    return out;
+  };
+
+  it('M3-07: without raids the rotation is the M2-23 stream, pick for pick (golden)', () => {
+    // Captured from M2-23 `nextChore` (hash32(hash32(seed, salt), n) % options) before the raid chores came.
+    expect(stream(1, [])).toBe('740723724613262635236467647201');
+    expect(stream(2, [])).toBe('617267514501060753025457320642');
+    expect(stream(3, [])).toBe('125373637204136340303436562147');
+    expect(stream(0x5eed, [])).toBe('353610450215472310762604604657');
+  });
+
+  it('M3-07: adding raid chores moves a pick only onto a raid chore, never between the M2 chores', () => {
+    const raid = new Set<string>(CHORE_IDS.slice(CHORES.moduloCount));
+    const previous: readonly (ChoreDef['id'] | null)[] = [null, ...CHORE_IDS];
+    let moved = 0;
+    for (let seed = 0; seed < 60; seed++)
+      for (let n = 0; n < 40; n++)
+        for (const prev of previous) {
+          const before = nextChore(seed, n, prev, CHORES.pool, []);
+          const after = nextChore(seed, n, prev, CHORES.pool, ['raids']);
+          if (after.id !== before.id) {
+            expect(raid.has(after.id), `seed ${String(seed)} n ${String(n)} prev ${String(prev)}`).toBe(true);
+            moved++;
+          }
+          expect(after.id).not.toBe(prev);
+        }
+    expect(moved).toBeGreaterThan(0);
+  });
+
+  it('M3-07: the real rotation offers the raid chores, each about as often as an M2 chore', () => {
+    const counts = new Map<string, number>();
+    const picks = 20_000;
+    for (let i = 0; i < picks; i++) {
+      const id = nextChore(i, i % 7, null, CHORES.pool, BUILD_SYSTEMS).id;
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    // The hashes are fixed, so this is deterministic; the bound is sized like a sampling check anyway: at p = 1/10 and
+    // 20 000 picks one standard deviation is √(p(1 − p)/N) / p ≈ 2.1 % of the share, so ±7 % ≈ 3.3 σ — a fair pick
+    // passes (measured max 2.2 %), a reservoir step with a wrong chance (e.g. 1/k or 1/2) misses by far more.
+    const share = 1 / CHORES.pool.length;
+    for (const c of CHORES.pool) {
+      const got = (counts.get(c.id) ?? 0) / picks;
+      expect(got, c.id).toBeGreaterThan(share * 0.93);
+      expect(got, c.id).toBeLessThan(share * 1.07);
+    }
   });
 
   it('after a claim the next chore is active at once, counted from that moment', () => {
@@ -394,7 +457,7 @@ describe('review fixes (M2-23)', () => {
 
   it('an action that finishes the active chore emits QuestCompleted for it; the claim then QuestClaimed', () => {
     const seed = Array.from({ length: 200 }, (_, i) => i).find(
-      (x) => nextChore(x, 0, null).goal.stat === 'levelsBought',
+      (x) => nextChore(x, 0, null, CHORES.pool, []).goal.stat === 'levelsBought',
     );
     if (seed === undefined) throw new Error('no seed with a levels chore first');
     const s = wealthy(seed);

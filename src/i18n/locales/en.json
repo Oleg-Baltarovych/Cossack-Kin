@@ -197,6 +197,11 @@
     "one": "Hire {count} Cossack",
     "other": "Hire {count} Cossacks"
   },
+  "quest.chore.raid1.title": "Send a raid",
+  "quest.chore.raids2.title": {
+    "one": "Finish {count} raid",
+    "other": "Finish {count} raids"
+  },
   "ui.quest.region": "Tasks",
   "ui.quest.progress": "{progress} of {target}",
   "ui.quest.claim": "Claim",

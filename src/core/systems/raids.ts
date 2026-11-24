@@ -115,6 +115,15 @@ function powerEnough(power: number, tier: RaidTierId): boolean {
   return power >= RAIDS.minPowerShare * raidTier(tier).power;
 }
 
+/**
+ * Whether the army can start a raid at all: power enough for the lowest tier (busy slots do not count — they come
+ * back by themselves). Quests offer raid chores only then (plan M3-07 review: no chore the player cannot begin).
+ */
+export function raidReady(state: GameState): boolean {
+  const lowest = Math.min(...RAID_TIERS.map((t) => t.power));
+  return raidPower(state) >= RAIDS.minPowerShare * lowest;
+}
+
 /** Whether a raid of `tier` can start in `slot` (the startRaid action applies it, M3-05). */
 export function canStart(state: GameState, slot: number, tier: RaidTierId): StartCheck {
   if (!Number.isInteger(slot) || slot < 0 || slot >= RAIDS.slots) return { ok: false, reason: 'range' };
