@@ -5,7 +5,9 @@
 //   settings.tzOffsetMin  = 0 (UTC) until the platform writes the zone at the next start
 // Coupled to live content on purpose: `newQuests` walks today's QUEST_CHAIN and picks from today's CHORES pool. That is
 // sound only because chain step ids, chore ids and their order are frozen once shipped (content/quests.ts): append
-// only; removing, renaming or reordering one needs a migration of its own.
+// only; removing, renaming or reordering one needs a migration of its own. The one insertion so far, `raid1` after
+// `hire1` (v4, Q7), leaves this step as it was: the walk stops at the `hire1` count step at the latest, so its index
+// is a v3 index either way, and 003 shifts the ones past `hire1`. The raid counters are 0 for the walk (v2 had none).
 // It reads the raw payload: a malformed one throws, and `migrate` turns that into a refused save. Whatever else is
 // wrong is validateState's to catch after the chain.
 import { SICH_BUILDING_IDS } from '../../../content/sich.ts';
@@ -62,7 +64,7 @@ export const V2_TO_V3: Migration = {
         levels: levels(village['levels'], FARM_BUILDING_IDS, 'levels'),
         sichLevels: levels(village['sichLevels'], SICH_BUILDING_IDS, 'sichLevels'),
       },
-      stats,
+      stats: { ...stats, raidsSent: 0, raidsDone: 0, raidsWon: 0 },
     };
     const tzOffsetMin = 0;
     const maxSeen = num(obj(root['time'], 'time')['maxSeen'], 'maxSeen');

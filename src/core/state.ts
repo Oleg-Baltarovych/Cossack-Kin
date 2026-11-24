@@ -1,19 +1,22 @@
-// GameState v3 (SPEC §9.3; plan §0, M1-04, M2-22, M2-23): v2 = v1 + `story` and the quest counters in `stats`; v3 adds
-// `quests` and `settings.tzOffsetMin` — later fields come
-// with a version bump and a migration (save/migrations). Derived values (kharch, defence, tier, wind, «unlocked») are computed, never stored.
+// GameState v4 (SPEC §9.3; plan §0, M1-04, M2-22, M2-23, M3-04): v2 = v1 + `story` and the quest counters in `stats`;
+// v3 adds `quests` and `settings.tzOffsetMin`; v4 adds `raids`, `relics` and the raid counters (ADR 012) — later
+// fields come with a version bump and a migration (save/migrations). Derived values (kharch, defence, tier, wind, «unlocked») are computed, never stored.
 // `validateState` is the gate a save passes through: it takes the JSON form (Big values as strings), rejects anything
 // it does not know, and returns a typed error instead of throwing (rules: save.md, security.md).
 import { FARM, OFFLINE, SICH, START, TAP } from '../content/economy.ts';
 import { SAVE_MAX_EXPONENT } from '../content/numbers.ts';
 import { CHORE_IDS, CHORES, type ChainStep, type ChoreId, type LevelGoal } from '../content/quests.ts';
+import { RAID_TIER_IDS, RAID_TIERS, RAIDS, REGION_IDS, tierRank } from '../content/raids.ts';
+import { RELIC_IDS, RELICS, pityThreshold, type RelicId } from '../content/relics.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../content/sich.ts';
 import { STORY_BEAT_IDS, type StoryBeatId } from '../content/story.ts';
 import { FARM_BUILDING_IDS, type FarmBuildingId } from '../content/villages/khortytsia.ts';
 import { Big } from './big.ts';
 import { createRng, type Rng } from './rng.ts';
 import { chainSteps, dayAt, newQuests } from './systems/quests.ts';
+import type { RaidLoot, RaidRoll, RaidSlot, RaidsState } from './systems/raids.ts';
 
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 export const LANGS = ['uk', 'en'] as const;
 export const NUMBER_FORMATS = ['words', 'short'] as const;
 export const RETURN_REASONS = ['normal', 'clockBack', 'forwardJump'] as const;
@@ -50,6 +53,12 @@ export interface Stats {
   readonly hires: number;
   /** Seconds of income earned by taps: each tap adds its income share (TAP.incomeShare). */
   readonly tapIncomeSec: number;
+  /** v4: raids started, all told. */
+  readonly raidsSent: number;
+  /** v4: raids claimed (a raid is done when its loot is taken); raidsDone ≤ raidsSent. */
+  readonly raidsDone: number;
+  /** v4: claimed raids that were a success; raidsWon ≤ raidsDone. */
+  readonly raidsWon: number;
 }
 
 /**
@@ -108,6 +117,10 @@ export interface GameState {
   readonly story: { readonly seen: readonly StoryBeatId[] };
   /** «Наказ кошового» and the chores (SPEC §3.10); completion is derived from `stats` and the levels. */
   readonly quests: QuestsState;
+  /** v4: the raid slots, the rumour day and the relic pity (SPEC §3.4, ADR 012). */
+  readonly raids: RaidsState;
+  /** v4: relics found, in finding order (each kept for good). */
+  readonly relics: readonly RelicId[];
   /** Taps counted in the current second (TAP.maxPerSec, plan Q8): the second's start (ms) and the count so far. */
   readonly tapWindow: { readonly start: number; readonly count: number };
   readonly settings: Settings;
@@ -120,6 +133,17 @@ function zeros<K extends string>(ids: readonly K[]): Record<K, number> {
   return out as Record<K, number>;
 }
 
+/**
+ * The length of `raids.slots` in the v4 shape (frozen: the gate and the migration use it; content `RAIDS.maxSlots`
+ * must equal it — a test checks — and changing it needs a save migration).
+ */
+export const V4_RAID_SLOTS = 3;
+
+/** No raid under way: every slot idle, no rumour used, the pity at 0 (a new game and the v3 → v4 migration). */
+export function freshRaids(): RaidsState {
+  return { slots: Array.from({ length: V4_RAID_SLOTS }, (): RaidSlot => ({ kind: 'idle' })), rumorDay: -1, pity: 0 };
+}
+
 /** A new game at `now` (ms) with `seed` (any integer, taken as uint32). */
 export function createInitialState({ seed, now }: { seed: number; now: number }): GameState {
   const s = seed >>> 0;
@@ -130,7 +154,16 @@ export function createInitialState({ seed, now }: { seed: number; now: number })
     lifetimeDucats: Big.ZERO,
     mechanic: { kind: 'wind', stormsSurvived: 0 },
   };
-  const stats: Stats = { taps: 0, purchases: 0, levelsBought: 0, hires: 0, tapIncomeSec: 0 };
+  const stats: Stats = {
+    taps: 0,
+    purchases: 0,
+    levelsBought: 0,
+    hires: 0,
+    tapIncomeSec: 0,
+    raidsSent: 0,
+    raidsDone: 0,
+    raidsWon: 0,
+  };
   return {
     version: STATE_VERSION,
     seed: s,
@@ -143,6 +176,8 @@ export function createInitialState({ seed, now }: { seed: number; now: number })
     stats,
     story: { seen: [] },
     quests: newQuests({ village, stats }, s, now, START.tzOffsetMin),
+    raids: freshRaids(),
+    relics: [],
     tapWindow: { start: now, count: 0 },
     settings: { lang: START.lang, numberFormat: START.numberFormat, tzOffsetMin: START.tzOffsetMin },
   };
@@ -179,6 +214,7 @@ const MAX_INT = Number.MAX_SAFE_INTEGER;
 /** Largest time (ms) a Date can hold: beyond it formatting a time throws. */
 export const MAX_DATE_MS = 8.64e15;
 const UINT32_MAX = 0xffffffff;
+const MS_PER_SEC = 1000;
 
 type Obj = Readonly<Record<string, unknown>>;
 
@@ -332,6 +368,126 @@ function parseReport(value: unknown): ReturnReport | null {
   };
 }
 
+// --- raids (v4) ---------------------------------------------------------------------------------------------------
+// The gate is what keeps a crafted export from farming relics or pysanky (platform review M2-22/23): a slot holds only
+// what a roll could have stored, a relic at most once across `relics` and the slots, and no more busy slots than
+// raids sent and not yet claimed.
+
+/** Relic ids in finding order, each once; an unknown id is dropped (a removed relic never bricks a save). */
+function relicList(value: unknown, path: string): RelicId[] {
+  if (!Array.isArray(value)) return fail('type', path);
+  const out: RelicId[] = [];
+  value.forEach((v: unknown, i) => {
+    const at = `${path}.${String(i)}`;
+    if (typeof v !== 'string') fail('type', at);
+    const id = RELIC_IDS.find((known) => known === v);
+    if (id === undefined) return;
+    if (out.includes(id)) fail('range', at);
+    out.push(id);
+  });
+  return out;
+}
+
+/** A slot's relic: null, or a known id; an unknown id becomes null (as in `relics`: never granted, never bricking). */
+function slotRelic(value: unknown, path: string): RelicId | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') return fail('type', path);
+  return RELIC_IDS.find((known) => known === value) ?? null;
+}
+
+/**
+ * One stored roll (`kind` of its slot). `held`: the relics found or already in an earlier slot — a slot relic must be
+ * none of them (it is added). Bounds are what `rollRaid` can store: started inside the game's time; back exactly the
+ * tier's duration later (no time modifier yet — M4 `raidTimeMult` widens this to its range), and by `maxSeen` once
+ * returned; pysanky and a relic only on a success and on a tier that can give them (a relic tier's chance turns into
+ * pysanky once every relic is held — checked in `parseRaids`, which knows every slot; the pity makes a relic sure from
+ * RELICS.pityMinTier up). A rumour start stored its day in `rumorDay`, which never falls below it.
+ */
+function parseRoll(
+  value: unknown,
+  path: string,
+  kind: 'running' | 'returned',
+  facts: { readonly time: GameState['time']; readonly rumorDay: number },
+  held: Set<RelicId>,
+): RaidRoll {
+  const { time } = facts;
+  const r = object(value, path, ['region', 'tier', 'startedAt', 'returnAt', 'success', 'rumor', 'loot']);
+  const tier = oneOf(r['tier'], `${path}.tier`, RAID_TIER_IDS);
+  const def = RAID_TIERS.find((t) => t.id === tier) ?? fail('range', `${path}.tier`);
+  const region = oneOf(r['region'], `${path}.region`, REGION_IDS);
+  const startedAt = int(r['startedAt'], `${path}.startedAt`, time.created, time.maxSeen);
+  const due = startedAt + def.durationSec * MS_PER_SEC;
+  const returnAt = int(r['returnAt'], `${path}.returnAt`, due, due);
+  if (kind === 'returned' && returnAt > time.maxSeen) fail('range', `${path}.returnAt`);
+  const success = bool(r['success'], `${path}.success`);
+  const rumor = bool(r['rumor'], `${path}.rumor`);
+  // The start set rumorDay = dayAt(maxSeen then, its zone) ≥ dayAt(startedAt, westernmost zone): maxSeen at a start is
+  // ≥ the start (the state is advanced to it) and dayAt grows with both arguments; a later rumour start sets it from a
+  // later maxSeen, again ≥ that bound in any zone. So this lower bound never refuses a save the game wrote.
+  if (rumor && facts.rumorDay < dayAt(startedAt, TZ_OFFSET_MIN.min)) fail('range', `${path}.rumor`);
+  const l = object(r['loot'], `${path}.loot`, ['ducats', 'glory', 'pysanky', 'relic']);
+  const canRelic = def.relicChance > 0 || tierRank(tier) >= tierRank(RELICS.pityMinTier);
+  const canPysanky = def.pysankyChance > 0 || def.relicChance > 0;
+  const loot: RaidLoot = {
+    ducats: big(l['ducats'], `${path}.loot.ducats`),
+    glory: big(l['glory'], `${path}.loot.glory`),
+    pysanky: int(l['pysanky'], `${path}.loot.pysanky`, 0, success && canPysanky ? RAIDS.pysanky.max : 0),
+    relic: slotRelic(l['relic'], `${path}.loot.relic`),
+  };
+  if (loot.relic !== null) {
+    if (!success || !canRelic || held.has(loot.relic)) fail('range', `${path}.loot.relic`);
+    held.add(loot.relic);
+  }
+  return { region, tier, startedAt, returnAt, success, rumor, loot };
+}
+
+function parseRaids(value: unknown, stats: Stats, time: GameState['time'], relics: readonly RelicId[]): RaidsState {
+  const p = '$.raids';
+  const o = object(value, p, ['slots', 'rumorDay', 'pity']);
+  // The easternmost zone's day of maxSeen, +1 for a zone change on the boundary (as chores.day).
+  const rumorDay = int(o['rumorDay'], `${p}.rumorDay`, -1, dayAt(time.maxSeen, TZ_OFFSET_MIN.max) + 1);
+  const list: unknown = o['slots'];
+  if (!Array.isArray(list)) return fail('type', `${p}.slots`);
+  if (list.length !== V4_RAID_SLOTS) fail('range', `${p}.slots`);
+  const held = new Set<RelicId>(relics);
+  const slots = list.map((v: unknown, i): RaidSlot => {
+    const at = `${p}.slots.${String(i)}`;
+    if (v === null || typeof v !== 'object' || Array.isArray(v)) return fail('type', at);
+    const kind = oneOf((v as Obj)['kind'], `${at}.kind`, ['idle', 'running', 'returned'] as const);
+    if (kind === 'idle') {
+      object(v, at, ['kind']);
+      return { kind };
+    }
+    // Slots past the open ones (RAIDS.slots in M3) stay idle until content opens them.
+    if (i >= RAIDS.slots) fail('range', `${at}.kind`);
+    const s = object(v, at, ['kind', 'raid']);
+    return { kind, raid: parseRoll(s['raid'], `${at}.raid`, kind, { time, rumorDay }, held) };
+  });
+  // Pysanky on a tier without a pysanky chance come only from its relic chance once every relic is held (M3-03): held
+  // only grows (a slot relic moves to `relics` on claim), so «all held now» is needed for «all held at the roll».
+  slots.forEach((slot, i) => {
+    if (slot.kind === 'idle' || slot.raid.loot.pysanky === 0) return;
+    const def = RAID_TIERS.find((t) => t.id === slot.raid.tier);
+    if (def?.pysankyChance === 0 && (held.size < RELIC_IDS.length || slot.raid.loot.relic !== null))
+      fail('range', `${p}.slots.${String(i)}.raid.loot.pysanky`);
+  });
+  // Every raid under way was sent and is not claimed yet: a crafted slot is not a free raid.
+  if (slots.filter((s) => s.kind !== 'idle').length > stats.raidsSent - stats.raidsDone) fail('range', `${p}.slots`);
+  return {
+    slots,
+    rumorDay,
+    // Below the threshold of the relics held — found and rolled into a slot, the count the roll uses (M3-03).
+    pity: int(o['pity'], `${p}.pity`, 0, pityThreshold(held.size) - 1),
+  };
+}
+
+/** raidsWon ≤ raidsDone ≤ raidsSent: a raid is won only when done, done only when sent. */
+function raidCounters(stats: Obj): Pick<Stats, 'raidsSent' | 'raidsDone' | 'raidsWon'> {
+  const raidsSent = int(stats['raidsSent'], '$.stats.raidsSent', 0, MAX_INT);
+  const raidsDone = int(stats['raidsDone'], '$.stats.raidsDone', 0, raidsSent);
+  return { raidsSent, raidsDone, raidsWon: int(stats['raidsWon'], '$.stats.raidsWon', 0, raidsDone) };
+}
+
 const ROOT_KEYS = [
   'version',
   'seed',
@@ -344,6 +500,8 @@ const ROOT_KEYS = [
   'stats',
   'story',
   'quests',
+  'raids',
+  'relics',
   'tapWindow',
   'settings',
 ] as const;
@@ -363,7 +521,16 @@ function parse(raw: unknown): GameState {
   const m = object(v['mechanic'], '$.village.mechanic', ['kind', 'stormsSurvived']);
   const army = object(root['army'], '$.army', ['infantry']);
   const infantry = int(army['infantry'], '$.army.infantry', 0, MAX_INT);
-  const stats = object(root['stats'], '$.stats', ['taps', 'purchases', 'levelsBought', 'hires', 'tapIncomeSec']);
+  const stats = object(root['stats'], '$.stats', [
+    'taps',
+    'purchases',
+    'levelsBought',
+    'hires',
+    'tapIncomeSec',
+    'raidsSent',
+    'raidsDone',
+    'raidsWon',
+  ]);
   const story = object(root['story'], '$.story', ['seen']);
   const settings = object(root['settings'], '$.settings', ['lang', 'numberFormat', 'tzOffsetMin']);
   const tw = object(root['tapWindow'], '$.tapWindow', ['start', 'count']);
@@ -375,12 +542,17 @@ function parse(raw: unknown): GameState {
     // Every Cossack in the army was hired: fewer hires than infantry is a crafted save (losses only lower infantry).
     hires: int(stats['hires'], '$.stats.hires', infantry, MAX_INT),
     tapIncomeSec: real(stats['tapIncomeSec'], '$.stats.tapIncomeSec', 0, MAX_INT),
+    ...raidCounters(stats),
   };
+  const relics = relicList(root['relics'], '$.relics');
+  // Every relic found came with a won raid.
+  if (relics.length > counters.raidsWon) fail('range', '$.relics');
+  const time = { lastSeen, maxSeen, created };
   return {
     version: STATE_VERSION,
     seed: int(root['seed'], '$.seed', 0, UINT32_MAX),
     rng: { state: int(object(root['rng'], '$.rng', ['state'])['state'], '$.rng.state', 0, UINT32_MAX) },
-    time: { lastSeen, maxSeen, created },
+    time,
     currencies: {
       ducats: big(c['ducats'], '$.currencies.ducats'),
       glory: big(c['glory'], '$.currencies.glory'),
@@ -402,6 +574,8 @@ function parse(raw: unknown): GameState {
     stats: counters,
     story: { seen: beats(story['seen'], '$.story.seen') },
     quests: parseQuests(root['quests'], chainSteps({ village: { id: landId } }), counters, maxSeen),
+    raids: parseRaids(root['raids'], counters, time, relics),
+    relics,
     tapWindow: {
       start: int(tw['start'], '$.tapWindow.start', 0, MAX_DATE_MS),
       count: int(tw['count'], '$.tapWindow.count', 0, TAP.maxPerSec),

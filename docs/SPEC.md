@@ -875,7 +875,7 @@ interface GameState {                       // version: 3 (STATE_VERSION)
 | v2 → v3 | `002-v2-to-v3.ts` (M2-23) | ланцюжок — на першому невиконаному кроці (виконані пропускаються мовчки, count-крок зупиняє прохід); справи свіжі; `tzOffsetMin` = 0 (платформа перепише при старті) |
 | v3 → v4 | `003-v3-to-v4.ts` (M3-04) | `raids` = усі слоти `idle`, `rumorDay` −1, `pity` 0; `relics` []; `raidsSent/Done/Won` 0; крок `khortytsia.raid1` вставлено після `hire1` (Q7): збереження з `index` далі `hire1` зсуваються на +1, крок для них виконаний мовчки, без нагороди |
 
-Фікстури `tests/fixtures/saves/v1.json`, `v2.json`, `v3.json` (зняті `tools/capture-save.ts`, незмінні) проходять увесь ланцюг і `chooseSave`; M3 додає `v4.json` (похід у дорозі + повернений).
+Фікстури `tests/fixtures/saves/v1.json` … `v4.json` (зняті `tools/capture-save.ts`, незмінні) проходять увесь ланцюг і `chooseSave`; `v4.json` (M3-04) — похід у дорозі + повернений: до бота з походами (M3-08) — заглушка сима `standInRaid` (`canStart` + `rollRaid`): онбординговий m5 (повернений) і h1 на кінці гри (у дорозі).
 
 **GameState v4 — план M3 (ADR 012; поля понад v3):**
 ```ts
@@ -891,7 +891,7 @@ type RaidSlot = { kind: 'idle' } | { kind: 'running'; raid: RaidRoll } | { kind:
 interface RaidRoll { region: RegionId; tier: RaidTierId; startedAt: number; returnAt: number;
   success: boolean; rumor: boolean; loot: { ducats: Big; glory: Big; pysanky: number; relic: RelicId | null } }
 ```
-`validateState` v4: `startedAt ≤ returnAt`, `returnAt − startedAt ≤` найдовшого тиру, `startedAt ≤ maxSeen`, Big-межі здобичі, `relic` лише незнайдена й без дублів у `relics`, `raidsWon ≤ raidsDone ≤ raidsSent`, кількість `running|returned` ≤ `raidsSent − raidsDone`, слот понад відкриті — `idle`, `0 ≤ pity < pityThreshold(relics.length)` (`content/relics.ts`: `RELICS.pityAt[n]`, після кінця списку — останнє), `rumorDay ≤ dayAt(maxSeen, +840) + 1`.
+`validateState` v4 (M3-04, збудовано): рівно `RAIDS.maxSlots` слотів, тир і регіон відомі; `created ≤ startedAt ≤ maxSeen`, `returnAt = startedAt +` тривалість **свого** тиру точно (до `raidTimeMult`, M4), у `returned` ще й `returnAt ≤ maxSeen`; Big-межі здобичі; писанки ≤ `RAIDS.pysanky.max` і лише на успіху тиру, що може їх дати (тир без шансу писанок — лише коли всі реліквії held і без реліквії в слоті); `rumor` → `rumorDay ≥ dayAt(startedAt, −720)`; `relics.length ≤ raidsWon`; довжина слотів = `V4_RAID_SLOTS` (3, частина форми v4); `relic` у слоті — лише на успіху тиру з шансом реліквії (або ≥ `pityMinTier`), не знайдена й не в іншому слоті (невідомий id → `null`); `relics` без дублів (невідомий id відкидається); `raidsWon ≤ raidsDone ≤ raidsSent`; кількість `running|returned` ≤ `raidsSent − raidsDone`; слот понад відкриті — `idle`; `0 ≤ pity < pityThreshold(held)`, де held — знайдені + реліквії в слотах (той самий лік, що в `rollRaid`; `content/relics.ts`: `RELICS.pityAt[n]`, після кінця списку — останнє); `−1 ≤ rumorDay ≤ dayAt(maxSeen, +840) + 1`.
 
 **Цільова форма (ескіз на v1.0, поля додаються з етапами):**
 ```ts
@@ -962,7 +962,7 @@ interface NotificationService { schedule(id: string, at: number, title: string, 
 - **Одна вкладка:** Web Lock `cossack-kin-game` (`platform/singleTab.ts`); друга вкладка гру не запускає (`OtherTab`). Без Locks API гра йде.
 - Debug-пресети `?state=` і `?freeze` грають у пам'яті й ніколи не чіпають `ck.save_a/b`.
 - Міграції `vN → vN+1` для кожної зміни схеми, кожна з тестом; ланцюг (`save/migrations/index.ts`), дірка = помилка: v1 → v2 → v3 (таблиця §9.3) → v4 (M3-04: походи, реліквії; e2e reload зберігає похід у дорозі). Фікстура на кожну версію (`tests/fixtures/saves/v1.json`, `v2.json`, `v3.json` — зняті з гри бота, незмінні); e2e reload зберігає віхи й квести (M2-24).
-- **Довіра до експорту (прийнято, M2-22):** checksum не захищає від підробки — відредагований і переписаний експорт завантажиться, якщо пройде `validateState`. Прийнятно: слава й дукати не мають грошової цінності й не пов'язані з рекламою чи покупками (права — лише з Play, §4.4). Відкрито до M8b: писанки теж лежать у `currencies` і продаються — їхній захист від редагованого експорту вирішити разом із магазином.
+- **Довіра до експорту (прийнято, M2-22):** checksum не захищає від підробки — відредагований і переписаний експорт завантажиться, якщо пройде `validateState`. Прийнятно: слава й дукати не мають грошової цінності й не пов'язані з рекламою чи покупками (права — лише з Play, §4.4). Відкрито до M8b: писанки теж лежать у `currencies` і продаються — їхній захист від редагованого експорту вирішити разом із магазином. Той самий прийнятий клас (M3-04): суми дукатів і слави в слотах походів обмежені лише `big()` (форма й кількість писанок/реліквій у слотах — суворо, §9.3).
 - **Експорт / імпорт** збереження рядком base64 у налаштуваннях, для перенесення й багрепортів. Імпорт обнуляє `purchases.entitlementCache` (права знову з Play, §4.4); куплене за писанки лишається.
 
 ### 9.6 Модифікатори

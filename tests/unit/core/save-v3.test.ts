@@ -60,7 +60,10 @@ describe('migration v2 → v3 (M2-23)', () => {
     const v3 = m.value as { version: number; settings: Record<string, unknown> };
     expect(v3.version).toBe(3);
     expect(v3.settings['tzOffsetMin']).toBe(0);
-    const v = validateState(v3);
+    // The gate is the current version's: on through the rest of the chain (v4 keeps a v3 index ≤ `hire1`, Q7).
+    const full = migrate(v3, 3);
+    if (!full.ok) throw new Error('migration');
+    const v = validateState(full.value);
     if (!v.ok) throw new Error(v.error.reason);
     expectFreshQuests(v.state);
     // The fixture is a played game: it is past the first step.
@@ -106,10 +109,11 @@ describe('migration v2 → v3 (M2-23)', () => {
     }
   });
 
-  it('v3 fields in a v4 envelope (or a v4 payload) are a newer game: never loaded', () => {
+  it('a game in a newer envelope (or with a newer payload) is a newer game: never loaded', () => {
     const game = JSON.parse(JSON.stringify(createInitialState({ seed: 8, now: T0 }))) as Record<string, unknown>;
-    expect(decodeSave(envelope(game, 4))).toEqual({ ok: false, reason: 'newer' });
-    expect(decodeSave(envelope({ ...game, version: 4 }, 4))).toEqual({ ok: false, reason: 'newer' });
+    const newer = STATE_VERSION + 1;
+    expect(decodeSave(envelope(game, newer))).toEqual({ ok: false, reason: 'newer' });
+    expect(decodeSave(envelope({ ...game, version: newer }, newer))).toEqual({ ok: false, reason: 'newer' });
   });
 });
 

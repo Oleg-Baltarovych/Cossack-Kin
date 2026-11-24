@@ -2,8 +2,8 @@
 // content whose chances overflow: one rumour (kurgan, ×2 relic chance) on h8, whose own chances are 0.9.
 import { describe, expect, it, vi } from 'vitest';
 import { RELIC_IDS } from '../../../src/content/relics.ts';
-import { createInitialState } from '../../../src/core/state.ts';
-import { previewRaid, raidBoard, rollRaid, type RaidFacts } from '../../../src/core/systems/raids.ts';
+import { createInitialState, type GameState } from '../../../src/core/state.ts';
+import { previewRaid, raidBoard, rollRaid } from '../../../src/core/systems/raids.ts';
 import { createRng } from '../../../src/core/rng.ts';
 
 vi.mock('../../../src/content/raids.ts', async (importOriginal) => {
@@ -17,7 +17,7 @@ vi.mock('../../../src/content/raids.ts', async (importOriginal) => {
 
 const T0 = 1_763_400_000_000;
 
-function state(relics: RaidFacts['relics'], rngSeed = 1): RaidFacts {
+function state(relics: GameState['relics'], rngSeed = 1): GameState {
   const s = createInitialState({ seed: 5, now: T0 });
   return {
     ...s,

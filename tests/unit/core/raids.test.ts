@@ -17,7 +17,6 @@ import {
   raidBoard,
   raidPower,
   rollRaid,
-  type RaidFacts,
   type RaidSlot,
 } from '../../../src/core/systems/raids.ts';
 
@@ -46,7 +45,7 @@ function raidState(
     maxSeen?: number;
     slots?: readonly RaidSlot[];
   } = {},
-): RaidFacts {
+): GameState {
   const s = createInitialState({ seed: o.seed ?? 5, now: T0 });
   const maxSeen = o.maxSeen ?? T0;
   return {
@@ -313,7 +312,7 @@ describe('concurrent raids (relics held in slots)', () => {
   function second(rngSeed: number, relics: readonly RelicId[], kind: 'running' | 'returned') {
     const first = raidState({ rngSeed, infantry: p, relics, pity: pityThreshold(relics.length) - 1 });
     const r1 = rollRaid(first, RELICS.pityMinTier, T0);
-    const s2: RaidFacts = {
+    const s2: GameState = {
       ...first,
       rng: r1.rng,
       raids: { ...first.raids, pity: r1.pity, slots: [{ kind, raid: r1.roll }, IDLE, IDLE] },
@@ -414,7 +413,7 @@ describe('previewRaid (§0.1 П3: shown = granted)', () => {
     for (const id of RAID_TIER_IDS) {
       const p = tierOf(id).power;
       const infantry = Math.max(1, Math.ceil(0.7 * p));
-      const cases: RaidFacts[] = [raidState({ seed, infantry, levels: FARM })];
+      const cases: GameState[] = [raidState({ seed, infantry, levels: FARM })];
       if ((BOARD.rumorTiers as readonly RaidTierId[]).includes(id)) {
         const day = rumorDayOf(seed, id, dayAt(T0, 0));
         const rumorDay = raidState({ seed, infantry, levels: FARM, maxSeen: day * DAY + 60 * MIN });

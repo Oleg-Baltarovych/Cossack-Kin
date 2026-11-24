@@ -250,6 +250,10 @@ describe('stats (M2-22, SPEC §3.10)', () => {
       levelsBought: 35,
       hires: 3,
       tapIncomeSec: 2 * TAP.incomeShare,
+      // No raid action ran (v4 counters, M3-04).
+      raidsSent: 0,
+      raidsDone: 0,
+      raidsWon: 0,
     });
   });
 
