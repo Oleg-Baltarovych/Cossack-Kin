@@ -16,8 +16,19 @@ import {
   type RaidSlot,
 } from './systems/raids.ts';
 import type { GameState } from './state.ts';
+import { chainQuest } from './systems/quests.ts';
 
 const PERCENT = 100;
+/**
+ * Floating-point slack for a whole percent: a share written as a whole percent (0.29) is 28.999…96 after × 100 in
+ * binary, and must still read 29. Far below any real difference between two chances (content shares are ≥ 0.01).
+ */
+const PERCENT_EPS = 1e-9;
+
+/** A share (0…1) as the whole percent the player reads: rounded down, so a shown chance never overstates the real one. */
+export function wholePercent(share: number): number {
+  return Math.floor(share * PERCENT + PERCENT_EPS);
+}
 
 /** The open slots of the state (closed ones are always idle, the save gate; M4+ open more). */
 function openSlots(state: GameState): readonly RaidSlot[] {
@@ -107,8 +118,12 @@ export interface RaidOfferView {
   readonly p: number;
   readonly power: number;
   readonly chance: number;
+  /** `chance` as the card reads it (`wholePercent`). */
+  readonly chancePct: number;
   /** Power still missing for chance 1, whole and rounded up; 0 at chance 1. */
   readonly powerToFull: number;
+  /** Power still missing to set off at all (≥ minPowerShare × P), whole and rounded up; 0 unless blocked by power. */
+  readonly powerToStart: number;
   /** The rumour this start would use (null: none on this offer, or used today). */
   readonly rumor: RumorId | null;
   readonly success: LootAmounts;
@@ -116,6 +131,8 @@ export interface RaidOfferView {
   /** Chances on a success. */
   readonly relicChance: number;
   readonly pysankyChance: number;
+  readonly relicPct: number;
+  readonly pysankyPct: number;
   /** «Старі козаки кажуть: реліквія близько»: a success of this raid is certain to give a relic. */
   readonly relicSure: boolean;
   readonly blocked: RaidOfferBlock;
@@ -140,17 +157,46 @@ export function raidBoardView(state: GameState): RaidBoardView {
       p: pre.p,
       power: pre.power,
       chance: pre.chance,
+      chancePct: wholePercent(pre.chance),
       powerToFull: pre.chance >= 1 ? 0 : Math.ceil(pre.p - pre.power),
+      powerToStart: pre.blocked === 'power' ? Math.ceil(RAIDS.minPowerShare * pre.p - pre.power) : 0,
       rumor: pre.rumor,
       success: pre.success,
       failure: pre.failure,
       relicChance: pre.relicChance,
       pysankyChance: pre.pysankyChance,
+      relicPct: wholePercent(pre.relicChance),
+      pysankyPct: wholePercent(pre.pysankyChance),
       relicSure: pre.relicSure,
       blocked: freeSlot === null ? 'slotBusy' : pre.blocked,
     };
   });
   return { freeSlot, offers };
+}
+
+/**
+ * The onboarding marker (§0.1 П9, Q7): while the active step of «Наказ кошового» asks for a raid to be sent (`raid1`),
+ * the map opens on the shortest tier — the sure 5-minute scouting (Q19) — and lights it; null otherwise.
+ */
+export function raidGuide(state: GameState): RaidTierId | null {
+  const q = chainQuest(state);
+  if (!q || q.done || q.goal.kind !== 'count' || q.goal.stat !== 'raidsSent') return null;
+  return RAID_TIER_IDS[0];
+}
+
+/**
+ * The offer the map opens on (M3-11 review): the onboarding tier (`raidGuide`); else today's rumour when the army
+ * can take it (a bonus worth a look, never an obligation — П2); else the longest tier the army can take now; else (no
+ * squad free, or nothing in reach) the first tier. Null only for an empty board.
+ */
+export function raidSuggested(state: GameState): RaidTierId | null {
+  const guide = raidGuide(state);
+  if (guide !== null) return guide;
+  const { offers } = raidBoardView(state);
+  const rumor = offers.find((o) => o.rumor !== null && o.blocked === null);
+  if (rumor) return rumor.tier;
+  const open = offers.filter((o) => o.blocked === null);
+  return (open[open.length - 1] ?? offers[0])?.tier ?? null;
 }
 
 /** A «загін повернувся» notification (the M6 platform schedules them, §3.9). */

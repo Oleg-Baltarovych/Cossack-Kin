@@ -3,30 +3,15 @@
 // (ui/storyQueue.ts, owned by GameUi) and come one at a time after the return window. A dialog named by its title:
 // the focus moves to its button and stays inside (Tab cycles), Esc closes it like the button does (the beat is already
 // paid, nothing is lost), and GameUi returns the focus once the last one closes (useDialogFocus).
-import { useCallback, useEffect, useId, useRef, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef } from 'react';
 import { storyBeatView } from '../../core/selectors.ts';
+import { trapTab } from '../hooks/useDialogFocus.ts';
 import { useText } from '../hooks/useText.ts';
 import { grantedText } from '../rewards.ts';
 import { useCoinLaunch } from './CoinFlight.tsx';
 import type { QueuedBeat } from '../storyQueue.ts';
 import { Portrait } from './Portrait.tsx';
 import styles from './StoryModal.module.css';
-
-const FOCUSABLE = 'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
-
-/** Tab and Shift+Tab stay inside `box`: from the last control to the first and back. */
-function trapTab(e: KeyboardEvent<HTMLElement>, box: HTMLElement): void {
-  if (e.key !== 'Tab') return;
-  const items = [...box.querySelectorAll<HTMLElement>(FOCUSABLE)];
-  const first = items[0];
-  const last = items[items.length - 1];
-  if (!first || !last) return;
-  const edge = e.shiftKey ? first : last;
-  if (document.activeElement === edge || !box.contains(document.activeElement)) {
-    e.preventDefault();
-    (e.shiftKey ? last : first).focus();
-  }
-}
 
 export interface StoryModalProps {
   readonly beat: QueuedBeat & { readonly more: number };

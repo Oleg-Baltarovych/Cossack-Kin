@@ -5,7 +5,7 @@
 import { Assets, Spritesheet, type Texture } from 'pixi.js';
 
 /** One entry of public/atlases/index.json (tools/lib/sprites/atlas.ts `AtlasIndex`). */
-interface AtlasEntry {
+export interface AtlasEntry {
   readonly name: string;
   readonly json: string;
   /** Dev/test-only atlas (e.g. `debug`): skipped in production, where the file is not shipped either. */
@@ -41,6 +41,16 @@ function parseIndex(json: unknown): AtlasEntry[] {
   });
 }
 
+/**
+ * The entries of index.json (untrusted JSON) that Pixi loads: the world's own atlases (`WORLD_ATLASES`) and, in a
+ * dev/test build (`debug`), the debug ones. The DOM reads its atlases itself (`ui` icons, the raid `map`:
+ * ui/atlasSource.ts); loading them here too cost the start decode and GPU memory for textures no scene draws.
+ */
+export function pixiAtlases(json: unknown, debug: boolean): AtlasEntry[] {
+  const world: readonly string[] = WORLD_ATLASES;
+  return parseIndex(json).filter((e) => (e.debug ? debug : world.includes(e.name)));
+}
+
 export async function loadAtlases(): Promise<Atlases> {
   if (!configured) {
     // CSP (M0-12): Pixi's default image loader runs in a Worker built from a blob: URL, which a strict
@@ -50,7 +60,7 @@ export async function loadAtlases(): Promise<Atlases> {
   }
   const response = await fetch(`${ATLAS_DIR}index.json`);
   if (!response.ok) throw new Error(`atlases/index.json: HTTP ${String(response.status)} — run \`pnpm sprites\``);
-  const entries = parseIndex(await response.json()).filter((e) => __CK_DEBUG__ || !e.debug);
+  const entries = pixiAtlases(await response.json(), __CK_DEBUG__);
 
   const urls = new Map(entries.map((e) => [e.name, `${ATLAS_DIR}${e.json}`]));
   const atlases = await loadSheets(urls, {

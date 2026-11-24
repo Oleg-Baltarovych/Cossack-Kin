@@ -8,12 +8,16 @@ import {
   raidAlerts,
   raidBoardView,
   raidClaimable,
+  raidGuide,
+  raidSuggested,
+  wholePercent,
   raidSceneView,
   raidSlotsView,
   relicsView,
   type RaidSceneView,
   type RaidSlotView,
 } from '../../../src/core/raid-selectors.ts';
+import { QUEST_CHAIN } from '../../../src/content/quests.ts';
 import { hudView } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { previewRaid, raidPower, raidTier, type RaidRoll, type RaidSlot } from '../../../src/core/systems/raids.ts';
@@ -264,5 +268,92 @@ describe('relicsView and raidSceneView', () => {
     expect(raidSceneView(s)).toEqual({ slots: ['away', 'back'] });
     expect(raidSceneView(st())).toEqual({ slots: ['idle', 'idle'] });
     expectTypeOf<RaidSceneView>().toEqualTypeOf<{ readonly slots: readonly ('idle' | 'away' | 'back')[] }>();
+  });
+});
+
+describe('raidGuide: the onboarding marker (plan M3-11, §0.1 П9)', () => {
+  const at = (id: string, base = 0, sent = 0): GameState => {
+    const s = st();
+    const index = QUEST_CHAIN.findIndex((q) => q.id === id);
+    if (index < 0) throw new Error(id);
+    return {
+      ...s,
+      quests: { ...s.quests, chain: { kind: 'listed', index, base } },
+      stats: { ...s.stats, raidsSent: sent },
+    };
+  };
+
+  it('while the chain asks for the first raid, the map leads to the shortest tier', () => {
+    expect(raidGuide(at('khortytsia.raid1'))).toBe(RAID_TIER_IDS[0]);
+  });
+
+  it('nothing once that step is done (a raid sent), on any other step, or past the chain', () => {
+    expect(raidGuide(at('khortytsia.raid1', 0, 1))).toBeNull();
+    expect(raidGuide(at('khortytsia.hire1'))).toBeNull();
+    expect(raidGuide(at('khortytsia.field10'))).toBeNull();
+    const s = st();
+    expect(raidGuide({ ...s, quests: { ...s.quests, chain: { kind: 'done' } } })).toBeNull();
+  });
+});
+
+describe('raidBoardView: whole percents and the power to set off (M3-11 review)', () => {
+  it('chancePct / relicPct / pysankyPct are whole and never above the share × 100 (a shown chance never overstates)', () => {
+    for (const infantry of [1, 7, 33, 60, 123, 450, 999]) {
+      for (const o of raidBoardView(st({ infantry })).offers) {
+        for (const [pct, share] of [
+          [o.chancePct, o.chance],
+          [o.relicPct, o.relicChance],
+          [o.pysankyPct, o.pysankyChance],
+        ] as const) {
+          expect(Number.isInteger(pct), o.tier).toBe(true);
+          expect(pct, o.tier).toBeLessThanOrEqual(share * 100 + 1e-9);
+          expect(pct, o.tier).toBeGreaterThan(share * 100 - 1);
+        }
+      }
+    }
+    // A share that is a whole percent in decimal but not in binary still reads whole: 0.29 × 100 = 28.999…
+    expect(wholePercent(0.29)).toBe(29);
+    expect(wholePercent(1)).toBe(100);
+    expect(wholePercent(0.999)).toBe(99);
+  });
+
+  it('powerToStart: the power still missing to set off (minPowerShare × P), whole and rounded up; 0 when it can go', () => {
+    const s = st({ infantry: 60 });
+    for (const o of raidBoardView(s).offers) {
+      const need = Math.ceil(RAIDS.minPowerShare * o.p - o.power);
+      expect(o.powerToStart, o.tier).toBe(o.blocked === 'power' ? need : 0);
+      if (o.blocked === 'power') expect(o.powerToStart, o.tier).toBeGreaterThan(0);
+    }
+    expect(raidBoardView(s).offers.find((o) => o.tier === 'h8')?.powerToStart).toBe(
+      Math.ceil(RAIDS.minPowerShare * tierOf('h8').power - raidPower(s)),
+    );
+  });
+});
+
+describe('raidSuggested: the offer the map opens on (M3-11 review)', () => {
+  const chainAt = (s: GameState, id: string): GameState => {
+    const index = QUEST_CHAIN.findIndex((q) => q.id === id);
+    return { ...s, quests: { ...s.quests, chain: { kind: 'listed', index, base: s.stats.raidsSent } } };
+  };
+
+  it('the onboarding tier first', () => {
+    expect(raidSuggested(chainAt(st({ infantry: 900 }), 'khortytsia.raid1'))).toBe(RAID_TIER_IDS[0]);
+  });
+
+  it('else the rumour offer when the army can take it, else the longest tier it can take', () => {
+    const strong = st({ infantry: 2000 });
+    const rumor = raidBoardView(strong).offers.find((o) => o.rumor !== null);
+    expect(rumor).toBeDefined();
+    expect(raidSuggested(strong)).toBe(rumor?.tier);
+    // Weak: the rumour offer (≥ 30 min) is blocked by power → the longest tier that is not.
+    const weak = st({ infantry: 5 });
+    const open = raidBoardView(weak).offers.filter((o) => o.blocked === null);
+    expect(raidBoardView(weak).offers.find((o) => o.rumor !== null)?.blocked).toBe('power');
+    expect(raidSuggested(weak)).toBe(open[open.length - 1]?.tier);
+  });
+
+  it('nothing free (every squad out): the first tier', () => {
+    const busy = { kind: 'running', raid: roll('h8', T0) } as const;
+    expect(raidSuggested(st({ infantry: 2000, slots: [busy, busy, IDLE] }))).toBe(RAID_TIER_IDS[0]);
   });
 });

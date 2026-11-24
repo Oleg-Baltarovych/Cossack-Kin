@@ -1,8 +1,8 @@
 // The «Походи» block on «Січ» (plan M3-09; SPEC §3.4, §10; plan §0.1 П1/П4/П10/П12). Over the Sich list: the army's
 // power with the found relics' badges (Q10), «Забрати все · N» from two returned raids (Q17), then one card per open
 // slot —
-//   idle      one line «Загін N · чекає наказу» + «Обрати похід» (opens the map for that slot: `onChoose`; the map is
-//             M3-11, so until it is passed in the button is off with its reason, never a button that does nothing);
+//   idle      one line «Загін N · чекає наказу» + «Обрати похід» (opens the raid map for that slot: `onChoose`, M3-11;
+//             without it — a list shown on its own — no button at all, never one that does nothing);
 //   running   tier and region, the time left in two units (seconds only in the last minute), «повернуться о 21:40» /
 //             «завтра о 06:10» on the game's clock (`settings.tzOffsetMin`, the day the quests count) and the road bar —
 //             no chance and no result (M3-06: the view has none);
@@ -112,7 +112,7 @@ const Card = memo(function Card({ card, onChoose, onOwnPress }: CardProps) {
 
   let body;
   if (v.kind === 'idle') {
-    const note = v.blocked === 'power' ? text.t('ui.raids.noPower') : onChoose ? null : text.t('ui.raids.mapSoon');
+    const note = v.blocked === 'power' ? text.t('ui.raids.noPower') : null;
     body = (
       <>
         <div className={styles.text}>
@@ -133,18 +133,20 @@ const Card = memo(function Card({ card, onChoose, onOwnPress }: CardProps) {
             </p>
           )}
         </div>
-        <button
-          type="button"
-          className={styles.button}
-          disabled={note !== null}
-          aria-label={text.t('ui.raids.chooseLabel', { n })}
-          aria-describedby={note !== null ? noteId : undefined}
-          onClick={() => {
-            onChoose?.(v.slot);
-          }}
-        >
-          {text.t('ui.raids.choose')}
-        </button>
+        {onChoose && (
+          <button
+            type="button"
+            className={styles.button}
+            disabled={note !== null}
+            aria-label={text.t('ui.raids.chooseLabel', { n })}
+            aria-describedby={note !== null ? noteId : undefined}
+            onClick={() => {
+              onChoose(v.slot);
+            }}
+          >
+            {text.t('ui.raids.choose')}
+          </button>
+        )}
       </>
     );
   } else if (v.kind === 'running') {
@@ -290,7 +292,7 @@ function useRaidNews(cards: readonly SlotCard[]): { readonly id: number; readonl
 }
 
 export interface RaidsBlockProps {
-  /** «Обрати похід» for `slot`: open the map (M3-11). Absent: the button is off with its reason. */
+  /** «Обрати похід» for `slot`: open the raid map (M3-11). Absent: the idle cards have no button. */
   readonly onChoose?: ((slot: number) => void) | undefined;
 }
 

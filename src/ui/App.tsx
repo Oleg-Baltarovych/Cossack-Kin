@@ -10,6 +10,7 @@ import { CoinFlight, type BuildingAt } from './components/CoinFlight.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel, type Reveal } from './components/Panel.tsx';
+import { RaidMap } from './components/RaidMap.tsx';
 import { ReturnModal } from './components/ReturnModal.tsx';
 import { StoryModal } from './components/StoryModal.tsx';
 import { TapFeedback } from './components/TapFeedback.tsx';
@@ -69,7 +70,9 @@ export function App({ game }: { game: Game }) {
 
 /**
  * HUD and panel, made inert (no focus, no screen reader) while a window is open — aria-modal alone is not. Windows
- * come one at a time: the save notice, then the return window, then the story beats in their queue (M2-25).
+ * come one at a time: the save notice, then the return window, then the story beats in their queue (M2-25). The raid
+ * map (M3-11) is a window the player opens from a squad's «Обрати похід»: story beats wait while it is open, and the
+ * save notice or the return window close it (nothing is lost: the board is the day's, the map opens again).
  */
 export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notice'] }) {
   const away = useGame((s) => s.returnReport !== null);
@@ -81,8 +84,13 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
       if (e.type === 'StoryBeatReached' || e.type === 'StateReplaced') toQueue(e);
     }, []),
   );
-  const beat = shownBeat(queue, away || noticeOpen);
-  const windowOpen = away || noticeOpen || beat !== null;
+  const [mapSlot, setMapSlot] = useState<number | null>(null);
+  useEffect(() => {
+    if (away || noticeOpen) setMapSlot(null);
+  }, [away, noticeOpen]);
+  const mapOpen = mapSlot !== null && !away && !noticeOpen;
+  const beat = shownBeat(queue, away || noticeOpen || mapOpen);
+  const windowOpen = away || noticeOpen || mapOpen || beat !== null;
   useDialogFocus(windowOpen);
   // A tap on a building opens its row in the sheet (SPEC §3.3, M2-13); a tap on open ground earns (TapFeedback).
   const [reveal, setReveal] = useState<Reveal | null>(null);
@@ -107,9 +115,18 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
             reveal={reveal}
             onReveal={(building, sheetTop) => world?.reveal(building, sheetTop)}
             onSelect={(building) => world?.mark(building)}
+            onChooseRaid={setMapSlot}
           />
         </div>
         <TierBanner />
+        {mapOpen && (
+          <RaidMap
+            slot={mapSlot}
+            onClose={() => {
+              setMapSlot(null);
+            }}
+          />
+        )}
         {/* The save notice first: the return window waits under it, the story beats under both. */}
         {noticeOpen ? (
           <BootNotice

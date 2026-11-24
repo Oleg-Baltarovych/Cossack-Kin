@@ -115,8 +115,23 @@ export const RAIDS = {
   pysanky: { min: 1, max: 2 },
 } as const;
 
-/** The map of the Lower Dnipro (Q11), in logical px; markers keep `marginPx` from its edge (art: M3-10). */
-export const RAID_MAP = { w: 180, h: 150, marginPx: 8 } as const;
+/**
+ * The map of the Lower Dnipro (Q11), in map px; markers keep `marginPx` from its edge (art: M3-10). A squad on the road
+ * (M3-11) stands `squadDx` px left of its region's marker foot (its pivot, the hooves), clear of the flag on the right.
+ * The map screen draws it at `scale` logical px per map px (art-director M3-10: ×1 is too small for the markers).
+ * Read off the marker art (14×20, pivot = the pole's foot): a flag's tap box is centred `flagCentre` from the foot (on
+ * the cloth); its tier tag stands with its top `tag.dy` above the foot, `tag.right` px right of the pole (its left edge)
+ * or `tag.left` px left of it (its right edge) — both clear of the --tap box at ×2 (M3-11 review).
+ */
+export const RAID_MAP = {
+  w: 180,
+  h: 150,
+  marginPx: 8,
+  squadDx: -11,
+  scale: 2,
+  flagCentre: { dx: 5, dy: -10 },
+  tag: { right: 17, left: 7, dy: -19 },
+} as const;
 
 export const REGION_IDS = ['samara', 'vovchiVody', 'porohy', 'kinskiVody', 'tavan', 'dykePole'] as const;
 export type RegionId = (typeof REGION_IDS)[number];
@@ -127,23 +142,38 @@ export interface Region {
   /** Marker on RAID_MAP, north up (Khortytsia ≈ (80, 78)). */
   readonly x: number;
   readonly y: number;
+  /**
+   * The rumour glint's centre relative to the marker foot (M3-11; art-director M3-10: off the water). Picked against the
+   * drawn map: the glint stays on dry land, inside the frame, clear of every tier flag and of the squad (gen-map test).
+   */
+  readonly glint: { readonly dx: number; readonly dy: number };
+  /** Which side of the flag its tier tag reads (M3-11 review: picked per region so no tag runs into another flag). */
+  readonly tag: 'left' | 'right';
   readonly nameKey: string;
   readonly textKey: string;
 }
 
-function region(id: RegionId, x: number, y: number): Region {
-  return { id, x, y, nameKey: `region.khortytsia.${id}.name`, textKey: `region.khortytsia.${id}.text` };
+function region(id: RegionId, x: number, y: number, glint: readonly [number, number], tag: Region['tag']): Region {
+  return {
+    id,
+    x,
+    y,
+    glint: { dx: glint[0], dy: glint[1] },
+    tag,
+    nameKey: `region.khortytsia.${id}.name`,
+    textKey: `region.khortytsia.${id}.text`,
+  };
 }
 
 /** Regions per land; the board picks one per tier a day (`raidBoard`, M3-03). Rough real layout of the Lower Dnipro. */
 export const REGIONS = {
   khortytsia: [
-    region('samara', 96, 25), // the Samara joins the Dnipro from the east, above the rapids (M3-10: y 18 → 25, the 8-h flag stays inside the map's frame)
-    region('vovchiVody', 150, 30), // the Vovcha, a tributary of the Samara, far east in the steppe
-    region('porohy', 89, 48), // the rapids, between the Samara mouth and Khortytsia (M3-10: x 86 → 89, the flag clears the ridges)
-    region('kinskiVody', 122, 96), // the Konka runs from the east to the Velykyi Luh below Khortytsia
-    region('tavan', 44, 128), // the Tavan crossing, down the Dnipro to the south-west
-    region('dykePole', 142, 130), // the open steppe, south-east
+    region('samara', 96, 25, [2, 8], 'right'), // the Samara joins the Dnipro from the east, above the rapids (M3-10: y 18 → 25, the 8-h flag stays inside the map's frame)
+    region('vovchiVody', 150, 30, [-6, 8], 'left'), // the Vovcha, a tributary of the Samara, far east in the steppe
+    region('porohy', 89, 48, [9, 8], 'right'), // the rapids, between the Samara mouth and Khortytsia (M3-10: x 86 → 89, the flag clears the ridges)
+    region('kinskiVody', 122, 96, [0, 8], 'right'), // the Konka runs from the east to the Velykyi Luh below Khortytsia
+    region('tavan', 44, 128, [9, 9], 'right'), // the Tavan crossing, down the Dnipro to the south-west
+    region('dykePole', 142, 130, [0, 8], 'left'), // the open steppe, south-east
   ],
 } as const satisfies Readonly<Record<Village['id'], readonly Region[]>>;
 
