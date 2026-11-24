@@ -15,6 +15,10 @@ export type CossackLower = 'stand' | 'stance' | 'sit';
 
 export interface CossackPose {
   readonly lower: CossackLower;
+  /** Leg mask of a standing body (the kozak's LEGS: 0 stand, 1 stride, 2 recoil, 3 passing) — the march steps. */
+  readonly legs: number;
+  /** Belt ends: 0 hang, 1 trailing (the march). */
+  readonly belt: number;
   /** Upper body moved down (sitting), px. */
   readonly drop: number;
   /** Upper body moved forward (right), px. */
@@ -64,8 +68,11 @@ export interface FlameInks {
 const ink = (p: Pt, ramp: RampName, shade: number): Ink => ({ x: p.x, y: p.y, ramp, shade });
 const at = (p: Pt, dx: number, dy: number): Pt => ({ x: p.x + dx, y: p.y + dy });
 
-const pose = (g: BodyGeom, p: Partial<CossackPose>): CossackPose => ({
+/** A pose from the standing defaults (shared with the raid figures: bearer, chest carriers). */
+export const cossackFrame = (g: BodyGeom, p: Partial<CossackPose>): CossackPose => ({
   lower: 'stand',
+  legs: 0,
+  belt: 0,
   drop: 0,
   lean: 0,
   lift: 0,
@@ -115,7 +122,7 @@ function drill(g: BodyGeom, t: CossackInks, f: number): CossackPose {
   const hand = at(g.near, k.hand[0] ?? 0, k.hand[1] ?? 0);
   const butt = { x: g.cx + (k.butt[0] ?? 0), y: g.ground + (k.butt[1] ?? 0) };
   const muzzle = { x: g.cx + (k.muzzle[0] ?? 0), y: g.ground + (k.muzzle[1] ?? 0) };
-  return pose(g, {
+  return cossackFrame(g, {
     near: hand,
     tools: musket(butt, muzzle, t),
     shadow: [g.shadow[0], Math.max(g.shadow[1], butt.x + 2)],
@@ -147,7 +154,7 @@ function smoke(g: BodyGeom, t: CossackInks, f: number): CossackPose {
   const [far, near] = t.smoke.shades;
   if (f === 0) {
     const hand = at(mouth, 3, 3);
-    return pose(g, {
+    return cossackFrame(g, {
       lower: 'sit',
       drop,
       near: hand,
@@ -166,7 +173,7 @@ function smoke(g: BodyGeom, t: CossackInks, f: number): CossackPose {
     });
   }
   const hand = { x: g.cx + 6, y: g.ground - 6 };
-  return pose(g, {
+  return cossackFrame(g, {
     lower: 'sit',
     drop,
     lift: 1,
@@ -197,7 +204,7 @@ function cheer(g: BodyGeom, f: number): CossackPose {
     { lift: 0, near: [5, -4], far: [-4, -4] },
   ][f];
   if (!k) throw new Error(`cheer: no frame ${String(f)}`);
-  return pose(g, {
+  return cossackFrame(g, {
     lift: k.lift,
     drift: k.lift,
     near: at(g.near, k.near[0] ?? 0, (k.near[1] ?? 0) - k.lift),
@@ -224,7 +231,7 @@ function spear(x: number, g: BodyGeom, top: number, t: CossackInks): Ink[] {
 function watch(g: BodyGeom, t: CossackInks, f: number): CossackPose {
   const lift = f === 1 ? 1 : 0;
   const x = g.cx + 5;
-  return pose(g, {
+  return cossackFrame(g, {
     lift,
     drift: lift,
     near: { x, y: g.near.y + 4 - lift },
@@ -268,7 +275,7 @@ function torch(g: BodyGeom, t: CossackInks, fl: FlameInks, f: number): CossackPo
   const [wd, wm] = t.wood.shades;
   const head = at(hand, 0, -3);
   const fire = flame(head, f, fl);
-  return pose(g, {
+  return cossackFrame(g, {
     near: hand,
     tools: [
       ink(at(hand, 0, -1), t.wood.ramp, wm),
@@ -282,8 +289,149 @@ function torch(g: BodyGeom, t: CossackInks, fl: FlameInks, f: number): CossackPo
   });
 }
 
-/** The rank-and-file Cossack's animations beyond walk/idle (content COSSACK_ANIMS: drill 4 @8, sit-smoke 2 @2, cheer 4 @10). */
-export const COSSACK_FRAMES = { drill: 4, 'sit-smoke': 2, cheer: 4 } as const;
+/**
+ * The march step (6 frames, the walk's cycle): leg mask, body rise, шлик and belt ends trailing, and the far arm's
+ * swing behind the body (−1 back, where it shows past the back; +1 forward, hidden by the torso).
+ */
+export const MARCH_STEPS = [
+  { legs: 1, bob: 0, drift: 1, belt: 1, swing: -1 },
+  { legs: 2, bob: 0, drift: 1, belt: 0, swing: 0 },
+  { legs: 3, bob: -1, drift: 0, belt: 1, swing: 1 },
+  { legs: 1, bob: 0, drift: 1, belt: 1, swing: 1 },
+  { legs: 2, bob: 0, drift: 1, belt: 0, swing: 0 },
+  { legs: 3, bob: -1, drift: 0, belt: 1, swing: -1 },
+] as const;
+
+/**
+ * The upright самопал (art-director M3-13: a 2-px steel bar read as a drawn sabre): a wooden stock 2 px wide from the
+ * butt in the fist up to the chest — its sun (left) edge a shade lighter — then a 1-px dark iron barrel with one light
+ * px at the muzzle.
+ */
+function shoulderedMusket(butt: Pt, muzzle: Pt, t: CossackInks): Ink[] {
+  const [wd, wm, wl] = t.wood.shades;
+  const [md, , ml] = t.metal.shades;
+  const pts = line(butt, muzzle);
+  const STOCK = 8;
+  return pts.flatMap((p, i) => {
+    if (i < STOCK) return [ink(at(p, -1, 0), t.wood.ramp, i === 0 ? wd : wl), ink(p, t.wood.ramp, i === 0 ? wd : wm)];
+    return [ink(p, t.metal.ramp, i === pts.length - 1 ? ml : md)];
+  });
+}
+
+const step = (f: number): (typeof MARCH_STEPS)[number] => {
+  const k = MARCH_STEPS[f];
+  if (!k) throw new Error(`march: no frame ${String(f)}`);
+  return k;
+};
+
+/**
+ * On the march (6 frames @10, M3-13): the самопал carried upright on the near shoulder — the butt in the near fist at
+ * the hip, the barrel standing just before the face with the muzzle over the шапка (the slope over the shoulder
+ * would cross the face in side view) — the far arm swinging behind, the walk's legs; the musket rides the body's
+ * rise. The steady upright musket against the swinging stride is what tells the march from the walk.
+ */
+function march(g: BodyGeom, t: CossackInks, f: number): CossackPose {
+  const k = step(f);
+  const b = k.bob;
+  const butt = { x: g.cx + 7, y: g.ground - 8 + b };
+  const muzzle = { x: g.cx + 6, y: g.ground - 26 + b };
+  return cossackFrame(g, {
+    legs: k.legs,
+    belt: k.belt,
+    drop: b,
+    drift: k.drift,
+    near: { x: butt.x, y: butt.y - 3 },
+    // The back-swing's fist shows past the belt ends (art-director M3-13); the forward one hides behind the torso.
+    far: k.swing === 0 ? null : at(g.far, k.swing < 0 ? -4 : 3, 5 + b),
+    tools: shoulderedMusket(butt, muzzle, t),
+    shadow: [g.shadow[0] - (k.legs === 1 ? 1 : 0), Math.max(g.shadow[1], butt.x + 2)],
+  });
+}
+
+/** The корогва's pole in a bearer's frame (body-local): its column, foot and top rows (the hoist is the top row). */
+export interface Pole {
+  readonly x: number;
+  readonly foot: number;
+  readonly top: number;
+}
+
+/** Pole length, px (≈ 1.4 men: the cloth flies over the squad's heads). */
+export const POLE_LENGTH = 40;
+
+/**
+ * Where the bearer's pole stands (M3-13): at rest grounded by the near boot, the hand on it at the chest; on the
+ * march lifted, the butt held at the belt and the near fist high on the shaft, riding the step's rise.
+ */
+export function bearerPole(g: BodyGeom, anim: BearerAction, f: number): Pole {
+  // A column before the face (the nose is at cx + 4): the shaft never crosses the moustache.
+  const x = g.cx + 6;
+  if (anim === 'idle') return { x, foot: g.ground, top: g.ground + 1 - POLE_LENGTH };
+  const foot = g.ground - 7 + step(f).bob;
+  return { x, foot, top: foot + 1 - POLE_LENGTH };
+}
+
+/** Finial inks: a gilt spear-point (never a cross-piece: a plus reads as a crucifix — otaman M2-19 note). */
+export interface FinialInks {
+  readonly ramp: RampName;
+  /** Shade, dark … light. */
+  readonly shades: readonly [number, number, number];
+}
+
+/** The pole's shaft (lit every 5th px, like the guard's spear) and the finial over its top. */
+function poleInks(p: Pole, t: CossackInks, fin: FinialInks): Ink[] {
+  const [wd, wm, wl] = t.wood.shades;
+  const [fd, fm, fl] = fin.shades;
+  const shaft = Array.from({ length: p.foot - p.top + 1 }, (_, i) =>
+    ink({ x: p.x, y: p.foot - i }, t.wood.ramp, i === 0 ? wd : i % 5 === 0 ? wl : wm),
+  );
+  // A squat gilt knob (3 × 2, lit top-left) with a point: the cross-piece is at the bottom, so it never reads as a plus.
+  return [
+    ...shaft,
+    ink({ x: p.x - 1, y: p.top - 1 }, fin.ramp, fm),
+    ink({ x: p.x, y: p.top - 1 }, fin.ramp, fm),
+    ink({ x: p.x + 1, y: p.top - 1 }, fin.ramp, fd),
+    ink({ x: p.x - 1, y: p.top - 2 }, fin.ramp, fl),
+    ink({ x: p.x, y: p.top - 2 }, fin.ramp, fl),
+    ink({ x: p.x + 1, y: p.top - 2 }, fin.ramp, fm),
+    ink({ x: p.x, y: p.top - 3 }, fin.ramp, fl),
+  ];
+}
+
+/** The bearer's two animations (content BEARER_ANIMS march 6 @10; idle is the person set's 4 @6). */
+export const BEARER_FRAMES = { idle: 4, march: 6 } as const;
+export type BearerAction = keyof typeof BEARER_FRAMES;
+
+/**
+ * The корогвоносець (M3-13): at rest (4 @6) on the grounded pole, breathing like the idle; on the march (6 @10) the
+ * pole lifted and held upright before him, no arm swing (both hands are on the shaft; the far one hides behind the
+ * body). The cloth is not here: it is its own sprite (`korohva`, 4 frames at the wind's rate) hung at the pole top.
+ */
+export function bearerPose(anim: BearerAction, f: number, g: BodyGeom, t: CossackInks, fin: FinialInks): CossackPose {
+  const p = bearerPole(g, anim, f);
+  if (anim === 'idle') {
+    const lift = f === 1 || f === 2 ? 1 : 0;
+    return cossackFrame(g, {
+      lift,
+      drift: f >= 2 ? 1 : 0,
+      near: { x: p.x, y: g.near.y + 3 - lift },
+      tools: poleInks(p, t, fin),
+      shadow: [g.shadow[0], Math.max(g.shadow[1], p.x + 2)],
+    });
+  }
+  const k = step(f);
+  return cossackFrame(g, {
+    legs: k.legs,
+    belt: k.belt,
+    drop: k.bob,
+    drift: k.drift,
+    near: { x: p.x, y: g.near.y + 2 + k.bob },
+    tools: poleInks(p, t, fin),
+    shadow: [g.shadow[0] - (k.legs === 1 ? 1 : 0), Math.max(g.shadow[1], p.x + 2)],
+  });
+}
+
+/** The rank-and-file Cossack's animations beyond walk/idle (content COSSACK_ANIMS: drill 4 @8, sit-smoke 2 @2, cheer 4 @10, march 6 @10). */
+export const COSSACK_FRAMES = { drill: 4, 'sit-smoke': 2, cheer: 4, march: 6 } as const;
 export type CossackAction = keyof typeof COSSACK_FRAMES;
 export const isCossackAction = (anim: string): anim is CossackAction => anim in COSSACK_FRAMES;
 
@@ -301,6 +449,8 @@ export function cossackPose(anim: CossackAction, f: number, g: BodyGeom, t: Coss
       return smoke(g, t, f);
     case 'cheer':
       return cheer(g, f);
+    case 'march':
+      return march(g, t, f);
   }
 }
 

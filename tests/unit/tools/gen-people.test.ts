@@ -14,12 +14,24 @@ import { renderGenerator, type FrameImage } from '../../../tools/lib/sprites/atl
 import { colorStats } from '../../../tools/lib/sprites/contact-sheet.ts';
 import otaman, { OTAMAN_GROUND, OTAMAN_OUTFIT } from '../../../assets-src/gen/people/otaman/index.ts';
 import vartovyi, { VARTOVYI_GROUND, VARTOVYI_OUTFITS } from '../../../assets-src/gen/people/vartovyi/index.ts';
+import khorunzhyi, {
+  bearerHoist,
+  KHORUNZHYI_GROUND,
+  KHORUNZHYI_OUTFIT,
+} from '../../../assets-src/gen/people/khorunzhyi/index.ts';
+import nosii, { REAR_OUTFIT } from '../../../assets-src/gen/people/nosii/index.ts';
+import korohva, { inNotch } from '../../../assets-src/gen/people/korohva/index.ts';
+import skrynia, { CHEST } from '../../../assets-src/gen/people/skrynia/index.ts';
+import banner, { BANNER_CLOTH, BANNER_PAD, bannerOffset } from '../../../assets-src/gen/khortytsia/banner/index.ts';
 import {
   COSSACK_ANIMS,
   GUARD_ANIMS,
   KOZAK_SPRITES,
   GUARD_SPRITES,
+  BEARER_BANNER,
   OTAMAN_ANIMS,
+  RAID_ANIMS,
+  RAID_SPRITES,
   VILLAGER_ANIMS,
   VILLAGER_SPRITES,
 } from '../../../src/content/agents.ts';
@@ -305,6 +317,8 @@ describe('no state symbols in costumes (SPEC §16, art-director ART-19)', () => 
     ...Object.entries(SELIANYN_OUTFITS).map(([k, v]): [string, Outfit] => [`selianyn.${k}`, v]),
     ...Object.entries(VARTOVYI_OUTFITS).map(([k, v]): [string, Outfit] => [`vartovyi.${k}`, v]),
     ['otaman.a', OTAMAN_OUTFIT],
+    ['khorunzhyi.a', KHORUNZHYI_OUTFIT],
+    ['nosii.a (rear)', REAR_OUTFIT],
   ];
 
   it('the band check reads a figure top to bottom (kerchief, shirt, belt, skirt)', () => {
@@ -392,6 +406,7 @@ describe('the Sich set (M2-19): drill, pipe and cheer; the otaman; the guards wi
       drill: { frames: 4, fps: 8 },
       'sit-smoke': { frames: 2, fps: 2 },
       cheer: VILLAGER_ANIMS.cheer,
+      march: OTAMAN_ANIMS.march,
     });
     expect(GUARD_ANIMS).toEqual({ watch: { frames: 2, fps: 2 }, torch: { frames: 4, fps: 8 } });
   });
@@ -452,5 +467,114 @@ describe('the Sich set (M2-19): drill, pipe and cheer; the otaman; the guards wi
       expect(gen.size.w, gen.id).toBe(32);
       expect((gen.anchor?.x ?? 0.5) * gen.size.w, gen.id).toBe(16);
     }
+  });
+});
+
+describe('the raid set (M3-13): march, the корогвоносець, the chest and its carriers', () => {
+  const raid = [kozak, khorunzhyi, nosii, korohva, skrynia].flatMap(render);
+  const byName = new Map(raid.map((f) => [f.name, f]));
+  const get = (name: string): FrameImage => {
+    const f = byName.get(name);
+    if (!f) throw new Error(`no frame ${name}`);
+    return f;
+  };
+  const nn = (i: number): string => String(i).padStart(2, '0');
+  const ramps = (f: FrameImage): number => colorStats(f.image, palette).ramps.length;
+
+  it('the raid figures have idle + march (content RAID_ANIMS) with their shadows, and no walk', () => {
+    for (const stem of RAID_SPRITES) {
+      const [entity = '', variant = ''] = stem.split('.');
+      for (const [anim, frames] of [
+        ['idle', 4],
+        ['march', RAID_ANIMS.march.frames],
+      ] as const)
+        for (let i = 0; i < frames; i++) {
+          expect(byName.has(`${stem}/${anim}/${nn(i)}`), `${stem}/${anim}/${nn(i)}`).toBe(true);
+          expect(byName.has(`${entity}.${variant}@shadow/${anim}/${nn(i)}`)).toBe(true);
+        }
+      expect(byName.has(`${stem}/walk/00`), stem).toBe(false);
+    }
+    expect(RAID_ANIMS.march).toEqual(OTAMAN_ANIMS.march);
+  });
+
+  it('march is its own gait: every frame moves, and it is not the walk with a musket painted over', () => {
+    for (const v of ['a', 'b', 'c']) {
+      const march = Array.from({ length: 6 }, (_, i) => get(`kozak.${v}/march/${nn(i)}`));
+      march.forEach((f, i) => {
+        expect(key(f), `${v} ${String(i)}`).not.toBe(key(march[(i + 1) % 6] ?? f));
+        // Its own silhouette in every frame (the upright musket), not the walk's.
+        const walk = get(`kozak.${v}/walk/${nn(i)}`);
+        expect(alphaKey(f), `${v} ${String(i)}`).not.toBe(alphaKey(walk));
+        const opaque = (img: FrameImage): number =>
+          alphaKey(img)
+            .split('')
+            .filter((c) => c === '1').length;
+        expect(opaque(f)).toBeGreaterThan(opaque(walk));
+      });
+    }
+  });
+
+  it('≤ 6 ramps a frame (kozak.b keeps its approved 7), every figure on its ground row', () => {
+    for (const f of raid.filter((x) => !x.name.includes('@'))) {
+      const limit = f.name.startsWith('kozak.b/') ? 7 : 6;
+      expect(ramps(f), f.name).toBeLessThanOrEqual(limit);
+    }
+    for (const f of raid.filter((x) => /^(khorunzhyi|nosii)\.a\//.test(x.name)))
+      expect(lowestRow(f), f.name).toBe(f.name.startsWith('khorunzhyi') ? KHORUNZHYI_GROUND : 27);
+  });
+
+  it('the march adds only its tools to a Cossack: ≤ 6 colours over his idle frame', () => {
+    const colours = (f: FrameImage): Set<number> => {
+      const out = new Set<number>();
+      for (let i = 0; i < f.image.data.length; i += 4)
+        if ((f.image.data[i + 3] ?? 0) > 0)
+          out.add(((f.image.data[i] ?? 0) << 16) | ((f.image.data[i + 1] ?? 0) << 8) | (f.image.data[i + 2] ?? 0));
+      return out;
+    };
+    for (const v of ['a', 'b', 'c']) {
+      const still = colours(get(`kozak.${v}/idle/00`));
+      for (let i = 0; i < 6; i++)
+        expect([...colours(get(`kozak.${v}/march/${nn(i)}`))].filter((c) => !still.has(c)).length).toBeLessThanOrEqual(
+          6,
+        );
+    }
+  });
+
+  it('the корогва is the Sich banner cloth (crimson, gold cross) with a swallowtail notch in all 4 wind frames', () => {
+    expect(korohva.frames).toEqual({ idle: BEARER_BANNER.animate.frames });
+    expect(BEARER_BANNER.animate).toEqual({ kind: 'cycle', frames: 4, fps: 'wind' });
+    expect(korohva.size).toEqual(banner.size);
+    expect(korohva.anchor).toEqual(banner.anchor);
+    const { w, h } = BANNER_CLOTH;
+    const alpha = (f: FrameImage, x: number, y: number): number => f.image.data[(y * f.image.width + x) * 4 + 3] ?? 0;
+    for (let i = 0; i < 4; i++) {
+      const f = get(`korohva/idle/${nn(i)}`);
+      expect(new Set(colorStats(f.image, palette).ramps)).toEqual(new Set(['crimson', 'gold']));
+      // The fly end: the middle rows cut 2 px deep, the tails above and below it stand.
+      const dy = bannerOffset(w - 1, i);
+      const mid = (c: number): number => BANNER_PAD + Math.floor((h - 1) / 2) + bannerOffset(c, i);
+      expect(alpha(f, w - 1, mid(w - 1)), `frame ${String(i)}`).toBe(0);
+      expect(alpha(f, w - 2, mid(w - 2)), `frame ${String(i)}`).toBe(0);
+      expect(alpha(f, w - 1, BANNER_PAD + dy), `frame ${String(i)}`).toBeGreaterThan(0);
+      expect(alpha(f, w - 1, BANNER_PAD + h - 1 + dy), `frame ${String(i)}`).toBeGreaterThan(0);
+      expect(inNotch(0, 4)).toBe(false);
+    }
+    for (const [anim, frames] of [
+      ['idle', 4],
+      ['march', 6],
+    ] as const)
+      for (let i = 0; i < frames; i++) {
+        const h = bearerHoist(anim, i);
+        expect(h.dx).toBe(BEARER_BANNER.hoist.dx);
+        expect(h.dy, `${anim} ${String(i)}`).toBe(BEARER_BANNER.hoist.dy[anim][i]);
+      }
+  });
+
+  it('the bearer lifts the pole to march (the cloth rides higher than at rest); the chest is oak and iron only', () => {
+    expect(Math.max(...BEARER_BANNER.hoist.dy.march)).toBeLessThan(Math.min(...BEARER_BANNER.hoist.dy.idle));
+    const chest = get('skrynia/idle/00');
+    expect(new Set(colorStats(chest.image, palette).ramps)).toEqual(new Set(['earth', 'stone']));
+    expect(chest.image.width).toBe(CHEST.w + 2);
+    expect(byName.has('skrynia@shadow/idle/00')).toBe(true);
   });
 });

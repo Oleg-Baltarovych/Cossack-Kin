@@ -4,7 +4,8 @@
 // шлик colour, skin, moustache). idle 4 frames @6 fps (breath: shoulders 1 px, шлик and belt ends drift), walk
 // 6 frames @10 fps (leg masks per frame, arm swing, body rises 1 px on the passing frames, шлик and belt ends trail).
 // M2-19: the Sich's set from people/cossack.ts — `drill` (the musket drill), `sit-smoke` (on a log by the fire with a
-// люлька), `cheer` (arms up); the canvas is padded to 32 px for the musket (the pivot column is unchanged).
+// люлька), `cheer` (arms up); the canvas is padded to 32 px for the musket (the pivot column is unchanged). M3-13:
+// `march` 6 @10 — the raid step, the самопал upright on the near shoulder (people/cossack.ts).
 import { compose, contactShadow } from '../../lib/passes.ts';
 import { checkMask, paintDoll, type Mask, type Outfit, type Stamp, PEOPLE_SELECTIVE } from '../../lib/doll.ts';
 import { Plot } from '../../lib/plot.ts';
@@ -59,9 +60,20 @@ const OSELEDETS: readonly Mask[] = [
   ['..hhhH.', 'h......', 'h......', '.j.....', '.......'],
 ];
 const OSELEDETS_AT = { x: 5, y: 1 } as const;
+/**
+ * A shorter, lighter-set оселедець (M3-13, the chest carrier; art-director: the long lock laid along the crown read as
+ * a haircut on him): a 2-px tuft at the crown, one 2-px strand curling back and down over the ear — the crown bare.
+ */
+const LOCK: readonly Mask[] = [
+  ['...hH..', '..hj...', '.hj....', '.j.....'],
+  ['...hH..', '.hhj...', 'hj.....', '.......'],
+];
+
+/** Head kinds: шапка with шлик, bare head with the long оселедець, bare head with the short lock (`lock`). */
+export type KozakHead = 'hat' | 'bare' | 'lock';
 
 /** Head style per variant: a/b шапка with шлик, c bare head with оселедець. */
-const HEADS: Readonly<Record<string, 'hat' | 'bare'>> = { a: 'hat', b: 'hat', c: 'bare' };
+const HEADS: Readonly<Record<string, KozakHead>> = { a: 'hat', b: 'hat', c: 'bare' };
 
 /** Сорочка with wide shoulders (shaded toward the back-right) and the пояс (belt). */
 const TORSO: Mask = ['.WWwwwv..', 'WWwwwwwv.', 'Wwwwwwwvv', 'Wwwwwwwvv', 'Wwwwwwvvv', 'RRrrrrrtT', 'Rrrrrrrtt'];
@@ -244,7 +256,7 @@ export const KOZAK_INKS: CossackInks = {
 };
 
 for (const [name, m] of Object.entries({ HEAD, HEAD_BARE, TORSO, SIT })) checkMask(m, `kozak ${name}`);
-for (const set of [SHLYK, OSELEDETS, BELT_ENDS, LEGS, ARM]) {
+for (const set of [SHLYK, OSELEDETS, LOCK, BELT_ENDS, LEGS, ARM]) {
   set.forEach((m, i) => {
     checkMask(m, `kozak #${String(i)}`);
   });
@@ -257,7 +269,7 @@ const pick = <T>(list: readonly T[], i: number): T => {
 };
 
 /** The head stamps (шапка + шлик, or the bare head + оселедець) at `top` (upper-body offset) and `lean`. */
-function headStamps(head: 'hat' | 'bare', drift: number, top: number, lean: number): Stamp[] {
+function headStamps(head: KozakHead, drift: number, top: number, lean: number): Stamp[] {
   return head === 'hat'
     ? [
         { mask: pick(SHLYK, drift), x: SHLYK_AT.x + lean, y: SHLYK_AT.y + top },
@@ -265,12 +277,12 @@ function headStamps(head: 'hat' | 'bare', drift: number, top: number, lean: numb
       ]
     : [
         { mask: HEAD_BARE, x: HEAD_AT.x + lean, y: HEAD_AT.y + top },
-        { mask: pick(OSELEDETS, drift), x: OSELEDETS_AT.x + lean, y: OSELEDETS_AT.y + top },
+        { mask: pick(head === 'lock' ? LOCK : OSELEDETS, drift), x: OSELEDETS_AT.x + lean, y: OSELEDETS_AT.y + top },
       ];
 }
 
 /** The idle / walk body (body-local, unpadded). */
-export function kozakStamps(pose: Pose, head: 'hat' | 'bare'): Stamp[] {
+export function kozakStamps(pose: Pose, head: KozakHead): Stamp[] {
   const b = pose.bob;
   const top = b + pose.breath;
   return [
@@ -288,15 +300,15 @@ export function kozakStamps(pose: Pose, head: 'hat' | 'bare'): Stamp[] {
 }
 
 /** An action frame's body without the near arm (body-local, unpadded): lower half by kind, upper half dropped / lifted. */
-export function kozakActionStamps(p: CossackPose, head: 'hat' | 'bare'): Stamp[] {
+export function kozakActionStamps(p: CossackPose, head: KozakHead): Stamp[] {
   const b = p.drop;
   const top = p.drop - p.lift;
   const lower: Stamp[] =
     p.lower === 'sit'
       ? [{ mask: SIT, x: SIT_AT.x, y: SIT_AT.y }]
-      : [{ mask: pick(LEGS, p.lower === 'stance' ? 2 : 0), x: LEGS_AT.x, y: LEGS_AT.y }];
+      : [{ mask: pick(LEGS, p.lower === 'stance' ? 2 : p.legs), x: LEGS_AT.x, y: LEGS_AT.y }];
   return [
-    { mask: pick(BELT_ENDS, 0), x: BELT_ENDS_AT.x, y: BELT_ENDS_AT.y + b },
+    { mask: pick(BELT_ENDS, p.belt), x: BELT_ENDS_AT.x, y: BELT_ENDS_AT.y + b },
     ...(p.lower === 'sit' ? [] : lower),
     { mask: TORSO.slice(5), x: TORSO_AT.x, y: TORSO_AT.y + 5 + b },
     { mask: TORSO.slice(4, 5), x: TORSO_AT.x, y: TORSO_AT.y + 4 + b },
@@ -315,7 +327,7 @@ export function paintCossackAction(
   tools: Plot,
   grip: Plot,
   outfit: Outfit,
-  head: 'hat' | 'bare',
+  head: KozakHead,
   p: CossackPose,
   pad: number,
   dy = 0,

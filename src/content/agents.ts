@@ -144,7 +144,8 @@ export type KobzarSprite = typeof VISITOR_SPRITES.kobzar;
 export type WalkerVisitorSprite = Exclude<VisitorSprite, KobzarSprite>;
 
 /** Person sprites (`<stem>/walk/NN`, `<stem>/idle/NN`, `<entity>.<variant>@shadow/<anim>/NN`). */
-export type PersonSprite = KozakSprite | OtamanSprite | GuardSprite | GirlSprite | VillagerSprite | VisitorSprite;
+export type PersonSprite =
+  KozakSprite | OtamanSprite | GuardSprite | GirlSprite | VillagerSprite | VisitorSprite | RaidSprite;
 
 /**
  * Villager animations beyond walk/idle (M2-17, SPEC §6.4), frames `<VillagerSprite>/<anim>/<nn>` in the `people` atlas,
@@ -170,12 +171,13 @@ export type VillagerAnim = keyof typeof VILLAGER_ANIMS;
 /**
  * Cossack animations beyond walk/idle (M2-19, SPEC §6.4): `drill` — the musket drill in the ranks (shoulder, port,
  * level, recover), `sit-smoke` — seated by the fire with a люлька (pipe), `cheer` — hat raised (the «Слава!» after the
- * otaman's word).
+ * otaman's word), `march` (M3-13) — the raid step, the самопал upright on the shoulder.
  */
 export const COSSACK_ANIMS = {
   drill: { frames: 4, fps: 8 },
   'sit-smoke': { frames: 2, fps: 2 },
   cheer: { frames: 4, fps: 10 },
+  march: { frames: 6, fps: 10 },
 } as const;
 export type CossackAnim = keyof typeof COSSACK_ANIMS;
 
@@ -193,6 +195,44 @@ export const GUARD_ANIMS = {
 } as const;
 export type GuardAnim = keyof typeof GUARD_ANIMS;
 
+/**
+ * The raid's own figures (M3-13, SPEC §6.6), `people` atlas: the корогвоносець (`khorunzhyi.a`) and the two Cossacks
+ * carrying the chest home (`nosii.a`, one sprite, pivot under the chest). Each has `idle` (4 @6, the person set) and
+ * `march` — no `walk`: they only ever march.
+ */
+export const RAID_SPRITES = ['khorunzhyi.a', 'nosii.a'] as const;
+export type RaidSprite = (typeof RAID_SPRITES)[number];
+export type BearerSprite = 'khorunzhyi.a';
+export const RAID_ANIMS = {
+  march: { frames: 6, fps: 10 },
+} as const;
+export type RaidAnim = keyof typeof RAID_ANIMS;
+
+/**
+ * The корогва on the bearer's pole (M3-13): its own sprite (the Sich banner's cloth, 4 frames at the wind's rate)
+ * hung with its pivot (the hoist's top-left px) at `hoist` from the bearer's pivot — `dx` facing right (the column
+ * right of the pole), `dy` per frame of the bearer's animation (the pole is grounded at rest and lifted, riding the
+ * step, on the march). The cloth is never mirrored: like every banner of the world it flies downwind (right); facing
+ * left, the mirrored pole stands at −dx, so the cloth hangs from `1 − dx`. Generator: `bearerHoist` (tested equal).
+ */
+export const BEARER_BANNER = {
+  sprite: 'korohva',
+  animate: { kind: 'cycle', frames: 4, fps: 'wind' },
+  hoist: {
+    dx: 7,
+    dy: {
+      idle: [-40, -40, -40, -40],
+      march: [-47, -47, -48, -47, -47, -48],
+    },
+  },
+} as const;
+
+/**
+ * The chest prop (M3-13; `skrynia`, idle 1 frame + `@shadow`, pivot at its foot): stands on the maidan until claimed
+ * (M3-14). The carried one is drawn inside `nosii`.
+ */
+export const CHEST_SPRITE = 'skrynia';
+
 /** The кобзар's (M2-21, SPEC §6.4): `play` — seated, the kobza on his knee, strumming. */
 export const KOBZAR_ANIMS = {
   play: { frames: 4, fps: 6 },
@@ -202,7 +242,7 @@ export type KobzarAnim = keyof typeof KOBZAR_ANIMS;
 /** What every person sprite has frames for. */
 export type BasicAnim = 'walk' | 'idle';
 /** Every animation a person pose can show (each sprite family has its own set beyond walk/idle). */
-export type PersonAnim = BasicAnim | VillagerAnim | CossackAnim | OtamanAnim | GuardAnim | KobzarAnim;
+export type PersonAnim = BasicAnim | VillagerAnim | CossackAnim | OtamanAnim | GuardAnim | KobzarAnim | RaidAnim;
 
 export const isVillagerSprite = (sprite: AgentSprite): sprite is VillagerSprite =>
   (VILLAGER_SPRITES as readonly string[]).includes(sprite);
@@ -216,6 +256,10 @@ export const isVillagerAnim = (anim: PersonAnim): anim is VillagerAnim => anim i
 export const isCossackAnim = (anim: PersonAnim): anim is CossackAnim => anim in COSSACK_ANIMS;
 export const isOtamanAnim = (anim: PersonAnim): anim is OtamanAnim => anim in OTAMAN_ANIMS;
 export const isGuardAnim = (anim: PersonAnim): anim is GuardAnim => anim in GUARD_ANIMS;
+export const isRaidAnim = (anim: PersonAnim): anim is RaidAnim => anim in RAID_ANIMS;
+export const isRaidSprite = (sprite: AgentSprite): sprite is RaidSprite =>
+  (RAID_SPRITES as readonly string[]).includes(sprite);
+export const isBearerSprite = (sprite: AgentSprite): sprite is BearerSprite => sprite === 'khorunzhyi.a';
 export const isKobzarAnim = (anim: PersonAnim): anim is KobzarAnim => anim in KOBZAR_ANIMS;
 export const isVisitorSprite = (sprite: AgentSprite): sprite is VisitorSprite =>
   (Object.values(VISITOR_SPRITES) as readonly string[]).includes(sprite);
