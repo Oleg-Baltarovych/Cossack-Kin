@@ -1,5 +1,6 @@
-// Raid formulas (SPEC §3.4, §2.6; plan M3-03; ADR 012). Pure functions; the actions, `advance` and the save fields
-// that use them are M3-04/M3-05. Numbers are in content/raids.ts and content/relics.ts.
+// Raid formulas (SPEC §3.4, §2.6; plan M3-03; ADR 012). Pure functions; the state types below are persisted in save v4
+// (M3-04, gate in state.ts); the actions and `advance` that use them come in M3-05. Numbers are in content/raids.ts
+// and content/relics.ts.
 //   power   = ArmyPower at the steady rates (a snapshot: the army stays home, Q1)
 //   start   only when power ≥ minPowerShare × P
 //   chance  = clamp(power / P, chanceMin, 1)
@@ -13,6 +14,7 @@
 import {
   BOARD,
   RAID_TIER_IDS,
+  tierRank,
   RAID_TIERS,
   RAIDS,
   REGIONS,
@@ -34,7 +36,7 @@ import { rewardAmount, rewardRates } from './reward.ts';
 const MS_PER_SEC = 1000;
 const SEC_PER_MIN = 60;
 
-// --- state (persisted from save v4, M3-04) ---------------------------------------------------------------------
+// --- state (persisted in save v4, M3-04) -----------------------------------------------------------------------
 
 export interface RaidLoot {
   readonly ducats: Big;
@@ -71,9 +73,6 @@ export interface RaidsState {
   readonly pity: number;
 }
 
-/** What the raid formulas read: the game state plus the v4 raid fields (GameState v4 satisfies it, M3-04). */
-export type RaidFacts = GameState & { readonly raids: RaidsState; readonly relics: readonly RelicId[] };
-
 // --- content lookups -------------------------------------------------------------------------------------------
 
 export function raidTier(id: RaidTierId): RaidTier {
@@ -82,8 +81,6 @@ export function raidTier(id: RaidTierId): RaidTier {
   if (!t) throw new Error(`raids: no tier ${id}`);
   return t;
 }
-
-const tierRank = (id: RaidTierId): number => RAID_TIER_IDS.indexOf(id);
 
 /** Whether successes of `tier` count towards the pity and are guaranteed by it. */
 function pityCounts(tier: RaidTierId): boolean {
@@ -115,7 +112,7 @@ function powerEnough(power: number, tier: RaidTierId): boolean {
 }
 
 /** Whether a raid of `tier` can start in `slot` (the startRaid action applies it, M3-05). */
-export function canStart(state: RaidFacts, slot: number, tier: RaidTierId): StartCheck {
+export function canStart(state: GameState, slot: number, tier: RaidTierId): StartCheck {
   if (!Number.isInteger(slot) || slot < 0 || slot >= RAIDS.slots) return { ok: false, reason: 'range' };
   if (state.raids.slots[slot]?.kind !== 'idle') return { ok: false, reason: 'slotBusy' };
   if (!powerEnough(raidPower(state), tier)) return { ok: false, reason: 'power' };
@@ -155,7 +152,7 @@ export function raidBoard(seed: number, day: number): readonly RaidOffer[] {
 }
 
 /** The offer of `tier` on today's board and whether its rumour is still unused today (Q3). */
-function offerOf(state: RaidFacts, tier: RaidTierId): { offer: RaidOffer; rumor: RumorId | null } {
+function offerOf(state: GameState, tier: RaidTierId): { offer: RaidOffer; rumor: RumorId | null } {
   const day = questDay(state);
   const offer = raidBoard(state.seed, day).find((o) => o.tier === tier);
   if (!offer) throw new Error(`raids: no offer for ${tier}`);
@@ -191,7 +188,7 @@ export function lootOf(
  * The relics a roll must not give again: the found ones and those already rolled into a running or returned slot
  * (two slots must not bring the same relic; what a card showed is what the claim grants, so no dedupe at claim).
  */
-export function heldRelics(state: RaidFacts): readonly RelicId[] {
+export function heldRelics(state: GameState): readonly RelicId[] {
   const held = new Set<RelicId>(state.relics);
   for (const slot of state.raids.slots) {
     if (slot.kind !== 'idle' && slot.raid.loot.relic !== null) held.add(slot.raid.loot.relic);
@@ -223,7 +220,7 @@ interface Odds {
 }
 
 /** Chances on a success after the multipliers, each clamped to 1 (ADR 012). */
-function oddsOf(state: RaidFacts, tier: RaidTierId, rumor: RumorId | null): Odds {
+function oddsOf(state: GameState, tier: RaidTierId, rumor: RumorId | null): Odds {
   const t = raidTier(tier);
   const held = heldRelics(state);
   // M3-06: × Modifiers.relicChanceMult (relics, heroes) as well.
@@ -275,7 +272,7 @@ export interface RaidPreview {
  * The card of `tier`. `state` must already be advanced to the moment shown: the day of the board and of the rumour is
  * `questDay(state)`, from `maxSeen`.
  */
-export function previewRaid(state: RaidFacts, tier: RaidTierId): RaidPreview {
+export function previewRaid(state: GameState, tier: RaidTierId): RaidPreview {
   const { offer, rumor } = offerOf(state, tier);
   const power = raidPower(state);
   const p = raidTier(tier).power;
@@ -315,7 +312,7 @@ function draws(rng0: Rng): { u: readonly [number, number, number, number, number
  * pity counter and the new `rumorDay` (the action stores all four). Does not check `canStart`.
  */
 export function rollRaid(
-  state: RaidFacts,
+  state: GameState,
   tier: RaidTierId,
   now: number,
 ): { roll: RaidRoll; rng: Rng; pity: number; rumorDay: number } {

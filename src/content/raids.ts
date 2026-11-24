@@ -8,6 +8,11 @@ import type { Village } from './villages/khortytsia.ts';
 export const RAID_TIER_IDS = ['m5', 'm30', 'h1', 'h4', 'h8'] as const;
 export type RaidTierId = (typeof RAID_TIER_IDS)[number];
 
+/** A tier's place in RAID_TIER_IDS (shorter first): «tier ≥ RELICS.pityMinTier» and the like. */
+export function tierRank(id: RaidTierId): number {
+  return RAID_TIER_IDS.indexOf(id);
+}
+
 /**
  * A duration tier (SPEC §3.4). Loot is «N seconds of income» measured at the start by the steady rate
  * (`steadyModifiers`, Q4): ducats = farm income × `lootSec` × lootMult, glory = glory rate × `gloryLootSec` ×
@@ -93,6 +98,7 @@ export const RAID_TIERS: readonly RaidTier[] = [
  */
 export const RAIDS = {
   slots: 2,
+  // Part of the save v4 shape (`V4_RAID_SLOTS`, test): changing it needs a save migration.
   maxSlots: 3,
   minPowerShare: 0.5,
   chanceMin: 0.35,

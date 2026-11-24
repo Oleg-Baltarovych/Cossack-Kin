@@ -8,9 +8,11 @@ import { advance } from '../../../src/core/advance.ts';
 import { fnv1a32 } from '../../../src/core/save/checksum.ts';
 import { migrate, MIGRATIONS } from '../../../src/core/save/migrations/index.ts';
 import { decodeSave, encodeSave } from '../../../src/core/save/serialize.ts';
-import { createInitialState, validateState } from '../../../src/core/state.ts';
+import { createInitialState, STATE_VERSION, validateState } from '../../../src/core/state.ts';
 
 const T0 = 1_763_400_000_000;
+/** The v4 raid counters a current state carries next to the v2 ones (M3-04). */
+const RAID_COUNTERS = { raidsSent: 0, raidsDone: 0, raidsWon: 0 };
 const v1Raw = readFileSync('tests/fixtures/saves/v1.json', 'utf8').trim();
 const v1Payload = (): Record<string, unknown> =>
   JSON.parse((JSON.parse(v1Raw) as { payload: string }).payload) as Record<string, unknown>;
@@ -134,8 +136,9 @@ describe('decoding v2 saves (M2-22 review)', () => {
 
   it('a v2 game loads; a newer envelope (or payload) is a newer game: never loaded, never overwritten', () => {
     expect(decodeSave(v2Save(game())).ok).toBe(true);
-    expect(decodeSave(v2Save({ ...game(), version: 4 }, 4))).toEqual({ ok: false, reason: 'newer' });
-    expect(decodeSave(v2Save({ ...game(), version: 4 }, 2))).toEqual({ ok: false, reason: 'newer' });
+    const newer = STATE_VERSION + 1;
+    expect(decodeSave(v2Save({ ...game(), version: newer }, newer))).toEqual({ ok: false, reason: 'newer' });
+    expect(decodeSave(v2Save({ ...game(), version: newer }, 2))).toEqual({ ok: false, reason: 'newer' });
   });
 });
 
@@ -165,7 +168,7 @@ describe('validateState: story and stats (M2-22)', () => {
   it('the counters are non-negative; tapIncomeSec may be fractional', () => {
     const stats = (over: Record<string, unknown>): unknown => ({
       ...plain(),
-      stats: { taps: 0, purchases: 0, levelsBought: 0, hires: 0, tapIncomeSec: 0, ...over },
+      stats: { ...RAID_COUNTERS, taps: 0, purchases: 0, levelsBought: 0, hires: 0, tapIncomeSec: 0, ...over },
     });
     expect(reason(stats({ tapIncomeSec: 0.9 }))).toBe('ok');
     expect(reason(stats({ tapIncomeSec: -1 }))).toBe('range at stats.tapIncomeSec');
@@ -178,7 +181,7 @@ describe('validateState: story and stats (M2-22)', () => {
     const army = (infantry: number, hires: number): unknown => ({
       ...plain(),
       army: { infantry },
-      stats: { taps: 0, purchases: 0, levelsBought: 0, hires, tapIncomeSec: 0 },
+      stats: { ...RAID_COUNTERS, taps: 0, purchases: 0, levelsBought: 0, hires, tapIncomeSec: 0 },
     });
     expect(reason(army(5, 5))).toBe('ok');
     expect(reason(army(5, 9))).toBe('ok');

@@ -8,7 +8,9 @@
 // 3–10 min); M2-27 (the bot claims every quest) set the chain spacing, the glory onboarding steps and chores at 3 min.
 // FROZEN ONCE SHIPPED: chain step ids, chore ids and their order (saves store a chain index and a chore id; the v2 → v3
 // migration walks this chain). Append only — removing, renaming or reordering one needs a save migration (the order
-// was respaced in M2-27, before M2 shipped). Goals and rewards may be retuned.
+// was respaced in M2-27, before M2 shipped). One approved exception (owner, plan M3 Q7): `khortytsia.raid1` was
+// inserted after `khortytsia.hire1` with save v4 — the v3 → v4 migration shifts the saved indices past `hire1` by one.
+// Goals and rewards may be retuned.
 import type { Reward } from './rewards.ts';
 import type { SichBuildingId } from './sich.ts';
 import type { FarmBuildingId } from './villages/khortytsia.ts';
@@ -19,7 +21,7 @@ export type LevelGoal =
   | { readonly kind: 'sich'; readonly id: SichBuildingId; readonly level: number };
 
 /** The monotone counters a quest can count (`GameState.stats`). */
-export type StatId = 'taps' | 'purchases' | 'levelsBought' | 'hires' | 'tapIncomeSec';
+export type StatId = 'taps' | 'purchases' | 'levelsBought' | 'hires' | 'tapIncomeSec' | 'raidsSent';
 
 /** `stat` grown by `n` since the quest began. */
 export interface CountGoal {
@@ -41,6 +43,7 @@ export const CHAIN_STEP_IDS = [
   'khortytsia.field1',
   'khortytsia.garden1',
   'khortytsia.hire1',
+  'khortytsia.raid1',
   'khortytsia.field10',
   'khortytsia.apiary1',
   'khortytsia.hire3',
@@ -93,6 +96,7 @@ function step(id: ChainStepId, goal: QuestGoal, reward: Reward): ChainStep {
 const farm = (id: FarmBuildingId, level: number): LevelGoal => ({ kind: 'building', id, level });
 const sich = (id: SichBuildingId, level: number): LevelGoal => ({ kind: 'sich', id, level });
 const hired = (n: number): CountGoal => ({ kind: 'count', stat: 'hires', n });
+const raidsSent = (n: number): CountGoal => ({ kind: 'count', stat: 'raidsSent', n });
 
 /**
  * Land 1, in the order of the calendar (SPEC §2.4 S1…S8). The first five are the onboarding (SPEC §10, M9). Spaced in
@@ -102,6 +106,8 @@ export const QUEST_CHAIN: readonly ChainStep[] = [
   step('khortytsia.field1', farm('field', 1), STEP.onboarding),
   step('khortytsia.garden1', farm('garden', 1), STEP.onboarding),
   step('khortytsia.hire1', hired(1), STEP.glory),
+  // Q7: the first raid right after the first Cossack (SPEC §10 «… відправ у розвідку»); inserted with save v4.
+  step('khortytsia.raid1', raidsSent(1), STEP.glory),
   step('khortytsia.field10', farm('field', 10), STEP.onboarding),
   step('khortytsia.apiary1', farm('apiary', 1), STEP.onboarding),
   step('khortytsia.hire3', hired(3), STEP.glory),
