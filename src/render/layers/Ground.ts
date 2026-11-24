@@ -33,7 +33,7 @@ import type { Quality, Weather } from '../settings.ts';
 import { cycleFrame, swayFrame } from '../sway.ts';
 import { riverRowEnd } from '../zones.ts';
 import { personAnim } from '../agents/sim.ts';
-import type { AgentSprite, PersonAnim } from '../../content/agents.ts';
+import { BEARER_BANNER, isBearerSprite, type AgentSprite, type PersonAnim } from '../../content/agents.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
 const PARALLAX = 1;
@@ -188,8 +188,20 @@ export function createGroundLayer({
       readonly anims: Map<PersonAnim, { readonly body: Texture[]; readonly shadow: Texture[] }>;
       readonly sprite: Sprite;
       readonly shadow: Sprite;
+      /** The корогва on a bearer's pole (M3-13): its own sprite, at the wind's rate, never mirrored. */
+      cloth: Sprite | null;
       seen: number;
     }
+    const clothFrames = (): Texture[] => frameList(BEARER_BANNER.sprite, 'idle', BEARER_BANNER.animate.frames);
+    let clothTextures: Texture[] | null = null;
+    const clothFor = (stem: AgentSprite): Sprite | null => {
+      if (!isBearerSprite(stem)) return null;
+      clothTextures ??= clothFrames();
+      const cloth = new Sprite({ texture: frame(`${BEARER_BANNER.sprite}/idle/00`), roundPixels: true });
+      cloth.anchor.copyFrom(cloth.texture.defaultAnchor ?? { x: 0, y: 0 });
+      props.addChild(cloth);
+      return cloth;
+    };
     const persons = new Map<number, Person>();
     let poseFrame = 0;
     const person = (id: number, stem: AgentSprite): Person => {
@@ -202,6 +214,8 @@ export function createGroundLayer({
         known.anims.clear();
         known.sprite.texture = frame(`${stem}/idle/00`);
         known.shadow.texture = frame(`${entity}.${variant}@shadow/idle/00`);
+        known.cloth?.destroy();
+        known.cloth = clothFor(stem);
         return known;
       }
       const [entity = stem, variant = ''] = stem.split('.');
@@ -211,7 +225,7 @@ export function createGroundLayer({
       shadow.anchor.copyFrom(shadow.texture.defaultAnchor ?? { x: 0.5, y: 1 });
       shadows.addChild(shadow);
       props.addChild(sprite);
-      const made: Person = { stem, anims: new Map(), sprite, shadow, seen: poseFrame };
+      const made: Person = { stem, anims: new Map(), sprite, shadow, cloth: clothFor(stem), seen: poseFrame };
       persons.set(id, made);
       return made;
     };
@@ -235,6 +249,7 @@ export function createGroundLayer({
       persons.delete(id);
       p.sprite.destroy();
       p.shadow.destroy();
+      p.cloth?.destroy();
     }
     /** Tiles of plot bands (the maidan, the rampart): `on` while the plot stands, `off` while it is empty. */
     const plotTiles: {
@@ -388,6 +403,15 @@ export function createGroundLayer({
           // Mirrored about the pivot column; the anchor keeps the feet on the same px.
           sprite.scale.x = pose.facing;
           sprite.zIndex = y;
+          if (p.cloth && clothTextures) {
+            const { dx, dy } = BEARER_BANNER.hoist;
+            const lift = dy[pose.anim === 'march' ? 'march' : 'idle'][pose.frame] ?? dy.idle[0];
+            const cloth = clothTextures[cycleFrame(ambient, BEARER_BANNER.animate, scene.wind)];
+            if (cloth) p.cloth.texture = cloth;
+            p.cloth.position.set(pose.x + (pose.facing === 1 ? dx : 1 - dx), y + lift);
+            // Over the bearer it hangs from (inserted after him: same zIndex keeps the insertion order).
+            p.cloth.zIndex = y;
+          }
         }
         for (const [id, p] of persons) if (p.seen !== poseFrame) drop(id, p);
         // The world is ~5 screens wide (M2-01): only what overlaps the view (+ margin) is drawn.

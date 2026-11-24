@@ -39,11 +39,17 @@ export interface RenderSettings {
   readonly zoom: ZoomLevel;
   /** «Менше руху» (SPEC §6.3, §6.8): plants stand upright (ART-14). The settings screen drives it from M2. */
   readonly lessMotion: boolean;
-  /** Dev/test: the villager animation lineup replaces the agents (`?lineup`, render/debug/lineup.ts). */
-  readonly lineup: boolean;
+  /**
+   * Dev/test: an animation lineup replaces the agents (render/debug/lineup.ts): `work` = the villager set (`?lineup`),
+   * `raid` = the raid's figures (`?lineup=raid`, M3-13); `false` = the agents.
+   */
+  readonly lineup: false | LineupSet;
   /** Dev/test: sails, sway and smoke at this wind level whatever the game's wind is; `null` = the game's. */
   readonly fixedWind: Wind | null;
 }
+
+/** The dev lineups (`?lineup`, `?lineup=raid`). */
+export type LineupSet = 'work' | 'raid';
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   seed: null,

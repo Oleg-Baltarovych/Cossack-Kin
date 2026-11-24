@@ -34,10 +34,17 @@ describe('parseDebugParams — valid', () => {
       cam: 10.5,
       zoom: 1,
       still: true,
-      lineup: true,
+      lineup: 'work',
       wind: 'storm',
     });
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('lineup: bare flag → the villager set, `raid` → the raid set (M3-13), a false flag → none', () => {
+    expect(parseDebugParams('?lineup', 'test').lineup).toBe('work');
+    expect(parseDebugParams('?lineup=raid', 'test').lineup).toBe('raid');
+    expect(parseDebugParams('?lineup=0', 'test').lineup).toBe(false);
+    expect(parseDebugParams('?lineup=parade', 'test').lineup).toBe(false);
   });
 
   it('freeze: bare flag → t=0, seconds → that animation time', () => {

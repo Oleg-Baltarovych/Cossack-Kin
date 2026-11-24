@@ -48,7 +48,7 @@ import { createWorldLayers, type WorldLayer } from './layers/index.ts';
 import { createAgents } from './agents/sim.ts';
 import { createAgentDriver, stepCap } from './agents/driver.ts';
 import { createVisitClock } from './agents/visits.ts';
-import { LINEUP, lineupPoses } from './debug/lineup.ts';
+import { LINEUP, lineupPoses, raidLineupPoses } from './debug/lineup.ts';
 import type { AgentContext, AgentCounts } from './agents/sim.ts';
 import { AGENT_BUDGET, BUILDERS } from '../content/agents.ts';
 import { propFrames } from './layers/Ground.ts';
@@ -545,10 +545,16 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       const frameInfo = {
         minutes,
         seconds,
-        // Dev/test `?lineup`: the villager animation set in two rows at the start camera (M2-17 review shots).
+        // Dev/test `?lineup`: the villager animation set in two rows at the start camera (M2-17 review shots);
+        // `?lineup=raid` the raid's figures (M3-13).
         agents:
           __CK_DEBUG__ && settings.lineup
-            ? lineupPoses(lineupX, LINEUP.ground, seconds, agents.counts().total)
+            ? (settings.lineup === 'raid' ? raidLineupPoses : lineupPoses)(
+                lineupX,
+                LINEUP.ground,
+                seconds,
+                agents.counts().total,
+              )
             : agents.poses(),
         ambient,
         cycle,

@@ -1,7 +1,7 @@
 // Debug lineup (plan M2-17): every villager animation on both bodies in two rows, so the work set can be screenshotted
 // in the scene before the FSM (M2-18) picks it.
 import { describe, expect, it } from 'vitest';
-import { lineupPoses, LINEUP } from '../../../src/render/debug/lineup.ts';
+import { lineupPoses, LINEUP, raidLineupPoses } from '../../../src/render/debug/lineup.ts';
 import { VILLAGER_ANIMS, VILLAGER_SPRITES } from '../../../src/content/agents.ts';
 import type { AgentPose } from '../../../src/render/agents/sim.ts';
 
@@ -54,5 +54,43 @@ describe('lineupPoses', () => {
     // @ts-expect-error a Cossack has no work frames (the type check is the assertion; tsc runs over tests)
     const illegal: AgentPose = { ...base, sprite: 'kozak.a', anim: 'work-field' };
     expect([villager.anim, cossack.anim, illegal.sprite]).toEqual(['work-smithy', 'walk', 'kozak.a']);
+  });
+});
+
+describe('raidLineupPoses (M3-13)', () => {
+  it('shows the three Cossacks, the otaman and the bearer marching, the bearer and the carriers at rest and marching', () => {
+    const poses = raidLineupPoses(100, 160, 0);
+    const shown = poses.map((p) => `${p.sprite}/${p.anim}`);
+    for (const want of [
+      'kozak.a/march',
+      'kozak.b/march',
+      'kozak.c/march',
+      'otaman.a/march',
+      'khorunzhyi.a/march',
+      'khorunzhyi.a/idle',
+      'nosii.a/idle',
+      'nosii.a/march',
+    ])
+      expect(shown).toContain(want);
+    expect(new Set(poses.map((p) => p.id)).size).toBe(poses.length);
+    expect(poses.every((p) => p.id >= LINEUP.firstId && Number.isInteger(p.x) && p.x >= 100)).toBe(true);
+    expect(new Set(poses.map((p) => p.ground))).toEqual(new Set([160, 160 + LINEUP.rowGap]));
+  });
+
+  it('the 44-px carriers get two steps, so no figure overlaps its neighbour', () => {
+    const front = raidLineupPoses(0, 0, 0).filter((p) => p.ground === LINEUP.rowGap);
+    const half = (p: { sprite: string }): number => (p.sprite === 'nosii.a' ? 22 : 9);
+    for (let i = 1; i < front.length; i++) {
+      const [a, b] = [front[i - 1], front[i]];
+      if (!a || !b) throw new Error('row');
+      expect(b.x - half(b)).toBeGreaterThanOrEqual(a.x + half(a));
+    }
+  });
+
+  it('marches at 10 fps and wraps over 6 frames', () => {
+    const at = (s: number): number => raidLineupPoses(0, 0, s).find((p) => p.sprite === 'kozak.a')?.frame ?? -1;
+    expect(at(0)).toBe(0);
+    expect(at(0.3)).toBe(3);
+    expect(at(0.6)).toBe(0);
   });
 });

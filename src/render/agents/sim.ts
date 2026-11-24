@@ -30,6 +30,7 @@ import {
   GUARD_ANIMS,
   KOBZAR_ANIMS,
   OTAMAN_ANIMS,
+  RAID_ANIMS,
   VILLAGER_ANIMS,
   VILLAGER_DAY,
   isCossackAnim,
@@ -40,6 +41,8 @@ import {
   isKozakSprite,
   isOtamanAnim,
   isOtamanSprite,
+  isRaidAnim,
+  isRaidSprite,
   isVillagerAnim,
   isVillagerSprite,
   type AgentRole,
@@ -58,6 +61,8 @@ import {
   type KozakSprite,
   type NodeBuilding,
   type OtamanAnim,
+  type RaidAnim,
+  type RaidSprite,
   type OtamanSprite,
   type PathGraph,
   type PathNode,
@@ -92,6 +97,7 @@ export function personAnim(anim: PersonAnim): { readonly frames: number; readonl
   if (isCossackAnim(anim)) return COSSACK_ANIMS[anim];
   if (isOtamanAnim(anim)) return OTAMAN_ANIMS[anim];
   if (isKobzarAnim(anim)) return KOBZAR_ANIMS[anim];
+  if (isRaidAnim(anim)) return RAID_ANIMS[anim];
   return GUARD_ANIMS[anim];
 }
 
@@ -351,7 +357,8 @@ type Look =
   | { sprite: GirlSprite; anim: BasicAnim }
   | { sprite: KobzarSprite; anim: BasicAnim | KobzarAnim }
   | { sprite: WalkerVisitorSprite; anim: BasicAnim }
-  | { sprite: CartSprite; anim: BasicAnim };
+  | { sprite: CartSprite; anim: BasicAnim }
+  | { sprite: RaidSprite; anim: 'idle' | RaidAnim };
 
 /**
  * A person this frame. Each sprite family has its own animations beyond walk/idle — the villagers' work set (M2-17),
@@ -1501,6 +1508,8 @@ function animOf(a: Activity, animTicks: number, t: number): { readonly anim: Per
 
 /** Whether `sprite` has frames for `anim` (each family its own set beyond walk/idle). */
 function hasFrames(sprite: AgentSprite, anim: PersonAnim): boolean {
+  // The raid's figures (M3-13) only stand and march: no walk frames.
+  if (isRaidSprite(sprite)) return anim === 'idle' || isRaidAnim(anim);
   if (anim === 'walk' || anim === 'idle') return true;
   if (isVillagerSprite(sprite)) return isVillagerAnim(anim);
   if (isKozakSprite(sprite)) return isCossackAnim(anim);

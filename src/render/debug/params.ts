@@ -9,6 +9,7 @@ import {
   WEATHERS,
   WINDS,
   ZONES,
+  type LineupSet,
   type Quality,
   type RenderSettings,
   type Season,
@@ -37,8 +38,8 @@ export interface DebugParams {
   readonly zoom: ZoomLevel;
   /** «Менше руху»: still plants. */
   readonly still: boolean;
-  /** Every villager animation in two rows instead of the agents (M2-17 review shots). */
-  readonly lineup: boolean;
+  /** An animation lineup instead of the agents: `?lineup` the villagers (M2-17), `?lineup=raid` the raid set (M3-13). */
+  readonly lineup: false | LineupSet;
   /** Wind level for shots of calm / storm (M2-29 B3); `null` = the game's wind. */
   readonly wind: Wind | null;
 }
@@ -102,6 +103,12 @@ const parseFlag: Parser<boolean> = (raw) => {
   return undefined;
 };
 
+const parseLineup: Parser<false | LineupSet> = (raw) => {
+  if (raw === 'raid' || raw === 'work') return raw;
+  const flag = parseFlag(raw);
+  return flag === undefined ? undefined : flag && 'work';
+};
+
 const parseCam: Parser<number> = (raw) => {
   if (!DECIMAL.test(raw)) return undefined;
   const x = Number(raw);
@@ -136,7 +143,7 @@ export function parseDebugParams(search: string, mode: string): DebugParams {
     cam: read('cam', parseCam),
     zoom: read('zoom', parseZoom),
     still: read('still', parseFlag),
-    lineup: read('lineup', parseFlag),
+    lineup: read('lineup', parseLineup),
     wind: read('wind', oneOf(WINDS)),
   };
 }
