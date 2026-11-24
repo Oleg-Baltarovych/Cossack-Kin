@@ -57,13 +57,17 @@ export async function waitReady(page: Page): Promise<void> {
  * it after the clock call, before `goto`. Playwright's clock also fakes `requestAnimationFrame` as a 16 ms timer, which
  * has none of the browser's backpressure: the page queues ~60 frames/s of WebGL work while SwiftShader draws ~10, the
  * GPU process falls behind by seconds per second played, and after a reload the new page's first synchronous GL call
- * (Pixi's WebGL probe in `app.init`) waits out that backlog — over 20 s after a long run (M2-24). Frames from the native
- * `requestAnimationFrame` run at the pace the GPU keeps up with. The callback gets the fake `performance.now()`, the
- * clock the Pixi ticker reads, so frame times stay on one timeline across a reload. A paused clock has the same
- * backlog on a long `runFor` (every 16-ms fake frame fires at once: `runFor(2400)` = 150 WebGL frames, a 64-s screenshot
- * on CI, M2-29): build.spec pairs it with `nativeFrames` and waits for one native frame after each `runFor` — nothing is
- * drawn while the clock stands, so an animation anchored at its first frame starts at the first `runFor`. It leans on Playwright internals (`__pwClock.builtins`,
- * pinned `@playwright/test` 1.65.1): recheck it on every Playwright upgrade — `assertNativeFrames` fails if they moved.
+ * (Pixi's WebGL probe in `app.init`) waits out that backlog — over 20 s after a long run (M2-24). Frames come from the
+ * native `requestAnimationFrame`, and each waits until the GPU finished the frame before it (a WebGL2 fence): the
+ * native frames alone are not paced by the GPU once the canvas is fully covered — the full sheet (`data-state="full"`)
+ * hides the world, the compositor stops drawing the canvas and rAF runs at ~50/s while SwiftShader draws ~12 (Windows
+ * headless shell, fix/story-quests-local: a 13–20 s `app.init` after story-quests' reload). The callback gets the fake
+ * `performance.now()`, the clock the Pixi ticker reads, so frame times stay on one timeline across a reload. A paused
+ * clock has the same backlog on a long `runFor` (every 16-ms fake frame fires at once: `runFor(2400)` = 150 WebGL
+ * frames, a 64-s screenshot on CI, M2-29): build.spec pairs it with `nativeFrames` and waits for one native frame after
+ * each `runFor` — nothing is drawn while the clock stands, so an animation anchored at its first frame starts at the
+ * first `runFor`. It leans on Playwright internals (`__pwClock.builtins`, pinned `@playwright/test` 1.65.1): recheck it
+ * on every Playwright upgrade — `assertNativeFrames` fails if they moved.
  */
 export async function nativeFrames(page: Page): Promise<void> {
   await page.context().addInitScript(() => {
@@ -74,12 +78,69 @@ export async function nativeFrames(page: Page): Promise<void> {
     // No clock (or a wrong call order): leave the flag unset — `assertNativeFrames` reports it in the test.
     if (!pw?.builtins.requestAnimationFrame) return;
     const { requestAnimationFrame: raf, cancelAnimationFrame: caf } = pw.builtins;
-    window.requestAnimationFrame = (cb) =>
-      raf(() => {
-        cb(performance.now());
-      });
+    // The world's WebGL2 context: `getContext` with the type Pixi created returns that context (none before the canvas
+    // is in the page, or for a WebGL1 one — those frames are not paced).
+    let canvas: Element | null = null;
+    let world: WebGL2RenderingContext | null = null;
+    const worldGl = (): WebGL2RenderingContext | null => {
+      const now = document.querySelector('#world canvas');
+      if (now !== canvas) {
+        canvas = now;
+        world = now instanceof HTMLCanvasElement ? now.getContext('webgl2') : null;
+      }
+      return world;
+    };
+    // The fence after the last frame's GL work; the next frame waits while it is unsignaled. A lost context (the
+    // reload's teardown) has no status to wait for.
+    let fence: { readonly gl: WebGL2RenderingContext; readonly sync: WebGLSync } | null = null;
+    const gpuBehind = (): boolean => {
+      if (!fence) return false;
+      const { gl, sync } = fence;
+      if (!gl.isContextLost() && gl.clientWaitSync(sync, 0, 0) === gl.TIMEOUT_EXPIRED) return true;
+      if (!gl.isContextLost()) gl.deleteSync(sync);
+      fence = null;
+      return false;
+    };
+    // One native frame runs every callback requested before it, as the browser does (Pixi runs several tickers);
+    // deciding per callback would let the first ticker's fence starve the next.
+    const queued = new Map<number, FrameRequestCallback>();
+    let nextId = 1;
+    let pending: number | null = null;
+    const frame = (): void => {
+      pending = null;
+      if (gpuBehind()) {
+        pending = raf(frame);
+        return;
+      }
+      const batch = [...queued];
+      queued.clear();
+      const now = performance.now();
+      for (const [, cb] of batch) {
+        // A throwing callback is reported and the rest still run, as with the browser's own frames.
+        try {
+          cb(now);
+        } catch (error) {
+          reportError(error);
+        }
+      }
+      const gl = worldGl();
+      const sync = gl && !gl.isContextLost() ? gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0) : null;
+      if (!gl || !sync) return;
+      fence = { gl, sync };
+      // Sent now: the covered canvas is never presented, and an unsent fence never signals.
+      gl.flush();
+    };
+    window.requestAnimationFrame = (cb) => {
+      const id = nextId++;
+      queued.set(id, cb);
+      pending ??= raf(frame);
+      return id;
+    };
     window.cancelAnimationFrame = (id) => {
-      caf(id);
+      queued.delete(id);
+      if (queued.size > 0 || pending === null) return;
+      caf(pending);
+      pending = null;
     };
     (window as { __ckNativeRaf?: boolean }).__ckNativeRaf = true;
   });
