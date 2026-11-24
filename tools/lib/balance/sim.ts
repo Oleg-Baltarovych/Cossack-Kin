@@ -3,24 +3,33 @@
 // Each step it presses MAX on the best target (soonest payback incl. the wait for the price, steady income, for
 // ducats; the lowest open Sich building for glory)
 // and hires Cossacks while they are cheap. After every step and press it claims each finished quest — the step of
-// «Наказ кошового» and the chore — through the real `claimQuest` action (M2-27; a claim is not an «дія», SPEC §12.3,
-// so it is counted apart). It logs actions, «відчутні» purchases and novelties (SPEC §2.4: story beats and chain
-// steps too, plan Q6), milestone times and bloom. Deterministic: the same options give the same result, byte for byte.
+// «Наказ кошового» and the chore — through the real `claimQuest` action (M2-27; a quest claim is not an «дія», SPEC
+// §12.3, so it is counted apart). Raids (M3-08): at every step it claims what came back before its purchases
+// (`claimRaid`; «Забрати все» = `claimAllRaids` when two or more are back) and, after them, fills each free slot with
+// the offer of the highest expected loot (`bestRaid`: the hires of the step count). «Ще раз» is immediate, like the real
+// button (claim + the same tier in one tap): taken at the claim, before the purchases, when the tier that came back is
+// the best at that moment — by design, not an ordering slip. A raid start and a raid claim are actions (SPEC §12.3),
+// counted apart from the economy's (owner 2026-11-24: the 5–15 corridor is purchases and hires; raids have their own cap).
+// It logs actions, «відчутні» purchases and novelties (SPEC §2.4: story beats, chain steps, plan Q6; the first raid,
+// each relic, each raid tier), milestone times, bloom and the raid ledger. Deterministic: the same options give the
+// same result, byte for byte.
 import { FARM, SICH } from '../../../src/content/economy.ts';
 import { PACING, type NoveltyKind } from '../../../src/content/pacing.ts';
+import { RAID_TIER_IDS, RAIDS, type RaidTierId } from '../../../src/content/raids.ts';
+import type { RelicId } from '../../../src/content/relics.ts';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
 import type { FarmBuildingId } from '../../../src/content/villages/khortytsia.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
+import { tier } from '../../../src/core/economy.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
 import { farmIncomeRate, sichUnlocked, steadyModifiers, villageOf } from '../../../src/core/modifiers.ts';
 import { tick } from '../../../src/core/offline.ts';
 import { farmRowView, sichRowView, visibleSichIds } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { canHire } from '../../../src/core/systems/army.ts';
-import { RAID_TIER_IDS } from '../../../src/content/raids.ts';
-import { chainQuest, choreQuest, questRef } from '../../../src/core/systems/quests.ts';
-import { tier } from '../../../src/core/economy.ts';
 import { bloomStatus } from '../../../src/core/systems/bloom.ts';
+import { chainQuest, choreQuest, questRef } from '../../../src/core/systems/quests.ts';
+import { canStart, previewRaid } from '../../../src/core/systems/raids.ts';
 import { stormStarts } from '../../../src/core/systems/village-mechanics/wind.ts';
 
 const MS = 1000;
@@ -58,6 +67,7 @@ export interface SessionLog {
   readonly index: number;
   /** Seconds since the start of the run. */
   readonly start: number;
+  /** Economy actions: purchase presses and hires (the 5–15 corridor, SPEC §2.3). Raid actions are in `raids`. */
   readonly actions: number;
   readonly noticeable: number;
   /** Noticeable purchases made at the session's first step, i.e. from what the offline time brought. */
@@ -66,12 +76,51 @@ export interface SessionLog {
   readonly claims: { readonly chain: number; readonly chore: number };
   /** Chore claims that paid a reward (the rest, past CHORES.maxClaimsPerDay, only move the counter). */
   readonly choreRewards: number;
+  /**
+   * Raid actions (SPEC §12.3; not in `actions`): starts and claims (a «Забрати все» counts one per slot); `again` —
+   * starts by «Ще раз» (the claimed slot sent to the same tier), `claimAll` — taps of «Забрати все».
+   */
+  readonly raids: {
+    readonly starts: number;
+    readonly claims: number;
+    readonly again: number;
+    readonly claimAll: number;
+  };
+}
+
+/** One raid claimed by the bot. */
+export interface RaidClaimLog {
+  readonly session: number;
+  /** Seconds since the start of the run. */
+  readonly t: number;
+  readonly slot: number;
+  readonly tier: RaidTierId;
+  readonly success: boolean;
+  readonly ducats: number;
+  readonly glory: number;
+  readonly pysanky: number;
+  readonly relic: RelicId | null;
+}
+
+/** One day of the run (its sessions and the offline time before them), sampled at the end of its last session. */
+export interface DayLog {
+  readonly day: number;
+  /** Ducats earned that day (lifetime: income, offline returns, rewards, loot). */
+  readonly earnedDucats: number;
+  readonly raidDucats: number;
+  readonly raidsClaimed: number;
+  readonly raidsWon: number;
+  readonly pysanky: number;
+  /** Steady modifiers at the end of the day: loot grows with both (a raid is «seconds of income» × lootMult). */
+  readonly lootMult: number;
+  readonly incomeMult: number;
 }
 
 export interface SimResult {
   readonly seed: number;
   readonly days: number;
   readonly firstPurchaseSec: number | null;
+  readonly firstRaidSec: number | null;
   readonly bloomSec: number | null;
   readonly bloomSession: number | null;
   readonly sessions: readonly SessionLog[];
@@ -80,6 +129,9 @@ export interface SimResult {
   readonly milestones: Readonly<Record<string, number>>;
   /** Share of all ducats earned that came from offline returns (0..1). */
   readonly offlineShare: number;
+  /** Every raid the bot claimed, in order. */
+  readonly raidClaims: readonly RaidClaimLog[];
+  readonly dayLog: readonly DayLog[];
   /** The game at the end of the run (save fixtures are captured from it: tools/capture-save.ts). */
   readonly final: GameState;
 }
@@ -155,15 +207,51 @@ function bestFarm(s: GameState): FarmBuildingId | null {
   return best;
 }
 
-/** Most Cossacks the bot hires now: as many as food allows, while they cost ≤ HIRE_SHARE of the ducats. */
+/**
+ * Most Cossacks the bot hires now: as many as food allows, while they cost ≤ HIRE_SHARE of the ducats. The first
+ * Cossack, while the chain asks for him («Найми першого козака», SPEC §2.4), is hired as soon as he is paid for: a
+ * guided player follows the highlighted step, and the scouting raid waits on him (first raid < 3 min, SPEC §2.3; M3-08).
+ */
 function hireCount(s: GameState, now: number): number {
+  const q = chainQuest(s);
+  const first = s.army.infantry === 0 && q !== null && !q.done && q.goal.kind === 'count' && q.goal.stat === 'hires';
+  const asked = first ? 1 : 0;
   const budget = s.currencies.ducats.mul(HIRE_SHARE);
   let n = 0;
   for (;;) {
     const c = canHire(s, n + 1, now);
-    if (!c.ok || c.cost.gt(budget)) return n;
+    if (!c.ok || (c.cost.gt(budget) && n + 1 > asked)) return n;
     n += 1;
   }
+}
+
+/**
+ * The raid the bot sends from `slot` (null: none can start): the offer of the highest expected loot, chance ×
+ * success + (1 − chance) × failure (`previewRaid`: the card's numbers, rumour included), ducats and glory each in
+ * units of the 5-minute success. One raid per slot «till the next session» (SPEC §12.3): every tier (≤ 8 h) is back
+ * before the next session (≈ 12 h later), so the biggest expected loot is the biggest of one raid. Relics are left out
+ * of the value: the pity brings them on the raids ≥ 30 min the loot picks anyway.
+ */
+export function bestRaid(s: GameState, slot: number): RaidTierId | null {
+  const [scout] = RAID_TIER_IDS;
+  const ref = previewRaid(s, scout).success;
+  // A currency whose reference is 0 has no unit to weigh it by: it is left out (the REWARD floor keeps both > 0 today).
+  const refD = ref.ducats.toNumber();
+  const refG = ref.glory.toNumber();
+  let best: RaidTierId | null = null;
+  let bestValue = -Infinity;
+  for (const id of RAID_TIER_IDS) {
+    if (!canStart(s, slot, id).ok) continue;
+    const p = previewRaid(s, id);
+    const ev = (k: 'ducats' | 'glory'): number =>
+      p.chance * p.success[k].toNumber() + (1 - p.chance) * p.failure[k].toNumber();
+    const value = (refD > 0 ? ev('ducats') / refD : 0) + (refG > 0 ? ev('glory') / refG : 0);
+    if (value > bestValue) {
+      bestValue = value;
+      best = id;
+    }
+  }
+  return best;
 }
 
 /** The next press of the bot, or null when nothing is worth pressing now. */
@@ -198,6 +286,10 @@ export function simulate(options: SimOptions): SimResult {
   const milestones: Record<string, number> = {};
   const sessions: SessionLog[] = [];
   let firstPurchase: number | null = null;
+  let firstRaid: number | null = null;
+  const raidClaims: RaidClaimLog[] = [];
+  const dayLog: DayLog[] = [];
+  const day = { lifetime: state.village.lifetimeDucats.toNumber(), raidDucats: 0, claimed: 0, won: 0, pysanky: 0 };
   let bloom: number | null = null;
   let bloomSession: number | null = null;
   const bloomed = (): boolean => bloom !== null;
@@ -239,6 +331,16 @@ export function simulate(options: SimOptions): SimResult {
         case 'StoryBeatReached':
           note(t, 'storyBeat', e.id);
           break;
+        case 'RaidStarted':
+          if (firstRaid === null) {
+            firstRaid = sec(t);
+            note(t, 'firstRaid');
+          }
+          note(t, 'raidTier', e.tier);
+          break;
+        case 'RelicFound':
+          note(t, 'firstRelic', e.id);
+          break;
         default:
       }
     }
@@ -273,19 +375,72 @@ export function simulate(options: SimOptions): SimResult {
     return { ok: true, noticeable: record(r.events, t) };
   };
 
-  /** Claims every finished quest now (a claimed chain step can start one already met: claimed in turn). */
-  const claimAll = (t: number, claims: { chain: number; chore: number; choreRewards: number }): void => {
-    // M3-08 replaces this with the bot's own raids: on the chain step `raid1` (Q7) send the first-tier raid through
-    // the real `startRaid` (kept out of the session's action count, as the stand-in of M3-04 was).
-    const active = chainQuest(state);
-    if (active && !active.done && active.goal.kind === 'count' && active.goal.stat === 'raidsSent') {
-      const [first] = RAID_TIER_IDS;
-      const r = applyAction(state, { type: 'startRaid', slot: 0, tier: first }, t);
-      if (!r.events.some((e) => e.type === 'ActionRejected')) {
-        state = r.state;
-        record(r.events, t);
+  interface RaidCounts {
+    starts: number;
+    claims: number;
+    again: number;
+    claimAll: number;
+  }
+  /** Logs the claim of the returned raid in `slot` of `before` (the state the claim was made on). */
+  const logClaim = (before: GameState, slot: number, t: number): void => {
+    const x = before.raids.slots[slot];
+    if (x?.kind !== 'returned') return;
+    const { success, loot, tier: tierId } = x.raid;
+    const ducats = loot.ducats.toNumber();
+    raidClaims.push({
+      session: sessionOf(t, starts),
+      t: sec(t),
+      slot,
+      tier: tierId,
+      success,
+      ducats,
+      glory: loot.glory.toNumber(),
+      pysanky: loot.pysanky,
+      relic: loot.relic,
+    });
+    day.raidDucats += ducats;
+    day.claimed += 1;
+    day.won += success ? 1 : 0;
+    day.pysanky += loot.pysanky;
+  };
+  /** Starts the best raid from `slot` if one can start; whether it did. */
+  const sendRaid = (slot: number, t: number, counts: RaidCounts): RaidTierId | null => {
+    const tierId = bestRaid(state, slot);
+    if (tierId === null || !act({ type: 'startRaid', slot, tier: tierId }, t).ok) return null;
+    counts.starts += 1;
+    return tierId;
+  };
+  /**
+   * Claims the raids that are back, before the purchases (their loot is spent at once): «Забрати все» when two or more
+   * are; one alone is sent again at once by «Ще раз» (plan §0.1 П12) when the tier it came back from is the best right
+   * now. Deliberately immediate, like the real button (one tap: claim + start): it does not wait for the step's hires,
+   * so it may send the tier a post-hire `bestRaid` would have topped — a player tapping «Ще раз» does the same. Counts
+   * one raid action per slot claimed and one per start (SPEC §12.3).
+   */
+  const claimRaids = (t: number, counts: RaidCounts): void => {
+    const back = new Map<number, RaidTierId>();
+    for (const [i, x] of state.raids.slots.slice(0, RAIDS.slots).entries())
+      if (x.kind === 'returned') back.set(i, x.raid.tier);
+    const [only] = back.keys();
+    if (only !== undefined) {
+      const many = back.size > 1;
+      const before = state;
+      if (act(many ? { type: 'claimAllRaids' } : { type: 'claimRaid', slot: only }, t).ok) {
+        if (many) counts.claimAll += 1;
+        counts.claims += back.size;
+        for (const slot of back.keys()) logClaim(before, slot, t);
+        if (!many && bestRaid(state, only) === back.get(only) && sendRaid(only, t, counts) !== null) counts.again += 1;
       }
     }
+  };
+  /** Fills every free open slot with the best raid, after the purchases (hires raise the power). */
+  const sendRaids = (t: number, counts: RaidCounts): void => {
+    for (let slot = 0; slot < RAIDS.slots; slot += 1)
+      if (state.raids.slots[slot]?.kind === 'idle') sendRaid(slot, t, counts);
+  };
+
+  /** Claims every finished quest now (a claimed chain step can start one already met: claimed in turn). */
+  const claimAll = (t: number, claims: { chain: number; chore: number; choreRewards: number }): void => {
     for (;;) {
       const q = chainQuest(state);
       if (!q?.done) break;
@@ -315,6 +470,7 @@ export function simulate(options: SimOptions): SimResult {
     let noticeable = 0;
     let atOpen = 0;
     const claims = { chain: 0, chore: 0, choreRewards: 0 };
+    const raids: RaidCounts = { starts: 0, claims: 0, again: 0, claimAll: 0 };
     for (let t = start; t < start + sessionMs; t += stepMs) {
       let stepNoticeable = advanceTo(t);
       const report = state.returnReport;
@@ -323,6 +479,7 @@ export function simulate(options: SimOptions): SimResult {
         act({ type: 'claimReturn' }, t);
       }
       if (taps) act({ type: 'tap' }, t);
+      claimRaids(t, raids);
       claimAll(t, claims);
       for (let p = 0; p < MAX_PRESSES_PER_STEP; p += 1) {
         const a = nextAction(state, t);
@@ -333,6 +490,9 @@ export function simulate(options: SimOptions): SimResult {
         stepNoticeable += r.noticeable;
         claimAll(t, claims);
       }
+      // A start can finish the chain step `raid1` or a raid chore: claimed at once, like the rest.
+      sendRaids(t, raids);
+      claimAll(t, claims);
       afterStep(t);
       noticeable += stepNoticeable;
       if (t === start) atOpen = stepNoticeable;
@@ -345,9 +505,27 @@ export function simulate(options: SimOptions): SimResult {
       noticeableAtOpen: atOpen,
       claims: { chain: claims.chain, chore: claims.chore },
       choreRewards: claims.choreRewards,
+      raids,
     });
+    // The day closes at its last session, at the last session of the run, or at the bloom stop (a partial day).
     // bloom is set inside afterStep (a closure): read it through a function so TS does not narrow it to null here.
-    if (options.stopAtBloom && bloomed()) break;
+    const stopping = options.stopAtBloom === true && bloomed();
+    if ((i + 1) % PACING.sessionsPerDay === 0 || i === starts.length - 1 || stopping) {
+      const lifetime = state.village.lifetimeDucats.toNumber();
+      const mods = steadyModifiers(state);
+      dayLog.push({
+        day: Math.floor(i / PACING.sessionsPerDay) + 1,
+        earnedDucats: lifetime - day.lifetime,
+        raidDucats: day.raidDucats,
+        raidsClaimed: day.claimed,
+        raidsWon: day.won,
+        pysanky: day.pysanky,
+        lootMult: mods.lootMult,
+        incomeMult: mods.incomeMult,
+      });
+      Object.assign(day, { lifetime, raidDucats: 0, claimed: 0, won: 0, pysanky: 0 });
+    }
+    if (stopping) break;
   }
 
   const earned = state.village.lifetimeDucats.toNumber() - startLifetime;
@@ -355,12 +533,15 @@ export function simulate(options: SimOptions): SimResult {
     seed: options.seed,
     days: options.days,
     firstPurchaseSec: firstPurchase,
+    firstRaidSec: firstRaid,
     bloomSec: bloom,
     bloomSession,
     sessions,
     novelties,
     milestones,
     offlineShare: earned > 0 ? offlineDucats / earned : 0,
+    raidClaims,
+    dayLog,
     final: state,
   };
 }

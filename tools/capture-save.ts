@@ -1,11 +1,12 @@
 // Captures a save fixture from a real game (rules/save.md: «every version has a fixture captured from a real game
 // state»): the balance bot plays the real core for `--days` days with `--seed`, and its final state is written exactly
 // as the game writes a save (`encodeSave`). Fixtures are immutable once committed — capture a new file per version.
-// v4 (M3-04; M3-05: through the real `startRaid`): until the bot raids (M3-08) the sim sends only the onboarding raid
-// of `raid1` (returned by the end — `advance` turns it), and the capture sends a 1-h raid at the end (on its way).
-// `v4.json` is committed and immutable: this path is for the next version's fixture.
+// Raids (M3-08): the bot raids through the real actions, so a played game ends with its slots out (or back,
+// unclaimed). `v4.json` was captured before that (M3-04/05: the onboarding raid and a 1-h raid this tool sent at the
+// end) and stays as committed — fixtures are immutable; this path is for the next version's fixture.
 //   node tools/capture-save.ts --seed 7 --days 3 --out tests/fixtures/saves/v4.json
 import { existsSync, writeFileSync } from 'node:fs';
+import { RAIDS } from '../src/content/raids.ts';
 import { applyAction } from '../src/core/actions.ts';
 import { encodeSave } from '../src/core/save/serialize.ts';
 import type { GameState } from '../src/core/state.ts';
@@ -41,13 +42,10 @@ function claimAll(start: GameState): GameState {
   }
   return s;
 }
-// M3-08 replaces this with the bot's real raids: a 1-h raid sent at the end of play (on its way) through the action.
-const end = played.time.lastSeen;
-const slot = played.raids.slots.findIndex((x) => x.kind === 'idle');
-const r = applyAction(played, { type: 'startRaid', slot, tier: 'h1' }, end);
-if (r.events.some((e) => e.type === 'ActionRejected')) throw new Error('capture: the 1-h raid cannot start at the end');
-const sent = r.state;
-const final = claimAll(sent);
+const final = claimAll(played);
+// A fixture of a raiding game carries raids: the bot keeps every open slot busy at the end of a session.
+if (final.raids.slots.slice(0, RAIDS.slots).every((x) => x.kind === 'idle'))
+  throw new Error('capture: the played game has no raid out — play more days');
 // The saver numbers its writes; a played game has written many — any positive count will do.
 const seq = 1;
 writeFileSync(out, `${encodeSave(final, seq)}\n`);

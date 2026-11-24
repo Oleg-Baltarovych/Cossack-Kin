@@ -93,11 +93,13 @@ describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {
       noticeableAtOpen: 3,
       claims: { chain: 0, chore: 0 },
       choreRewards: 0,
+      raids: { starts: 0, claims: 0, again: 0, claimAll: 0 },
     }));
     const run = (empty: readonly number[]): SimResult => ({
       seed: 9,
       days: 7,
       firstPurchaseSec: 0,
+      firstRaidSec: 0,
       bloomSec: 5 * 86_400,
       bloomSession: 10,
       sessions,
@@ -106,6 +108,8 @@ describe('sessions and novelty (M1-14, SPEC §2.3–2.4)', () => {
         .map((s) => ({ session: s.index, t: s.start, kind: 'building', ref: `b${String(s.index)}` })),
       milestones: {},
       offlineShare: 0.5,
+      raidClaims: [],
+      dayLog: [],
       final: createInitialState({ seed: 9, now: DEFAULT_EPOCH }),
     });
     const gate = (r: SimResult) => evaluate([r]).find((x) => x.id.startsWith('maxSessionsWithoutNovelty'));
@@ -233,12 +237,14 @@ describe('report-only pacing lines (M2-27)', () => {
     noticeableAtOpen: 3,
     claims: { chain: 0, chore: 0 },
     choreRewards: 0,
+    raids: { starts: 0, claims: 0, again: 0, claimAll: 0 },
   }));
   // S5 has only a chain step: new for the gate (Q6), empty without chain steps.
   const fake: SimResult = {
     seed: 9,
     days: 7,
     firstPurchaseSec: 0,
+    firstRaidSec: 0,
     bloomSec: 5 * 86_400,
     bloomSession: 10,
     sessions,
@@ -249,6 +255,8 @@ describe('report-only pacing lines (M2-27)', () => {
     ),
     milestones: {},
     offlineShare: 0.5,
+    raidClaims: [],
+    dayLog: [],
     final: createInitialState({ seed: 9, now: DEFAULT_EPOCH }),
   };
   const checks = evaluate([fake]);
@@ -284,6 +292,7 @@ describe('S1 is onboarding (owner 2026-11-22, SPEC §2.3): the 5–15 corridor c
       seed: 9,
       days: 2,
       firstPurchaseSec: 0,
+      firstRaidSec: 0,
       bloomSec: null,
       bloomSession: null,
       sessions: actions.map((a, i) => ({
@@ -294,10 +303,13 @@ describe('S1 is onboarding (owner 2026-11-22, SPEC §2.3): the 5–15 corridor c
         noticeableAtOpen: 1,
         claims: { chain: 0, chore: 0 },
         choreRewards: 0,
+        raids: { starts: 0, claims: 0, again: 0, claimAll: 0 },
       })),
       novelties: [],
       milestones: {},
       offlineShare: 0.5,
+      raidClaims: [],
+      dayLog: [],
       final: createInitialState({ seed: 9, now: DEFAULT_EPOCH }),
     };
     const checks = evaluate([r]);

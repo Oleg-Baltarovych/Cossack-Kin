@@ -19,6 +19,9 @@ export interface Corridor {
   readonly sessionActions: Range;
   readonly offline8hNoticeable: Range;
   readonly s1MaxActions: number;
+  readonly firstRaidMaxSec: number;
+  readonly raidActionsMax: number;
+  readonly raidLootShare: Range;
   readonly novelty: {
     readonly week1Sessions: number;
     readonly maxSessionsWithoutNovelty: number;
@@ -69,9 +72,27 @@ export function noveltiesPerSession(
   return counts;
 }
 
-/** Session in which each calendar entry first happened (null = never). */
+/** Session in which each calendar entry first happened (null = never); an empty ref takes any ref of the kind. */
 export function calendarSessions(r: SimResult, calendar: readonly CalendarEntry[]): (number | null)[] {
-  return calendar.map((c) => r.novelties.find((n) => n.kind === c.kind && n.ref === c.ref)?.session ?? null);
+  return calendar.map(
+    (c) => r.novelties.find((n) => n.kind === c.kind && (c.ref === '' || n.ref === c.ref))?.session ?? null,
+  );
+}
+
+/**
+ * Days of the land's life: up to the day of the bloom session (every day without bloom). Biased a little high: the
+ * whole bloom day counts, so a bloom in its morning session brings that evening's (post-bloom) raids and income in too.
+ */
+function liveDays(r: SimResult): SimResult['dayLog'] {
+  const last = r.bloomSession === null ? Infinity : Math.ceil(r.bloomSession / SESSIONS_PER_DAY);
+  return r.dayLog.filter((d) => d.day <= last);
+}
+
+/** Share of the ducats earned over the land's life that came from raid loot (null: nothing earned). */
+export function raidLootShare(r: SimResult): number | null {
+  const days = liveDays(r);
+  const earned = days.reduce((a, d) => a + d.earnedDucats, 0);
+  return earned > 0 ? days.reduce((a, d) => a + d.raidDucats, 0) / earned : null;
 }
 
 export function evaluate(
@@ -89,6 +110,12 @@ export function evaluate(
       `≤ ${String(pacing.firstPurchaseMaxSec)}`,
       fmt(r.firstPurchaseSec),
       r.firstPurchaseSec !== null && r.firstPurchaseSec <= pacing.firstPurchaseMaxSec,
+    );
+    add(
+      'firstRaidSec',
+      `≤ ${String(pacing.firstRaidMaxSec)}`,
+      fmt(r.firstRaidSec),
+      r.firstRaidSec !== null && r.firstRaidSec <= pacing.firstRaidMaxSec,
     );
     const bloomDays = r.bloomSec === null ? null : r.bloomSec / DAY_SEC;
     add(
@@ -117,6 +144,23 @@ export function evaluate(
     );
     const s1 = r.sessions[0]?.actions ?? null;
     add('s1Actions', `≤ ${String(pacing.s1MaxActions)}`, fmt(s1), s1 !== null && s1 <= pacing.s1MaxActions, false);
+    // Gated (owner 2026-11-24, SPEC §2.3): raid starts + claims of every session from S2, apart from the economy's
+    // 5–15 (S1 is onboarding: the scouting may come back inside it).
+    const raidActs = Math.max(0, ...live.filter((s) => s.index > 1).map((s) => s.raids.starts + s.raids.claims));
+    add(
+      'raidActions (max, S2+)',
+      `≤ ${String(pacing.raidActionsMax)}`,
+      String(raidActs),
+      raidActs <= pacing.raidActionsMax,
+    );
+    const share = raidLootShare(r);
+    add(
+      'raidLootShare (to bloom)',
+      `${fmt(pacing.raidLootShare.min * 100)}–${fmt(pacing.raidLootShare.max * 100)} %`,
+      share === null ? '—' : `${fmt(share * 100)} %`,
+      share !== null && share >= pacing.raidLootShare.min && share <= pacing.raidLootShare.max,
+      false,
+    );
     // Up to bloom only: after bloom the move to the next land is the novelty (M5).
     const week1Len = Math.min(pacing.novelty.week1Sessions, r.bloomSession ?? pacing.novelty.week1Sessions);
     const emptyRun = longestZeroRun(noveltiesPerSession(r, week1Len));
@@ -173,7 +217,7 @@ export function renderReport(
   const lines: string[] = [
     '# Balance — land 1 (Хортиця)',
     '',
-    `Bot: greedy MAX (plan Q10), ${String(PACING.sessionsPerDay)} sessions/day × ${String(PACING.sessionSec / 60)} min, tap every ${String(PACING.tapEverySec)} s, claims every finished quest (not an action), free profile.`,
+    `Bot: greedy MAX (plan Q10), ${String(PACING.sessionsPerDay)} sessions/day × ${String(PACING.sessionSec / 60)} min, tap every ${String(PACING.tapEverySec)} s, claims every finished quest (not an action), claims returned raids and sends the best expected loot into each free slot (raid actions, counted apart from the economy actions; M3-08), free profile.`,
     '',
   ];
   const failed = checks.filter((c) => c.gate && !c.ok).length;
@@ -195,13 +239,13 @@ export function renderReport(
     lines.push(
       '### Novelty timeline, week 1',
       '',
-      '| session | actions | noticeable | at open | claims (chain/chore) | novelties |',
-      '|---|---|---|---|---|---|',
+      '| session | actions | raid actions | noticeable | at open | claims (chain/chore) | novelties |',
+      '|---|---|---|---|---|---|---|',
     );
     for (const s of r.sessions.slice(0, PACING.novelty.week1Sessions)) {
       const list = r.novelties.filter((n) => n.session === s.index).map((n) => (n.ref ? `${n.kind}:${n.ref}` : n.kind));
       lines.push(
-        `| S${String(s.index)} | ${String(s.actions)} | ${String(s.noticeable)} | ${String(s.noticeableAtOpen)} | ${String(s.claims.chain)}/${String(s.claims.chore)} | ${list.join(', ') || '—'} |`,
+        `| S${String(s.index)} | ${String(s.actions)} | ${String(s.raids.starts + s.raids.claims)} | ${String(s.noticeable)} | ${String(s.noticeableAtOpen)} | ${String(s.claims.chain)}/${String(s.claims.chore)} | ${list.join(', ') || '—'} |`,
       );
     }
     lines.push('', '### Calendar (SPEC §2.4)', '', '| entry | window | seen |', '|---|---|---|');
@@ -212,6 +256,18 @@ export function renderReport(
           `| ${c.id} | S${String(c.sessions.min)}–S${String(c.sessions.max)} | ${s === null ? 'never' : `S${String(s)}`} |`,
         );
     });
+    lines.push('', '### Raids', '');
+    const relics = r.raidClaims.filter((c) => c.relic !== null);
+    lines.push(
+      `Relics: ${relics.map((c) => `${String(c.relic)} S${String(c.session)} (day ${fmt(c.t / DAY_SEC)}, ${c.tier})`).join(', ') || 'none'} · «Ще раз» ${String(r.sessions.reduce((a, s) => a + s.raids.again, 0))} · «Забрати все» ${String(r.sessions.reduce((a, s) => a + s.raids.claimAll, 0))}`,
+      '',
+      '| day | raids | won % | loot share of ducats | pysanky | lootMult | incomeMult | lootMult × incomeMult |',
+      '|---|---|---|---|---|---|---|---|',
+    );
+    for (const d of r.dayLog)
+      lines.push(
+        `| ${String(d.day)} | ${String(d.raidsClaimed)} | ${d.raidsClaimed > 0 ? fmt((d.raidsWon / d.raidsClaimed) * 100) : '—'} | ${d.earnedDucats > 0 ? `${fmt((d.raidDucats / d.earnedDucats) * 100)} %` : '—'} | ${String(d.pysanky)} | ${fmt(d.lootMult)} | ${fmt(d.incomeMult)} | ${fmt(d.lootMult * d.incomeMult)} |`,
+      );
     lines.push('', '### Milestones (day reached)', '', '| milestone | day |', '|---|---|');
     for (const [k, v] of Object.entries(r.milestones).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])))
       lines.push(`| ${k} | ${fmt(v / DAY_SEC)} |`);
@@ -222,7 +278,7 @@ export function renderReport(
 /** One CSV row per seed × session (for spreadsheets). */
 export function renderCsv(results: readonly SimResult[]): string {
   const rows = [
-    'seed,session,startSec,actions,noticeable,noticeableAtOpen,chainClaims,choreClaims,choreRewards,novelties',
+    'seed,session,startSec,actions,noticeable,noticeableAtOpen,chainClaims,choreClaims,choreRewards,raidStarts,raidClaims,novelties',
   ];
   for (const r of results) {
     const counts = noveltiesPerSession(r, r.sessions.length);
@@ -238,6 +294,8 @@ export function renderCsv(results: readonly SimResult[]): string {
           s.claims.chain,
           s.claims.chore,
           s.choreRewards,
+          s.raids.starts,
+          s.raids.claims,
           counts[s.index - 1] ?? 0,
         ].join(','),
       );
