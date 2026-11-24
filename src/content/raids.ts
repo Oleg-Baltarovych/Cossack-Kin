@@ -8,6 +8,11 @@ import type { Village } from './villages/khortytsia.ts';
 export const RAID_TIER_IDS = ['m5', 'm30', 'h1', 'h4', 'h8'] as const;
 export type RaidTierId = (typeof RAID_TIER_IDS)[number];
 
+/** Whether `id` names a tier (an action's payload is typed, but a stale or forged id must be refused, not thrown on). */
+export function isRaidTierId(id: string): id is RaidTierId {
+  return (RAID_TIER_IDS as readonly string[]).includes(id);
+}
+
 /** A tier's place in RAID_TIER_IDS (shorter first): «tier ≥ RELICS.pityMinTier» and the like. */
 export function tierRank(id: RaidTierId): number {
   return RAID_TIER_IDS.indexOf(id);

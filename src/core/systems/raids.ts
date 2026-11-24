@@ -1,6 +1,6 @@
 // Raid formulas (SPEC §3.4, §2.6; plan M3-03; ADR 012). Pure functions; the state types below are persisted in save v4
-// (M3-04, gate in state.ts); the actions and `advance` that use them come in M3-05. Numbers are in content/raids.ts
-// and content/relics.ts.
+// (M3-04, gate in state.ts); the start, the claim and the return (`startRaid`, `claimRaid`, `returnRaids`, M3-05) are
+// called by actions.ts and advance/offline. Numbers are in content/raids.ts and content/relics.ts.
 //   power   = ArmyPower at the steady rates (a snapshot: the army stays home, Q1)
 //   start   only when power ≥ minPowerShare × P
 //   chance  = clamp(power / P, chanceMin, 1)
@@ -13,6 +13,7 @@
 // The daily board is not state: a pure function of (seed, day), day = the quest day (`questDay`, §3.9).
 import {
   BOARD,
+  isRaidTierId,
   RAID_TIER_IDS,
   tierRank,
   RAID_TIERS,
@@ -26,6 +27,7 @@ import {
 } from '../../content/raids.ts';
 import { RELIC_DEFS, RELICS, pityThreshold, type RelicId } from '../../content/relics.ts';
 import { Big } from '../big.ts';
+import type { GameEvent } from '../events.ts';
 import { steadyModifiers, villageOf } from '../modifiers.ts';
 import { hash32, next, pickStable, type Rng } from '../rng.ts';
 import type { GameState } from '../state.ts';
@@ -340,4 +342,130 @@ export function rollRaid(
     pity,
     rumorDay: pre.rumor !== null ? questDay(state) : state.raids.rumorDay,
   };
+}
+
+// --- start, return, claim (M3-05) ------------------------------------------------------------------------------------
+
+const withSlot = (slots: readonly RaidSlot[], i: number, slot: RaidSlot): RaidSlot[] =>
+  slots.map((x, j) => (j === i ? slot : x));
+
+/**
+ * Sends a raid of `tier` from `slot` at `at` — the action's effective time (the state is advanced to it, so `at` lies
+ * in [created, maxSeen]; never a raw clock behind the game's time). Stores the roll, the RNG, pity and rumorDay of
+ * `rollRaid`, counts it sent. A refusal is its reason; the caller keeps the state.
+ */
+export function startRaid(
+  state: GameState,
+  slot: number,
+  tier: RaidTierId,
+  at: number,
+): { state: GameState; events: GameEvent[] } | 'range' | 'slotBusy' | 'power' {
+  // A stale or forged tier id is refused, never a throw (raidTier would).
+  if (!isRaidTierId(tier)) return 'range';
+  const check = canStart(state, slot, tier);
+  if (!check.ok) return check.reason;
+  const { roll, rng, pity, rumorDay } = rollRaid(state, tier, at);
+  return {
+    state: {
+      ...state,
+      rng,
+      raids: { slots: withSlot(state.raids.slots, slot, { kind: 'running', raid: roll }), rumorDay, pity },
+      stats: { ...state.stats, raidsSent: state.stats.raidsSent + 1 },
+    },
+    events: [{ type: 'RaidStarted', slot, region: roll.region, tier, returnAt: roll.returnAt }],
+  };
+}
+
+/** A raid back by `upTo`, with its return time (advance merges it into the time order of its events). */
+export interface RaidReturn {
+  readonly at: number;
+  readonly event: Extract<GameEvent, { type: 'RaidReturned' }>;
+}
+
+/**
+ * Every running raid with `returnAt ≤ upTo` (ms) becomes returned — the `returnAt` breakpoint of `advance` (ADR 012;
+ * no rate changes, so only the state and the event). Returns in time order (slot order on a tie). The same state
+ * object when nothing came back. «≤ upTo», not «∈ (lastSeen, upTo]»: the game never leaves a running raid with
+ * `returnAt ≤ lastSeen` (a start is at lastSeen, every forward move returns up to its end), but the save gate does not
+ * forbid one — such a raid returns on the next forward move instead of hanging (test in raid-time.test.ts).
+ */
+export function returnRaids(state: GameState, upTo: number): { state: GameState; returns: readonly RaidReturn[] } {
+  const back: { slot: number; raid: RaidRoll }[] = [];
+  const slots = state.raids.slots.map((x, slot): RaidSlot => {
+    if (x.kind !== 'running' || x.raid.returnAt > upTo) return x;
+    back.push({ slot, raid: x.raid });
+    return { kind: 'returned', raid: x.raid };
+  });
+  if (back.length === 0) return { state, returns: [] };
+  back.sort((a, b) => a.raid.returnAt - b.raid.returnAt || a.slot - b.slot);
+  return {
+    state: { ...state, raids: { ...state.raids, slots } },
+    returns: back.map(({ slot, raid }) => ({
+      at: raid.returnAt,
+      event: { type: 'RaidReturned', slot, region: raid.region, success: raid.success },
+    })),
+  };
+}
+
+type Claimed = { state: GameState; events: GameEvent[] };
+
+/** Grants the returned `raid` of `slot`: its loot exactly as rolled (shown = granted), its relic; the slot is free. */
+function grantRaid(state: GameState, slot: number, raid: RaidRoll): Claimed {
+  const { success, loot } = raid;
+  const c = state.currencies;
+  const events: GameEvent[] = [
+    {
+      type: 'RaidClaimed',
+      slot,
+      success,
+      granted: { ducats: loot.ducats, glory: loot.glory, pysanky: loot.pysanky },
+      relic: loot.relic,
+    },
+  ];
+  if (loot.relic !== null) events.push({ type: 'RelicFound', id: loot.relic });
+  return {
+    state: {
+      ...state,
+      currencies: {
+        ...c,
+        ducats: c.ducats.add(loot.ducats),
+        // An action's grant goes straight in: the glory store caps passive and offline accrual only (SPEC §3.8).
+        glory: c.glory.add(loot.glory),
+        pysanky: c.pysanky + loot.pysanky,
+      },
+      village: { ...state.village, lifetimeDucats: state.village.lifetimeDucats.add(loot.ducats) },
+      // `heldRelics` kept the roll off every relic found or in a slot: no duplicate to drop here.
+      relics: loot.relic === null ? state.relics : [...state.relics, loot.relic],
+      raids: { ...state.raids, slots: withSlot(state.raids.slots, slot, { kind: 'idle' }) },
+      stats: {
+        ...state.stats,
+        raidsDone: state.stats.raidsDone + 1,
+        raidsWon: state.stats.raidsWon + (success ? 1 : 0),
+      },
+    },
+    events,
+  };
+}
+
+/** Claims the returned raid in `slot` (`grantRaid`). */
+export function claimRaid(state: GameState, slot: number): Claimed | 'range' | 'notReturned' {
+  // 'range' is «no such slot in the save» (the stored array, RAIDS.maxSlots long); a closed slot is always idle (the
+  // save gate), so claiming it is 'notReturned', like any slot with nothing back.
+  if (!Number.isInteger(slot) || slot < 0 || slot >= state.raids.slots.length) return 'range';
+  const x = state.raids.slots[slot];
+  return x?.kind === 'returned' ? grantRaid(state, slot, x.raid) : 'notReturned';
+}
+
+/** «Забрати все» (Q17): every returned slot granted in slot order; 'notReturned' when none is back. */
+export function claimAllRaids(state: GameState): Claimed | 'notReturned' {
+  let s = state;
+  const events: GameEvent[] = [];
+  for (const [slot, x] of state.raids.slots.entries()) {
+    if (x.kind !== 'returned') continue;
+    const r = grantRaid(s, slot, x.raid);
+    s = r.state;
+    events.push(...r.events);
+  }
+  // Every grant emits its RaidClaimed: no events = no returned slot.
+  return events.length === 0 ? 'notReturned' : { state: s, events };
 }

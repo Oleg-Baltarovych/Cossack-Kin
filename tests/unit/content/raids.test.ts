@@ -92,6 +92,15 @@ describe('raid rules (M3-02, SPEC §3.4, plan §0)', () => {
     expect(RAIDS.squadSize).toBeLessThanOrEqual(AGENT_BUDGET.cossack / 2);
   });
 
+  it('every slot claimed at once brings at most a full glory store (claims bypass gloryCapSec, SPEC §3.8)', () => {
+    // A claim's glory goes straight in; the store caps passive and offline accrual only. The bound keeps raids from
+    // out-earning the store they bypass: maxSlots × the longest gloryLootSec × the strongest lootMult. lootMult is the
+    // rumour only until M3-06 adds the treasury and the relics — that task keeps this test true (plan M3-06 AC).
+    const maxLootMult = 1 + Math.max(0, ...BOARD.rumors.map((r) => (r.effect.kind === 'loot' ? r.effect.share : 0)));
+    const longest = Math.max(...RAID_TIERS.map((t) => t.gloryLootSec));
+    expect(RAIDS.maxSlots * longest * maxLootMult).toBeLessThanOrEqual(ARMY.gloryCapSec);
+  });
+
   it('the treasury adds loot per level (SPEC §3.2.1)', () => {
     const treasury = SICH_BUILDINGS.find((b) => b.id === 'treasury');
     expect(treasury?.effects.lootPerLevel ?? 0).toBeGreaterThan(0);
