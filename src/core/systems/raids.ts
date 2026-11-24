@@ -428,6 +428,8 @@ function grantRaid(state: GameState, slot: number, raid: RaidRoll): Claimed {
     {
       type: 'RaidClaimed',
       slot,
+      tier: raid.tier,
+      region: raid.region,
       success,
       granted: { ducats: loot.ducats, glory: loot.glory, pysanky: loot.pysanky },
       relic: loot.relic,

@@ -308,10 +308,10 @@
   "region.khortytsia.dykePole.name": "Дике Поле",
   "region.khortytsia.dykePole.text": "Неозорий степ на схід і південь від Січі, де трава сягає вершникові до стремен.",
   "relic.pernach.name": "Пернач",
-  "relic.pernach.text": "Військо слухає того, хто тримає пернач: +{value} % сили.",
+  "relic.pernach.text": "Військо слухає того, хто тримає пернач: +{value} % сили.",
   "relic.pernach.fact": "Пернач — булава з металевими ребрами-«перами». У козацькому війську він був знаком влади, зокрема полковника.",
   "relic.porokhivnytsia.name": "Порохівниця",
-  "relic.porokhivnytsia.text": "Стара оздоблена порохівниця приносить удачу в дорозі: +{value} % здобичі.",
+  "relic.porokhivnytsia.text": "Стара оздоблена порохівниця приносить удачу в дорозі: +{value} % здобичі.",
   "relic.porokhivnytsia.fact": "Порохівниці робили з рогу, дерева чи шкіри й часто оздоблювали різьбою; козак носив її при поясі.",
   "time.seconds": {
     "one": "{count} секунда",
@@ -418,5 +418,37 @@
   "ui.map.refused.power": "Не вирушили: замало сили",
   "ui.map.refused.other": "Загін не вирушив",
   "ui.map.chosen": "Обрано: {offer}",
-  "ui.map.chanceOf": "шанс {chance}"
+  "ui.map.chanceOf": "шанс {chance}",
+  "ui.chest.title.many": {
+    "one": "Здобич {count} походу",
+    "few": "Здобич {count} походів",
+    "many": "Здобич {count} походів",
+    "other": "Здобич {count} походу"
+  },
+  "ui.chest.squad": "Загін {n} · {where}",
+  "ui.chest.won": "Удача: уся здобич",
+  "ui.chest.lost": "Повернулися з частиною здобичі",
+  "ui.chest.loot": "Здобич",
+  "ui.chest.relic": "Знайдено реліквію!",
+  "ui.chest.skip": "Торкніться, щоб побачити все",
+  "ui.chest.claim": "Забрати",
+  "ui.chest.said": "{squad}. {outcome}: {loot}.",
+  "return.raidsBack": {
+    "one": "Походи: {count} повернувся ({regions}) — скриня чекає на Січі",
+    "few": "Походи: {count} повернулися ({regions}) — скрині чекають на Січі",
+    "many": "Походи: {count} повернулося ({regions}) — скрині чекають на Січі",
+    "other": "Походи: {count} повернулося ({regions}) — скрині чекають на Січі"
+  },
+  "return.raidsAway": {
+    "one": "Ще в дорозі: {count} загін. {back}",
+    "few": "Ще в дорозі: {count} загони. {back}",
+    "many": "Ще в дорозі: {count} загонів. {back}",
+    "other": "Ще в дорозі: {count} загону. {back}"
+  },
+  "ui.treasury.title": "Скарбниця",
+  "ui.treasury.count": "Знайдено {found} з {total}",
+  "ui.treasury.unknown": "Невідома реліквія",
+  "ui.treasury.hint": "Трапляється в походах від {time}",
+  "ui.treasury.all": "Усі реліквії краю знайдено",
+  "ui.chest.title": "Здобич походу"
 }

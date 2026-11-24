@@ -118,3 +118,22 @@ export function useGameEvent(listener: (e: GameEvent, state: GameState) => void)
     [store],
   );
 }
+
+/**
+ * Calls `listener` once per change with all of its events (`store.onEvents`): the claims of one «Забрати все» arrive
+ * together and open one chest window (M3-12). The UI only reads here, never dispatches back.
+ */
+export function useGameEvents(listener: (events: readonly GameEvent[]) => void): void {
+  const { store } = useGameContext();
+  const latest = useRef(listener);
+  useEffect(() => {
+    latest.current = listener;
+  });
+  useEffect(
+    () =>
+      store.onEvents((es) => {
+        latest.current(es);
+      }),
+    [store],
+  );
+}

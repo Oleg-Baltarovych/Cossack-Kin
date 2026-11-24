@@ -26,6 +26,19 @@ function isGenerator(value: unknown): value is SpriteGenerator {
   );
 }
 
+/**
+ * Generator ids are unique across atlases (M3-12 review): frame names start with the id and `pnpm sprites:sheet <id>`
+ * writes reports/sprites/<id>.png, so a shared id would mix two sheets. Throws on the first duplicate.
+ */
+export function assertUniqueIds(generators: readonly Pick<SpriteGenerator, 'atlas' | 'id'>[]): void {
+  const seen = new Map<string, string>();
+  for (const g of generators) {
+    const atlas = seen.get(g.id);
+    if (atlas !== undefined) throw new Error(`generator id ${g.id} is used twice: atlases ${atlas} and ${g.atlas}`);
+    seen.set(g.id, g.atlas);
+  }
+}
+
 export async function loadGenerators(): Promise<SpriteGenerator[]> {
   // Sorted paths + sorted atlases/frames downstream: output never depends on directory listing order.
   const files = globSync(GENERATORS)
@@ -38,5 +51,6 @@ export async function loadGenerators(): Promise<SpriteGenerator[]> {
     if (!isGenerator(mod.default)) throw new Error(`${file}: default export is not a SpriteGenerator`);
     generators.push(mod.default);
   }
+  assertUniqueIds(generators);
   return generators;
 }

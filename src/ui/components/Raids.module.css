@@ -51,6 +51,9 @@
 }
 
 .relic {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3 * var(--px));
   max-width: 100%;
   overflow-wrap: anywhere;
   white-space: normal;

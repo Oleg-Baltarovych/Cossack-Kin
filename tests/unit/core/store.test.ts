@@ -73,6 +73,46 @@ describe('createStore (M1-12)', () => {
     expect(run()).toEqual(first);
   });
 
+  it('onEvents: one call per change with all of its events, after every onEvent (M3-12: «Забрати все» → one window)', () => {
+    const store = createStore(game(1e9));
+    const order: string[] = [];
+    const batches: string[][] = [];
+    store.onEvent((e) => order.push(`one:${e.type}`));
+    const off = store.onEvents((es) => {
+      order.push('batch');
+      batches.push(es.map((e) => e.type));
+    });
+    store.dispatch({ type: 'buyBuilding', id: 'field', mode: 10 }, T0 + 1000);
+    store.dispatch({ type: 'tap' }, T0 + 2000);
+    expect(batches).toEqual([['BuildingUpgraded', 'TierReached'], ['Tapped']]);
+    expect(order.slice(0, 3)).toEqual(['one:BuildingUpgraded', 'one:TierReached', 'batch']);
+    // A quiet tick has no events: no call.
+    store.tick(T0 + 2100);
+    expect(batches).toHaveLength(2);
+    off();
+    store.dispatch({ type: 'tap' }, T0 + 3000);
+    expect(batches).toHaveLength(2);
+  });
+
+  it('onEvents: replace() delivers [StateReplaced]; listeners added or removed during a delivery act from the next one', () => {
+    const store = createStore(game(1e9));
+    const calls: string[] = [];
+    let offB: () => void = () => undefined;
+    store.onEvents((es) => {
+      calls.push(`a:${es.map((e) => e.type).join()}`);
+      // Subscribes c while a batch is delivered: c hears only later batches.
+      if (calls.length === 1) store.onEvents((x) => calls.push(`c:${x.map((e) => e.type).join()}`));
+    });
+    offB = store.onEvents((es) => {
+      calls.push(`b:${es.map((e) => e.type).join()}`);
+      // Unsubscribes itself: no later batch.
+      offB();
+    });
+    store.replace(game(5));
+    store.dispatch({ type: 'tap' }, T0 + 1000);
+    expect(calls).toEqual(['a:StateReplaced', 'b:StateReplaced', 'a:Tapped', 'c:Tapped']);
+  });
+
   it('an action after a long absence counts the absence through offline first (caps apply, no bypass)', () => {
     const store = createStore(game(0));
     const seen: string[] = [];

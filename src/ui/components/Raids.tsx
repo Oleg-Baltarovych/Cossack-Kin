@@ -14,8 +14,7 @@
 // One status line reads out a slot's change of state, a claim's loot (the chest window is M3-12) and a refused
 // «Ще раз» — never the countdown. Disabled buttons follow the rows (`disabled` + the reason as its description).
 import { memo, useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react';
-import { REGIONS, type RaidTierId, type RegionId } from '../../content/raids.ts';
-import { RELIC_DEFS, type RelicId } from '../../content/relics.ts';
+import type { RaidTierId, RegionId } from '../../content/raids.ts';
 import type { GameEvent } from '../../core/events.ts';
 import { raidSlotsView, relicsView, type RaidSlotView, type RelicView } from '../../core/raid-selectors.ts';
 import type { GameState } from '../../core/state.ts';
@@ -23,16 +22,11 @@ import { raidPower, raidTier } from '../../core/systems/raids.ts';
 import { countdownShown, formatCountdown, formatReturnAt } from '../../i18n/index.ts';
 import { sameView, useAct, useGame, useGameEvent } from '../hooks/useGame.ts';
 import { useText, type Text } from '../hooks/useText.ts';
-import { grantedText } from '../rewards.ts';
+import { lootText, raidWhere, tierName } from '../raidText.ts';
 import { Icon } from './Icon.tsx';
 import styles from './Raids.module.css';
 
 const PERCENT = 100;
-
-const REGION_KEY: ReadonlyMap<RegionId, string> = new Map(
-  Object.values(REGIONS).flatMap((list) => list.map((r) => [r.id, r.nameKey] as const)),
-);
-const RELIC_KEY: ReadonlyMap<RelicId, string> = new Map(RELIC_DEFS.map((r) => [r.id, r.nameKey]));
 
 /** A slot as its card shows it: the core's view, the game clock it was read at, and the countdown it reads out. */
 interface SlotCard {
@@ -88,9 +82,7 @@ const sameRelics = (a: readonly RelicView[], b: readonly RelicView[]): boolean =
     return y !== undefined && x.id === y.id && x.value === y.value;
   });
 
-const tierName = (text: Text, tier: RaidTierId): string => text.t(raidTier(tier).nameKey);
-const where = (text: Text, tier: RaidTierId, region: RegionId): string =>
-  text.t('ui.raids.where', { tier: tierName(text, tier), region: text.t(REGION_KEY.get(region) ?? region) });
+const where = raidWhere;
 const slotName = (text: Text, slot: number): string => text.t('ui.raids.slot', { n: slot + 1 });
 
 interface CardProps {
@@ -241,16 +233,9 @@ const Card = memo(function Card({ card, onChoose, onOwnPress }: CardProps) {
   );
 });
 
-/** What a claim brought, in words: «+500 дук., +50 слави, реліквія «Пернач»». */
+/** What a claim brought, in words: «Отримано: +500 дук., +50 слави, реліквія «Пернач»». */
 function claimedText(text: Text, e: Extract<GameEvent, { type: 'RaidClaimed' }>): string {
-  const { ducats, glory, pysanky } = e.granted;
-  const parts = [
-    ...(ducats.gt(0) ? [grantedText(text, { currency: 'ducats', amount: ducats })] : []),
-    ...(glory.gt(0) ? [grantedText(text, { currency: 'glory', amount: glory })] : []),
-    ...(pysanky > 0 ? [grantedText(text, { currency: 'pysanky', amount: pysanky })] : []),
-    ...(e.relic !== null ? [text.t('ui.raids.saidRelic', { name: text.t(RELIC_KEY.get(e.relic) ?? e.relic) })] : []),
-  ];
-  return text.t('ui.raids.saidClaimed', { loot: parts.join(text.t('ui.raids.listSep')) });
+  return text.t('ui.raids.saidClaimed', { loot: lootText(text, e.granted, e.relic) });
 }
 
 /**
@@ -341,6 +326,7 @@ export function RaidsBlock({ onChoose }: RaidsBlockProps) {
                   className={styles.relic}
                   aria-label={text.t('ui.raids.relicLabel', { name, effect: text.t(r.textKey, { value: r.value }) })}
                 >
+                  <Icon id={r.id} />
                   {name}
                 </li>
               );

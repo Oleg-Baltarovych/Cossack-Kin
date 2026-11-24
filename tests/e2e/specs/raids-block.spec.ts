@@ -84,6 +84,11 @@ test.describe('M3-09 «Походи» block @screens', () => {
       await shot(page, `back-full-${lang}`);
       // «Ще раз»: squad 1 claims and sets off again — both on the road.
       await block.getByRole('button', { name: T[lang].again }).click();
+      // The claim's chest window (M3-12) comes first: «менше руху»-independent, its button closes it at once.
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: lang === 'uk' ? 'Забрати' : 'Collect' })
+        .click();
       await expect(block.getByRole('progressbar')).toHaveCount(2);
       expect(await blockProblems(page, T[lang].block)).toEqual([]);
       await shot(page, `running-full-${lang}`);

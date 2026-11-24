@@ -100,3 +100,15 @@ describe('state=raids (M3-09): the block’s three looks, on every seed', () => 
     },
   );
 });
+
+describe('state=chests (M3-12): two squads back, one with a relic — the chest window’s screens', () => {
+  it.each([1, 2, 3, 4, 5, 6])('seed %i: both back, squad 1 brings a relic no one found yet', (seed) => {
+    const s = presetState('chests', seed, FROZEN_NOW);
+    const [a, b] = s.raids.slots;
+    expect([a?.kind, b?.kind]).toEqual(['returned', 'returned']);
+    const relic = a?.kind === 'returned' ? a.raid.loot.relic : null;
+    expect(relic).not.toBeNull();
+    expect(s.relics).not.toContain(relic);
+    expect(s.time.lastSeen).toBe(FROZEN_NOW);
+  });
+});

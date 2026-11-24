@@ -5,7 +5,7 @@
 // «Хутір» or «Січ» also takes the camera to that zone (SPEC §6.1, M2-02) through `onZone`; the other way round, the tab
 // follows the camera where it settles (`zoneSource`) — without moving the camera again, moving focus, or leaving «Ще».
 // Over the «Хутір»/«Січ» lists stands the one-line quest strip, «Ще» lists both quests (M2-25); a red dot on «Ще» marks
-// a claim while the sheet is down. «Січ» opens on the «Походи» block (M3-09); its red dot marks a raid that is back.
+// a claim while the sheet is down; «Ще» also holds the «Скарбниця» of relics (M3-12). «Січ» opens on the «Походи» block (M3-09); its red dot marks a raid that is back.
 import {
   useEffect,
   useId,
@@ -31,6 +31,7 @@ import { useAct, useGame } from '../hooks/useGame.ts';
 import { useText } from '../hooks/useText.ts';
 import { QuestList, QuestStrip } from './QuestStrip.tsx';
 import { RaidsBlock } from './Raids.tsx';
+import { Treasury } from './Treasury.tsx';
 import { FarmRow, HireRow, SichRow } from './Rows.tsx';
 import styles from './Panel.module.css';
 
@@ -516,6 +517,7 @@ export function Panel({
           {tab === 'more' && (
             <>
               <QuestList />
+              <Treasury />
               <Settings />
             </>
           )}

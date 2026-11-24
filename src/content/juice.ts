@@ -88,26 +88,28 @@ export const BUTTON = {
 /**
  * The camera shake (SPEC §6.7): `px` logical px, only vertically (the HUD and the sheet hide the rows it uncovers;
  * a sideways shake would bare the world's edge), alternating every `stepMs` and fading to `minPx`, over `ms`. Only on
- * the big events listed here — a building's new visual tier for now; raid results (M3) and the Розквіт (M5) join
- * the list. «Менше руху»: none.
+ * the big events listed here — a building's new visual tier, and a relic found on a raid's claim (M3-12: rare, and
+ * the chest's peak; a plain claim does not shake); the Розквіт (M5) joins the list. «Менше руху»: none.
  */
 export const SHAKE = {
   px: 2,
   minPx: 1,
   ms: 150,
   stepMs: 30,
-  events: ['TierReached'],
+  events: ['TierReached', 'RelicFound'],
 } as const;
 
 /**
  * Opening a raid's chest (plan M3-12, §0.1 П4): the chest shakes `shakeMs` (± `shakePx` logical px, a step every
- * `shakeStepMs`), opens, then the items come one by one every `itemStepMs`; a relic is its own beat of `relicMs` with
+ * `shakeStepMs`: `shakeCycles` left–right cycles), opens, then the items come one by one every `itemStepMs`; a relic is its own beat of `relicMs` with
  * its name and fact. A tap or Enter shows the whole list at once; «Забрати» works from the first frame. «Менше руху»:
  * the list at once — no shake, no coins.
  */
 export const RAID_REVEAL = {
   shakeMs: 480,
   shakeStepMs: 60,
+  /** shakeMs / (2 × shakeStepMs): the CSS animation's iteration count (content test keeps them in step). */
+  shakeCycles: 4,
   shakePx: 1,
   itemStepMs: 300,
   relicMs: 1200,

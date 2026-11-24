@@ -122,6 +122,25 @@ describe('story beat windows (M2-25)', () => {
     expect(screen.getByRole('tabpanel').hidden).toBe(false);
   });
 
+  it('a beat that opens on its own, long after a focused button went away, leaves the focus alone (M3-12 review)', () => {
+    const store = mount(played());
+    const buy = screen.getAllByRole('button', { name: /^Купити/ })[0];
+    if (!buy) throw new Error('no buy button');
+    buy.focus();
+    // The farm list goes away with its focused button (another tab): the focus falls to the page.
+    fireEvent.click(screen.getByRole('tab', { name: 'Січ' }));
+    expect(buy.isConnected).toBe(false);
+    expect(document.activeElement).toBe(document.body);
+    act(() => {
+      store.replace({ ...store.getState(), army: { infantry: 3 }, stats: { ...store.getState().stats, hires: 3 } });
+      store.tick(T0 + 100);
+    });
+    const beat = screen.getByRole('dialog', { name: 'Гонець з городка' });
+    fireEvent.click(within(beat).getByRole('button', { name: 'Гаразд' }));
+    // Not to the old button's list or panel: nothing the player pressed opened this window.
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it('the reward line prints the granted amount in the player format', () => {
     const store = mount(played((s) => ({ ...s, army: { infantry: 2 }, stats: { ...s.stats, hires: 2 } })));
     const grants: Big[] = [];

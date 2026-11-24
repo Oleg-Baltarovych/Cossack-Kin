@@ -47,6 +47,7 @@ import { useDeviceSnap } from '../hooks/useDeviceSnap.ts';
 import { trapTab } from '../hooks/useDialogFocus.ts';
 import { useAct, useGame, useGameReader } from '../hooks/useGame.ts';
 import { useText, type Text } from '../hooks/useText.ts';
+import { raidWhere, regionName } from '../raidText.ts';
 import { squadStride, useRaidMapAtlas, type MapSprite, type RaidMapAtlas } from '../raidMap.ts';
 import { grantedText } from '../rewards.ts';
 import styles from './RaidMap.module.css';
@@ -67,9 +68,7 @@ const REGION_BY_ID: ReadonlyMap<RegionId, Region> = new Map(
 /** A whole percent from the core (`wholePercent`) in the player's format: «80 %» / «80%». */
 const pct = (text: Text, whole: number): string => text.t('ui.percent', { value: text.num(whole) });
 
-const regionName = (text: Text, id: RegionId): string => text.t(REGION_BY_ID.get(id)?.nameKey ?? id);
-const where = (text: Text, tier: RaidTierId, region: RegionId): string =>
-  text.t('ui.raids.where', { tier: text.t(raidTier(tier).nameKey), region: regionName(text, region) });
+const where = raidWhere;
 
 /** What decides an offer now: its chance, or — off for want of power — how much power is still missing. */
 const offerState = (text: Text, o: RaidOfferView): string =>
