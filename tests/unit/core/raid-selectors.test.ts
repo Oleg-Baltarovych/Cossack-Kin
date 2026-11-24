@@ -7,6 +7,7 @@ import { Big } from '../../../src/core/big.ts';
 import {
   raidAlerts,
   raidBoardView,
+  raidClaimable,
   raidSceneView,
   raidSlotsView,
   relicsView,
@@ -60,9 +61,13 @@ describe('hudView power (M3-06)', () => {
 describe('raidSlotsView (§0.1 П4)', () => {
   const running = roll('h1', T0);
 
-  it('one view per open slot; idle is just its index', () => {
+  it('one view per open slot; idle is its index and whether the army can start any raid at all', () => {
     const v = raidSlotsView(st(), T0);
-    expect(v).toEqual(Array.from({ length: RAIDS.slots }, (_, slot) => ({ kind: 'idle', slot })));
+    expect(v).toEqual(Array.from({ length: RAIDS.slots }, (_, slot) => ({ kind: 'idle', slot, blocked: null })));
+    // No Cossack: not even the lowest tier's minPowerShare × P — the slot card's «Обрати похід» says why (M3-09).
+    expect(raidSlotsView(st({ infantry: 0 }), T0).map((x) => (x.kind === 'idle' ? x.blocked : x.kind))).toEqual(
+      Array.from({ length: RAIDS.slots }, () => 'power'),
+    );
   });
 
   it('running: region, tier, returnAt, the seconds left and the road share — from `now`', () => {
@@ -100,11 +105,53 @@ describe('raidSlotsView (§0.1 П4)', () => {
     const s = st({ slots: [{ kind: 'running', raid: running }, { kind: 'returned', raid: roll('m5', T0) }, IDLE] });
     expect(raidSlotsView(s, running.returnAt - 1).map((x) => x.kind)).toEqual(['running', 'returned']);
     const v = raidSlotsView(s, running.returnAt);
-    expect(v[0]).toEqual({ kind: 'returned', slot: 0, tier: 'h1', region: 'porohy', returnAt: running.returnAt });
+    expect(v[0]).toEqual({
+      kind: 'returned',
+      slot: 0,
+      tier: 'h1',
+      region: 'porohy',
+      returnAt: running.returnAt,
+      again: null,
+    });
     expect(v.filter((x) => x.kind === 'returned')).toHaveLength(2);
     for (const key of ['success', 'loot', 'raid', 'ducats', 'glory', 'relic']) expect(v[0]).not.toHaveProperty(key);
     expectTypeOf<Extract<RaidSlotView, { kind: 'returned' }>>().not.toHaveProperty('loot');
     expectTypeOf<Extract<RaidSlotView, { kind: 'returned' }>>().not.toHaveProperty('success');
+  });
+});
+
+describe('«Ще раз» on a returned slot (§0.1 П12, M3-09)', () => {
+  it('again: null while the army may start the same tier, else «power» (the claim frees the slot itself)', () => {
+    const back = (tier: RaidTierId): RaidSlot => ({ kind: 'returned', raid: roll(tier, T0) });
+    // 60 power: m5…h1 start (≥ ½ P), h4 (P 450) and h8 do not.
+    const v = raidSlotsView(st({ infantry: 60, slots: [back('h1'), back('h8'), IDLE] }), T0);
+    expect(v.map((x) => (x.kind === 'returned' ? x.again : x.kind))).toEqual([null, 'power']);
+    expect(previewRaid(st({ infantry: 60 }), 'h8').blocked).toBe('power');
+  });
+
+  it('a running raid past its returnAt gets the same answer as a stored returned one', () => {
+    const s = st({ infantry: 60, slots: [{ kind: 'running', raid: roll('h8', T0) }, IDLE, IDLE] });
+    const [v] = raidSlotsView(s, T0 + tierOf('h8').durationSec * SEC);
+    expect(v?.kind === 'returned' ? v.again : v?.kind).toBe('power');
+  });
+});
+
+describe('raidClaimable — the red dot on «Січ» (§0.1 П1, M3-09)', () => {
+  const running = roll('m30', T0);
+
+  it('idle slots never count: an empty slot does not «burn»', () => {
+    expect(raidClaimable(st(), T0)).toBe(false);
+    expect(raidClaimable(st({ infantry: 0 }), T0)).toBe(false);
+  });
+
+  it('a raid on the road does not count until its returnAt (from the live `now`), then it does', () => {
+    const s = st({ slots: [{ kind: 'running', raid: running }, IDLE, IDLE] });
+    expect(raidClaimable(s, running.returnAt - 1)).toBe(false);
+    expect(raidClaimable(s, running.returnAt)).toBe(true);
+  });
+
+  it('a returned raid counts at any `now`', () => {
+    expect(raidClaimable(st({ slots: [IDLE, { kind: 'returned', raid: running }, IDLE] }), T0)).toBe(true);
   });
 });
 

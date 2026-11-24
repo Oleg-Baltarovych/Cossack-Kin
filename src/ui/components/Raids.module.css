@@ -1,0 +1,245 @@
+/* The «Походи» block over the Sich list (plan M3-09): a darker board like the quest strip, one card per slot, the
+   gold buttons of the rows (≥ the --tap target). Every size in whole logical px (--px). Text on wood-1 ≥ 5.9:1. */
+.block {
+  background: var(--c-wood-1);
+  border-bottom: var(--px) solid var(--c-ink-0);
+}
+
+.block:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: calc(-2 * var(--px));
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(3 * var(--px)) calc(8 * var(--px));
+  padding: calc(2 * var(--px)) calc(6 * var(--px));
+}
+
+.heading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: normal;
+  color: var(--c-thatch-5);
+}
+
+/* «Забрати все · N» (Q17) under the heading, over the cards, at the right like the cards' buttons. */
+.all {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 calc(6 * var(--px)) calc(4 * var(--px));
+}
+
+.power {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--px));
+  white-space: nowrap;
+  color: var(--c-plaster-5);
+}
+
+.relics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(3 * var(--px));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relic {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  padding: var(--px) calc(3 * var(--px));
+  color: var(--c-gold-4);
+  border: var(--px) solid var(--c-gold-2);
+  background: var(--c-wood-0);
+}
+
+.cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--px) solid var(--c-ink-0);
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--px));
+  padding: calc(4 * var(--px)) calc(6 * var(--px));
+  background: var(--c-wood-0);
+}
+
+/* An idle card is one line beside its button: the button's tap height is the card's height. */
+.card[data-slot='idle'] {
+  padding-block: 0;
+}
+
+.card + .card {
+  border-top: var(--px) solid var(--c-wood-1);
+}
+
+/* A raid that is back: a gold rim on the left — not by colour alone, the card says «Загін повернувся». */
+.card[data-slot='returned'] {
+  box-shadow: inset calc(2 * var(--px)) 0 0 var(--c-gold-4);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: calc(3 * var(--px));
+}
+
+.head,
+.line,
+.where,
+.quiet,
+.back,
+.note {
+  margin: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: calc(2 * var(--px)) calc(6 * var(--px));
+}
+
+/* An idle slot: one line «Загін N · чекає наказу» (the reason, while the button is off, a short line under it). */
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(4 * var(--px));
+}
+
+/* «· чекає наказу» stays whole: the dot never ends a line alone. */
+.status {
+  display: inline-flex;
+  gap: calc(4 * var(--px));
+  white-space: nowrap;
+}
+
+.dotSep {
+  color: var(--c-plaster-3);
+}
+
+.name {
+  color: var(--c-plaster-5);
+}
+
+.left {
+  white-space: nowrap;
+  color: var(--c-gold-4);
+}
+
+.where {
+  color: var(--c-thatch-5);
+}
+
+.quiet {
+  color: var(--c-plaster-3);
+}
+
+.back {
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--px));
+  color: var(--c-grass-6);
+}
+
+.note {
+  color: var(--c-sky-6);
+}
+
+/* The road bar: the share behind, cut to whole logical px (round() where supported; a plain share before that). */
+.bar {
+  height: calc(4 * var(--px));
+  background: var(--c-ink-0);
+  border: var(--px) solid var(--c-ink-0);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  width: calc(var(--p, 0) * 100%);
+  width: round(down, calc(var(--p, 0) * 100%), var(--px));
+  background: var(--c-gold-4);
+}
+
+.actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 * var(--px));
+}
+
+.button {
+  flex: none;
+  min-width: calc(72 * var(--px));
+  min-height: var(--tap, 44px);
+  padding: calc(3 * var(--px)) calc(6 * var(--px));
+  font: inherit;
+  word-spacing: inherit;
+  color: var(--c-ink-0);
+  background: var(--c-gold-4);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
+    inset 0 var(--px) 0 var(--c-gold-5);
+  cursor: pointer;
+}
+
+/* «Ще раз»: the second choice, in wood. */
+.second {
+  color: var(--c-plaster-6);
+  background: var(--c-wood-2);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-wood-1),
+    inset 0 var(--px) 0 var(--c-wood-3);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(var(--press-y));
+  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+}
+
+.button:disabled {
+  color: var(--c-plaster-6);
+  background: var(--c-stone-2);
+  box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1);
+  cursor: default;
+}
+
+.button:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
+}
+
+/* «Менше руху»: no pressed offset either (nothing else here moves). */
+@media (prefers-reduced-motion: reduce) {
+  .button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+:global([data-motion='reduced']) .button:active:not(:disabled) {
+  transform: none;
+}
+
+/* The read-out for screen readers; on screen the card itself shows the change. */
+.said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

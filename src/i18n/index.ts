@@ -3,6 +3,7 @@
 // gluing words by hand. `{name}` placeholders are filled from params. A missing key renders as the key itself (and
 // warns in dev/test builds) so a gap is visible, never a crash.
 import { Big } from '../core/big.ts';
+import { dayAt } from '../core/systems/quests.ts';
 import type { Lang, NumberFormat } from '../core/state.ts';
 import en from './locales/en.json';
 import uk from './locales/uk.json';
@@ -63,6 +64,68 @@ export function formatDuration(lang: Lang, seconds: number): string {
   if (hours > 0)
     return minutes > 0 ? pair(unit('time.hours', hours), unit('time.minutes', minutes)) : unit('time.hours', hours);
   return unit('time.minutes', minutes);
+}
+
+/**
+ * A raid's time left on the road (plan M3-09, §0.1 П10): seconds only in the last minute («45 секунд»), past it the
+ * two largest units of `formatDuration` with the minutes rounded up — a card never says «1 хвилина» for 1:59 left.
+ */
+export function formatCountdown(lang: Lang, seconds: number): string {
+  const s = countdownShown(seconds);
+  return s <= SEC_PER_MIN ? t(lang, 'time.seconds', { count: s }) : formatDuration(lang, s);
+}
+
+/**
+ * The seconds `formatCountdown` reads out for `seconds` left: whole seconds in the last minute, else rounded up to the
+ * minute — equal results read the same, so a card can re-render only when this changes (once a minute, then each second).
+ */
+export function countdownShown(seconds: number): number {
+  const s = Number.isFinite(seconds) ? Math.max(0, Math.ceil(seconds)) : 0;
+  return s <= SEC_PER_MIN ? s : Math.ceil(s / SEC_PER_MIN) * SEC_PER_MIN;
+}
+
+const MS_PER_MIN = SEC_PER_MIN * 1000;
+const MS_PER_DAY = SEC_PER_DAY * 1000;
+/** uk «об» before a vowel: of the 24 hours only 11 is said with one («об одинадцятій»). */
+const UK_VOWEL_HOURS: readonly number[] = [11];
+const NBSP = String.fromCharCode(0xa0);
+const MIN_PER_HOUR = 60;
+/** Every clock reading is of `ms + offset` in UTC: the game's own zone (`settings.tzOffsetMin`), not the device's. */
+const UTC = 'UTC';
+const formats = new Map<string, Intl.DateTimeFormat>();
+
+function format(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = JSON.stringify([locale, options]);
+  let f = formats.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, { ...options, timeZone: UTC });
+    formats.set(key, f);
+  }
+  return f;
+}
+
+/**
+ * When a raid will be back, on the game's clock (§0.1 П10; UI only — core never reads a clock): «Повернуться о
+ * 21:40», «Повернуться завтра о 06:10», further away (a clock set back) with the date. The day is the core's `dayAt`
+ * at `tzOffsetMin` — the day the quests and the raid board count — so «завтра» always agrees with them; a return
+ * already past (`now` after `returnAt`) reads as today. 24-hour in uk, 12-hour in en (its narrow space before AM/PM —
+ * not in the pixel font — becomes a no-break space).
+ */
+export function formatReturnAt(lang: Lang, returnAt: number, now: number, tzOffsetMin: number): string {
+  const local = returnAt + tzOffsetMin * MS_PER_MIN;
+  const time =
+    lang === 'uk'
+      ? format('uk', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(local)
+      : format('en', { hour: 'numeric', minute: '2-digit' }).format(local).replace(/\s/gu, NBSP);
+  // The hour of the local time, by arithmetic (no Intl part to parse).
+  const hour = Math.floor((((local % MS_PER_DAY) + MS_PER_DAY) % MS_PER_DAY) / (MIN_PER_HOUR * MS_PER_MIN));
+  const vowel = lang === 'uk' && UK_VOWEL_HOURS.includes(hour);
+  const at = t(lang, vowel ? 'ui.raids.atVowel' : 'ui.raids.at', { time });
+  const days = dayAt(returnAt, tzOffsetMin) - dayAt(now, tzOffsetMin);
+  if (days <= 0) return t(lang, 'ui.raids.back', { at });
+  if (days === 1) return t(lang, 'ui.raids.backTomorrow', { at });
+  const date = format(lang, { day: 'numeric', month: 'long' }).format(local);
+  return t(lang, 'ui.raids.backOn', { date, at });
 }
 
 // --- numbers ---------------------------------------------------------------------------------------------------

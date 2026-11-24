@@ -5,7 +5,7 @@
 // «Хутір» or «Січ» also takes the camera to that zone (SPEC §6.1, M2-02) through `onZone`; the other way round, the tab
 // follows the camera where it settles (`zoneSource`) — without moving the camera again, moving focus, or leaving «Ще».
 // Over the «Хутір»/«Січ» lists stands the one-line quest strip, «Ще» lists both quests (M2-25); a red dot on «Ще» marks
-// a claim while the sheet is down.
+// a claim while the sheet is down. «Січ» opens on the «Походи» block (M3-09); its red dot marks a raid that is back.
 import {
   useEffect,
   useId,
@@ -22,13 +22,15 @@ import type { PlotBuilding } from '../../content/villages/khortytsia.layout.ts';
 import { sheetReducer, tabOfBuilding, type SheetAction, type SheetHeights, type SheetState } from '../sheet.ts';
 import type { ZoneId } from '../../content/villages/khortytsia.layout.ts';
 import { BUY_MODES } from '../../content/economy.ts';
-import { LANGS } from '../../core/state.ts';
+import { LANGS, type GameState } from '../../core/state.ts';
 import type { BuyMode } from '../../core/economy.ts';
 import { villageOf } from '../../core/modifiers.ts';
+import { raidClaimable } from '../../core/raid-selectors.ts';
 import { questClaimable, visibleSichIds } from '../../core/selectors.ts';
 import { useAct, useGame } from '../hooks/useGame.ts';
 import { useText } from '../hooks/useText.ts';
 import { QuestList, QuestStrip } from './QuestStrip.tsx';
+import { RaidsBlock } from './Raids.tsx';
 import { FarmRow, HireRow, SichRow } from './Rows.tsx';
 import styles from './Panel.module.css';
 
@@ -55,6 +57,8 @@ export interface PanelProps {
   readonly onSelect?: ((building: PlotBuilding | null) => void) | undefined;
   /** The state to start in (half by default). */
   readonly initial?: SheetState;
+  /** «Обрати похід» on an idle slot: open the raid map for it (M3-11 passes it; until then the button is off). */
+  readonly onChooseRaid?: ((slot: number) => void) | undefined;
 }
 
 export interface Reveal {
@@ -180,7 +184,17 @@ function recentSamples(samples: readonly { y: number; t: number }[], t: number):
 
 const reduceSheet = (s: SheetState, a: SheetAction): SheetState => sheetReducer(s, a);
 
-export function Panel({ onZone, zoneSource, reveal = null, onReveal, onSelect, initial = 'half' }: PanelProps) {
+const selectRaidClaimable = (s: GameState): boolean => raidClaimable(s, s.time.lastSeen);
+
+export function Panel({
+  onZone,
+  zoneSource,
+  reveal = null,
+  onReveal,
+  onSelect,
+  initial = 'half',
+  onChooseRaid,
+}: PanelProps) {
   const [tab, setTab] = useState<Tab>('farm');
   // Roving tabindex (manual activation): arrows move focus between the tabs; Enter/Space/click choose one.
   const [focusTab, setFocusTab] = useState<Tab>('farm');
@@ -404,10 +418,16 @@ export function Panel({ onZone, zoneSource, reveal = null, onReveal, onSelect, i
   } as CSSProperties;
   const collapsed = sheet === 'collapsed';
   const marks = { lit, current };
-  // A red dot (SPEC §6.7) on «Ще» — where the tasks live (§10.3) — while the sheet is down and a quest waits to be
-  // claimed. Not by colour alone: the tab's description says it.
-  const claimable = useGame(questClaimable);
-  const dotTab: Tab | null = collapsed && claimable ? 'more' : null;
+  // Red dots (SPEC §6.7) while the sheet is down: on «Ще» — where the tasks live (§10.3) — when a quest waits to be
+  // claimed, on «Січ» when a raid is back (an idle slot never: §0.1 П1). Not by colour alone: the tab's description
+  // says it.
+  const questDot = useGame(questClaimable);
+  const raidDot = useGame(selectRaidClaimable);
+  const dots: Readonly<Record<Tab, string | null>> = {
+    farm: null,
+    sich: collapsed && raidDot ? 'ui.raids.claimable' : null,
+    more: collapsed && questDot ? 'ui.quest.claimable' : null,
+  };
   return (
     <section
       ref={sectionRef}
@@ -444,20 +464,25 @@ export function Panel({ onZone, zoneSource, reveal = null, onReveal, onSelect, i
               className={styles.tab}
               aria-selected={id === tab}
               aria-controls={`${base}-panel`}
-              aria-describedby={id === dotTab ? `${base}-dot` : undefined}
+              aria-describedby={dots[id] !== null ? `${base}-dot-${id}` : undefined}
               tabIndex={id === focusTab ? 0 : -1}
               onClick={() => {
                 select(id);
               }}
             >
               {t(`ui.tab.${id}`)}
-              {id === dotTab && <span className={styles.dot} aria-hidden="true" data-dot="" />}
+              {dots[id] !== null && <span className={styles.dot} aria-hidden="true" data-dot="" />}
             </button>
           ))}
         </div>
-        <span id={`${base}-dot`} hidden>
-          {t('ui.quest.claimable')}
-        </span>
+        {TABS.map((id) => {
+          const key = dots[id];
+          return key === null ? null : (
+            <span key={id} id={`${base}-dot-${id}`} hidden>
+              {t(key)}
+            </span>
+          );
+        })}
         <button
           ref={toggleRef}
           type="button"
@@ -482,7 +507,12 @@ export function Panel({ onZone, zoneSource, reveal = null, onReveal, onSelect, i
         {tab !== 'more' && <ModePicker mode={mode} onChange={setMode} />}
         <div ref={scrollRef} className={styles.scroll}>
           {tab === 'farm' && <FarmList mode={mode} marks={marks} />}
-          {tab === 'sich' && <SichList mode={mode} marks={marks} />}
+          {tab === 'sich' && (
+            <>
+              <RaidsBlock onChoose={onChooseRaid} />
+              <SichList mode={mode} marks={marks} />
+            </>
+          )}
           {tab === 'more' && (
             <>
               <QuestList />

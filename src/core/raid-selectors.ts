@@ -5,7 +5,16 @@
 // enforced by the type, not by the UI's discipline. The scene's view has no economy numbers at all.
 import { RAID_TIER_IDS, RAIDS, type RaidTierId, type RegionId, type RumorId } from '../content/raids.ts';
 import { RELIC_DEFS, type RelicId } from '../content/relics.ts';
-import { MS_PER_SEC, previewRaid, raidTier, type LootAmounts, type RaidSlot } from './systems/raids.ts';
+import {
+  MS_PER_SEC,
+  powerEnough,
+  previewRaid,
+  raidPower,
+  raidReady,
+  raidTier,
+  type LootAmounts,
+  type RaidSlot,
+} from './systems/raids.ts';
 import type { GameState } from './state.ts';
 
 const PERCENT = 100;
@@ -15,8 +24,16 @@ function openSlots(state: GameState): readonly RaidSlot[] {
   return state.raids.slots.slice(0, RAIDS.slots);
 }
 
+/** Why a slot card's button is off: too little power (no Cossack for the lowest tier, or for «Ще раз» of its tier). */
+export type RaidSlotBlock = 'power' | null;
+
 export type RaidSlotView =
-  | { readonly kind: 'idle'; readonly slot: number }
+  | {
+      readonly kind: 'idle';
+      readonly slot: number;
+      /** «Обрати похід»: 'power' while the army cannot start even the lowest tier (`raidReady`). */
+      readonly blocked: RaidSlotBlock;
+    }
   | {
       readonly kind: 'running';
       readonly slot: number;
@@ -37,6 +54,11 @@ export type RaidSlotView =
       readonly tier: RaidTierId;
       readonly region: RegionId;
       readonly returnAt: number;
+      /**
+       * «Ще раз» (§0.1 П12): claim, then start the same tier on today's board from this slot — 'power' when the army
+       * is too weak for that tier now (the claim itself frees the slot).
+       */
+      readonly again: RaidSlotBlock;
     };
 
 /**
@@ -44,10 +66,13 @@ export type RaidSlotView =
  * advances (the core turns it so on the next tick, `returnRaids`); the result is revealed only by the claim's event.
  */
 export function raidSlotsView(state: GameState, now: number): readonly RaidSlotView[] {
+  const power = raidPower(state);
+  const ready: RaidSlotBlock = raidReady(state) ? null : 'power';
   return openSlots(state).map((x, slot): RaidSlotView => {
-    if (x.kind === 'idle') return { kind: 'idle', slot };
+    if (x.kind === 'idle') return { kind: 'idle', slot, blocked: ready };
     const { tier, region, startedAt, returnAt } = x.raid;
-    if (x.kind === 'returned' || returnAt <= now) return { kind: 'returned', slot, tier, region, returnAt };
+    if (x.kind === 'returned' || returnAt <= now)
+      return { kind: 'returned', slot, tier, region, returnAt, again: powerEnough(power, tier) ? null : 'power' };
     const span = returnAt - startedAt;
     return {
       kind: 'running',
@@ -60,6 +85,14 @@ export function raidSlotsView(state: GameState, now: number): readonly RaidSlotV
       progress: span > 0 ? Math.max(0, (now - startedAt) / span) : 0,
     };
   });
+}
+
+/**
+ * The red dot on «Січ» (SPEC §6.7, §0.1 П1): some open slot's raid is back at `now` and waits for «Забрати». An idle
+ * slot never counts — an empty slot is no debt.
+ */
+export function raidClaimable(state: GameState, now: number): boolean {
+  return openSlots(state).some((x) => x.kind === 'returned' || (x.kind === 'running' && x.raid.returnAt <= now));
 }
 
 /** Why an offer's «Вирушити» is off: no free open slot, or too little power (≥ minPowerShare × P). */

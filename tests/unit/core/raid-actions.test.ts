@@ -316,3 +316,60 @@ describe('claimRaid (M3-05)', () => {
     expect(gate(s)).toBe('ok');
   });
 });
+
+describe('claimRaid again: «Ще раз» as one action (M3-09 review, §0.1 П12)', () => {
+  const again = (slot: number): Action => ({ type: 'claimRaid', slot, again: true });
+
+  it('grants the loot, then starts the same tier from the same slot — both event sets, one state', () => {
+    const back = sentAndBack(game(), 1, 'm30');
+    const rolled = rollIn(back, 1);
+    const r = applyAction(back, again(1), back.time.lastSeen);
+    expect(rejected(r.events)).toBeUndefined();
+    const [claimed] = of(r.events, 'RaidClaimed');
+    expect(claimed?.slot).toBe(1);
+    expect(claimed?.granted.ducats.eq(rolled.loot.ducats)).toBe(true);
+    expect(r.state.currencies.ducats.sub(back.currencies.ducats).eq(rolled.loot.ducats)).toBe(true);
+    const [started] = of(r.events, 'RaidStarted');
+    expect([started?.slot, started?.tier]).toEqual([1, 'm30']);
+    // The claim's events come first: listeners see the loot before the new start.
+    expect(r.events.findIndex((e) => e.type === 'RaidClaimed')).toBeLessThan(
+      r.events.findIndex((e) => e.type === 'RaidStarted'),
+    );
+    expect(rollIn(r.state, 1).tier).toBe('m30');
+    expect(rollIn(r.state, 1).startedAt).toBe(back.time.lastSeen);
+    expect(r.state.stats.raidsDone).toBe(back.stats.raidsDone + 1);
+    expect(r.state.stats.raidsSent).toBe(back.stats.raidsSent + 1);
+    expect(gate(r.state)).toBe('ok');
+  });
+
+  it('equals claimRaid then startRaid of the same tier at the same time', () => {
+    const back = sentAndBack(game(), 0, 'h1');
+    const at = back.time.lastSeen;
+    const one = applyAction(back, again(0), at).state;
+    const two = applyAction(applyAction(back, claim(0), at).state, start(0, 'h1'), at).state;
+    expect(JSON.stringify(one)).toBe(JSON.stringify(two));
+  });
+
+  it('power below the tier now: the claim stands, the start is refused with its reason, the slot is idle', () => {
+    const back = sentAndBack(game({ infantry: 2000 }), 0, 'h8');
+    const weak = { ...back, army: { infantry: 40 } };
+    expect(previewRaid(weak, 'h8').blocked).toBe('power');
+    const r = applyAction(weak, again(0), weak.time.lastSeen);
+    expect(of(r.events, 'RaidClaimed')).toHaveLength(1);
+    expect(of(r.events, 'RaidStarted')).toHaveLength(0);
+    expect(of(r.events, 'RaidAgainRefused')).toEqual([
+      { type: 'RaidAgainRefused', slot: 0, tier: 'h8', reason: 'power' },
+    ]);
+    // Not an ActionRejected: the claim did happen.
+    expect(rejected(r.events)).toBeUndefined();
+    expect(r.state.raids.slots[0]?.kind).toBe('idle');
+    expect(r.state.currencies.ducats.gt(weak.currencies.ducats)).toBe(true);
+  });
+
+  it('nothing back: refused like claimRaid, nothing started', () => {
+    const s = game();
+    const r = applyAction(s, again(0), T0);
+    expect(rejected(r.events)).toBe('notReturned');
+    expect(of(r.events, 'RaidStarted')).toHaveLength(0);
+  });
+});
