@@ -227,6 +227,13 @@
     "many": "Найми {count} козаків",
     "other": "Найми {count} козака"
   },
+  "quest.chore.raid1.title": "Відправ похід",
+  "quest.chore.raids2.title": {
+    "one": "Заверши {count} похід",
+    "few": "Заверши {count} походи",
+    "many": "Заверши {count} походів",
+    "other": "Заверши {count} походу"
+  },
   "ui.quest.region": "Завдання",
   "ui.quest.progress": "{progress} з {target}",
   "ui.quest.claim": "Забрати",

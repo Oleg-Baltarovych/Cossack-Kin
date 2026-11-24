@@ -6,6 +6,7 @@
 // Raids (M3-05, ADR 012): `startRaid` rolls on the advanced state at the effective time; `claimRaid` / `claimAllRaids`
 // grant what was rolled. `RaidClaimed` / `RelicFound` come only from here; `RaidReturned` only from time.
 import { FARM, SICH, TAP } from '../content/economy.ts';
+import { BUILD_SYSTEMS, type SystemId } from '../content/quests.ts';
 import type { RaidTierId } from '../content/raids.ts';
 import { SICH_BUILDINGS, type SichBuildingId } from '../content/sich.ts';
 import type { FarmBuildingId } from '../content/villages/khortytsia.ts';
@@ -18,7 +19,7 @@ import { TZ_OFFSET_MIN, type GameState, type Lang, type NumberFormat } from './s
 import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
 import { claimQuest, questCompletions, type QuestKind } from './systems/quests.ts';
-import { claimAllRaids, claimRaid, startRaid } from './systems/raids.ts';
+import { claimAllRaids, claimRaid, raidReady, startRaid } from './systems/raids.ts';
 import { checkStory } from './systems/story.ts';
 
 export type Action =
@@ -149,6 +150,14 @@ function claimReturn(s: GameState): ActionResult | RejectReason {
 }
 
 /** A time zone outside UTC−12…+14 or not whole minutes is refused ('range' — the platform's bug, not the player's). */
+/**
+ * The systems a chore may need that this game can do now (plan M3-07 review): the build's, raids only once the army
+ * can start the lowest tier — there is no skip for a chore, so none is offered that the player cannot begin.
+ */
+function choreSystems(s: GameState): readonly SystemId[] {
+  return BUILD_SYSTEMS.filter((x) => x !== 'raids' || raidReady(s));
+}
+
 function setSettings(s: GameState, a: Extract<Action, { type: 'setSettings' }>): ActionResult | RejectReason {
   const tz = a.tzOffsetMin ?? s.settings.tzOffsetMin;
   if (!Number.isInteger(tz) || tz < TZ_OFFSET_MIN.min || tz > TZ_OFFSET_MIN.max) return 'range';
@@ -194,7 +203,7 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
       result = claimReturn(s);
       break;
     case 'claimQuest':
-      result = claimQuest(s, action.kind);
+      result = claimQuest(s, action.kind, choreSystems(s));
       break;
     case 'setSettings':
       result = setSettings(s, action);

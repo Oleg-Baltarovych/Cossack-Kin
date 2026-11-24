@@ -72,6 +72,30 @@ describe('chores (M2-23)', () => {
     expect(offered.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('M3-07: raid chores «Відправ похід» / «Заверши 2 походи» are appended after the frozen M2 eight, need raids', () => {
+    expect(CHORE_IDS.slice(0, CHORES.moduloCount)).toEqual([
+      'chore.taps50',
+      'chore.taps200',
+      'chore.tapIncome60',
+      'chore.levels10',
+      'chore.levels25',
+      'chore.purchases10',
+      'chore.hire3',
+      'chore.hire10',
+    ]);
+    const raid = CHORES.pool.slice(CHORES.moduloCount);
+    expect(raid.map((c) => [c.id, c.goal.stat, c.goal.n, c.requires])).toEqual([
+      ['chore.raid1', 'raidsSent', 1, 'raids'],
+      ['chore.raids2', 'raidsDone', 2, 'raids'],
+    ]);
+    // The M2 eight need no system: the modulo pick over them never runs dry.
+    for (const c of CHORES.pool.slice(0, CHORES.moduloCount)) expect(c.requires, c.id).toBeUndefined();
+  });
+
+  it('M3-07: raids are in this build', () => {
+    expect(BUILD_SYSTEMS).toContain('raids');
+  });
+
   it('at most 10 rewards a day (SPEC §3.10)', () => {
     expect(CHORES.maxClaimsPerDay).toBe(10);
   });
