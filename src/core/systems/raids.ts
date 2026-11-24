@@ -111,7 +111,8 @@ export function chance(power: number, p: number): number {
 export type StartCheck =
   { readonly ok: true } | { readonly ok: false; readonly reason: 'range' | 'slotBusy' | 'power' };
 
-function powerEnough(power: number, tier: RaidTierId): boolean {
+/** Whether `power` may start `tier` at all (≥ minPowerShare × P; the slot is the caller's business). */
+export function powerEnough(power: number, tier: RaidTierId): boolean {
   return power >= RAIDS.minPowerShare * raidTier(tier).power;
 }
 
@@ -464,6 +465,24 @@ export function claimRaid(state: GameState, slot: number): Claimed | 'range' | '
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.raids.slots.length) return 'range';
   const x = state.raids.slots[slot];
   return x?.kind === 'returned' ? grantRaid(state, slot, x.raid) : 'notReturned';
+}
+
+/**
+ * «Ще раз» (§0.1 П12): claims the returned raid in `slot`, then starts its tier again from that slot at `at` (today's
+ * board region). A refused start keeps the claim and adds `RaidAgainRefused` with the reason.
+ */
+export function claimRaidAgain(state: GameState, slot: number, at: number): Claimed | 'range' | 'notReturned' {
+  const x = state.raids.slots[slot];
+  const claimed = claimRaid(state, slot);
+  if (typeof claimed === 'string' || x?.kind !== 'returned') return claimed;
+  const tier = x.raid.tier;
+  const started = startRaid(claimed.state, slot, tier, at);
+  if (typeof started === 'string')
+    return {
+      state: claimed.state,
+      events: [...claimed.events, { type: 'RaidAgainRefused', slot, tier, reason: started }],
+    };
+  return { state: started.state, events: [...claimed.events, ...started.events] };
 }
 
 /** «Забрати все» (Q17): every returned slot granted in slot order; 'notReturned' when none is back. */

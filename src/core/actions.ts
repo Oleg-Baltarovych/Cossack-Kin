@@ -19,7 +19,7 @@ import { TZ_OFFSET_MIN, type GameState, type Lang, type NumberFormat } from './s
 import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
 import { claimQuest, questCompletions, type QuestKind } from './systems/quests.ts';
-import { claimAllRaids, claimRaid, raidReady, startRaid } from './systems/raids.ts';
+import { claimAllRaids, claimRaid, claimRaidAgain, raidReady, startRaid } from './systems/raids.ts';
 import { checkStory } from './systems/story.ts';
 
 export type Action =
@@ -31,8 +31,11 @@ export type Action =
   | { readonly type: 'claimQuest'; readonly kind: QuestKind }
   /** Send a raid of `tier` (the day's board offer) from `slot` (SPEC §3.4). */
   | { readonly type: 'startRaid'; readonly slot: number; readonly tier: RaidTierId }
-  /** Take the loot of the returned raid in `slot` (Q9: manual). */
-  | { readonly type: 'claimRaid'; readonly slot: number }
+  /**
+   * Take the loot of the returned raid in `slot` (Q9: manual). `again` («Ще раз», §0.1 П12): then start the same tier
+   * from the same slot — one action; a refused start keeps the claim and says why (`RaidAgainRefused`).
+   */
+  | { readonly type: 'claimRaid'; readonly slot: number; readonly again?: boolean }
   /** «Забрати все» (Q17): claimRaid on every returned slot. */
   | { readonly type: 'claimAllRaids' }
   | {
@@ -212,7 +215,7 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
       result = startRaid(s, action.slot, action.tier, at);
       break;
     case 'claimRaid':
-      result = claimRaid(s, action.slot);
+      result = action.again === true ? claimRaidAgain(s, action.slot, at) : claimRaid(s, action.slot);
       break;
     case 'claimAllRaids':
       result = claimAllRaids(s);

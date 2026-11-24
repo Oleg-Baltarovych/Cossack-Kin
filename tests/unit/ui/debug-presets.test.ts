@@ -85,3 +85,18 @@ describe('debug presets keep their pictures (M2-30)', () => {
     expect(presetState('showcase', 1, FROZEN_NOW).army.infantry).toBeGreaterThanOrEqual(16);
   });
 });
+
+describe('state=raids (M3-09): the block’s three looks, on every seed', () => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])(
+    'seed %i: squad 1 back from scouting, squad 2 on patrol, a relic',
+    (seed) => {
+      const s = presetState('raids', seed, FROZEN_NOW);
+      const [a, b] = s.raids.slots;
+      expect([a?.kind, b?.kind]).toEqual(['returned', 'running']);
+      expect(a?.kind === 'returned' ? a.raid.tier : null).toBe('m5');
+      expect(b?.kind === 'running' ? [b.raid.tier, b.raid.returnAt > FROZEN_NOW] : null).toEqual(['m30', true]);
+      expect(s.relics.length).toBeGreaterThanOrEqual(1);
+      expect(s.time.lastSeen).toBe(FROZEN_NOW);
+    },
+  );
+});

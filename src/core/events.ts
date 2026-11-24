@@ -76,6 +76,13 @@ export type GameEvent =
       readonly granted: RaidGranted;
       readonly relic: RelicId | null;
     }
+  /** «Ще раз» claimed the raid but could not start it again (the claim stands; action only). */
+  | {
+      readonly type: 'RaidAgainRefused';
+      readonly slot: number;
+      readonly tier: RaidTierId;
+      readonly reason: 'range' | 'slotBusy' | 'power';
+    }
   /** A relic joined the collection (with its RaidClaimed; action only). */
   | { readonly type: 'RelicFound'; readonly id: RelicId }
   | { readonly type: 'ActionRejected'; readonly action: string; readonly reason: RejectReason }

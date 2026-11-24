@@ -2,6 +2,9 @@
 // production drops it. URL values are untrusted: one known key, an allowlist of values, the shared length cap.
 //   ?state=fresh|rich|mid|away|showcase — a new game (rich: with 1M ducats, its welcome beat seen), a mid-land farm, that farm back after 9 h away (the return window),
 //                     or every plot built to the tier the M-ART scene shows (the e2e world shots use it)
+//   ?state=raids      — the «Походи» block (M3-09; the full M3-16 preset may replace it): the mid farm whose army found a
+//                     relic on 30-min raids (within a time budget), then squad 1 back from a 5-min scouting and squad 2
+//                     on a 30-min one (back RAIDS_PRESET.leftMin after the preset's `now`) — all through the real actions
 //   ?state=tiers&tier=N — every building at visual tier N (0 = empty plots … 6; the Sich tops out at IV, plan M2-05),
 //                     locked ones too (the church at I–II: the scene ignores unlock conditions); invalid N: the top tier
 //   ?freeze           — the game clock stands still (no loop) at FROZEN_NOW, so numbers and the wind are fixed
@@ -9,7 +12,8 @@
 //   ?lang=uk|en       — the starting language
 //   ?ui=0             — no DOM UI: world-only screenshots (the e2e helper adds it unless a test asks for ui=1)
 import { START, TIER_LEVELS } from '../../content/economy.ts';
-import type { Action } from '../../core/actions.ts';
+import { applyAction, type Action } from '../../core/actions.ts';
+import { advance } from '../../core/advance.ts';
 import { SICH_BUILDINGS } from '../../content/sich.ts';
 import { FARM_BUILDING_IDS } from '../../content/villages/khortytsia.ts';
 import { Big } from '../../core/big.ts';
@@ -26,7 +30,7 @@ import { MAX_PARAM_LENGTH, parseDebugParams } from '../../render/debug/params.ts
 
 const OFF_FLAGS: readonly string[] = ['0', 'false'];
 
-export const PRESETS = ['fresh', 'rich', 'mid', 'away', 'showcase', 'tiers'] as const;
+export const PRESETS = ['fresh', 'rich', 'mid', 'away', 'showcase', 'tiers', 'raids'] as const;
 export type Preset = (typeof PRESETS)[number];
 
 /** `?state=away`: 9 h, over the 8 h offline limit, so the window shows the cap. */
@@ -176,8 +180,41 @@ export const noVariants = (): null => null;
 /** `?state=showcase` only: no visitors (plan M2-21) — the M-ART scene, and the people shots taken on it, stay as judged. */
 export const noVisitors = (): null => null;
 
+const MIN_MS = 60_000;
+/**
+ * `?state=raids`: the army hired up to `infantry` (30-min raids start from 10 power), raids of 30 min until a relic is
+ * found (the pity makes it the 4th success at the latest; at chance 0.6 that is well inside `historyMin`), within a
+ * time budget that leaves room for the two final starts — then squad 1 sent on a 5-min scouting `backMin` before
+ * `now`'s 5 minutes ran out and squad 2 on a 30-min patrol that is back `leftMin` after `now`.
+ */
+const RAIDS_PRESET = { infantry: 12, historyMin: 12 * 60, backMin: 3, leftMin: 18 } as const;
+
+function withRaids(seed: number, now: number): GameState {
+  const m30 = 30 * MIN_MS;
+  const m5 = 5 * MIN_MS;
+  // The two final starts: squad 2's patrol (back `leftMin` after now), then squad 1's scouting (back `backMin` before).
+  const patrolAt = now - m30 + RAIDS_PRESET.leftMin * MIN_MS;
+  const scoutAt = now - m5 - RAIDS_PRESET.backMin * MIN_MS;
+  let t = now - RAIDS_PRESET.historyMin * MIN_MS;
+  let s = presetState('mid', seed, t);
+  const step = (action: Action, at: number): void => {
+    s = applyAction(s, action, at).state;
+  };
+  step({ type: 'hire', n: RAIDS_PRESET.infantry - s.army.infantry }, t);
+  // 30-min raids on squad 1 until a relic comes, while one more still ends before the final starts (time budget).
+  while (s.relics.length === 0 && t + m30 <= patrolAt) {
+    step({ type: 'startRaid', slot: 0, tier: 'm30' }, t);
+    t += m30;
+    step({ type: 'claimRaid', slot: 0 }, t);
+  }
+  step({ type: 'startRaid', slot: 1, tier: 'm30' }, patrolAt);
+  step({ type: 'startRaid', slot: 0, tier: 'm5' }, scoutAt);
+  return advance(s, now).state;
+}
+
 /** The state of `preset` at `now` with `seed` (`tier`: the visual tier of `state=tiers`). */
 export function presetState(preset: Preset, seed: number, now: number, tier = TOP_TIER): GameState {
+  if (preset === 'raids') return withRaids(seed, now);
   if (preset === 'away') return applyOffline(presetState('mid', seed, now - AWAY_MS), now).state;
   const s = createInitialState({ seed, now });
   if (preset === 'fresh') return s;
