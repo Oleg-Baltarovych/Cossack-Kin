@@ -8,7 +8,8 @@
 //             so the loot shown on the card is the loot granted (Q4); a failure gives failShare of it, never 0
 //   success → pysanky (chance per tier) and a relic (chance per tier × relicChanceMult, only among the unfound ones,
 //             sure on the pityThreshold-th qualifying success; all found → the relic chance goes to the pysanky)
-// Relic and pysanky chances are clamped to 1 after the multipliers. Everything random is drawn once at start from
+// lootMult and relicChanceMult are the steady Modifiers' (treasury, relics: only via collectModifiers) + the rumour's
+// share. Relic and pysanky chances are clamped to 1 after the multipliers. Everything random is drawn once at start from
 // `state.rng`, always the same number of draws in the same order (ROLL_DRAWS) — that order is frozen (golden test).
 // The daily board is not state: a pure function of (seed, day), day = the quest day (`questDay`, §3.9).
 import {
@@ -35,7 +36,8 @@ import { armyPower } from './army.ts';
 import { questDay } from './quests.ts';
 import { rewardAmount, rewardRates } from './reward.ts';
 
-const MS_PER_SEC = 1000;
+/** ms per second (raid times are absolute ms; durations in content are seconds). */
+export const MS_PER_SEC = 1000;
 const SEC_PER_MIN = 60;
 
 // --- state (persisted in save v4, M3-04) -----------------------------------------------------------------------
@@ -225,8 +227,7 @@ interface Odds {
 function oddsOf(state: GameState, tier: RaidTierId, rumor: RumorId | null): Odds {
   const t = raidTier(tier);
   const held = heldRelics(state);
-  // M3-06: × Modifiers.relicChanceMult (relics, heroes) as well.
-  const relic = t.relicChance * (1 + rumorShare(rumor, 'relic'));
+  const relic = t.relicChance * (steadyModifiers(state).relicChanceMult + rumorShare(rumor, 'relic'));
   if (unfound(held).length === 0) {
     return { relic: 0, pysanky: Math.min(1, t.pysankyChance + relic), relicSure: false, pityCounts: false };
   }
@@ -240,9 +241,9 @@ function oddsOf(state: GameState, tier: RaidTierId, rumor: RumorId | null): Odds
   };
 }
 
-/** lootMult of a start: 1 + the rumour (M3-06: + Modifiers.lootMult — the treasury and the relics). */
-function lootMultOf(rumor: RumorId | null): number {
-  return 1 + rumorShare(rumor, 'loot');
+/** lootMult of a start: the modifiers' (the treasury, the relics) + the rumour's share. */
+function lootMultOf(state: GameState, rumor: RumorId | null): number {
+  return steadyModifiers(state).lootMult + rumorShare(rumor, 'loot');
 }
 
 // --- the card and the roll ------------------------------------------------------------------------------------------
@@ -279,7 +280,7 @@ export function previewRaid(state: GameState, tier: RaidTierId): RaidPreview {
   const power = raidPower(state);
   const p = raidTier(tier).power;
   const odds = oddsOf(state, tier, rumor);
-  const loot = lootOf(state, tier, lootMultOf(rumor));
+  const loot = lootOf(state, tier, lootMultOf(state, rumor));
   return {
     tier,
     region: offer.region,
@@ -332,7 +333,7 @@ export function rollRaid(
       region: pre.region,
       tier,
       startedAt: now,
-      // M3-06: × Modifiers.raidTimeMult (Характерник, M4).
+      // Modifiers.raidTimeMult (Характерник, M4) is 1 and not applied: the v4 gate checks this to the ms (modifiers.ts).
       returnAt: now + raidTier(tier).durationSec * MS_PER_SEC,
       success,
       rumor: pre.rumor !== null,
