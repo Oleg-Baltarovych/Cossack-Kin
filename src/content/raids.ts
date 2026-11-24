@@ -43,10 +43,12 @@ function tier(t: Omit<RaidTier, 'nameKey' | 'textKey'>): RaidTier {
 }
 
 /*
- * Гіпотеза (M3-08 tunes). Army power of the M2 bot (seed 1/7, steady mods): ≈ 50–60 after day 1, ≈ 150–200 after
- * day 2–3, ≈ 300–390 on day 4, ≈ 530 on day 7.
- * - P: m5 = 1 — one Cossack is a sure success (Q19, content test); m30 20 / h1 80 open in S1–S2 (start at ½ P = 10 /
- *   40 Cossacks), so the 30-min pity raids begin early and the first relic lands S2–S5; h4 450 opens at 225 ≈ S6–S8
+ * Tuned in M3-08 (`pnpm balance`, the bot raids: plan M3-08 «Результат»). Army power of the bot (steady mods):
+ * ≈ 50–60 after day 1, ≈ 150–200 after day 2–3, ≈ 300–390 on day 4, ≈ 530 on day 7.
+ * - P: m5 = 1 — one Cossack is a sure success (Q19, content test); m30 20 opens in S1 (start at ½ P = 10). h1 100
+ *   (M3-08: 80 → 100): its expected loot beats a sure m30 from chance ≈ 0.43, so at P 80 the bot took the 1-h raid
+ *   from 40 power at a coin toss, and the misses (which do not move the pity) pushed the first relic to S6; at 100 the
+ *   sure 30-min raids run a session longer and the first relic lands S3–S5 on seeds 1–12. h4 450 opens at 225 ≈ S6–S8
  *   (calendar «похід 4 год» S6–S10); h8 900 opens at 450 ≈ day 6 and reaches 100 % only after the Розквіт.
  * - Loot falls as a share of the duration (20 % → ≈ 8 %): short raids reward the session, long ones are «на ніч».
  *   Two slots running 2×8 h + 2×4 h a day at chance 1 give ≈ 7 700 s ≈ 2 h of income against ≈ 16 h from the
@@ -69,7 +71,7 @@ export const RAID_TIERS: readonly RaidTier[] = [
   tier({
     id: 'h1',
     durationSec: 3600,
-    power: 80,
+    power: 100,
     lootSec: 450,
     gloryLootSec: 450,
     pysankyChance: 0.05,

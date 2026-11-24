@@ -10,10 +10,17 @@ export const PACING = {
   nextLandSlowdown: { min: 1.3, max: 1.5 },
   /** «Відчутні» purchases (new tier, new building, new Sich tier, new unit type) bought from 8 h of offline income. */
   offline8hNoticeable: { min: 2, max: 4 },
-  /** Actions per session (median), from S2 on: S1 is onboarding (owner 2026-11-22). */
+  /** Economy actions (purchase presses, hires) per session (median), from S2 on: S1 is onboarding (owner 2026-11-22).
+   * Raid starts and claims are counted apart (`raidActionsMax`, owner 2026-11-24). */
   sessionActions: { min: 5, max: 15 },
   /** Report only: actions in S1 (the M2-27 tune runs ~35 there). */
   s1MaxActions: 40,
+  /** First raid (the 5-min scouting) within this many seconds of a new game (SPEC §2.3 «< 3 хв»; M3-08). */
+  firstRaidMaxSec: 180,
+  /** Raid starts + claims per session, from S2 — a gate of its own, apart from `sessionActions` (owner 2026-11-24). */
+  raidActionsMax: 4,
+  /** Report only: share of the ducats earned that came from raid loot (plan M3 §4: ≈ 5–15 %). */
+  raidLootShare: { min: 0.05, max: 0.15 },
   /** The bot's day. */
   sessionsPerDay: 2,
   sessionSec: 7 * 60,
@@ -41,13 +48,22 @@ export type NoveltyKind =
   /** A story beat fired (ref: the beat id, SPEC §2.5). */
   | 'storyBeat'
   /** A step of «Наказ кошового» claimed (ref: the step id; generated: `generated:<id>@<level>`, SPEC §3.10). */
-  | 'chainStep';
+  | 'chainStep'
+  /** The first raid sent (SPEC §2.4, M3-08). */
+  | 'firstRaid'
+  /** A relic found, each new one (ref: the relic id). */
+  | 'firstRelic'
+  /** The first start of a raid tier (ref: the tier id). */
+  | 'raidTier';
 
 /** One entry of the discovery calendar (SPEC §2.4) the M1 simulator can measure: first seen within [min, max] sessions. */
 export interface CalendarEntry {
   readonly id: string;
   readonly kind: NoveltyKind;
-  /** `building` / `sichBuilding` / `storyBeat` / `chainStep`: an id; `tier` / `sichTier`: `<id>@<level>`; otherwise empty. */
+  /**
+   * `building` / `sichBuilding` / `storyBeat` / `chainStep` / `raidTier`: an id; `tier` / `sichTier`: `<id>@<level>`;
+   * otherwise empty. An empty ref matches the first novelty of the kind, whatever its ref (`firstRelic`: any relic).
+   */
   readonly ref: string;
   readonly sessions: { readonly min: number; readonly max: number };
 }
@@ -74,4 +90,8 @@ export const CALENDAR_LAND1: readonly CalendarEntry[] = [
   { id: 'church', kind: 'churchOpen', ref: '', sessions: { min: 6, max: 9 } },
   { id: 'beat-pokrova', kind: 'storyBeat', ref: 'khortytsia.pokrova', sessions: { min: 6, max: 9 } },
   { id: 'bloom', kind: 'bloom', ref: '', sessions: { min: 8, max: 12 } },
+  // M3 (SPEC §2.4, plan M3-08): the scouting in S1 (≤ firstRaidMaxSec), the first relic S2–S5 (the pity, Q5), 4 h S6–S10.
+  { id: 'first-raid', kind: 'firstRaid', ref: '', sessions: { min: 1, max: 1 } },
+  { id: 'first-relic', kind: 'firstRelic', ref: '', sessions: { min: 2, max: 5 } },
+  { id: 'raid-4h', kind: 'raidTier', ref: 'h4', sessions: { min: 6, max: 10 } },
 ];
