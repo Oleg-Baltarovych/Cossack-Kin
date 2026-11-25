@@ -37,11 +37,17 @@ const questProblems = (page: Page, board: 'strip' | 'more') =>
       '[role="tabpanel"] section[aria-label], [role="tabpanel"] section[aria-labelledby]',
     );
     if (!box) return ['no quest box'];
+    // The title of a line is a button too (M3-15): at least one tap target; the claim buttons exactly one.
+    const go = (b: HTMLElement): boolean => b.matches('[data-quest] > button:first-child');
     const out = [...box.querySelectorAll<HTMLElement>('button')]
-      .filter((b) => b.offsetHeight > tap + 1 || b.offsetHeight < tap - 1 || b.scrollWidth > b.clientWidth)
+      .filter((b) =>
+        go(b)
+          ? b.offsetHeight < tap - 1
+          : b.offsetHeight > tap + 1 || b.offsetHeight < tap - 1 || b.scrollWidth > b.clientWidth,
+      )
       .map((b) => `button ${b.textContent}: ${String(b.offsetHeight)} px`);
     // Tokens never wrap inside (white-space: nowrap): a wider box than its line is cut.
-    for (const e of box.querySelectorAll<HTMLElement>('p > span'))
+    for (const e of box.querySelectorAll<HTMLElement>('[data-quest] > :first-child > span > span'))
       if (e.scrollWidth > e.clientWidth + 1) out.push(`cut: ${e.textContent}`);
     if (which === 'strip') {
       // One line: the tap target and 2 × 3 logical px of padding (+ the border); a two-line title fits inside.

@@ -21,6 +21,8 @@ describe('bottom sheet states (M2-13)', () => {
     expect(sheetReducer('collapsed', { type: 'open' })).toBe('half');
     expect(sheetReducer('half', { type: 'open' })).toBe('half');
     expect(sheetReducer('full', { type: 'open' })).toBe('full');
+    // A quest's target (M3-15): exactly half, from any state.
+    for (const s of ['collapsed', 'half', 'full'] as const) expect(sheetReducer(s, { type: 'half' })).toBe('half');
   });
 
   it('a release snaps to the drag result', () => {

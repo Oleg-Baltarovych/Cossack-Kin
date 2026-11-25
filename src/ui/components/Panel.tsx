@@ -6,7 +6,11 @@
 // follows the camera where it settles (`zoneSource`) — without moving the camera again, moving focus, or leaving «Ще».
 // Over the «Хутір»/«Січ» lists stands the one-line quest strip, «Ще» lists both quests (M2-25); a red dot on «Ще» marks
 // a claim while the sheet is down; «Ще» also holds the «Скарбниця» of relics (M3-12). «Січ» opens on the «Походи» block (M3-09); its red dot marks a raid that is back.
+// A tap on a quest's title (strip or «Ще», M3-15, SPEC §10.3) leads to core `questTarget`: its tab, the sheet at half,
+// the row lit (a building, the hire row, a raid card) and the camera at the building (the reveal path) or the Sich;
+// a counter with no row (taps, any purchase) shows a hint under the strip instead. Both are read out (role=status).
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -18,6 +22,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { SHEET } from '../../content/juice.ts';
+import type { SichUnlock } from '../../content/sich.ts';
 import type { PlotBuilding } from '../../content/villages/khortytsia.layout.ts';
 import { sheetReducer, tabOfBuilding, type SheetAction, type SheetHeights, type SheetState } from '../sheet.ts';
 import type { ZoneId } from '../../content/villages/khortytsia.layout.ts';
@@ -26,9 +31,11 @@ import { LANGS, type GameState } from '../../core/state.ts';
 import type { BuyMode } from '../../core/economy.ts';
 import { villageOf } from '../../core/modifiers.ts';
 import { raidClaimable } from '../../core/raid-selectors.ts';
-import { questClaimable, visibleSichIds } from '../../core/selectors.ts';
-import { useAct, useGame } from '../hooks/useGame.ts';
-import { useText } from '../hooks/useText.ts';
+import { questClaimable, questTarget, visibleSichIds, type QuestTarget } from '../../core/selectors.ts';
+import type { QuestKind } from '../../core/systems/quests.ts';
+import { useAct, useGame, useGameReader } from '../hooks/useGame.ts';
+import { useText, type Text } from '../hooks/useText.ts';
+import { lessMotion } from '../motion.ts';
 import { QuestList, QuestStrip } from './QuestStrip.tsx';
 import { RaidsBlock } from './Raids.tsx';
 import { Treasury } from './Treasury.tsx';
@@ -49,8 +56,11 @@ export interface PanelProps {
   readonly zoneSource?: ((listener: (zone: ZoneId) => void) => () => void) | undefined;
   /** A building tapped in the world (a new object per tap): open at least half on its row. */
   readonly reveal?: Reveal | null;
-  /** The sheet opened on `building`'s row with its top edge at client y `sheetTop` (the camera may clear it). */
-  readonly onReveal?: ((building: PlotBuilding, sheetTop: number) => void) | undefined;
+  /**
+   * The sheet opened on `building`'s row with its top edge at client y `sheetTop` (the camera may clear it); `centre`
+   * for a quest's target (M3-15: the building may be off screen — the camera goes to it).
+   */
+  readonly onReveal?: ((building: PlotBuilding, sheetTop: number, centre: boolean) => void) | undefined;
   /**
    * The selected building changed (M2-29): the tapped building while its row is the current one and the sheet is open,
    * else `null` — the world outlines it.
@@ -91,10 +101,77 @@ function ModePicker({ mode, onChange }: { mode: BuyMode; onChange: (m: BuyMode) 
   );
 }
 
-/** A tapped building's row marks: `lit` = the gold rim (fades), `current` = aria-current (until the next action). */
+/** What a reveal lights in a list (`data-target`): a building's row, the hire row, a raid slot's card. */
+type RowKey = PlotBuilding | 'hire' | `raid.${string}`;
+
+/** A row to open on: its tab, its key, the building the camera clears (none: the Sich zone), the sheet height. */
+interface Aim {
+  readonly tab: TabZone;
+  readonly key: RowKey;
+  readonly building: PlotBuilding | null;
+  /** A quest tap (M3-15): exactly half, the camera centred on the building, and a read-out; a world tap only opens. */
+  readonly half: boolean;
+  /** A quest's Sich building that cannot be bought yet: its unlock (said instead of «lit»). */
+  readonly locked: SichUnlock | null;
+}
+
+/** A quest target as a row to open on; null for a counter with no row (a hint instead). */
+function aimOf(target: QuestTarget): Aim | null {
+  switch (target.kind) {
+    case 'farm':
+      return { tab: 'farm', key: target.id, building: target.id, half: true, locked: null };
+    case 'sich':
+      return { tab: 'sich', key: target.id, building: target.id, half: true, locked: target.locked };
+    case 'hire':
+      return { tab: 'sich', key: 'hire', building: null, half: true, locked: null };
+    case 'raid':
+      return { tab: 'sich', key: `raid.${String(target.slot)}`, building: null, half: true, locked: null };
+    case 'tap':
+    case 'none':
+      return null;
+  }
+}
+
+const RAID_KEY = 'raid.';
+const isRaidKey = (key: RowKey): key is `raid.${string}` => key.startsWith(RAID_KEY);
+/** The raid slot a key lights, or null. */
+const raidSlotOf = (key: RowKey | null): number | null =>
+  key !== null && isRaidKey(key) ? Number(key.slice(RAID_KEY.length)) : null;
+/** The building a key is the row of (the world outlines it), or null. */
+const buildingOf = (key: RowKey | null): PlotBuilding | null =>
+  key === null || key === 'hire' || isRaidKey(key) ? null : key;
+
+/** Why a locked Sich building cannot be bought yet (the row's own note says the same). */
+function unlockReason(t: Text['t'], u: SichUnlock): string {
+  switch (u.kind) {
+    case 'start':
+      return '';
+    case 'farmAll':
+      return t('ui.unlock.farmAll', { level: u.level });
+    case 'land':
+      return t('ui.unlock.land', { land: u.land });
+  }
+}
+
+/** Scrolls `scroll` (only it, never the page) the least that shows `row` whole — `block: 'nearest'`. */
+function scrollNearest(scroll: HTMLElement, row: HTMLElement): void {
+  const s = scroll.getBoundingClientRect();
+  const r = row.getBoundingClientRect();
+  if (r.top < s.top) scroll.scrollTop -= s.top - r.top;
+  else if (r.bottom > s.bottom) scroll.scrollTop += Math.min(r.bottom - s.bottom, r.top - s.top);
+}
+
+/** A quest tap's read-out; `hint` = also on screen (a counter, a locked or missing row). */
+interface News {
+  readonly id: number;
+  readonly text: string;
+  readonly hint: boolean;
+}
+
+/** A tapped row's marks: `lit` = the gold rim (fades), `current` = aria-current (until the next action). */
 interface Marks {
-  readonly lit: PlotBuilding | null;
-  readonly current: PlotBuilding | null;
+  readonly lit: RowKey | null;
+  readonly current: RowKey | null;
 }
 
 function FarmList({ mode, marks }: { mode: BuyMode; marks: Marks }) {
@@ -112,7 +189,7 @@ function SichList({ mode, marks }: { mode: BuyMode; marks: Marks }) {
   const ids = useGame(visibleSichIds, sameIds);
   return (
     <ul className={styles.list}>
-      <HireRow mode={mode} />
+      <HireRow mode={mode} highlighted={marks.lit === 'hire'} current={marks.current === 'hire'} />
       {ids.map((id) => (
         <SichRow key={id} id={id} mode={mode} highlighted={id === marks.lit} current={id === marks.current} />
       ))}
@@ -215,10 +292,10 @@ export function Panel({
   const toggleRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // A building tapped in the world: its row is the current one (aria-current) until the player does something else
-  // in the sheet; the gold rim fades after SHEET.highlightMs.
-  const [current, setCurrent] = useState<PlotBuilding | null>(null);
-  const [lit, setLit] = useState<PlotBuilding | null>(null);
+  // A building tapped in the world (or a quest's target): its row is the current one (aria-current) until the player
+  // does something else in the sheet; the gold rim fades after SHEET.highlightMs.
+  const [current, setCurrent] = useState<RowKey | null>(null);
+  const [lit, setLit] = useState<RowKey | null>(null);
 
   const select = (next: Tab): void => {
     setTab(next);
@@ -345,7 +422,7 @@ export function Panel({
   }, [sheet]);
 
   // The world outlines the current row's building while the sheet shows it (M2-29).
-  const selected = sheet === 'collapsed' ? null : current;
+  const selected = sheet === 'collapsed' ? null : buildingOf(current);
   const notifySelect = useRef(onSelect);
   useLayoutEffect(() => {
     notifySelect.current = onSelect;
@@ -354,43 +431,118 @@ export function Panel({
     notifySelect.current?.(selected);
   }, [selected]);
 
-  // The reveal once its list is rendered (the effect below needs the row in the DOM).
-  const [shown, setShown] = useState<Reveal | null>(null);
+  // A building tapped in the world, or a quest's target (a new object per tap).
+  const [aim, setAim] = useState<Aim | null>(null);
   useEffect(() => {
-    if (!reveal) return undefined;
-    const next = tabOfBuilding(reveal.building);
-    setTab(next);
-    setFocusTab(next);
-    dispatch({ type: 'open' });
-    setCurrent(reveal.building);
-    setLit(reveal.building);
-    setShown(reveal);
+    if (reveal)
+      setAim({
+        tab: tabOfBuilding(reveal.building),
+        key: reveal.building,
+        building: reveal.building,
+        half: false,
+        locked: null,
+      });
+  }, [reveal]);
+  // What a quest tap says (role=status): where its target is, or a hint — a counter's, or why its row is not there —
+  // also shown over the world just above the sheet (no layout shift); any press or key in the sheet dismisses it.
+  const [news, setNews] = useState<News | null>(null);
+  const say = useCallback((text: string, hint: boolean): void => {
+    setNews((p) => ({ id: (p?.id ?? 0) + 1, text, hint }));
+  }, []);
+  const readGame = useGameReader();
+  const onGo = (kind: QuestKind): void => {
+    const target = questTarget(readGame(), kind);
+    const next = aimOf(target);
+    if (next) {
+      setAim(next);
+      // No building to clear: the camera goes to the Sich (the hire row, the raid cards).
+      if (next.building === null) onZone?.(next.tab);
+      return;
+    }
+    if (target.kind === 'tap') {
+      // Taps go on the farm's ground: the camera there, the sheet down so the ground is free to tap.
+      onZone?.('farm');
+      dispatch({ type: 'escape' });
+    }
+    say(t(target.kind === 'tap' ? 'ui.quest.hint.tap' : 'ui.quest.hint.none'), true);
+  };
+  // A hint stays a few seconds; the read-out of a shown target is never on screen (the lit row says it).
+  useEffect(() => {
+    if (!news?.hint) return undefined;
+    const timer = setTimeout(() => {
+      setNews((p) => (p === news ? null : p));
+    }, SHEET.hintMs);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [news]);
+  // The reveal once its list is rendered (the effect below needs the row in the DOM).
+  const [shown, setShown] = useState<Aim | null>(null);
+  useEffect(() => {
+    if (!aim) return undefined;
+    setTab(aim.tab);
+    setFocusTab(aim.tab);
+    dispatch({ type: aim.half ? 'half' : 'open' });
+    setCurrent(aim.key);
+    setLit(aim.key);
+    setShown(aim);
     const timer = setTimeout(() => {
       setLit(null);
     }, SHEET.highlightMs);
     return () => {
       clearTimeout(timer);
     };
-  }, [reveal]);
-  // Once the list shows the row: scroll it into view (inside the list only) and let the camera clear the building.
-  // Only a new reveal does this — later sheet moves and resizes are the player's — so the rest is read from a ref.
-  const latest = useRef({ onReveal, sheet, heights, box });
+  }, [aim]);
+  // Once the list shows the row: say what was found, let the camera clear the building, and scroll the row into view
+  // (inside the list only) once the sheet stands at its height. Only a new reveal does this — later sheet moves and
+  // resizes are the player's — so the rest is read from a ref.
+  const latest = useRef({ onReveal, sheet, heights, box, t });
   useLayoutEffect(() => {
-    latest.current = { onReveal, sheet, heights, box };
+    latest.current = { onReveal, sheet, heights, box, t };
   });
   useEffect(() => {
-    if (!shown) return;
+    if (!shown) return undefined;
     const scroll = scrollRef.current;
-    const row = scroll?.querySelector(`[data-building="${shown.building}"]`);
-    if (scroll && row) {
-      const s = scroll.getBoundingClientRect();
-      const r = row.getBoundingClientRect();
-      if (r.top < s.top || r.bottom > s.bottom) scroll.scrollTop += r.top - s.top;
+    const section = sectionRef.current;
+    const row = scroll?.querySelector<HTMLElement>(`[data-target="${shown.key}"]`) ?? null;
+    const { onReveal: notify, sheet: now, heights: hs, box: b, t: tr } = latest.current;
+    if (shown.half) {
+      const tab = tr(`ui.tab.${shown.tab}`);
+      // A locked building, or no row at all (one this land does not show): the reason, never «lit».
+      if (shown.locked) say(tr('ui.quest.locked', { reason: unlockReason(tr, shown.locked) }), true);
+      else if (!row) say(tr('ui.quest.missing'), true);
+      else say(tr('ui.quest.shown', { tab }), false);
     }
-    const { onReveal: notify, sheet: now, heights: hs, box: b } = latest.current;
-    if (!hs || !b || now === 'full') return;
-    notify?.(shown.building, b.bottom - hs[now]);
-  }, [shown]);
+    if (hs && b && now !== 'full' && shown.building !== null) notify?.(shown.building, b.bottom - hs[now], shown.half);
+    if (!scroll || !row || !section) return undefined;
+    // The list's height changes while the sheet snaps: measure once its height transition has ended (at once under
+    // «менше руху», or when it already stands there). A slow frame can stretch the snap past its nominal time, so the
+    // fallback checks every `snapMs` whether the sheet stands at its height (a transition that never reports).
+    const target = hs && now !== 'full' ? hs[now] : null;
+    const standing = (): boolean => target === null || Math.abs(section.getBoundingClientRect().height - target) < 1;
+    if (lessMotion() || standing()) {
+      scrollNearest(scroll, row);
+      return undefined;
+    }
+    let checks = 0;
+    const onEnd = (e: TransitionEvent): void => {
+      if (e.target === section && e.propertyName === 'height' && standing()) finish();
+    };
+    const stop = (): void => {
+      section.removeEventListener('transitionend', onEnd);
+      clearInterval(timer);
+    };
+    const finish = (): void => {
+      stop();
+      scrollNearest(scroll, row);
+    };
+    section.addEventListener('transitionend', onEnd);
+    const timer = setInterval(() => {
+      checks += 1;
+      if (standing() || checks >= SHEET.revealChecks) finish();
+    }, SHEET.snapMs);
+    return stop;
+  }, [shown, say]);
 
   // WAI-ARIA tabs, manual activation: arrows and Home/End move the focus; Enter/Space (a click) choose — so a
   // collapsed sheet never opens and the camera never moves while the player only looks along the tabs.
@@ -436,14 +588,25 @@ export function Panel({
       data-state={sheet}
       data-dragging={dragH !== null ? '' : undefined}
       style={style}
-      // Anything the player does in the sheet ends the tapped row's «current» mark.
+      // Anything the player does in the sheet ends the tapped row's «current» mark and a quest hint.
       onPointerDownCapture={() => {
         setCurrent(null);
+        setNews(null);
       }}
       onKeyDownCapture={() => {
         setCurrent(null);
+        setNews(null);
       }}
     >
+      {/* One read-out for every quest tap; a hint also stands over the world just above the sheet (no list moves). */}
+      <p className={styles.said} role="status">
+        {news && <span key={news.id}>{news.text}</span>}
+      </p>
+      {news?.hint && (
+        <p key={news.id} className={styles.hint} aria-hidden="true" data-hint="">
+          {news.text}
+        </p>
+      )}
       <div
         ref={barRef}
         className={styles.bar}
@@ -504,19 +667,19 @@ export function Panel({
         hidden={collapsed}
         className={styles.body}
       >
-        {tab !== 'more' && <QuestStrip />}
+        {tab !== 'more' && <QuestStrip onGo={onGo} />}
         {tab !== 'more' && <ModePicker mode={mode} onChange={setMode} />}
         <div ref={scrollRef} className={styles.scroll}>
           {tab === 'farm' && <FarmList mode={mode} marks={marks} />}
           {tab === 'sich' && (
             <>
-              <RaidsBlock onChoose={onChooseRaid} />
+              <RaidsBlock onChoose={onChooseRaid} lit={raidSlotOf(lit)} current={raidSlotOf(current)} />
               <SichList mode={mode} marks={marks} />
             </>
           )}
           {tab === 'more' && (
             <>
-              <QuestList />
+              <QuestList onGo={onGo} />
               <Treasury />
               <Settings />
             </>

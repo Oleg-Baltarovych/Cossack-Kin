@@ -72,7 +72,9 @@ interface RowProps {
   readonly onBuy: () => void;
   /** The building id (the bottom sheet scrolls to `data-building` when its plot is tapped, M2-13). */
   readonly building?: string;
-  /** Lit for a moment after its building was tapped in the world. */
+  /** What a reveal scrolls to (`data-target`, M3-15): the building id, `hire`. */
+  readonly target?: string;
+  /** Lit for a moment after its building was tapped in the world (or its quest on the strip, M3-15). */
   readonly highlighted?: boolean;
   /** The row of the building just tapped (aria-current), until the player does something else in the sheet. */
   readonly current?: boolean;
@@ -90,6 +92,7 @@ function Row({
   mode,
   onBuy,
   building,
+  target,
   highlighted = false,
   current = false,
 }: RowProps) {
@@ -99,6 +102,7 @@ function Row({
     <li
       className={highlighted ? [styles.row, styles.lit].join(' ') : styles.row}
       data-building={building}
+      data-target={target}
       aria-current={current ? 'true' : undefined}
     >
       <div className={styles.text}>
@@ -179,6 +183,7 @@ export const FarmRow = memo(function FarmRow({
         act({ type: 'buyBuilding', id, mode });
       }}
       building={id}
+      target={id}
       highlighted={highlighted}
       current={current}
     />
@@ -213,6 +218,7 @@ export const SichRow = memo(function SichRow({
         act({ type: 'buySich', id, mode });
       }}
       building={id}
+      target={id}
       highlighted={highlighted}
       current={current}
     />
@@ -223,7 +229,16 @@ export const SichRow = memo(function SichRow({
  * The hire row (plan M2-14): the shared ×1/×10/×25/Max picker applies — the selector says how many the button hires
  * and for how much, and the button sends exactly that count (enabled ⇔ the reducer accepts it, tested on selectors).
  */
-export const HireRow = memo(function HireRow({ mode }: { readonly mode: BuyMode }) {
+export const HireRow = memo(function HireRow({
+  mode,
+  highlighted = false,
+  current = false,
+}: {
+  readonly mode: BuyMode;
+  /** Lit for a moment after a hire quest was tapped on the strip (M3-15). */
+  readonly highlighted?: boolean;
+  readonly current?: boolean;
+}) {
   const select = useCallback((s: GameState) => hireView(s, mode), [mode]);
   const v = useGame(select, sameView);
   const act = useAct();
@@ -248,6 +263,9 @@ export const HireRow = memo(function HireRow({ mode }: { readonly mode: BuyMode 
       onBuy={() => {
         act({ type: 'hire', n: v.count });
       }}
+      target="hire"
+      highlighted={highlighted}
+      current={current}
     />
   );
 });

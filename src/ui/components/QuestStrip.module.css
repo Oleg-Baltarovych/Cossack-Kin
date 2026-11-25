@@ -56,6 +56,29 @@
   margin: 0;
 }
 
+/* The title and progress as one button (M3-15): the whole text part of the line, at least a tap target high. */
+.go {
+  align-self: stretch;
+  align-content: center;
+  min-height: var(--tap, 44px);
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.go:active {
+  transform: translateY(var(--press-y));
+}
+
+.go:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
+}
+
 .title {
   display: flex;
   align-items: center;
@@ -136,11 +159,5 @@
 
 /* The claimed reward for screen readers; on screen the coins and the counter say it. */
 .said {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  composes: srOnly from '../a11y.module.css';
 }

@@ -211,6 +211,12 @@
   "ui.quest.limit": "Daily reward limit: pays nothing.",
   "ui.quest.claimable": "Reward waiting",
   "ui.quest.claimed": "Received: {reward}",
+  "ui.quest.goLabel": "{title}: show the target",
+  "ui.quest.shown": "Target on the {tab} tab, its row lit.",
+  "ui.quest.hint.tap": "Tap the farmstead's ground: every tap counts.",
+  "ui.quest.hint.none": "Buy levels of any building: they all count.",
+  "ui.quest.locked": "Not open yet. {reason}.",
+  "ui.quest.missing": "Not open yet: this land has no such building.",
   "reward.incomeMinutes": {
     "one": "{count} minute of income",
     "other": "{count} minutes of income"

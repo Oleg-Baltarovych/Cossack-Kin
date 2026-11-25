@@ -25,6 +25,7 @@ import { windLookAt } from './systems/village-mechanics/wind.ts';
 import { PLOT_VARIANTS, VARIANT_SALT, type VariantPlot } from '../content/variants.ts';
 import { pickStable } from './rng.ts';
 import { AGENT_BUDGET, CART_PERIOD, VILLAGER_GROWTH } from '../content/agents.ts';
+import type { QuestGoal } from '../content/quests.ts';
 import type { Reward } from '../content/rewards.ts';
 import { STORY_BEATS, type PortraitId, type StoryBeatId } from '../content/story.ts';
 import {
@@ -35,6 +36,7 @@ import {
   type QuestId,
   type QuestKind,
 } from './systems/quests.ts';
+import { raidSlotsView, type RaidSlotView } from './raid-selectors.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -360,6 +362,69 @@ export function stripQuestKind(state: GameState): QuestKind {
   if (chain?.done) return 'chain';
   if (choreQuest(state).done && choreRewardsLeft(state) > 0) return 'chore';
   return chain ? 'chain' : 'chore';
+}
+
+/**
+ * Where a tap on a quest leads (SPEC §10.3 «тап веде до цілі», plan M3-15): a building's row (farm or Sich list), the
+ * hire row, a raid slot's card — or, for a counter with no row of its own, a hint: taps (`tap`), any purchase or level
+ * (`none`, also a chain that is through). The UI maps it to a tab, a lit row and the camera; it decides nothing.
+ */
+export type QuestTarget =
+  | { readonly kind: 'farm'; readonly id: FarmBuildingId }
+  | {
+      readonly kind: 'sich';
+      readonly id: SichBuildingId;
+      /** Its unlock while it cannot be bought (its row is locked, or not shown in this land); null when open. */
+      readonly locked: SichUnlock | null;
+    }
+  | { readonly kind: 'hire' }
+  | { readonly kind: 'raid'; readonly slot: number }
+  | { readonly kind: 'tap' }
+  | { readonly kind: 'none' };
+
+/** The open slot a raid quest leads to: the first card of the first slot kind in `order` (else slot 0). */
+function raidSlotIn(slots: readonly RaidSlotView[], order: readonly RaidSlotView['kind'][]): number {
+  for (const kind of order) {
+    const hit = slots.find((x) => x.kind === kind);
+    if (hit) return hit.slot;
+  }
+  return 0;
+}
+
+function goalTarget(state: GameState, goal: QuestGoal): QuestTarget {
+  switch (goal.kind) {
+    case 'building':
+      return { kind: 'farm', id: goal.id };
+    case 'sich': {
+      const b = SICH_BUILDINGS.find((x) => x.id === goal.id);
+      return { kind: 'sich', id: goal.id, locked: b && !sichUnlocked(b, state) ? b.unlock : null };
+    }
+    case 'count':
+      switch (goal.stat) {
+        case 'hires':
+          return { kind: 'hire' };
+        case 'raidsSent':
+        case 'raidsDone': {
+          // A start wants «Обрати похід» (or «Ще раз» of a returned raid); a finish wants «Забрати» (or the road).
+          const slots = raidSlotsView(state, state.time.lastSeen);
+          const order: readonly RaidSlotView['kind'][] =
+            goal.stat === 'raidsSent' ? ['idle', 'returned', 'running'] : ['returned', 'running', 'idle'];
+          return { kind: 'raid', slot: raidSlotIn(slots, order) };
+        }
+        case 'taps':
+        case 'tapIncomeSec':
+          return { kind: 'tap' };
+        case 'purchases':
+        case 'levelsBought':
+          return { kind: 'none' };
+      }
+  }
+}
+
+/** The target of the `kind` quest — by default the one the strip shows (`stripQuestKind`). */
+export function questTarget(state: GameState, kind: QuestKind = stripQuestKind(state)): QuestTarget {
+  const q = kind === 'chain' ? chainQuest(state) : choreQuest(state);
+  return q ? goalTarget(state, q.goal) : { kind: 'none' };
 }
 
 /** What the story modal shows of a beat (plan M2-25, SPEC §2.5); the reward it came to is in its event. */

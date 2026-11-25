@@ -243,6 +243,12 @@
   "ui.quest.limit": "Ліміт нагород на сьогодні: нічого не дасть.",
   "ui.quest.claimable": "Є нагорода",
   "ui.quest.claimed": "Отримано: {reward}",
+  "ui.quest.goLabel": "{title} — показати ціль",
+  "ui.quest.shown": "Ціль — на вкладці «{tab}», рядок підсвічено.",
+  "ui.quest.hint.tap": "Тапай по землі хутора — кожен тап рахується.",
+  "ui.quest.hint.none": "Купуй рівні будь-яких будівель — рахуються всі.",
+  "ui.quest.locked": "Ще закрито. {reason}.",
+  "ui.quest.missing": "Ще закрито: цієї будівлі в цьому краї немає.",
   "reward.incomeMinutes": {
     "one": "{count} хвилина доходу",
     "few": "{count} хвилини доходу",

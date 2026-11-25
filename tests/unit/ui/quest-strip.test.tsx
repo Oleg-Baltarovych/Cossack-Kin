@@ -59,6 +59,8 @@ function mount(state: GameState, props: PanelProps = {}): { store: GameStore; un
   return { store, unmount };
 }
 
+/** A claim's button (the title of a line is a button too since M3-15). */
+const CLAIM = /^(Забрати|Зарахувати)/;
 const strip = () => screen.getByRole('region', { name: 'Завдання' });
 const openMore = () => {
   fireEvent.click(screen.getByRole('tab', { name: 'Ще' }));
@@ -77,14 +79,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('the one-line strip over the lists (M2-25, SPEC §10.3)', () => {
-  it('a new game: the chain step alone — title, progress, reward — and no button', () => {
+  it('a new game: the chain step alone — title, progress, reward — and no claim button', () => {
     mount(game());
     expect(within(strip()).queryAllByRole('listitem')).toHaveLength(0);
     expect(strip().textContent).toContain('Засій пшеничне поле');
     expect(strip().textContent).toContain('0 з 1');
     // The first farm steps pay glory (M2-27, SPEC §3.10).
     expect(strip().textContent).toContain('5 хвилин слави');
-    expect(within(strip()).queryByRole('button')).toBeNull();
+    expect(within(strip()).queryByRole('button', { name: CLAIM })).toBeNull();
   });
 
   it('plurals for the minutes, in en too', () => {
@@ -109,9 +111,11 @@ describe('the one-line strip over the lists (M2-25, SPEC §10.3)', () => {
     fireEvent.click(claim);
     const gained = store.getState().currencies.glory.sub(before);
     expect(gained.gt(0)).toBe(true);
-    expect(screen.getByRole('status').textContent).toBe(`Отримано: +${formatBig(gained, 'uk', 'words')} слави`);
+    expect(within(strip()).getByRole('status').textContent).toBe(
+      `Отримано: +${formatBig(gained, 'uk', 'words')} слави`,
+    );
     expect(strip().textContent).toContain('Посади город');
-    expect(within(strip()).queryByRole('button')).toBeNull();
+    expect(within(strip()).queryByRole('button', { name: CLAIM })).toBeNull();
   });
 });
 
@@ -140,20 +144,20 @@ describe('both quests on «Ще» (M2-25 review)', () => {
     fireEvent.click(count);
     expect(store.getState().quests.chores.n).toBe(before.quests.chores.n + 1);
     expect(store.getState().currencies.ducats.eq(before.currencies.ducats)).toBe(true);
-    expect(screen.getByRole('status').textContent).toBe('');
+    expect(within(screen.getByRole('region', { name: 'Завдання' })).getByRole('status').textContent).toBe('');
   });
 
   it('the limit note shows before the chore is done too (the warning comes first)', () => {
     mount(spent(game()));
     const chore = within(openMore()).getAllByRole('listitem')[1];
     expect(chore?.textContent).toContain('Ліміт нагород на сьогодні');
-    expect(within(chore ?? document.body).queryByRole('button')).toBeNull();
+    expect(within(chore ?? document.body).queryByRole('button', { name: CLAIM })).toBeNull();
   });
 
   it('a chore past the limit never takes the strip: the chain step stays there', () => {
     mount(spent(choreDone(game())));
     expect(strip().textContent).toContain('Засій пшеничне поле');
-    expect(within(strip()).queryByRole('button')).toBeNull();
+    expect(within(strip()).queryByRole('button', { name: CLAIM })).toBeNull();
   });
 });
 
@@ -323,7 +327,7 @@ describe('coins to the counter on a claim (M2-25, M2-26)', () => {
     claimInStrip();
     expect(document.querySelectorAll('[data-coin]')).toHaveLength(0);
     expect(store.getState().currencies.glory.gt(before)).toBe(true);
-    expect(screen.getByRole('status').textContent).toMatch(/^Отримано: \+/);
+    expect(within(strip()).getByRole('status').textContent).toMatch(/^Отримано: \+/);
   });
 
   it('a chore past the limit pays nothing: no coins', () => {
