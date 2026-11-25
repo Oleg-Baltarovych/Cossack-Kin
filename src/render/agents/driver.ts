@@ -9,7 +9,9 @@ import {
   agentCounts,
   assignCrews,
   crewState,
+  squadPhases,
   stepInPlace,
+  syncRaids,
   TICK_HZ,
   workingCount,
   writePoses,
@@ -18,6 +20,7 @@ import {
   type AgentPool,
   type AgentPose,
   type PoseSlot,
+  type SquadPhase,
   type WorkDoneLog,
 } from './sim.ts';
 import type { NodeBuilding } from '../../content/agents.ts';
@@ -45,6 +48,8 @@ export interface AgentDriver {
   ticks(): number;
   /** The builders of a scaffold (M2-29 D, `crewState`); `none` before the pool exists. */
   crew(building: NodeBuilding): 'none' | 'coming' | 'ready';
+  /** Where each raid slot's squad is (M3-14, debug stats); none before the pool exists. */
+  squads(): readonly SquadPhase[];
 }
 
 const NO_COUNTS: AgentCounts = { total: 0, villager: 0, cossack: 0, visitor: 0, cart: 0 };
@@ -67,7 +72,11 @@ export function createAgentDriver(make: (ctx: AgentContext) => AgentPool, cap: n
       pool.done.count = 0;
       // A scaffold put up this frame gets its builders even when no tick is due (else it reads `none` and starts).
       assignCrews(ctx, pool);
-      if (target <= clockTicks) return;
+      if (target <= clockTicks) {
+        // No tick due (a frozen clock's later frames): a raid slot's change still shows (M3-14).
+        if (syncRaids(ctx, pool)) poses = writePoses(pool, slots);
+        return;
+      }
       const n = Math.min(target - clockTicks, cap);
       clockTicks = target;
       stepInPlace(pool, n, ctx);
@@ -80,5 +89,6 @@ export function createAgentDriver(make: (ctx: AgentContext) => AgentPool, cap: n
     working: () => (pool ? workingCount(pool) : 0),
     ticks: () => poolTicks,
     crew: (building) => (pool ? crewState(pool, building) : 'none'),
+    squads: () => (pool ? squadPhases(pool) : []),
   };
 }

@@ -3,7 +3,7 @@
 import { UPDATE_PRIORITY } from 'pixi.js';
 import type { WorldApp } from '../App.ts';
 import type { PlotBuilding } from '../../content/villages/khortytsia.layout.ts';
-import type { AgentCounts } from '../agents/sim.ts';
+import type { AgentCounts, SquadPhase } from '../agents/sim.ts';
 import { particles } from '../fx/registry.ts';
 import type { RenderSettings } from '../settings.ts';
 import { installDrawCounter } from './drawCounter.ts';
@@ -34,6 +34,8 @@ export interface DebugStats {
   agents: AgentCounts;
   /** Villagers at a work spot this frame (M2-18: at work by day, none at night). */
   working: number;
+  /** Where each raid slot's squad is (M3-14): home, muster, out, away, in, halt. */
+  squads: readonly SquadPhase[];
   /** Scaffold stages gone up since start: the builders' knocks (M2-18 hook for the M7 audio). */
   knocks: number;
   /** The newest work-done glint (world x, age ms), null before the first (M2-18). */
@@ -81,6 +83,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     zoom: world.zoom(),
     agents: world.agentCounts(),
     working: world.working(),
+    squads: world.squads(),
     knocks: world.knocks(),
     glint: world.lastGlint(),
     seed: world.seed,
@@ -104,6 +107,7 @@ export function installDebugTools(world: WorldApp, settings: RenderSettings): ()
     Object.assign(stats, { scale, logicalW, logicalH, particles: particles.active, cam: world.camX() });
     Object.assign(stats, { camY: world.camY(), zoom: world.zoom(), agents: world.agentCounts() });
     Object.assign(stats, { working: world.working(), knocks: world.knocks(), glint: world.lastGlint() });
+    stats.squads = world.squads();
     stats.quality = settings.quality ?? `auto:${world.quality()}`;
     if (counter) stats.drawCalls = counter.count();
     stats.frames += 1;

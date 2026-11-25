@@ -33,7 +33,13 @@ import type { Quality, Weather } from '../settings.ts';
 import { cycleFrame, swayFrame } from '../sway.ts';
 import { riverRowEnd } from '../zones.ts';
 import { personAnim } from '../agents/sim.ts';
-import { BEARER_BANNER, isBearerSprite, type AgentSprite, type PersonAnim } from '../../content/agents.ts';
+import {
+  BEARER_BANNER,
+  CHEST_SPRITE,
+  isBearerSprite,
+  type AgentSprite,
+  type PersonAnim,
+} from '../../content/agents.ts';
 import { contentWidth, createLayer, horizonY, type LayerSize, type WorldLayer } from './Layer.ts';
 
 const PARALLAX = 1;
@@ -208,19 +214,18 @@ export function createGroundLayer({
       const known = persons.get(id);
       if (known?.stem === stem) return known;
       if (known) {
-        // Same agent, another look (a cart unloaded: `viz.full` → `viz.empty`): keep the sprites, swap the frames.
-        const [entity = stem, variant = ''] = stem.split('.');
+        // Same agent, another look (a cart unloaded: `viz.full` → `viz.empty`; a Cossack taking up the корогва, M3-14):
+        // keep the sprites, swap the frames.
         known.stem = stem;
         known.anims.clear();
         known.sprite.texture = frame(`${stem}/idle/00`);
-        known.shadow.texture = frame(`${entity}.${variant}@shadow/idle/00`);
+        known.shadow.texture = frame(`${stem}@shadow/idle/00`);
         known.cloth?.destroy();
         known.cloth = clothFor(stem);
         return known;
       }
-      const [entity = stem, variant = ''] = stem.split('.');
       const sprite = new Sprite({ texture: frame(`${stem}/idle/00`), roundPixels: true });
-      const shadow = new Sprite({ texture: frame(`${entity}.${variant}@shadow/idle/00`), roundPixels: true });
+      const shadow = new Sprite({ texture: frame(`${stem}@shadow/idle/00`), roundPixels: true });
       sprite.anchor.copyFrom(sprite.texture.defaultAnchor ?? { x: 0.5, y: 1 });
       shadow.anchor.copyFrom(shadow.texture.defaultAnchor ?? { x: 0.5, y: 1 });
       shadows.addChild(shadow);
@@ -233,14 +238,12 @@ export function createGroundLayer({
     const personFrames = (p: Person, anim: PersonAnim): { body: Texture[]; shadow: Texture[] } => {
       const known = p.anims.get(anim);
       if (known) return known;
-      const [entity = p.stem, variant = ''] = p.stem.split('.');
-      const { frames } = personAnim(anim);
+      // The chest set down on the maidan (M3-14) is one still frame.
+      const { frames } = p.stem === CHEST_SPRITE ? { frames: 1 } : personAnim(anim);
       const own = anim !== 'walk' && anim !== 'idle';
       const made = {
         body: frameList(p.stem, anim, frames),
-        shadow: own
-          ? frameList(`${entity}.${variant}@shadow`, anim, frames)
-          : [frame(`${entity}.${variant}@shadow/idle/00`)],
+        shadow: own ? frameList(`${p.stem}@shadow`, anim, frames) : [frame(`${p.stem}@shadow/idle/00`)],
       };
       p.anims.set(anim, made);
       return made;
@@ -403,12 +406,17 @@ export function createGroundLayer({
           // Mirrored about the pivot column; the anchor keeps the feet on the same px.
           sprite.scale.x = pose.facing;
           sprite.zIndex = y;
+          // A raid squad's man fading in the gate's passage (M3-14): two steps, with his shadow and the корогва.
+          const alpha = pose.alpha ?? 1;
+          sprite.alpha = alpha;
+          shadow.alpha = alpha;
           if (p.cloth && clothTextures) {
             const { dx, dy } = BEARER_BANNER.hoist;
             const lift = dy[pose.anim === 'march' ? 'march' : 'idle'][pose.frame] ?? dy.idle[0];
             const cloth = clothTextures[cycleFrame(ambient, BEARER_BANNER.animate, scene.wind)];
             if (cloth) p.cloth.texture = cloth;
             p.cloth.position.set(pose.x + (pose.facing === 1 ? dx : 1 - dx), y + lift);
+            p.cloth.alpha = alpha;
             // Over the bearer it hangs from (inserted after him: same zIndex keeps the insertion order).
             p.cloth.zIndex = y;
           }

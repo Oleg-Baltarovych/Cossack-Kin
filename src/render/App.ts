@@ -49,7 +49,7 @@ import { createAgents } from './agents/sim.ts';
 import { createAgentDriver, stepCap } from './agents/driver.ts';
 import { createVisitClock } from './agents/visits.ts';
 import { LINEUP, lineupPoses, raidLineupPoses } from './debug/lineup.ts';
-import type { AgentContext, AgentCounts } from './agents/sim.ts';
+import type { AgentContext, AgentCounts, SquadPhase } from './agents/sim.ts';
 import { AGENT_BUDGET, BUILDERS } from '../content/agents.ts';
 import { propFrames } from './layers/Ground.ts';
 import { horizonY } from './layers/Layer.ts';
@@ -116,6 +116,8 @@ export interface WorldApp {
   agentCounts(): AgentCounts;
   /** Villagers in a work animation this frame (M2-18; debug stats). */
   working(): number;
+  /** Where each raid slot's squad is (M3-14; debug stats, e2e waits on it). */
+  squads(): readonly SquadPhase[];
   /** Scaffold stages gone up since start, the builders' knocks (M2-18; debug stats, the M7 audio hook). */
   knocks(): number;
   /** The newest work glint: world x and age in ms (M2-18; debug stats, e2e finds one on screen). */
@@ -265,7 +267,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
     // once per world: a resize (`applyViewport`) only re-lays the layers and never touches the driver, so nobody
     // jumps; there is one land today — switching lands (M5) must tear the world down and build a new one.
     const agents = createAgentDriver(
-      (ctx) => createAgents(layout.paths, layout.agents, AGENT_BUDGET, seed, ctx),
+      (ctx) => createAgents(layout.paths, layout.agents, AGENT_BUDGET, seed, ctx, layout.raid),
       stepCap(settings.frozenAt !== null),
     );
     /** The agents' context, rewritten in place each frame (the pool reads it during `advance`, never keeps it). */
@@ -277,6 +279,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       cartPeriodS: undefined,
       visit: null,
       builds: undefined,
+      raids: undefined,
+      lessMotion: settings.lessMotion,
     };
     // The visitors' timetable (M2-21): the core's, on the game's seed and time, read through the scene's feed.
     const visits = createVisitClock(settings.frozenAt !== null);
@@ -501,6 +505,8 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       agentCtx.cartPeriodS = scene.cartPeriodS;
       agentCtx.visit = visits.at(scene.visitors, seconds);
       agentCtx.builds = build.scaffolds();
+      agentCtx.raids = scene.raids;
+      agentCtx.lessMotion = lessMotion;
       agents.advance(seconds, agentCtx);
       // A finished work spell sparks a glint over the worker (M2-18, decoration only — never the coin; at most
       // `perFrame` at once after a catch-up). Not under `?freeze`: its one jump finishes many spells, and a glint in
@@ -794,6 +800,7 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
       zoom: () => lastCam.level,
       agentCounts: () => agents.counts(),
       working: () => agents.working(),
+      squads: () => agents.squads(),
       knocks: () => knocks,
       lastGlint: () => (lastGlint ? { x: lastGlint.x, ageMs: performance.now() - lastGlint.bornMs } : null),
       seed,
