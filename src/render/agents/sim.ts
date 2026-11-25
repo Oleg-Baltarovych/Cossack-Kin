@@ -24,6 +24,7 @@
 import {
   BUILDERS,
   CART_PERIOD,
+  CHEST_SPRITE,
   CART_TRIP,
   COSSACK_ANIMS,
   COSSACK_DAY,
@@ -31,6 +32,7 @@ import {
   KOBZAR_ANIMS,
   OTAMAN_ANIMS,
   RAID_ANIMS,
+  RAID_SQUAD,
   VILLAGER_ANIMS,
   VILLAGER_DAY,
   isCossackAnim,
@@ -51,6 +53,7 @@ import {
   type BasicAnim,
   type CartSpawn,
   type CartSprite,
+  type ChestSprite,
   type CossackAnim,
   type CossackSpawn,
   type GirlSprite,
@@ -67,6 +70,7 @@ import {
   type PathGraph,
   type PathNode,
   type PersonAnim,
+  type RaidRoute,
   type Spot,
   type VillagerAnim,
   type VillagerSpawn,
@@ -129,7 +133,31 @@ export interface AgentContext {
   readonly visit?: VisitNow | null | undefined;
   /** Scaffolds standing now (M2-29 D, render/fx/build.ts): the nearest men of the household go and hammer there. */
   readonly builds?: readonly BuildSite[] | undefined;
+  /**
+   * The raid slots as the scene shows them (M3-14, core `raidSceneView` via the bridge), one per open slot; absent = no
+   * game: every squad home, no chest.
+   */
+  readonly raids?: readonly SquadScene[] | undefined;
+  /** «Менше руху» (SPEC §6.8): decorative motion stops — villagers greeting a squad stand instead of cheering. */
+  readonly lessMotion?: boolean | undefined;
 }
+
+/**
+ * A raid slot as the scene shows it (M3-14): its squad home (`idle`), on the road (`away`) or back with a chest on the
+ * maidan (`back`); `live` = the last change came while the game ran (a start, a return seen live: the squad marches),
+ * else the scene just is so (a load, an absence: no parade, Q14).
+ */
+export interface SquadScene {
+  readonly state: 'idle' | 'away' | 'back';
+  readonly live: boolean;
+}
+
+/**
+ * Where a squad is (M3-14): `home` (no squad: everyone at his duty), `muster` (walking to and standing in the file),
+ * `out` (marching into the gate), `away`, `in` (marching back with the chest), `halt` (standing in file, the chest set
+ * down, before going back to duty).
+ */
+export type SquadPhase = 'home' | 'muster' | 'out' | 'away' | 'in' | 'halt';
 
 /** A building under its scaffold (world x of its pivot, ground row) and the scaffold's size (`BUILDERS[size]` men). */
 export interface BuildSite {
@@ -206,7 +234,9 @@ type Errand =
   | 'haunt'
   | 'leave'
   | 'unload'
-  | 'depot';
+  | 'depot'
+  | 'muster'
+  | 'cheer';
 
 /** What an agent is doing (villager and Cossack states included; a wanderer stands, rests, walks and goes indoors). */
 export type Activity =
@@ -223,8 +253,10 @@ export type Activity =
       next: number;
       readonly then: Errand;
       readonly dx: number;
-      /** The otaman's review step along the ranks (M2-19), else a plain walk. */
+      /** The otaman's review step along the ranks (M2-19), a squad mustering (M3-14), else a plain walk. */
       readonly gait: 'walk' | 'march';
+      /** Rows off the last node it stops at (the otaman beside the banner, M3-14); absent = on its row. */
+      readonly dy?: number;
     }
   | { readonly kind: 'work'; ticksLeft: number; readonly anim: WorkAnim; readonly spot: string }
   | { readonly kind: 'chat'; ticksLeft: number }
@@ -248,7 +280,15 @@ export type Activity =
   /** A visitor between visits (M2-21): out of the village, no pose. */
   | { readonly kind: 'away' }
   /** A visitor on its visit: walking in, staying (idle or playing), walking out — placed from the visit's time. */
-  | { readonly kind: 'visit'; readonly anim: 'walk' | 'idle' | KobzarAnim; readonly out: boolean };
+  | { readonly kind: 'visit'; readonly anim: 'walk' | 'idle' | KobzarAnim; readonly out: boolean }
+  /** A raid squad's man in the file on the maidan before setting off (M3-14). */
+  | { readonly kind: 'muster' }
+  /** On the raid's march, placed by the squad's clock along its line (M3-14). */
+  | { readonly kind: 'march' }
+  /** Back, standing in the halted file by the chest (M3-14). */
+  | { readonly kind: 'halt' }
+  /** A villager greeting a returned squad at the Sich's threshold (M3-14); stands under «менше руху». */
+  | { kind: 'cheer'; ticksLeft: number; readonly anim: 'cheer' | 'idle' };
 
 /** One agent; mutated in place by `stepInPlace` (treat as read-only outside this module). */
 export interface Agent {
@@ -267,6 +307,14 @@ export interface Agent {
   readonly settle: number;
   /** The otaman: the drill cycle whose front he marched last (−1 before the first). */
   reviewed: number;
+  /** The raid slot whose squad this Cossack marches with (M3-14); −1 = none. */
+  squad: number;
+  /** His place in the squad's file (0 = the bearer); −1 for the otaman beside the banner and for everyone else. */
+  file: number;
+  /** Drawn opacity (1; the two steps of a man fading in the gate's passage, M3-14; 0 = not there yet). */
+  alpha: number;
+  /** Where this villager greets a returning squad (px beside the Sich's threshold, facing); `null` = not greeting. */
+  cheer: { readonly dx: number; readonly facing: 1 | -1 } | null;
   /** The scaffold this villager is building at (M2-29 D): the node it stands by and px beside it; `null` = none. */
   crew: { readonly building: NodeBuilding; readonly at: string; readonly dx: number; readonly facing: 1 | -1 } | null;
   /** The last node reached. */
@@ -325,6 +373,48 @@ export interface AgentPool {
   readonly carts: CartSchedule;
   /** Builders sent to each scaffold standing (agent ids; M2-29 D): chosen once per scaffold. */
   readonly crews: Map<NodeBuilding, readonly number[]>;
+  /** One per raid slot of the land's route (M3-14); none without a route. */
+  readonly squads: Squad[];
+  /** The squads' lines, made once from the route; `null` = a land without one. */
+  readonly lines: SquadLines | null;
+}
+
+/** A raid slot's squad on the scene (M3-14); mutated in place by the step. */
+export interface Squad {
+  /** The slot's scene state the pool saw last. */
+  seen: SquadScene['state'];
+  phase: SquadPhase;
+  /** Its men (indexes into `pool.agents`), the bearer first; empty while home. */
+  members: number[];
+  /** The otaman beside the banner (first squad only; index into `pool.agents`), −1 = none. */
+  otaman: number;
+  /** Whether the last two men carry the chest home (a squad of three or more). */
+  carriers: boolean;
+  /** Pool tick the phase's clock counts from (muster: the departure, once everyone stands in file; −1 = not yet). */
+  t0: number;
+  /** Whether the slot's chest stands on the maidan. */
+  chest: boolean;
+}
+
+/** A polyline with the distance along it to each point (made once). */
+export interface Line {
+  readonly xs: readonly number[];
+  readonly ys: readonly number[];
+  readonly along: readonly number[];
+}
+
+/**
+ * The squads' ways (M3-14), world px: `out` from behind the muster line's rear through its head (`musterAt` px along)
+ * to the foot of the trail and into the gate's passage (its end); `ins[slot]` from the passage down the trail to the
+ * slot's chest spot (`chestAt` px along) and on along the halt line; the facing each return starts with.
+ */
+export interface SquadLines {
+  readonly out: Line;
+  readonly musterAt: number;
+  readonly ins: readonly Line[];
+  readonly chestAt: readonly number[];
+  readonly inFacing: readonly (1 | -1)[];
+  readonly route: RaidRoute;
 }
 
 /**
@@ -346,6 +436,8 @@ interface PoseBase {
   /** 1 = facing right (as drawn), −1 = mirrored. */
   readonly facing: 1 | -1;
   readonly frame: number;
+  /** Opacity (absent = 1): a raid squad's man fading in the gate's passage (M3-14). */
+  readonly alpha?: number;
 }
 
 /** Which animations each person sprite family has frames for (M2-17 villagers, M2-19 Cossacks). */
@@ -358,7 +450,8 @@ type Look =
   | { sprite: KobzarSprite; anim: BasicAnim | KobzarAnim }
   | { sprite: WalkerVisitorSprite; anim: BasicAnim }
   | { sprite: CartSprite; anim: BasicAnim }
-  | { sprite: RaidSprite; anim: 'idle' | RaidAnim };
+  | { sprite: RaidSprite; anim: 'idle' | RaidAnim }
+  | { sprite: ChestSprite; anim: 'idle' };
 
 /**
  * A person this frame. Each sprite family has its own animations beyond walk/idle — the villagers' work set (M2-17),
@@ -433,14 +526,16 @@ function walk(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void
       replan(ctx, pool, agent, t);
       return;
     }
-    const tx = node.x + (a.next === a.path.length - 1 ? a.dx : 0);
+    const last = a.next === a.path.length - 1;
+    const tx = node.x + (last ? a.dx : 0);
+    const ty = node.ground + (last ? (a.dy ?? 0) : 0);
     const dx = tx - agent.x;
-    const dy = node.ground - agent.y;
+    const dy = ty - agent.y;
     const d = Math.hypot(dx, dy);
     if (dx !== 0) agent.facing = dx > 0 ? 1 : -1;
     if (d <= left) {
       agent.x = tx;
-      agent.y = node.ground;
+      agent.y = ty;
       agent.at = node.id;
       left -= d;
       a.next += 1;
@@ -477,6 +572,15 @@ function arrive(ctx: AgentContext, pool: AgentPool, agent: Agent, then: Errand, 
   }
   if (spawn.routine === 'cart') {
     cartArrive(agent, then);
+    return;
+  }
+  if (then === 'cheer') {
+    if (agent.cheer) agent.facing = agent.cheer.facing;
+    setActivity(agent, {
+      kind: 'cheer',
+      ticksLeft: Math.round(RAID_SQUAD.cheer.s * TICK_HZ),
+      anim: ctx.lessMotion === true ? 'idle' : 'cheer',
+    });
     return;
   }
   if (then === 'build') {
@@ -619,6 +723,10 @@ function household(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number):
 
 function villagerTick(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, t: number): void {
   if (household(ctx, pool, agent, t)) return;
+  if (agent.cheer) {
+    greet(ctx, pool, agent, spawn, agent.cheer.dx, t);
+    return;
+  }
   const a = agent.activity;
   const building = a.kind === 'build' || (a.kind === 'walk' && a.then === 'build');
   if (agent.crew) {
@@ -735,6 +843,12 @@ function cossackArrive(
   then: Errand,
   t: number,
 ): void {
+  if (then === 'muster') {
+    // In his place in the squad's file, facing the trail (M3-14).
+    agent.facing = 1;
+    setActivity(agent, { kind: 'muster' });
+    return;
+  }
   if (then === 'leave') {
     // Back in the kurin: the army no longer has him (or, re-hired on the way, he turns out again next tick).
     setActivity(agent, enlisted(ctx, agent) ? { kind: 'rest', ticksLeft: 0 } : { kind: 'absent' });
@@ -805,6 +919,8 @@ function misplaced(ctx: AgentContext, graph: PathGraph, agent: Agent, spawn: Cos
     build: 'build',
     unload: 'unload',
     depot: 'depot',
+    muster: 'muster',
+    cheer: 'cheer',
   };
   return want[goal.then] !== kind;
 }
@@ -1157,6 +1273,8 @@ function visitorStep(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: Vi
 
 /** One tick of `agent`; `t` = the pool's clock at this tick (the drill). */
 function tick(ctx: AgentContext, pool: AgentPool, agent: Agent, t: number): void {
+  // A raid squad's man steps with his squad (`squadsTick`), tick by tick with the others.
+  if (agent.squad >= 0) return;
   const spawn = agent.spawn;
   if (spawn.routine === 'villager') villagerTick(ctx, pool, agent, spawn, t);
   else if (spawn.routine === 'cart') cartTick(ctx, pool, agent, spawn, t);
@@ -1177,6 +1295,7 @@ function free(ctx: AgentContext, agent: Agent): boolean {
     agent.spawn.routine === 'villager' &&
     agent.sprite.startsWith('selianyn') &&
     agent.crew === null &&
+    agent.cheer === null &&
     settled(ctx, agent) &&
     a.kind !== 'absent' &&
     !(a.kind === 'walk' && a.then === 'leave')
@@ -1298,19 +1417,512 @@ function crowded(pool: AgentPool, node: PathNode): boolean {
   return false;
 }
 
+// ── raid squads (M3-14) ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const SQUAD_TICKS = {
+  muster: Math.round(RAID_SQUAD.musterS * TICK_HZ),
+  halt: Math.round(RAID_SQUAD.haltS * TICK_HZ),
+} as const;
+const NO_RAIDS: readonly SquadScene[] = [];
+const HOME_SCENE: SquadScene = { state: 'idle', live: false };
+const MARCH: Activity = { kind: 'march' };
+const HALT: Activity = { kind: 'halt' };
+
+/** A polyline through `points` (made once per land). */
+function lineOf(points: readonly (readonly [number, number])[]): Line {
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  const along = [0];
+  for (let i = 1; i < xs.length; i++)
+    along.push((along[i - 1] ?? 0) + Math.hypot((xs[i] ?? 0) - (xs[i - 1] ?? 0), (ys[i] ?? 0) - (ys[i - 1] ?? 0)));
+  return { xs, ys, along };
+}
+
+const lineLength = (line: Line): number => line.along[line.along.length - 1] ?? 0;
+
+/** The squads' lines from a land's route (world px from its graph). */
+export function squadLines(graph: PathGraph, route: RaidRoute): SquadLines {
+  const at = (id: string, dx = 0): [number, number] => {
+    const n = nodeOf(graph, id);
+    return [n.x + dx, n.ground];
+  };
+  const muster = at(route.muster);
+  const musterAt = (RAID_SQUAD.men + 1) * RAID_SQUAD.gapPx;
+  const out = lineOf([[muster[0] - musterAt, muster[1]], muster, at(route.foot), at(route.gate)]);
+  const ins = route.chests.map((c) => {
+    const chest = at(c.at, c.dx);
+    return lineOf([at(route.gate), at(route.foot), chest, [chest[0] + c.facing * RAID_SQUAD.haltRunPx, chest[1]]]);
+  });
+  return {
+    out,
+    musterAt,
+    ins,
+    chestAt: ins.map((l) => l.along[2] ?? 0),
+    inFacing: route.chests.map((c) => c.facing),
+    route,
+  };
+}
+
+/** Scratch points (the frame path allocates nothing). */
+const P0 = { x: 0, y: 0 };
+const P1 = { x: 0, y: 0 };
+const BESIDE = { x: 0, y: 0 };
+
+/** The point `d` px along `line` (clamped to it), into `out`. */
+function pointAt(line: Line, d: number, out: { x: number; y: number }): void {
+  const last = line.xs.length - 1;
+  let i = 1;
+  while (i < last && (line.along[i] ?? 0) < d) i++;
+  const a0 = line.along[i - 1] ?? 0;
+  const len = (line.along[i] ?? 0) - a0;
+  const k = len > 0 ? Math.min(1, Math.max(0, (d - a0) / len)) : 1;
+  const x0 = line.xs[i - 1] ?? 0;
+  const y0 = line.ys[i - 1] ?? 0;
+  out.x = x0 + k * ((line.xs[i] ?? 0) - x0);
+  out.y = y0 + k * ((line.ys[i] ?? 0) - y0);
+}
+
+/**
+ * The otaman's place off the bearer's at `d` px along `line` (into `BESIDE`): `RAID_SQUAD.otaman.ahead` px along the
+ * way and `sidePx` to its side (`sideRows` rows across a level stretch) — turned by `side` (the line's halt facing) so
+ * that on the level muster and halt lines he stands toward the viewer, on the trail beside the bearer (art-director
+ * M3-14: never a place ahead). The way's direction is taken over ±`otaman.smoothPx`, so it turns smoothly at corners.
+ */
+function beside(line: Line, d: number, side: 1 | -1): { readonly x: number; readonly y: number } {
+  const o = RAID_SQUAD.otaman;
+  pointAt(line, d - o.smoothPx, P0);
+  pointAt(line, d + o.smoothPx, P1);
+  const len = Math.hypot(P1.x - P0.x, P1.y - P0.y) || 1;
+  const ux = (P1.x - P0.x) / len;
+  const uy = (P1.y - P0.y) / len;
+  BESIDE.x = ux * o.ahead - side * uy * o.sidePx;
+  BESIDE.y = uy * o.ahead + side * ux * o.sideRows;
+  return BESIDE;
+}
+
+/**
+ * Puts `agent` `d` px along `line` (clamped to it) — the otaman beside the bearer's place when `side` is given (the
+ * line's halt facing) — facing along a segment that runs more across than up (the climb up the trail keeps the facing
+ * it had).
+ */
+function onLine(agent: Agent, line: Line, d: number, side: 1 | -1 | null): void {
+  const last = line.xs.length - 1;
+  let i = 1;
+  while (i < last && (line.along[i] ?? 0) < d) i++;
+  const a0 = line.along[i - 1] ?? 0;
+  const len = (line.along[i] ?? 0) - a0;
+  const k = len > 0 ? Math.min(1, Math.max(0, (d - a0) / len)) : 1;
+  const x0 = line.xs[i - 1] ?? 0;
+  const y0 = line.ys[i - 1] ?? 0;
+  const sx = (line.xs[i] ?? 0) - x0;
+  const sy = (line.ys[i] ?? 0) - y0;
+  if (Math.abs(sx) > Math.abs(sy)) agent.facing = sx > 0 ? 1 : -1;
+  agent.x = x0 + k * sx;
+  agent.y = y0 + k * sy;
+  if (side === null) return;
+  const off = beside(line, d, side);
+  agent.x += off.x;
+  agent.y += off.y;
+}
+
+/** Opacity `rem` px short of the gate's passage: whole, then two steps, then gone. */
+function fadeAt(rem: number): number {
+  if (rem <= 0) return 0;
+  if (rem < RAID_SQUAD.fadePx[1]) return RAID_SQUAD.fadeAlpha[1];
+  if (rem < RAID_SQUAD.fadePx[0]) return RAID_SQUAD.fadeAlpha[0];
+  return 1;
+}
+
+/**
+ * The squad's `k`-th man, the otaman after them (`k` = the men's count): loop `k` from 0 to `members.length` — a plain
+ * loop, since this runs every tick.
+ */
+const memberAt = (pool: AgentPool, sq: Squad, k: number): Agent | undefined =>
+  pool.agents[k < sq.members.length ? (sq.members[k] ?? -1) : sq.otaman];
+
+/**
+ * Px behind the bearer of the man at `file` on the way home (the otaman, −1, walks with the bearer): a gap each; the
+ * carriers (the last two, one figure) `carry.leadPx` behind the man before them.
+ */
+function inOffset(sq: Squad, file: number): number {
+  const n = sq.members.length;
+  if (!sq.carriers || file < n - 2) return Math.max(0, file) * RAID_SQUAD.gapPx;
+  return (n - 3) * RAID_SQUAD.gapPx + RAID_SQUAD.carry.leadPx;
+}
+
+/** Ticks from the squad's return until the column halts — the carriers on the chest spot (everyone stops at once). */
+const haltTicks = (lines: SquadLines, sq: Squad, slot: number): number => {
+  const lead = inOffset(sq, sq.members.length - 1) + (sq.carriers ? 0 : RAID_SQUAD.gapPx);
+  return Math.ceil((((lines.chestAt[slot] ?? 0) + lead) / RAID_SQUAD.speed) * TICK_HZ);
+};
+
+/** Whether `agent` may march with a squad: a rank or free Cossack the army has, in no squad, not leaving the army. */
+function recruit(ctx: AgentContext, agent: Agent): boolean {
+  const s = agent.spawn;
+  const a = agent.activity;
+  return (
+    s.routine === 'cossack' &&
+    (s.duty === 'rank' || s.duty === 'free') &&
+    agent.squad < 0 &&
+    enlisted(ctx, agent) &&
+    a.kind !== 'absent' &&
+    !(a.kind === 'walk' && a.then === 'leave')
+  );
+}
+
+/**
+ * Picks a squad from the Cossacks on the scene (never more): the last enlisted first (the drill's rear empties, its
+ * front stays), at most `RAID_SQUAD.men` and at most half of those left (plan R3), and the otaman with the first.
+ * Once per raid start: the allocations here are not per tick.
+ */
+function enlistSquad(ctx: AgentContext, pool: AgentPool, sq: Squad, slot: number): void {
+  const can: number[] = [];
+  for (let i = pool.agents.length - 1; i >= 0; i--) {
+    const a = pool.agents[i];
+    if (a && recruit(ctx, a)) can.push(i);
+  }
+  sq.members = can.slice(0, Math.min(RAID_SQUAD.men, Math.floor(can.length / 2)));
+  sq.carriers = sq.members.length >= 3;
+  sq.otaman =
+    slot === 0
+      ? pool.agents.findIndex(
+          (a) =>
+            a.spawn.routine === 'cossack' &&
+            a.spawn.duty === 'otaman' &&
+            a.squad < 0 &&
+            enlisted(ctx, a) &&
+            a.activity.kind !== 'absent',
+        )
+      : -1;
+  sq.members.forEach((i, k) => {
+    const a = pool.agents[i];
+    if (!a) return;
+    a.squad = slot;
+    a.file = k;
+  });
+  const o = pool.agents[sq.otaman];
+  if (o) {
+    o.squad = slot;
+    o.file = -1;
+  }
+}
+
+/**
+ * Lets a squad go: each man takes up his duty — straight where the hour wants him if he was out of sight (no parade,
+ * or the scene was replaced), else from where he stands (`at`: the route node he is by).
+ */
+function disband(ctx: AgentContext, pool: AgentPool, sq: Squad, at: string, t: number): void {
+  for (let k = 0; k <= sq.members.length; k++) {
+    const a = memberAt(pool, sq, k);
+    if (!a) continue;
+    // Out of sight or fading in the passage: straight to his duty (never popping back to full in the gate).
+    const gone = a.activity.kind === 'away' || a.alpha < 1;
+    a.squad = -1;
+    a.file = -1;
+    a.alpha = 1;
+    if (a.spawn.routine !== 'cossack') continue;
+    if (gone) placeCossack(ctx, pool, a, a.spawn, t);
+    else {
+      a.at = at;
+      rest(a, 0);
+    }
+  }
+  sq.members = [];
+  sq.otaman = -1;
+  sq.carriers = false;
+  sq.phase = 'home';
+  sq.t0 = -1;
+}
+
+/**
+ * The villagers nearest the Sich's threshold by their route (village bodies of the household on the scene, not
+ * building), one per `RAID_SQUAD.cheer.spots`, go and greet the squad there (once per live return: the allocations
+ * here are not per tick).
+ */
+function callCheer(ctx: AgentContext, pool: AgentPool, lines: SquadLines): void {
+  const node = nodeOf(pool.graph, lines.route.cheer);
+  const spots = RAID_SQUAD.cheer.spots;
+  pool.agents
+    .filter(
+      (a) =>
+        a.spawn.routine === 'villager' &&
+        a.crew === null &&
+        a.cheer === null &&
+        settled(ctx, a) &&
+        a.activity.kind !== 'absent' &&
+        a.activity.kind !== 'indoors' &&
+        a.activity.kind !== 'night' &&
+        !(a.activity.kind === 'walk' && a.activity.then === 'leave'),
+    )
+    .map((a) => ({ a, px: routePx(ctx, pool.graph, a, node.id, node.x) }))
+    .filter((m) => m.px < Infinity)
+    .sort((m, n) => m.px - n.px || m.a.id - n.a.id)
+    .slice(0, spots.length)
+    .forEach((m, k) => {
+      const spot = spots[k];
+      if (spot) m.a.cheer = spot;
+    });
+}
+
+/** A villager greeting a squad: to the threshold, cheer (or stand) a while, then back to its day. */
+function greet(ctx: AgentContext, pool: AgentPool, agent: Agent, spawn: VillagerSpawn, dx: number, t: number): void {
+  const a = agent.activity;
+  if (a.kind === 'cheer') {
+    if (a.ticksLeft > 0) {
+      a.ticksLeft -= 1;
+      agent.animTicks += 1;
+    } else {
+      agent.cheer = null;
+      plan(ctx, pool, agent, spawn, t);
+    }
+  } else if (a.kind === 'walk' && a.then === 'cheer') walk(ctx, pool, agent, t);
+  else if (pool.lines) goTo(ctx, pool, agent, pool.lines.route.cheer, 'cheer', dx, t);
+  else agent.cheer = null;
+}
+
+/**
+ * Follows the raid slots of `ctx` (between steps, so every agent sees the same squads): a slot whose state changed
+ * since the pool last looked starts its squad's march when the change was live, else puts the squad where the state
+ * says at once — away out of sight, home at their duties, the chest on the maidan (Q14). `snap` (the pool's creation)
+ * never marches. Nothing is allocated unless a slot changed.
+ */
+function syncSquads(ctx: AgentContext, pool: AgentPool, t: number, snap: boolean): boolean {
+  const lines = pool.lines;
+  if (!lines) return false;
+  const scenes = ctx.raids ?? NO_RAIDS;
+  let changed = false;
+  for (let slot = 0; slot < pool.squads.length; slot++) {
+    const sq = pool.squads[slot];
+    const scene = scenes[slot] ?? HOME_SCENE;
+    if (!sq || scene.state === sq.seen) continue;
+    changed = true;
+    sq.seen = scene.state;
+    const live = scene.live && !snap;
+    const chestAt = lines.route.chests[slot]?.at ?? lines.route.muster;
+    if (scene.state === 'idle') {
+      // Claimed: the chest goes; a parade on its way in finishes (and sets no chest down) — unless the state was
+      // replaced (a load, a reset: not live), which ends it at once.
+      sq.chest = false;
+      if (!(live && (sq.phase === 'in' || sq.phase === 'halt')))
+        disband(ctx, pool, sq, sq.phase === 'halt' ? chestAt : lines.route.muster, t);
+    } else if (scene.state === 'away') {
+      sq.chest = false;
+      if (sq.phase !== 'home') disband(ctx, pool, sq, sq.phase === 'halt' ? chestAt : lines.route.muster, t);
+      enlistSquad(ctx, pool, sq, slot);
+      sq.phase = live ? 'muster' : 'away';
+      sq.t0 = -1;
+      if (!live)
+        for (let k = 0; k <= sq.members.length; k++) {
+          const a = memberAt(pool, sq, k);
+          if (a) setActivity(a, AWAY);
+        }
+    } else if (live && sq.phase === 'away' && sq.members.length > 0) {
+      sq.phase = 'in';
+      sq.t0 = t;
+      for (let k = 0; k <= sq.members.length; k++) {
+        const a = memberAt(pool, sq, k);
+        if (!a) continue;
+        a.alpha = 0;
+        a.facing = lines.inFacing[slot] ?? 1;
+        setActivity(a, MARCH);
+      }
+      callCheer(ctx, pool, lines);
+    } else {
+      sq.chest = true;
+      disband(ctx, pool, sq, lines.route.muster, t);
+    }
+  }
+  return changed;
+}
+
+/**
+ * Applies a change of the raid slots on a frame that steps no tick (the driver: a frozen clock's later frames — a claim
+ * under `?freeze` still takes its chest away); whether anything changed (the poses need writing again).
+ */
+export const syncRaids = (ctx: AgentContext, pool: AgentPool): boolean => syncSquads(ctx, pool, pool.ticks, false);
+
+/** One tick of a mustering squad: each man to his place in the file (the otaman beside the bearer), then off. */
+function musterTick(ctx: AgentContext, pool: AgentPool, lines: SquadLines, sq: Squad, t: number): void {
+  let ready = true;
+  for (let k = 0; k <= sq.members.length; k++) {
+    const a = memberAt(pool, sq, k);
+    if (!a) continue;
+    const act = a.activity;
+    if (act.kind === 'muster') {
+      a.animTicks += 1;
+      continue;
+    }
+    ready = false;
+    if (act.kind === 'walk' && act.then === 'muster') {
+      walk(ctx, pool, a, t);
+      continue;
+    }
+    // Once per man (then he walks): the path is not per tick. The otaman's place is beside the bearer's, where the
+    // march will put him at the start.
+    const off = a.file < 0 ? beside(lines.out, lines.musterAt, 1) : null;
+    const dx = off ? off.x : -a.file * RAID_SQUAD.gapPx;
+    const dy = off ? off.y : 0;
+    const path = findPath(pool.graph, a.at, lines.route.muster, a.role, (n) => nodeOpen(ctx, n));
+    if (!path) {
+      // No way there (a closed node between): put in his place at once, rather than searching again every tick.
+      atNode(pool.graph, a, lines.route.muster, dx);
+      a.y += dy;
+      a.facing = 1;
+      setActivity(a, { kind: 'muster' });
+      continue;
+    }
+    setActivity(a, {
+      kind: 'walk',
+      path,
+      next: 0,
+      then: 'muster',
+      dx,
+      dy,
+      gait: 'march',
+    });
+    walk(ctx, pool, a, t);
+  }
+  if (!ready) return;
+  if (sq.t0 < 0) sq.t0 = t + SQUAD_TICKS.muster;
+  else if (t >= sq.t0) sq.phase = 'out';
+}
+
+/** One tick of a squad marching out: each man `speed` px further along, fading in the passage, then away. */
+function outTick(pool: AgentPool, lines: SquadLines, sq: Squad, t: number): void {
+  const e = t - sq.t0;
+  const run = (RAID_SQUAD.speed * e) / TICK_HZ;
+  const end = lineLength(lines.out);
+  let gone = true;
+  for (let k = 0; k <= sq.members.length; k++) {
+    const a = memberAt(pool, sq, k);
+    if (!a || a.activity.kind === 'away') continue;
+    const d = lines.musterAt - Math.max(0, a.file) * RAID_SQUAD.gapPx + run;
+    // The otaman walks `ahead` px on of the bearer's place: he is gone that much sooner (never past the passage).
+    a.alpha = fadeAt(end - d - (a.file < 0 ? RAID_SQUAD.otaman.ahead : 0));
+    if (a.alpha <= 0) {
+      setActivity(a, AWAY);
+      continue;
+    }
+    gone = false;
+    if (a.activity.kind !== 'march') setActivity(a, MARCH);
+    a.animTicks = e;
+    onLine(a, lines.out, d, a.file < 0 ? 1 : null);
+  }
+  if (gone) sq.phase = 'away';
+}
+
+/** One tick of a squad marching home: out of the passage in file, the banner first, the carriers last. */
+function inTick(pool: AgentPool, lines: SquadLines, sq: Squad, slot: number, t: number): void {
+  const line = lines.ins[slot];
+  if (!line) return;
+  const e = t - sq.t0;
+  const run = (RAID_SQUAD.speed * e) / TICK_HZ;
+  for (let k = 0; k <= sq.members.length; k++) {
+    const a = memberAt(pool, sq, k);
+    if (!a) continue;
+    const d = run - inOffset(sq, a.file);
+    a.alpha = fadeAt(d);
+    a.animTicks = e;
+    if (a.alpha > 0) onLine(a, line, d, a.file < 0 ? (lines.inFacing[slot] ?? 1) : null);
+  }
+}
+
+/** The column has halted: the chest is set down, the carriers stand either side of it facing it, the file at rest. */
+function halt(pool: AgentPool, lines: SquadLines, sq: Squad, slot: number, t: number): void {
+  const line = lines.ins[slot];
+  const chestAt = lines.chestAt[slot] ?? 0;
+  inTick(pool, lines, sq, slot, t);
+  sq.phase = 'halt';
+  sq.t0 = t;
+  sq.chest = sq.seen === 'back';
+  const n = sq.members.length;
+  for (let k = 0; k <= n; k++) {
+    const a = memberAt(pool, sq, k);
+    if (!a) continue;
+    a.alpha = 1;
+    setActivity(a, HALT);
+    if (!line || !sq.carriers || a.file < n - 2) continue;
+    const side = a.file === n - 2 ? -1 : 1;
+    onLine(a, line, chestAt, null);
+    a.x += side * RAID_SQUAD.carry.dx;
+    a.facing = side === -1 ? 1 : -1;
+  }
+}
+
+/** Squads tick together, tick by tick (one clock for each file): mustering, marching out, home, halted. */
+function squadsTick(ctx: AgentContext, pool: AgentPool, t: number): void {
+  const lines = pool.lines;
+  if (!lines) return;
+  for (let slot = 0; slot < pool.squads.length; slot++) {
+    const sq = pool.squads[slot];
+    if (!sq) continue;
+    switch (sq.phase) {
+      case 'muster':
+        musterTick(ctx, pool, lines, sq, t);
+        break;
+      case 'out':
+        outTick(pool, lines, sq, t);
+        break;
+      case 'in':
+        if (t - sq.t0 >= haltTicks(lines, sq, slot)) halt(pool, lines, sq, slot, t);
+        else inTick(pool, lines, sq, slot, t);
+        break;
+      case 'halt':
+        if (t - sq.t0 >= SQUAD_TICKS.halt)
+          disband(ctx, pool, sq, lines.route.chests[slot]?.at ?? lines.route.muster, t);
+        else
+          for (let k = 0; k <= sq.members.length; k++) {
+            const a = memberAt(pool, sq, k);
+            if (a) a.animTicks += 1;
+          }
+        break;
+      default:
+    }
+  }
+}
+
+/** Whether a squad is on the move (else its men are away or at their duties and the squads need no ticks). */
+function squadsMoving(pool: AgentPool): boolean {
+  for (const sq of pool.squads) if (sq.phase !== 'home' && sq.phase !== 'away') return true;
+  return false;
+}
+
+/** Where each raid slot's squad is (`__CK__.stats.squads`, tests). */
+export const squadPhases = (pool: AgentPool): SquadPhase[] => pool.squads.map((sq) => sq.phase);
+
+/** The pose id of a raid slot's chest: below every agent's and cart driver's. */
+export const chestId = (slot: number): number => -1000 - slot;
+
+/**
+ * What a squad's man looks like now: the bearer with the корогва (`khorunzhyi`), the front carrier as the two men
+ * with the chest (`nosii`) on the way home — the other carrier is inside that figure (`null`: no pose) — else himself.
+ */
+function squadLook(pool: AgentPool, a: Agent): AgentSprite | null {
+  if (a.squad < 0 || a.file < 0) return a.sprite;
+  const sq = pool.squads[a.squad];
+  if (!sq) return a.sprite;
+  if (a.file === 0) return 'khorunzhyi.a';
+  const n = sq.members.length;
+  if (sq.phase === 'in' && sq.carriers && a.file >= n - 2) return a.file === n - 2 ? 'nosii.a' : null;
+  return a.sprite;
+}
+
 /** Steps every agent of `pool` by `ticks` fixed steps, in place; `pool.done` then holds that step's finished work. */
 export function stepInPlace(pool: AgentPool, ticks: number, ctx: AgentContext): void {
   pool.done.count = 0;
   assignCrews(ctx, pool);
-  // People step on their own (each reads only itself and the clock); the carts tick together, tick by tick.
+  syncSquads(ctx, pool, pool.ticks, false);
+  // People step on their own (each reads only itself and the clock); the carts and a raid squad's men tick together,
+  // tick by tick.
   for (const agent of pool.agents) {
-    if (agent.spawn.routine === 'cart') continue;
+    if (agent.spawn.routine === 'cart' || agent.squad >= 0) continue;
     // A visitor is placed from the visit's time alone: one step, whatever the ticks.
     if (agent.spawn.routine === 'visitor') visitorStep(ctx, pool, agent, agent.spawn);
     else for (let i = 0; i < ticks; i++) tick(ctx, pool, agent, pool.ticks + i);
   }
   const carts = cartCount(pool);
   if (carts > 0) for (let i = 0; i < ticks; i++) cartsTick(ctx, pool, carts, pool.ticks + i);
+  if (squadsMoving(pool)) for (let i = 0; i < ticks; i++) squadsTick(ctx, pool, pool.ticks + i);
   pool.ticks += ticks;
 }
 
@@ -1391,6 +2003,7 @@ export function createAgents(
   budget: Readonly<Record<AgentRole, number>>,
   seed: number,
   ctx: AgentContext = NOON,
+  raid: RaidRoute | null = null,
 ): AgentPool {
   checkGraph(graph);
   const used: Record<AgentRole, number> = { villager: 0, cossack: 0, visitor: 0, cart: 0 };
@@ -1404,6 +2017,16 @@ export function createAgents(
     ticks: 0,
     carts: { next: null, turn: 0 },
     crews: new Map(),
+    squads: (raid?.chests ?? []).map(() => ({
+      seen: 'idle',
+      phase: 'home',
+      members: [],
+      otaman: -1,
+      carriers: false,
+      t0: -1,
+      chest: false,
+    })),
+    lines: raid ? squadLines(graph, raid) : null,
   };
   let enlist = 0;
   let settle = 0;
@@ -1430,6 +2053,10 @@ export function createAgents(
       settle: spawn.role === 'villager' ? settle++ : -1,
       reviewed: -1,
       crew: null,
+      squad: -1,
+      file: -1,
+      alpha: 1,
+      cheer: null,
       at: home.id,
       goal: -1,
       x: home.x,
@@ -1450,6 +2077,8 @@ export function createAgents(
   const carts = cartCount(pool);
   const warm = Math.round(CART_TRIP.warmS * TICK_HZ);
   if (carts > 0) for (let k = 0; k < warm; k++) cartsTick(ctx, pool, carts, k - warm);
+  // The raid squads as the first frame's slots say, without a parade (a load: Q14).
+  syncSquads(ctx, pool, pool.ticks, true);
   // Work finished while running agents ahead is not news.
   pool.done.count = 0;
   return pool;
@@ -1463,6 +2092,8 @@ export const clonePool = (pool: AgentPool): AgentPool => ({
   ticks: pool.ticks,
   carts: { ...pool.carts },
   crews: new Map(pool.crews),
+  squads: pool.squads.map((sq) => ({ ...sq, members: [...sq.members] })),
+  lines: pool.lines,
 });
 
 /** The pool `ticks` fixed steps later (a new pool; the old one is untouched). */
@@ -1495,6 +2126,10 @@ function animOf(a: Activity, animTicks: number, t: number): { readonly anim: Per
     case 'post':
     case 'visit':
       return { anim: a.anim, ticks: animTicks };
+    case 'march':
+      return { anim: 'march', ticks: animTicks };
+    case 'cheer':
+      return { anim: a.anim, ticks: animTicks };
     case 'rank':
       return { anim: RANK_ANIM[drillPhase(t)], ticks: drillAt(t, 'ticks') };
     case 'lead':
@@ -1519,17 +2154,18 @@ function hasFrames(sprite: AgentSprite, anim: PersonAnim): boolean {
   return false;
 }
 
-function writePose(a: Agent, slot: PoseSlot, t: number): void {
+function writePose(a: Agent, sprite: AgentSprite, slot: PoseSlot, t: number): void {
   const { anim, ticks } = animOf(a.activity, a.animTicks, t);
   // Each routine reaches only its sprites' animations (content); a broken pairing is a bug, never a missing frame.
-  if (!hasFrames(a.sprite, anim)) throw new Error(`agent ${String(a.id)}: ${a.sprite} has no "${anim}" frames`);
+  if (!hasFrames(sprite, anim)) throw new Error(`agent ${String(a.id)}: ${sprite} has no "${anim}" frames`);
   slot.id = a.id;
   slot.x = Math.round(a.x);
   slot.ground = Math.round(a.y);
   slot.facing = a.facing;
+  slot.alpha = a.alpha;
   const { frames, fps } = personAnim(anim);
   slot.frame = cycleFrame(ticks, fps, frames);
-  slot.sprite = a.sprite;
+  slot.sprite = sprite;
   // `hasFrames` above checked the pairing the `Look` union describes.
   slot.anim = anim;
 }
@@ -1554,6 +2190,8 @@ function writeCart(a: Agent, spawn: CartSpawn, cart: PoseSlot, driver: PoseSlot)
   cart.frame = frame;
   cart.sprite = full ? 'viz.full' : 'viz.empty';
   cart.anim = anim;
+  cart.alpha = 1;
+  driver.alpha = 1;
   driver.id = driverId(a.id);
   driver.x = cart.x + dir * CART_TRIP.driver.ahead;
   driver.ground = cart.ground - dir * CART_TRIP.driver.aside;
@@ -1581,6 +2219,8 @@ function writeVisitorCart(a: Agent, spawn: VisitorSpawn, cart: PoseSlot, walker:
   cart.frame = frame;
   cart.sprite = out ? 'viz.empty' : 'viz.full';
   cart.anim = anim;
+  cart.alpha = 1;
+  walker.alpha = 1;
   walker.id = a.id;
   walker.x = cart.x + dir * CART_TRIP.driver.ahead;
   walker.ground = cart.ground - dir * CART_TRIP.driver.aside;
@@ -1590,7 +2230,16 @@ function writeVisitorCart(a: Agent, spawn: VisitorSpawn, cart: PoseSlot, walker:
   walker.anim = anim;
 }
 
-const emptySlot = (): PoseSlot => ({ id: -1, sprite: 'kozak.a', x: 0, ground: 0, facing: 1, anim: 'idle', frame: 0 });
+const emptySlot = (): PoseSlot => ({
+  id: -1,
+  sprite: 'kozak.a',
+  x: 0,
+  ground: 0,
+  facing: 1,
+  anim: 'idle',
+  frame: 0,
+  alpha: 1,
+});
 
 /** Whether an agent is out of sight: gone indoors, or a Cossack the army does not have. */
 const unseen = (a: Agent): boolean =>
@@ -1606,7 +2255,9 @@ const unseen = (a: Agent): boolean =>
 export function writePoses(pool: AgentPool, out: PoseSlot[]): readonly AgentPose[] {
   let n = 0;
   for (const a of pool.agents) {
-    if (unseen(a)) continue;
+    if (unseen(a) || a.alpha <= 0) continue;
+    const look = squadLook(pool, a);
+    if (look === null) continue;
     const slot = out[n] ?? emptySlot();
     out[n] = slot;
     n += 1;
@@ -1621,8 +2272,25 @@ export function writePoses(pool: AgentPool, out: PoseSlot[]): readonly AgentPose
       n += 1;
       writeVisitorCart(a, a.spawn, slot, walker);
     } else {
-      writePose(a, slot, pool.ticks);
+      writePose(a, look, slot, pool.ticks);
     }
+  }
+  // The chests set down on the maidan (M3-14): one still frame each, until claimed.
+  for (let i = 0; i < pool.squads.length; i++) {
+    const at = pool.lines?.ins[i];
+    const along = pool.lines?.chestAt[i];
+    if (!pool.squads[i]?.chest || !at || along === undefined) continue;
+    const slot = out[n] ?? emptySlot();
+    out[n] = slot;
+    n += 1;
+    slot.id = chestId(i);
+    slot.x = Math.round(at.xs[2] ?? 0);
+    slot.ground = Math.round(at.ys[2] ?? 0) + RAID_SQUAD.carry.chestDy;
+    slot.facing = 1;
+    slot.frame = 0;
+    slot.alpha = 1;
+    slot.sprite = CHEST_SPRITE;
+    slot.anim = 'idle';
   }
   out.length = n;
   return out;

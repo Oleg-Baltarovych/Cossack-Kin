@@ -14,6 +14,7 @@ import type {
   GuardSprite,
   KozakSprite,
   PathEdge,
+  RaidRoute,
   Spot,
   VillagerSprite,
   ZonePaths,
@@ -82,7 +83,11 @@ export type KhortytsiaNode =
   | 'sich.post.w'
   | 'sich.post.e'
   | 'sich.post.e2'
-  | 'sich.post.e3';
+  | 'sich.post.e3'
+  | 'sich.raid.muster'
+  | 'sich.raid.gate'
+  | 'sich.raid.chest.a'
+  | 'sich.raid.chest.b';
 
 /** Behind the gate: Cossacks only. */
 const SICH_ONLY = ['cossack'] as const;
@@ -229,6 +234,16 @@ export const SICH_PATHS: ZonePaths<KhortytsiaNode> = {
     { id: 'sich.post.e', kind: 'way', x: 348, ground: 46, only: SICH_ONLY, building: 'walls', from: 2 },
     { id: 'sich.post.e2', kind: 'way', x: 556, ground: 46, only: SICH_ONLY, building: 'walls', from: 3 },
     { id: 'sich.post.e3', kind: 'way', x: 736, ground: 46, only: SICH_ONLY, building: 'walls', from: 3 },
+    // The raid (M3-14, art-director M3-13): the muster line's head below the foot of the trail to the gate (the foot is
+    // `sich.brama`), the gate's passage behind its posts (the men fade there; nobody walks past the wall) and the two
+    // halt spots mid-maidan before the gate (the carriers stop there; the chest is set down `RAID_SQUAD.carry.chestDy`
+    // rows in front, clear above the drill block's heads — its files stand at x 180/200 on row 116 — and the westward
+    // file ends at x ≥ 148, clear of the cannon at x 119–141; art-director M3-14). No building: a squad leaves from the
+    // steppe camp too.
+    { id: 'sich.raid.muster', kind: 'way', x: 184, ground: 84, only: SICH_ONLY },
+    { id: 'sich.raid.gate', kind: 'way', x: 198, ground: 37, only: SICH_ONLY },
+    { id: 'sich.raid.chest.a', kind: 'way', x: 196, ground: 76, only: SICH_ONLY },
+    { id: 'sich.raid.chest.b', kind: 'way', x: 232, ground: 80, only: SICH_ONLY },
   ],
   edges: [
     ['sich.gate', 'sich.maidan.w'],
@@ -258,7 +273,29 @@ export const SICH_PATHS: ZonePaths<KhortytsiaNode> = {
     ['sich.wall', 'sich.post.e'],
     ['sich.post.e', 'sich.post.e2'],
     ['sich.post.e2', 'sich.post.e3'],
+    ['sich.maidan', 'sich.raid.muster'],
+    ['sich.raid.muster', 'sich.brama'],
+    ['sich.brama', 'sich.raid.gate'],
+    ['sich.maidan', 'sich.raid.chest.a'],
+    ['sich.maidan', 'sich.raid.chest.b'],
   ],
+};
+
+/**
+ * The raid's way (M3-14, art-director M3-13): mustered in file left of `sich.raid.muster` facing the trail, up the
+ * trail from its foot (`sich.brama`) into the gate's passage; back the same way, the chest of slot 1 set down left
+ * (the column halting westward), of slot 2 right of it (eastward), so two returned squads do not stand in one line.
+ * Villagers cheer at the Sich's threshold (`sich.gate`), out of the column's way, never inside.
+ */
+export const KHORTYTSIA_RAID: RaidRoute<KhortytsiaNode> = {
+  muster: 'sich.raid.muster',
+  foot: 'sich.brama',
+  gate: 'sich.raid.gate',
+  chests: [
+    { at: 'sich.raid.chest.a', dx: 0, facing: -1 },
+    { at: 'sich.raid.chest.b', dx: 0, facing: 1 },
+  ],
+  cheer: 'sich.gate',
 };
 
 /** Where the zones meet: the road crosses from the farm into the suburb and from the suburb to the Sich gate. */

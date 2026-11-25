@@ -218,6 +218,7 @@ describe('ordinary upgrade juice: exactly which events bump (M2-29 D, code revie
         listeners.push(l);
         return () => undefined;
       },
+      onEvents: () => () => undefined,
     };
     const f = fakeWorld();
     connectWorld(f.world, game);
@@ -429,5 +430,70 @@ describe('the army walks into the scene (M2-19)', () => {
     expect(fresh[0]?.anim).toBe('walk');
     expect(Math.abs((fresh[0]?.x ?? 0) - (kurin?.x ?? -99))).toBeLessThanOrEqual(1);
     expect(Math.abs((fresh[0]?.ground ?? 0) - (kurin?.ground ?? -99))).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('raid squads in the scene (M3-14)', () => {
+  const RETURN_AT = T0 + 10_000;
+  const running = {
+    kind: 'running' as const,
+    raid: {
+      region: 'porohy' as const,
+      tier: 'm5' as const,
+      startedAt: RETURN_AT - 5 * 60_000,
+      returnAt: RETURN_AT,
+      success: true,
+      rumor: false,
+      loot: { ducats: Big.from(10), glory: Big.from(1), pysanky: 0, relic: null },
+    },
+  };
+  const army = (): GameState => ({ ...rich(), army: { infantry: 20 } });
+  const raids = (f: ReturnType<typeof fakeWorld>) => f.scenes.at(-1)?.raids;
+
+  it('connects with the slots as they are, none of them live (a load: no parade)', () => {
+    const s = army();
+    const store = createStore({ ...s, raids: { ...s.raids, slots: [running, { kind: 'idle' }, { kind: 'idle' }] } });
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    expect(raids(f)).toEqual([
+      { state: 'away', live: false },
+      { state: 'idle', live: false },
+    ]);
+  });
+
+  it('a start, a return seen while playing and a claim are live; the scene changes only for the raids', () => {
+    const store = createStore(army());
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    const scenes = f.scenes.length;
+    store.dispatch({ type: 'startRaid', slot: 1, tier: 'm5' }, T0 + 100);
+    expect(f.scenes).toHaveLength(scenes + 1);
+    expect(raids(f)).toEqual([
+      { state: 'idle', live: false },
+      { state: 'away', live: true },
+    ]);
+    const back = store.getState().raids.slots[1];
+    const at = back?.kind === 'running' ? back.raid.returnAt : 0;
+    for (let t = T0 + 1000; t <= at + 1000; t += 1000) store.tick(t);
+    expect(raids(f)?.[1]).toEqual({ state: 'back', live: true });
+    store.dispatch({ type: 'claimRaid', slot: 1 }, at + 2000);
+    expect(raids(f)?.[1]).toEqual({ state: 'idle', live: true });
+  });
+
+  it('a return that came during an absence (OfflineApplied) or with a loaded save is not live (Q14, R2)', () => {
+    const s = army();
+    const away = {
+      ...s,
+      raids: { ...s.raids, slots: [running, { kind: 'idle' as const }, { kind: 'idle' as const }] },
+    };
+    const store = createStore(away);
+    const f = fakeWorld();
+    connectWorld(f.world, store);
+    store.resume(RETURN_AT + 3 * 3600_000);
+    expect(store.getState().returnReport).not.toBeNull();
+    expect(raids(f)?.[0]).toEqual({ state: 'back', live: false });
+    store.replace(away);
+    expect(raids(f)?.[0]).toEqual({ state: 'away', live: false });
+    expect(f.shakes.n).toBe(0);
   });
 });

@@ -8,13 +8,18 @@
 // M2-29 D: a level past the first (`from` ≥ 1) squashes the building as the coins from the counter land (`world.bump`).
 // M2-29 D: the household's size (`populationView.villagers`) goes into the scene with the army's.
 // M2-26: the big events in content SHAKE shake the camera (`world.shake`; none under «менше руху»).
+// M3-14: the raid slots (`raidSceneView`) go into the scene once per change with all its events (`onEvents`): a slot
+// that changed is `live` (its squad marches) unless the state was replaced (a load, a reset) or — for a return — the
+// change came with an absence (`OfflineApplied`: the squad is simply home, its chest on the maidan, Q14).
 import { SHAKE } from '../content/juice.ts';
 import type { GameEvent } from '../core/events.ts';
+import { raidSceneView } from '../core/raid-selectors.ts';
 import { villageOf } from '../core/modifiers.ts';
 import { plotVariants, populationView, visualTiers, type PlotVariants, type VisualTiers } from '../core/selectors.ts';
 import type { GameState } from '../core/state.ts';
 import type { GameStore } from '../core/store.ts';
 import { windAt } from '../core/systems/village-mechanics/wind.ts';
+import type { SquadScene } from './agents/sim.ts';
 import type { WorldApp, WorldTap } from './App.ts';
 import { WIND_STRENGTH } from './atmosphere/config.ts';
 import type { SceneState, VisitorFeed } from './scene.ts';
@@ -23,7 +28,7 @@ import type { SceneState, VisitorFeed } from './scene.ts';
 const SHAKING: ReadonlySet<GameEvent['type']> = new Set<GameEvent['type']>(SHAKE.events);
 
 /** What render may read from the game: the state and the event stream, nothing that changes either. */
-export type GameView = Pick<GameStore, 'getState' | 'onEvent'>;
+export type GameView = Pick<GameStore, 'getState' | 'onEvent' | 'onEvents'>;
 
 /** Visual tiers of a state: core `visualTiers`, or a dev/test override (`?state=tiers` shows locked buildings). */
 export type TiersOf = (state: GameState) => VisualTiers;
@@ -40,10 +45,12 @@ export function sceneOf(
   tiersOf: TiersOf = visualTiers,
   variantsOf: VariantsOf = plotVariants,
   visitors: VisitorFeed | null = null,
+  raids: readonly SquadScene[] = squadsOf(state, null, []),
 ): SceneState {
   const people = populationView(state);
   return {
     visitors,
+    raids,
     tiers: tiersOf(state),
     variants: variantsOf(state),
     wind: WIND_STRENGTH[windAt(state.seed, state.time.lastSeen, villageOf(state))],
@@ -51,6 +58,27 @@ export function sceneOf(
     villagers: people.villagers,
     cartPeriodS: people.cartPeriodS,
   };
+}
+
+/**
+ * The raid slots for the scene after a change with `events`: the same array when no slot changed; a slot that changed
+ * is live unless the change came with a replaced state, or is a return that came with an absence. `prev` null = the
+ * first look (nothing live).
+ */
+export function squadsOf(
+  state: GameState,
+  prev: readonly SquadScene[] | null,
+  events: readonly GameEvent[],
+): readonly SquadScene[] {
+  const slots = raidSceneView(state).slots;
+  if (prev && slots.length === prev.length && slots.every((x, i) => x === prev[i]?.state)) return prev;
+  const replaced = events.some((e) => e.type === 'StateReplaced');
+  const absent = events.some((e) => e.type === 'OfflineApplied');
+  return slots.map((x, i) => {
+    const was = prev?.[i];
+    if (was?.state === x) return was;
+    return { state: x, live: prev !== null && !replaced && !(x === 'back' && absent) };
+  });
 }
 
 // Object.keys widens to string[]; the keys of a VisualTiers / PlotVariants are exactly its ids.
@@ -70,16 +98,18 @@ export function connectWorld(
   // The visitors' timetable (M2-21): the seed is fixed for a game; time is read from the state each frame by render.
   const seed = visitorsOf(game.getState());
   const visitors: VisitorFeed | null = seed === null ? null : { seed, gameMs: () => game.getState().time.lastSeen };
-  let scene = sceneOf(game.getState(), tiersOf, variantsOf, visitors);
+  let raids = squadsOf(game.getState(), null, []);
+  let scene = sceneOf(game.getState(), tiersOf, variantsOf, visitors, raids);
   world.setScene(scene);
   const refresh = (): void => {
-    const next = sceneOf(game.getState(), tiersOf, variantsOf, visitors);
+    const next = sceneOf(game.getState(), tiersOf, variantsOf, visitors, raids);
     // A new object only when something shows differently: the layers compare nothing, they just read it.
     if (
       next.wind === scene.wind &&
       next.cossacks === scene.cossacks &&
       next.villagers === scene.villagers &&
       next.cartPeriodS === scene.cartPeriodS &&
+      next.raids === scene.raids &&
       sameRecord(next.tiers, scene.tiers) &&
       sameRecord(next.variants, scene.variants)
     )
@@ -121,8 +151,16 @@ export function connectWorld(
         refresh();
     }
   });
+  // After every `onEvent` above: the change's events together say whether a raid slot changed live.
+  const offBatch = game.onEvents((events) => {
+    const next = squadsOf(game.getState(), raids, events);
+    if (next === raids) return;
+    raids = next;
+    refresh();
+  });
   return () => {
     offTap();
     offEvents();
+    offBatch();
   };
 }

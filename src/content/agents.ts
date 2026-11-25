@@ -232,6 +232,77 @@ export const BEARER_BANNER = {
  * (M3-14). The carried one is drawn inside `nosii`.
  */
 export const CHEST_SPRITE = 'skrynia';
+export type ChestSprite = typeof CHEST_SPRITE;
+
+/**
+ * A raid squad on the scene (M3-14, SPEC §6.6; route by the art-director, M3-13): Cossacks already on the scene, never
+ * more — at most `men` (the bearer first, then the file), and at most half of the rank and free Cossacks the scene has
+ * left (plan R3: a small army's drill does not empty), plus the otaman with the first squad. They muster in file on the
+ * maidan at the foot of the trail to the gate (`gapPx` apart, facing it; a man with no way there is put in his place),
+ * stand `musterS`, then march (`speed` px/s) up the trail into the gate's passage, each fading out in two alpha steps
+ * (`fadeAlpha`) over its last `fadePx` px (nobody walks past the wall) — out of sight while the raid is away. The halt
+ * line runs `haltRunPx` on past a halt spot (longer than any file). A live return comes back the same way, the banner first and the two chest
+ * carriers last (one `nosii` figure, `carry.leadPx` behind the man before them): the column halts with the carriers on
+ * the slot's halt spot, the chest is set down `carry.chestDy` rows in front of it (the carriers stand `carry.dx` either
+ * side) and after `haltS` they go back to their duties. The otaman walks beside the bearer, never a place ahead
+ * (art-director M3-14): `otaman.ahead` px along the way and `sidePx` px (`sideRows` rows on a level stretch) to its side
+ * — the side toward the viewer on the level muster and halt lines, beside him on the trail; the way's direction is taken
+ * over ±`smoothPx`, so he turns smoothly at corners. A squad of fewer than three
+ * men has no carriers: the chest is set down before the last man. Villagers (village bodies, the nearest by their route, `cheer.spots` of them)
+ * not indoors or settled for the night, come to the Sich's threshold and cheer for `cheer.s` s (they stand under «менше
+ * руху»). Cosmetic: render only.
+ */
+export const RAID_SQUAD = {
+  men: 5,
+  gapPx: 12,
+  speed: 16,
+  musterS: 2,
+  haltS: 4,
+  fadePx: [8, 4],
+  fadeAlpha: [2 / 3, 1 / 3],
+  haltRunPx: 400,
+  otaman: { ahead: 3, sidePx: 7, sideRows: 4, smoothPx: 6 },
+  carry: { leadPx: 24, dx: 10, chestDy: 8 },
+  cheer: {
+    s: 12,
+    spots: [
+      { dx: -4, facing: 1 },
+      { dx: -12, facing: 1 },
+      { dx: 4, facing: 1 },
+    ],
+  },
+} as const satisfies {
+  readonly men: number;
+  readonly gapPx: number;
+  readonly speed: number;
+  readonly musterS: number;
+  readonly haltS: number;
+  readonly fadePx: readonly [number, number];
+  readonly fadeAlpha: readonly [number, number];
+  readonly haltRunPx: number;
+  readonly otaman: {
+    readonly ahead: number;
+    readonly sidePx: number;
+    readonly sideRows: number;
+    readonly smoothPx: number;
+  };
+  readonly carry: { readonly leadPx: number; readonly dx: number; readonly chestDy: number };
+  readonly cheer: { readonly s: number; readonly spots: readonly { readonly dx: number; readonly facing: 1 | -1 }[] };
+};
+
+/**
+ * A land's raid route (M3-14): the head of the muster line (the file stands to its left), the foot of the trail, the
+ * point in the gate's passage where the men fade (behind the gate posts), each raid slot's chest spot (the column halts
+ * with the carriers there and the men ahead stand on toward `facing`) and where villagers cheer (the Sich's threshold —
+ * they never enter). Every node but `cheer` is Cossack-only (content test).
+ */
+export interface RaidRoute<Id extends string = string> {
+  readonly muster: Id;
+  readonly foot: Id;
+  readonly gate: Id;
+  readonly chests: readonly Spot<Id>[];
+  readonly cheer: Id;
+}
 
 /** The кобзар's (M2-21, SPEC §6.4): `play` — seated, the kobza on his knee, strumming. */
 export const KOBZAR_ANIMS = {
@@ -275,8 +346,8 @@ export type CartSprite = (typeof CART_SPRITES)[number];
 export const isCartSprite = (sprite: AgentSprite): sprite is CartSprite =>
   (CART_SPRITES as readonly string[]).includes(sprite);
 
-/** Every agent sprite stem. */
-export type AgentSprite = PersonSprite | CartSprite;
+/** Every agent sprite stem (the chest a squad sets down on the maidan is drawn among them, M3-14). */
+export type AgentSprite = PersonSprite | CartSprite | ChestSprite;
 
 interface SpawnBase<Id extends string> {
   /**

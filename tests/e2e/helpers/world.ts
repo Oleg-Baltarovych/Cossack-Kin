@@ -18,6 +18,8 @@ export interface WorldStats {
   readonly working: number;
   readonly knocks: number;
   readonly glint: { readonly x: number; readonly ageMs: number } | null;
+  /** Where each raid slot's squad is (M3-14): home, muster, out, away, in, halt. */
+  readonly squads: readonly string[];
   /** Agents alive on the world by role (M2-16). */
   readonly agents: {
     readonly total: number;
@@ -173,6 +175,7 @@ export async function readStats(page: Page): Promise<WorldStats> {
           working: s.working,
           knocks: s.knocks,
           glint: s.glint,
+          squads: [...s.squads],
         }
       : null;
   });

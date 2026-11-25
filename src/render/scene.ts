@@ -6,6 +6,7 @@ import { isVariantPlot } from '../content/variants.ts';
 import type { Plot, PlotBuilding } from '../content/villages/khortytsia.layout.ts';
 import type { PlotVariants, VisualTiers } from '../core/selectors.ts';
 import { WIND } from './atmosphere/config.ts';
+import type { SquadScene } from './agents/sim.ts';
 import type { PlotMark } from './fx/outline.ts';
 
 export interface SceneState {
@@ -29,6 +30,11 @@ export interface SceneState {
    * `null` or absent = nobody visits (no game, the showcase). The same object for the bridge's whole life.
    */
   readonly visitors?: VisitorFeed | null;
+  /**
+   * The raid slots (M3-14, core `raidSceneView`): each open slot's squad home, away or back with its chest, and whether
+   * the last change was seen live (a parade) or not (a load, an absence). Absent = no game: no raids.
+   */
+  readonly raids?: readonly SquadScene[];
   /**
    * Buildings popping in right now (plan M2-12, Q5): their props are drawn at this scale about their pivots, in whole
    * px. Set by render/fx/build.ts for one frame at a time, never by the bridge.

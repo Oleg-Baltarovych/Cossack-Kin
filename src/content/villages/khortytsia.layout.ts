@@ -11,8 +11,15 @@ import { TIER_LEVELS } from '../economy.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../sich.ts';
 import type { VariantPlot } from '../variants.ts';
 import type { FarmBuildingId } from './khortytsia.ts';
-import type { AgentSpawn, PathGraph, ZonePaths } from '../agents.ts';
-import { FARM_PATHS, KHORTYTSIA_AGENTS, KHORTYTSIA_LINKS, SICH_PATHS, SUBURB_PATHS } from './khortytsia.paths.ts';
+import type { AgentSpawn, PathGraph, RaidRoute, ZonePaths } from '../agents.ts';
+import {
+  FARM_PATHS,
+  KHORTYTSIA_AGENTS,
+  KHORTYTSIA_LINKS,
+  KHORTYTSIA_RAID,
+  SICH_PATHS,
+  SUBURB_PATHS,
+} from './khortytsia.paths.ts';
 
 /** A building whose level drives what stands on its plot (farm and Sich ids do not overlap). */
 export type PlotBuilding = FarmBuildingId | SichBuildingId;
@@ -479,6 +486,8 @@ export interface WorldLayout {
   readonly paths: PathGraph;
   /** The scene's people on the graph (render/agents/, cosmetic). */
   readonly agents: readonly AgentSpawn[];
+  /** The raid squads' way out of the Sich and back (M3-14); `null` = a land without one. */
+  readonly raid: RaidRoute | null;
   readonly foreground: readonly ForegroundPlant[];
   readonly puddles: readonly Puddle[];
   readonly fireflies: readonly FireflyArea[];
@@ -1347,7 +1356,7 @@ export const KHORTYTSIA_SICH: ZoneScene = {
 
 /** Places zones edge to edge from x = 0: zone-local x → world x (foreground x by the foreground's parallax). */
 export function composeWorld(
-  base: Pick<WorldLayout, 'river' | 'farPlanes' | 'agents'> & {
+  base: Pick<WorldLayout, 'river' | 'farPlanes' | 'agents' | 'raid'> & {
     /** Path edges between zones (node ids are world-wide). */
     readonly links: PathGraph['edges'];
   },
@@ -1415,6 +1424,7 @@ export const KHORTYTSIA_WORLD: WorldLayout = composeWorld(
     },
     links: KHORTYTSIA_LINKS,
     agents: KHORTYTSIA_AGENTS,
+    raid: KHORTYTSIA_RAID,
     // The far plane layer (parallax 0.2) is ~695 px wide on a 400 px view, the mid layer (0.5) ~1140 px. The M-ART
     // features come first (the farm's frames); the rest fill the pan to the Sich — no «Січ за Дніпром» silhouette now
     // that the Sich stands in the same world (plan Q3): bluffs and the rapids' low granite ridges instead.
