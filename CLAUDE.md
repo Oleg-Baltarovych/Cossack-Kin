@@ -51,7 +51,7 @@ No backend in v1.
 
 ## Git
 - Branches `feat/*`, `fix/*`, `art/*`, `chore/*` from `main`; Conventional Commits; one logical change per commit/PR, referencing the milestone task ID / SPEC section.
-- Never commit, push, force-push, or delete files/branches without the user's explicit approval in this session.
+- Local commits on a task branch are fine. Never push, merge, force-push, rebase, or delete files/branches without the user's explicit approval in this session (the permission rules in `.claude/settings.json` mirror this).
 
 ## Team & workflow (details: `docs/AI-WORKFLOW.md`)
 - `architect` designs (plans in `docs/plans/`, ADRs, SPEC/CONTEXT) — never code. `lead-developer` implements approved plans.

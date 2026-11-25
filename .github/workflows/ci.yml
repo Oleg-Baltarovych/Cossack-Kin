@@ -68,12 +68,42 @@ jobs:
         if: steps.audit_full.outcome == 'failure'
         run: echo "::warning title=pnpm audit::high/critical advisories in dev dependencies — see the 'pnpm audit (all deps, non-blocking)' step"
 
+  # Docs-only changes (docs/, the agent setup in .claude/, top-level and .github/ markdown) skip the functional e2e: nothing they touch
+  # reaches the built game. A plain `git diff` (no third-party action); the e2e job is skipped by its `if`, which
+  # counts as passed for a required check. Any other path, or a diff that cannot be computed, runs the e2e.
+  changes:
+    name: Changed paths
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if ! files=$(git diff --name-only "$BASE...$HEAD" 2>/dev/null) || [ -z "$files" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if echo "$files" | grep -qvE '(^docs/|^\.claude/|^[^/]*\.md$|^\.github/[^/]*\.md$)'; then code=true; else code=false; fi
+          echo "$files" | sed 's/^/  /'
+          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
+
   # Every push/PR: the functional e2e only (no @screens matrices, no @perf) — one job, a few minutes. The @screens
   # matrices are 225 of ~245 tests and took ~85 runner-minutes per push (private repo: limited Actions minutes);
   # they run nightly and on manual dispatch in `e2e-full` below.
   e2e:
     name: e2e (functional)
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    needs: changes
+    # Runs unless `changes` positively said docs-only: a failed or skipped `changes` leaves the output empty, and a
+    # job skipped because a `needs` job failed would report as passed to a required check.
+    if: ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'pull_request') && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-26.04 # pinned: screenshot baselines depend on the OS image (fonts, SwiftShader)
     timeout-minutes: 30
     steps:

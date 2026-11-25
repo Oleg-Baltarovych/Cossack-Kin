@@ -58,7 +58,7 @@ Procedures (model-invocable, used inside flows): `/sprite`, `/new-village`, `/ba
 - `guard-paths.mjs`: blocks any access to `.env*`, keystores and signing properties; blocks edits to generated `public/atlases/` and to committed save fixtures.
 - `core-purity.mjs`: after each edit in `src/core/`, flags framework imports, clock reads, `Math.random`, browser globals and timers.
 - `format.mjs`: Prettier on the edited file (skips atlases, fixtures, `assets-src/`).
-- Permissions: checks, tests, balance, sprites and read-only git are allowed; dependency changes, Capacitor/Gradle/adb, commits, pushes and GitHub repo/PR creation ask; force-push, hard reset and `git clean` are denied.
+- Permissions: checks, tests, balance, sprites, read-only git, local branch work (`git add`, `git commit`, `git switch`, `git checkout -b`, `git fetch origin`, `git pull --ff-only`) and read-only `gh run`/`gh pr` are allowed; dependency changes, Capacitor/Gradle/adb, pushes, merges, rebases, branch deletion, `--force`/`--amend`/`restore`/plain `checkout` (they can drop work or stage ignored files) and GitHub repo/PR creation ask; force-push, hard reset and `git clean` are denied.
 
 ## Plugins & external tools
 Enabled at project scope (`enabledPlugins`, `extraKnownMarketplaces` in `.claude/settings.json`). On a fresh clone: trust the folder, then
@@ -66,10 +66,10 @@ Enabled at project scope (`enabledPlugins`, `extraKnownMarketplaces` in `.claude
 
 | Tool | Area |
 |---|---|
-| superpowers | planning, TDD, systematic debugging, verification |
+| superpowers | **disabled** (2026-11-25): duplicated the project's own agents and flow skills and loaded its context on every turn |
 | pr-review-toolkit | silent-failure hunter, type-design and test-coverage analyzers |
 | typescript-lsp | type-aware navigation |
-| frontend-design | DOM UI quality |
+| frontend-design | **disabled** (2026-11-25): `ui-reviewer` + `.claude/rules/ui.md` cover DOM UI quality |
 | context7 | current docs for Pixi v8, pixi-filters, Capacitor, break_eternity (hosted MCP; queries leave the machine) |
 | Playwright Test Agents | `.claude/agents/playwright-test-*`, `.mcp.json`; regenerate after a Playwright upgrade (see CONTEXT §6) |
 
