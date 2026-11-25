@@ -1,11 +1,11 @@
-// The «Походи» block on «Січ» on the phones (plan M3-09 AC «@screens half/full 390/360/412»): review shots (not
-// baselines; M3-18 adds those) → reports/screens/<date>/m3-09-<state>-<lang>-<project>.png, by day, clock frozen, Kyiv
+// The «Походи» block on «Січ» on the phones (plan M3-09 AC «@screens half/full 390/360/412»): review shots → reports/screens/<date>/m3-09-<state>-<lang>-<project>.png, by day, clock frozen, Kyiv
 // time. Idle: `state=mid` (6 Cossacks, two free squads). Running and back: `state=raids` (squad 1 back from a 5-min
 // scouting, squad 2 on a 30-min patrol, one relic found), in half and full; then «Ще раз» (both on the road) and
-// «Забрати» (one idle). Each shot checks the layout: buttons one tap target tall, nothing cut, the cards not wider
+// «Забрати» (one idle). The idle block at half height (uk) is also a Linux baseline (M3-18). Each shot checks the layout: buttons one tap target tall, nothing cut, the cards not wider
 // than the screen, and the block's text on whole lines (no price or time split).
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { expectBaseline } from '../helpers/baseline.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { assertNativeFrames, gotoReady, nativeFrames } from '../helpers/world.ts';
 
@@ -83,6 +83,11 @@ test.describe('M3-09 «Походи» block @screens', () => {
         expect(peek, 'the hire row stays within 7 px of the sheet edge').toBeGreaterThanOrEqual(-7);
       else expect(peek, 'the hire row shows under the block').toBeGreaterThanOrEqual(8);
       await shot(page, `idle-half-${lang}`);
+      // Clock fixed and native frames (beforeEach), world frozen, nothing in the block counts down. Mask: the quest
+      // strip's scroll icon — on 412@3.5 its device-px snap (useDeviceSnap) lands on one of two resamplings run to run
+      // (596 px inside the 18×22 icon, 1 run in 4 locally); the strip has its own checks (hud/quest specs).
+      if (lang === 'uk')
+        await expectBaseline(page, 'm3-raids-half', [page.locator('[data-quest] [data-icon="quest"]')]);
     });
 
     test(`on the road and back (${lang})`, async ({ page }) => {

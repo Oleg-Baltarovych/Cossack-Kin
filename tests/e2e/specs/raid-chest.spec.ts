@@ -1,16 +1,18 @@
 // The raid's chest, the return window's raids line and «Скарбниця» (plan M3-12). Functional (390): coming back after
 // both raids returned, the return window says so in one line; «Забрати все» then opens one chest window for both
-// squads, and a tap shows its whole loot. @screens — review shots (not baselines; M3-18 adds those) →
+// squads, and a tap shows its whole loot. @screens — review shots →
 // reports/screens/<date>/m3-12-<state>-<lang>-<project>.png: the chest mid-shake, mid-reveal and finished, the same
 // window under «менше руху» (`?still`), the return window with raids, and «Скарбниця». Each shot checks the layout:
-// buttons ≥ --tap, nothing cut, nothing past the screen.
+// buttons ≥ --tap, nothing cut, nothing past the screen. The finished chest (`?still`) and «Скарбниця» (uk) are also
+// Linux baselines (M3-18), on a fixed clock.
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { RAID_REVEAL } from '../../../src/content/juice.ts';
 // Type-only: brings the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';
-import { gotoReady } from '../helpers/world.ts';
+import { expectBaseline } from '../helpers/baseline.ts';
+import { assertNativeFrames, gotoReady, nativeFrames } from '../helpers/world.ts';
 
 test.use({ timezoneId: 'Europe/Kyiv' });
 
@@ -175,4 +177,34 @@ test.describe('M3-12 chest, return window, treasury @screens', () => {
       await shot(page, `treasury-${lang}`);
     });
   }
+});
+
+// Fixed clock (no timer chain, no «Повернуться о …» drift), native frames, frozen world, `still` (the chest opens on its
+// finished list: no shake, no reveal steps, no coins). Nothing left that moves, so no mask.
+test.describe('M3-18 chest and treasury baselines @screens', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.clock.setFixedTime(T0);
+    await nativeFrames(page);
+  });
+
+  test('the finished chest of both squads, with the relic (uk)', async ({ page }) => {
+    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=chests&ui=1&lang=uk&still');
+    await assertNativeFrames(page);
+    await page.getByRole('tab', { name: T.uk.sich }).click();
+    await page.getByRole('button', { name: T.uk.all }).click();
+    const chest = page.getByRole('dialog', { name: T.uk.chest });
+    await expect(chest).toHaveAttribute('data-reveal', 'done');
+    await expectBaseline(page, 'm3-chest');
+  });
+
+  test('«Скарбниця» on the full sheet (uk)', async ({ page }) => {
+    await gotoReady(page, '/?time=13:00&freeze&seed=1&state=raids&ui=1&lang=uk&still');
+    await assertNativeFrames(page);
+    await page.getByRole('tab', { name: T.uk.more }).click();
+    await page.getByRole('button', { name: T.uk.sheet }).click();
+    const treasury = page.getByRole('region', { name: T.uk.treasury });
+    await treasury.scrollIntoViewIfNeeded();
+    await expect(treasury.getByRole('listitem')).toHaveCount(2);
+    await expectBaseline(page, 'm3-treasury');
+  });
 });

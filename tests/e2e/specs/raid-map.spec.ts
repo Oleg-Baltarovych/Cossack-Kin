@@ -1,16 +1,18 @@
 // The raid map (plan M3-11 + review): functional — what the offer card shows is what «Забрати» grants (§0.1 П3: the
 // roll and the loot are fixed at the start), on Playwright's fake clock with the tab hidden for the raid's length (as
-// return.spec); the keyboard walk and Esc. @screens — review shots (not baselines; M3-18 adds those) →
+// return.spec); the keyboard walk and Esc. @screens — review shots →
 // reports/screens/<date>/m3-11-<state>-<lang>-<project>.png, by day, clock frozen, Kyiv time: the map opened on its
 // suggested card, an out-of-reach (blocked) card with the text ×1.25, and the list the map falls back to without its
-// art. Each shot checks the layout: the whole map on the screen, every button ≥ --tap, no line or button cut.
+// art. Each shot checks the layout: the whole map on the screen, every button ≥ --tap, no line or button cut. The map on
+// its suggested card (uk) is also a Linux baseline (M3-18), on a fixed clock.
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { raidTier } from '../../../src/core/systems/raids.ts';
 // Type-only: brings the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';
-import { gotoReady } from '../helpers/world.ts';
+import { expectBaseline } from '../helpers/baseline.ts';
+import { assertNativeFrames, gotoReady, nativeFrames } from '../helpers/world.ts';
 
 test.use({ timezoneId: 'Europe/Kyiv' });
 
@@ -176,6 +178,21 @@ test.describe('M3-11 raid map @screens', () => {
       expect(await problems(page)).toEqual([]);
       await shot(page, `blocked-big-${lang}`);
     });
+
+    if (lang === 'uk')
+      test(`baseline: the map on its suggested card (${lang})`, async ({ page }) => {
+        // The day picks the board (raidBoard(seed, day)) and the «Повернуться о …» times come from the clock: fixed;
+        // native frames keep the GPU paced under it (helpers/world.ts). `still`: the rider on the road stands on its
+        // first frame and «Забрати» launches no coins. Nothing left that moves, so no mask.
+        await page.clock.setFixedTime(T0);
+        await nativeFrames(page);
+        await gotoReady(page, `/?time=13:00&freeze&seed=1&state=raids&ui=1&lang=${lang}&still`);
+        await assertNativeFrames(page);
+        const map = await openRaids(page, lang);
+        await expect(map.locator('[data-map="ready"]')).toBeVisible();
+        await expect(map.locator('[data-fact="success"]')).toBeVisible();
+        await expectBaseline(page, 'm3-map');
+      });
 
     test(`without its art: the offers as a list (${lang})`, async ({ page }) => {
       await page.route('**/atlases/map.json', (route) => route.abort());

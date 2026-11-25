@@ -199,3 +199,25 @@ export async function readWebGl(page: Page): Promise<{ kind: 'webgl2' | 'webgl' 
     return { kind: gl2 ? 'webgl2' : 'webgl', renderer };
   });
 }
+
+/**
+ * Waits until the camera stands still: the same `__CK__.stats.cam` over at least 3 rendered frames (a tab glide takes
+ * `CAMERA.glideMs`; a shot during it differs from run to run). `leaving`: the camera's x before the glide (not settled there).
+ */
+export async function cameraSettled(page: Page, leaving?: number): Promise<void> {
+  let last: { cam: number; frames: number } | null = null;
+  await expect
+    .poll(
+      async () => {
+        const now = await page.evaluate(() => {
+          const s = window.__CK__?.stats;
+          return s ? { cam: s.cam, frames: s.frames } : null;
+        });
+        if (!now) throw new Error('window.__CK__.stats is missing — is this a --mode test build?');
+        if (!last || now.cam !== last.cam) last = now;
+        return now.cam === leaving ? 0 : now.frames - last.frames;
+      },
+      { intervals: [50], timeout: 15_000 },
+    )
+    .toBeGreaterThanOrEqual(3);
+}
