@@ -126,11 +126,12 @@
   display: none;
 }
 
+/* 1 px above and below (fix/m3-390-hire-peek): the half sheet has no height to spare — see raids-block.spec «peek». */
 .modes {
   display: flex;
   flex: none;
   gap: calc(3 * var(--px));
-  padding: calc(3 * var(--px)) calc(6 * var(--px));
+  padding: var(--px) calc(6 * var(--px));
 }
 
 .mode {

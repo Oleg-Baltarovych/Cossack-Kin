@@ -77,10 +77,11 @@ test.describe('M3-09 «Походи» block @screens', () => {
         const panel = document.querySelector<HTMLElement>('[role="tabpanel"]');
         return row && panel ? panel.getBoundingClientRect().bottom - row.getBoundingClientRect().top : -1;
       });
-      // 360×800: the half sheet is 7 px short of it (open item in the plan's M3-09 review notes) — measured, not judged.
+      // 360×800 cannot peek at half (owner decision, M2-29 D / M3-09): it may stay at most 7 px short (−5 after
+      // the M3 spacing fix); 390 needs a visible edge (≥ 8 px, the «list goes on» hint), 412 likewise.
       if (test.info().project.name.startsWith('360'))
-        test.info().annotations.push({ type: 'peek', description: String(peek) });
-      else expect(peek, 'the hire row shows under the block').toBeGreaterThan(0);
+        expect(peek, 'the hire row stays within 7 px of the sheet edge').toBeGreaterThanOrEqual(-7);
+      else expect(peek, 'the hire row shows under the block').toBeGreaterThanOrEqual(8);
       await shot(page, `idle-half-${lang}`);
     });
 

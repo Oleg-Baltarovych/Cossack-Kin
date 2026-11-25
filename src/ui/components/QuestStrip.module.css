@@ -40,6 +40,12 @@
   padding: calc(3 * var(--px)) calc(6 * var(--px));
 }
 
+/* The strip: no vertical padding — its title button and «Забрати» are a tap target high already, and the line's own
+   3 px over them grew the strip by 10 px and hid the hire row under «Походи» at half height on 390 (M3-15 → fix). */
+.compact {
+  padding-block: 0;
+}
+
 .line + .line {
   border-top: var(--px) solid var(--c-wood-0);
 }
