@@ -283,6 +283,14 @@
   "ui.raids.backTomorrow": "Back tomorrow {at}",
   "ui.raids.backOn": "Back {date} {at}",
   "ui.raids.title": "Raids",
+  "ui.raids.notify.title": {
+    "one": "A squad is back",
+    "other": "{count} squads are back"
+  },
+  "ui.raids.notify.body": {
+    "one": "Its chest waits at the Sich",
+    "other": "Their chests wait at the Sich"
+  },
   "ui.raids.power": "Army power {value}",
   "ui.raids.relics": "Relics",
   "ui.raids.slots": "Squads",

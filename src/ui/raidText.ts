@@ -4,7 +4,10 @@
 import { REGIONS, type RaidTierId, type RegionId } from '../content/raids.ts';
 import { RELIC_DEFS, type RelicId } from '../content/relics.ts';
 import type { RaidGranted } from '../core/events.ts';
+import type { RaidAlert } from '../core/raid-selectors.ts';
+import type { GameState } from '../core/state.ts';
 import { raidTier } from '../core/systems/raids.ts';
+import { t } from '../i18n/index.ts';
 import type { Text } from './hooks/useText.ts';
 import { grantedText } from './rewards.ts';
 
@@ -31,3 +34,9 @@ export function lootText(text: Text, granted: RaidGranted, relic: RelicId | null
     ...(relic !== null ? [text.t('ui.raids.saidRelic', { name: relicName(text, relic) })] : []),
   ].join(text.t('ui.raids.listSep'));
 }
+
+/** «Загін повернувся» / «2 загони повернулися» in the player's language (the notification hook, M3-16). */
+export const raidAlertText = (alert: RaidAlert, state: GameState): { title: string; body: string } => ({
+  title: t(state.settings.lang, 'ui.raids.notify.title', { count: alert.count }),
+  body: t(state.settings.lang, 'ui.raids.notify.body', { count: alert.count }),
+});

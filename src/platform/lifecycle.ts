@@ -8,6 +8,8 @@ import { createLoop, type LoopOptions } from './loop.ts';
 export interface DriveOptions extends LoopOptions {
   /** Called once each time the game pauses (page hidden or leaving). */
   readonly onPause?: () => void;
+  /** Called each time the loop starts again (after the store resumed): the notification plan is redone (M3-16). */
+  readonly onResume?: () => void;
 }
 
 /** Runs the loop while the page is visible; returns the stop function. */
@@ -19,7 +21,9 @@ export function driveGame(store: GameStore, options: DriveOptions = {}): () => v
     options.onPause?.();
   };
   const resume = (): void => {
+    if (loop.running()) return;
     loop.start();
+    options.onResume?.();
   };
   const onVisibility = (): void => {
     if (document.visibilityState === 'visible') resume();

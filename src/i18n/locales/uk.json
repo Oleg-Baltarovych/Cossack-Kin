@@ -325,6 +325,18 @@
   "ui.raids.backTomorrow": "Повернуться завтра {at}",
   "ui.raids.backOn": "Повернуться {date} {at}",
   "ui.raids.title": "Походи",
+  "ui.raids.notify.title": {
+    "one": "Загін повернувся",
+    "few": "{count} загони повернулися",
+    "many": "{count} загонів повернулися",
+    "other": "{count} загону повернулися"
+  },
+  "ui.raids.notify.body": {
+    "one": "Скриня чекає на Січі",
+    "few": "Скрині чекають на Січі",
+    "many": "Скрині чекають на Січі",
+    "other": "Скрині чекають на Січі"
+  },
   "ui.raids.power": "Сила війська {value}",
   "ui.raids.relics": "Реліквії",
   "ui.raids.slots": "Загони",
