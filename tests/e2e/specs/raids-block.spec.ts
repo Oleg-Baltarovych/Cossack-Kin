@@ -7,9 +7,17 @@
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { screensDir } from '../helpers/reports.ts';
-import { gotoReady } from '../helpers/world.ts';
+import { assertNativeFrames, gotoReady, nativeFrames } from '../helpers/world.ts';
 
 test.use({ timezoneId: 'Europe/Kyiv' });
+
+// The running fake clock fakes `requestAnimationFrame` as a 16-ms timer with no backpressure; the full sheet of the
+// «on the road» test hides the canvas, so its frames pile up on the GPU and the next test's `app.init` waited them out
+// (> 20 s on 412@3.5: «idle squads (en)» right after it, 7 of 8 runs). Native, GPU-paced frames (helper doc, M2-24).
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-06-01T10:00:00Z'));
+  await nativeFrames(page);
+});
 
 const LANGS = ['uk', 'en'] as const;
 const url = (state: string, lang: string) => `/?time=13:00&freeze&seed=1&state=${state}&ui=1&lang=${lang}`;
@@ -23,6 +31,11 @@ const T = {
   },
   en: { sich: 'Sich', block: 'Raids', squad: 'Squad', sheet: 'Open the panel full screen', again: /^Collect and send/ },
 } as const;
+
+async function openReady(page: Page, target: string): Promise<void> {
+  await gotoReady(page, target);
+  await assertNativeFrames(page);
+}
 
 async function shot(page: Page, name: string): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
@@ -53,7 +66,7 @@ async function openSich(page: Page, lang: (typeof LANGS)[number]): Promise<void>
 test.describe('M3-09 «Походи» block @screens', () => {
   for (const lang of LANGS) {
     test(`idle squads (${lang})`, async ({ page }) => {
-      await gotoReady(page, url('mid', lang));
+      await openReady(page, url('mid', lang));
       await openSich(page, lang);
       const block = page.getByRole('region', { name: T[lang].block });
       await expect(block.getByRole('listitem', { name: new RegExp(`^${T[lang].squad}`) })).toHaveCount(2);
@@ -72,7 +85,7 @@ test.describe('M3-09 «Походи» block @screens', () => {
     });
 
     test(`on the road and back (${lang})`, async ({ page }) => {
-      await gotoReady(page, url('raids', lang));
+      await openReady(page, url('raids', lang));
       await openSich(page, lang);
       const block = page.getByRole('region', { name: T[lang].block });
       await expect(block.getByRole('progressbar')).toHaveCount(1);
