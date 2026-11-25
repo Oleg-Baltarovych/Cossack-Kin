@@ -17,6 +17,8 @@ export type SheetAction =
   | { readonly type: 'escape' }
   /** A tab chosen while collapsed, a building tapped in the world: at least half. */
   | { readonly type: 'open' }
+  /** A quest tap that leads to a row (M3-15, SPEC §10.3): exactly half — the row over the camera's building. */
+  | { readonly type: 'half' }
   /** A drag on the bar let go at `height` px moving `velocity` px/ms (> 0 = down, closing). */
   | {
       readonly type: 'release';
@@ -57,6 +59,8 @@ export function sheetReducer(state: SheetState, action: SheetAction, cfg: SnapCo
       return 'collapsed';
     case 'open':
       return state === 'collapsed' ? 'half' : state;
+    case 'half':
+      return 'half';
     case 'release':
       return snapSheet(action.height, action.velocity, action.heights, cfg);
   }

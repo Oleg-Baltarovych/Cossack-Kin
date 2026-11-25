@@ -164,11 +164,5 @@
 
 /* The whole loot in words, for screen readers only. */
 .sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  composes: srOnly from '../a11y.module.css';
 }

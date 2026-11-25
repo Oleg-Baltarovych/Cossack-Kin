@@ -129,7 +129,7 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
             onZone={(zone) => world?.focusZone(zone)}
             zoneSource={world?.onZoneChange}
             reveal={reveal}
-            onReveal={(building, sheetTop) => world?.reveal(building, sheetTop)}
+            onReveal={(building, sheetTop, centre) => world?.reveal(building, sheetTop, centre)}
             onSelect={(building) => world?.mark(building)}
             onChooseRaid={setMapSlot}
           />

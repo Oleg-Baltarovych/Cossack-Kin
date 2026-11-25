@@ -207,3 +207,31 @@
   background: var(--c-crimson-4);
   box-shadow: 0 0 0 var(--px) var(--c-ink-0);
 }
+
+/* The read-out of a quest tap (M3-15): off screen when a lit row shows the target … */
+.said {
+  composes: srOnly from '../a11y.module.css';
+}
+
+/* … and a hint (a counter, a locked or missing row) on screen too: a board over the world just above the sheet, so
+   nothing in the list moves; at full height (no world above) it lies over the bottom of the list. A press dismisses
+   it (Panel), as does any action in the sheet. */
+.hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin: 0;
+  padding: calc(3 * var(--px)) calc(6 * var(--px));
+  overflow-wrap: anywhere;
+  color: var(--c-plaster-5);
+  background: var(--c-wood-1);
+  border-top: var(--px) solid var(--c-ink-0);
+  box-shadow: inset 0 var(--px) 0 var(--c-wood-2);
+  cursor: pointer;
+}
+
+.panel[data-state='full'] > .hint {
+  bottom: env(safe-area-inset-bottom);
+  border-bottom: var(--px) solid var(--c-ink-0);
+}

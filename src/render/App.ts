@@ -140,9 +140,11 @@ export interface WorldApp {
   plotAtClient(clientX: number, clientY: number): PlotBuilding | null;
   /**
    * The bottom sheet opened on `building`'s row (M2-13) with its top edge at client y `sheetTop`: at the closer zoom
-   * level the camera moves up just enough that the building stays above the sheet; at the normal level nothing moves.
+   * level the camera moves up just enough that the building stays above the sheet; at the normal level y stays. With
+   * `centre` (a quest's target, M3-15) a building off screen or at its edge first gets the camera x centred on it (a
+   * glide; «менше руху»: a jump); a world tap's building is where the player sees it, so its x stays.
    */
-  reveal(building: PlotBuilding, sheetTop: number): void;
+  reveal(building: PlotBuilding, sheetTop: number, centre?: boolean): void;
   /**
    * The building whose row is selected in the sheet (M2-29), or `null`: a 1-px warm outline on it in the world while it
    * is set. Cosmetic: no game state.
@@ -830,9 +832,14 @@ export async function createWorldApp(host: HTMLElement, settings: RenderSettings
         );
         return document.elementFromPoint(p.x, p.y) === canvas ? p : null;
       },
-      reveal: (building, sheetTop) => {
+      reveal: (building, sheetTop, centre = false) => {
         const view = cameraView();
         const lv = view.levels[motion.level];
+        // A quest's target off screen or at its edge (M3-15): glide x to centre its plot first («менше руху»: a jump).
+        const site = centre ? layout.tierSprites.find((t) => t.building === building) : undefined;
+        const margin = PLOT_TAP.revealEdgePx;
+        if (site && (site.x < motion.x + margin || site.x > motion.x + lv.viewW - margin))
+          motion = glideTo(motion, site.x - lv.viewW / 2, performance.now(), view);
         // Nothing of it drawn (a stale tap) or no vertical room (the normal level): nothing to move.
         const span = plotSpan(targetsNow(), building, drawn);
         if (!span || lv.maxY === 0) return;

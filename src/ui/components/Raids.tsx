@@ -90,9 +90,12 @@ interface CardProps {
   readonly onChoose: ((slot: number) => void) | undefined;
   /** A button of this card was pressed while it had the focus (the card may take that button away). */
   readonly onOwnPress: (button: HTMLElement) => void;
+  /** Lit for a moment after a raid quest was tapped on the strip (M3-15); `current` = aria-current. */
+  readonly lit: boolean;
+  readonly current: boolean;
 }
 
-const Card = memo(function Card({ card, onChoose, onOwnPress }: CardProps) {
+const Card = memo(function Card({ card, onChoose, onOwnPress, lit, current }: CardProps) {
   const { v, now } = card;
   const text = useText();
   const act = useAct();
@@ -227,7 +230,13 @@ const Card = memo(function Card({ card, onChoose, onOwnPress }: CardProps) {
     );
   }
   return (
-    <li className={styles.card} data-slot={v.kind} aria-labelledby={titleId}>
+    <li
+      className={lit ? [styles.card, styles.lit].join(' ') : styles.card}
+      data-slot={v.kind}
+      data-target={`raid.${String(v.slot)}`}
+      aria-labelledby={titleId}
+      aria-current={current ? 'true' : undefined}
+    >
       {body}
     </li>
   );
@@ -279,9 +288,12 @@ function useRaidNews(cards: readonly SlotCard[]): { readonly id: number; readonl
 export interface RaidsBlockProps {
   /** «Обрати похід» for `slot`: open the raid map (M3-11). Absent: the idle cards have no button. */
   readonly onChoose?: ((slot: number) => void) | undefined;
+  /** The slot whose card a raid quest tap lit (M3-15) and the one that is current (aria-current); null: none. */
+  readonly lit?: number | null;
+  readonly current?: number | null;
 }
 
-export function RaidsBlock({ onChoose }: RaidsBlockProps) {
+export function RaidsBlock({ onChoose, lit = null, current = null }: RaidsBlockProps) {
   const text = useText();
   const act = useAct();
   const headingId = useId();
@@ -351,7 +363,14 @@ export function RaidsBlock({ onChoose }: RaidsBlockProps) {
       )}
       <ul className={styles.cards} aria-label={text.t('ui.raids.slots')}>
         {cards.map((c) => (
-          <Card key={c.v.slot} card={c} onChoose={onChoose} onOwnPress={onOwnPress} />
+          <Card
+            key={c.v.slot}
+            card={c}
+            onChoose={onChoose}
+            onOwnPress={onOwnPress}
+            lit={c.v.slot === lit}
+            current={c.v.slot === current}
+          />
         ))}
       </ul>
       <p className={styles.said} role="status">

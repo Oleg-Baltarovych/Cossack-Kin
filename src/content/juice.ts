@@ -21,6 +21,10 @@ export const SHEET = {
   velocityWindowMs: 100,
   snapMs: 180,
   highlightMs: 2000,
+  /** A quest tap with no row to show (a counter, a locked or missing row; M3-15): how long its hint stays up. */
+  hintMs: 6500,
+  /** A revealed row scrolls in once the sheet stands at its height: checked every `snapMs`, at most this many times. */
+  revealChecks: 10,
 } as const;
 
 /**

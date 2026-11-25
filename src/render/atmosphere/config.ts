@@ -1196,9 +1196,12 @@ export const FRAMING = {
 /**
  * Tap on a building (plan M2-13, SPEC §3.3): a miss within `slopPx` logical px of a building's drawn px still opens its
  * row (Chebyshev rings, nearest first). When its row opens in the bottom sheet at the closer zoom level, the camera
- * moves up just enough that the building's ground row stands `revealMarginPx` rows above the sheet's top edge.
+ * moves up just enough that the building's ground row stands `revealMarginPx` rows above the sheet's top edge. A
+ * reveal of a building whose pivot is off screen or within `revealEdgePx` columns of the edge (a quest's target,
+ * M3-15) centres the camera x on it.
  */
 export const PLOT_TAP = {
   slopPx: 2,
   revealMarginPx: 4,
+  revealEdgePx: 16,
 } as const;
