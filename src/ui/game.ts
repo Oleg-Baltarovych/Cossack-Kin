@@ -5,6 +5,7 @@ import type { PlotVariants, VisualTiers } from '../core/selectors.ts';
 import { createInitialState, type GameState } from '../core/state.ts';
 import { createStore, type GameStore } from '../core/store.ts';
 import { newSeed } from '../platform/loop.ts';
+import { mockNotifications, type MockNotifications } from '../platform/notifications.ts';
 import { bootGame, createSaver, type BootNotice, type Saver } from '../platform/saves.ts';
 import { memoryStorage, webStorage } from '../platform/storage.ts';
 import {
@@ -25,6 +26,8 @@ export interface Game {
   /** false: `?ui=0` (world-only screenshots). */
   readonly ui: boolean;
   readonly saver: Saver;
+  /** The «загін повернувся» plan (M3-16): web/dev show nothing; the Capacitor service and the permission come in M6/M9. */
+  readonly notifications: MockNotifications;
   /** What to tell the player about the save (damaged, restored, from a newer game). */
   readonly notice: BootNotice;
   /** Dev/test only (`?state=tiers`): the plots' tiers with unlock conditions ignored. */
@@ -50,10 +53,28 @@ export async function initGame(): Promise<Game> {
           : d.preset === 'showcase'
             ? { sceneTiers: showcaseTiers, sceneVariants: noVariants, sceneVisitors: noVisitors }
             : {};
-      return { store: createStore(state), now, live: !d.frozen, ui: d.ui, saver, notice: 'none', ...sceneTiers };
+      const notifications = mockNotifications();
+      return {
+        store: createStore(state),
+        now,
+        live: !d.frozen,
+        ui: d.ui,
+        saver,
+        notifications,
+        notice: 'none',
+        ...sceneTiers,
+      };
     }
   }
   const now = Date.now;
   const boot = await bootGame(webStorage(), () => createInitialState({ seed: newSeed(), now: now() }));
-  return { store: createStore(boot.state), now, live: true, ui: true, saver: boot.saver, notice: boot.notice };
+  return {
+    store: createStore(boot.state),
+    now,
+    live: true,
+    ui: true,
+    saver: boot.saver,
+    notifications: mockNotifications(),
+    notice: boot.notice,
+  };
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { startAutosave } from '../platform/autosave.ts';
 import { chunksLoaded } from '../platform/chunkReload.ts';
 import { driveGame } from '../platform/lifecycle.ts';
+import { startRaidNotifications } from '../platform/notifications.ts';
 import type { WorldApp } from '../render/index.ts';
 import { BootNotice } from './components/BootNotice.tsx';
 import { CoinFlight, type BuildingAt } from './components/CoinFlight.tsx';
@@ -23,28 +24,32 @@ import { GameProvider, useGame, useGameEvent, useGameEvents } from './hooks/useG
 import { useDialogFocus } from './hooks/useDialogFocus.ts';
 import { useWorld, type StartWorld } from './hooks/useWorld.ts';
 import { chestQueue, EMPTY_CHESTS } from './raidReveal.ts';
+import { raidAlertText } from './raidText.ts';
 import { EMPTY_QUEUE, shownBeat, storyQueue } from './storyQueue.ts';
 import styles from './App.module.css';
 
 export function App({ game }: { game: Game }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
-  // The loop runs while the page is visible; pausing it (hidden, pagehide) saves.
+  // The loop runs while the page is visible; pausing it (hidden, pagehide) saves. «Загін повернувся» is replanned after
+  // a raid starts, a claim, a replaced state, a language change and each resume (M3-16; shown from M6/M9).
   useEffect(() => {
-    if (!game.live) return undefined;
+    const raids = startRaidNotifications(game.store, game.notifications, raidAlertText, game.now);
+    if (!game.live) return raids.stop;
     const save = (): void => {
       game.saver.save(game.store.getState());
     };
-    const stopLoop = driveGame(game.store, { now: game.now, onPause: save });
+    const stopLoop = driveGame(game.store, { now: game.now, onPause: save, onResume: raids.replan });
     const stopAutosave = startAutosave(game.store, game.saver);
     return () => {
       stopAutosave();
       stopLoop();
       save();
+      raids.stop();
     };
   }, [game]);
 
-  useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store, game.now) : undefined), [game]);
+  useEffect(() => (__CK_DEBUG__ ? installGameDebug(game.store, game.now, game.notifications) : undefined), [game]);
 
   // The world reads the game through the bridge (render/bridge.ts): events and selectors only. Pixi and the scene are a
   // lazy chunk (M2-04): the HUD and the panel paint first, the world joins when its code and atlases arrive.

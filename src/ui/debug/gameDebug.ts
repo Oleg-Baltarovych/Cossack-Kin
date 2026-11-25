@@ -2,7 +2,7 @@
 // production drops it. URL values are untrusted: one known key, an allowlist of values, the shared length cap.
 //   ?state=fresh|rich|mid|away|showcase — a new game (rich: with 1M ducats, its welcome beat seen), a mid-land farm, that farm back after 9 h away (the return window),
 //                     or every plot built to the tier the M-ART scene shows (the e2e world shots use it)
-//   ?state=raids      — the «Походи» block (M3-09; the full M3-16 preset may replace it): the mid farm whose army found a
+//   ?state=raids      — the «Походи» block (M3-09; kept as the M3-16 preset: one away, one back, one relic): the mid farm whose army found a
 //                     relic on 30-min raids (within a time budget), then squad 1 back from a 5-min scouting and squad 2
 //                     on a 30-min one (back RAIDS_PRESET.leftMin after the preset's `now`) — all through the real actions
 //   ?state=chests     — the chest window (M3-12): the same farm and army, squad 1 back from a 30-min raid that brings a
@@ -27,6 +27,7 @@ import { tier } from '../../core/economy.ts';
 import { maxCossacks, sichUnlocked, villageOf } from '../../core/modifiers.ts';
 import { visualTiers, type VisualTiers } from '../../core/selectors.ts';
 import { applyOffline } from '../../core/offline.ts';
+import type { MockNotifications, PlannedNotification } from '../../platform/notifications.ts';
 import { isDebugMode } from '../../render/debug/modes.ts';
 import { MAX_PARAM_LENGTH, parseDebugParams } from '../../render/debug/params.ts';
 
@@ -87,6 +88,8 @@ export interface GameDebugHandle {
    * an ad reward or a purchase (those come from the SDK/billing callbacks, M8), so the hook cannot bypass those gates.
    */
   readonly dispatch: (action: Action) => readonly string[];
+  /** The «загін повернувся» plan the platform scheduled (M3-16), in `at` order; nothing is shown on the web. */
+  readonly notifications: () => readonly PlannedNotification[];
 }
 
 declare global {
@@ -96,10 +99,15 @@ declare global {
 }
 
 /** Exposes `store` as `window.__CK_GAME__`; returns the uninstall function. */
-export function installGameDebug(store: GameStore, now: () => number): () => void {
+export function installGameDebug(
+  store: GameStore,
+  now: () => number,
+  notifications: Pick<MockNotifications, 'planned'>,
+): () => void {
   const handle: GameDebugHandle = {
     state: () => JSON.stringify(store.getState()),
     dispatch: (action) => store.dispatch(action, now()).map((e) => e.type),
+    notifications: () => notifications.planned(),
   };
   window.__CK_GAME__ = handle;
   return () => {
