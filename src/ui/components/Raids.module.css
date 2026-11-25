@@ -15,7 +15,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: calc(3 * var(--px)) calc(8 * var(--px));
-  padding: calc(2 * var(--px)) calc(6 * var(--px));
+  padding: var(--px) calc(6 * var(--px));
 }
 
 .heading {
