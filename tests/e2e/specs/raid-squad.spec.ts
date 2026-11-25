@@ -8,12 +8,13 @@
 // <project>.png at 13:00 and 23:00 for the art review.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
 import { screensDir } from '../helpers/reports.ts';
-import { assertNativeFrames, gotoReady, nativeFrames, readStats, type WorldStats } from '../helpers/world.ts';
+import { gotoReady, readStats, type WorldStats } from '../helpers/world.ts';
 
 const T0 = new Date('2026-06-01T10:00:00Z').getTime();
 /** The Sich zone (x 1152) and a little of the road before it: the threshold where villagers cheer is in view. */
@@ -78,9 +79,7 @@ async function round(page: Page, time: string, shoot: boolean): Promise<void> {
   };
 
   await page.clock.install({ time: T0 });
-  await nativeFrames(page);
   await gotoReady(page, `/?seed=1&time=${time}&cam=${String(CAM)}&state=chests`);
-  await assertNativeFrames(page);
   await page.clock.pauseAt(T0 + 60_000);
   await step(page, 48);
 

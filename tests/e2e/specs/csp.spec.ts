@@ -1,7 +1,7 @@
 // Strict CSP (plan M0-12, security.md): the e2e build (`vite build --mode test`) carries the same meta policy
 // as production (tools/lib/csp.ts). The scene must render under it with zero violations and zero console
 // errors — Pixi's unsafe-eval probe and blob: image workers would both show up here.
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { PROD_CSP } from '../../../tools/lib/csp.ts';
 import { gotoReady, readStats, readWebGl } from '../helpers/world.ts';
 

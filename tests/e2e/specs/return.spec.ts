@@ -3,7 +3,8 @@
 // headless page cannot be hidden for real), and the game state is read through the dev/test `window.__CK_GAME__`.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { OFFLINE } from '../../../src/content/economy.ts';
 import { applyOffline } from '../../../src/core/offline.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';

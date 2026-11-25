@@ -1,7 +1,8 @@
 // Code splitting (plan M2-04): the Pixi world is a lazy chunk, so the DOM UI paints before the world is ready. Every
 // script except the start scripts (index.html's entry + modulepreloads) is held back; the HUD must already be on screen
 // while the world cannot load, and the world must still reach `data-ready` under the strict CSP once they are released.
-import { expect, test, type Route } from '@playwright/test';
+import type { Route } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { entryScripts, START_CHUNK_BUDGET_BYTES } from '../../../tools/lib/dist-leaks.ts';
 import { waitReady } from '../helpers/world.ts';
 

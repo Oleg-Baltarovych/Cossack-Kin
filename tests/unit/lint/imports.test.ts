@@ -45,6 +45,17 @@ describe('M1-01 import rules', () => {
     expect(await tags(selectors, 'src/render/__r__.ts')).toEqual([]);
   });
 
+  it('e2e specs take `test` from the shared fixture (helpers/test.ts); Playwright types are fine', async () => {
+    const direct = "import { test } from '@playwright/test';\ntest('t', () => {});\n";
+    expect(await tags(direct, 'tests/e2e/specs/__s__.spec.ts')).toEqual(['test-fixture']);
+    expect(await tags(direct, 'tests/e2e/__seed__.spec.ts')).toEqual(['test-fixture']);
+    expect(await tags(direct, 'tests/e2e/helpers/__h__.ts')).toEqual([]);
+    const shared =
+      "import type { Page } from '@playwright/test';\nimport { test } from '../helpers/test.ts';\n" +
+      'export const t = test;\nexport type P = Page;\n';
+    expect(await tags(shared, 'tests/e2e/specs/__s__.spec.ts')).toEqual([]);
+  });
+
   it('core and content: relative imports must end in .ts', async () => {
     const bare = "import { x } from './y';\nexport const z = x;\n";
     const withExt = "import { x } from './y.ts';\nexport const z = x;\n";

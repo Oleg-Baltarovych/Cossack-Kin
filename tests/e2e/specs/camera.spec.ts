@@ -3,7 +3,8 @@
 // fake clock: paused, then advanced with `runFor`, so every frame (rAF) and every pointer timestamp is deterministic.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { CAMERA } from '../../../src/render/atmosphere/config.ts';
 import { split } from '../../../src/render/camera.ts';
@@ -13,6 +14,9 @@ import { validateState } from '../../../src/core/state.ts';
 import { gotoReady, readStats, type WorldStats } from '../helpers/world.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
+
+// The clock's fake rAF: every 16 ms of `runFor` is one frame, in step with the pointer samples (helpers/test.ts).
+test.use({ frames: 'clock' });
 
 const T0 = new Date('2026-06-01T10:00:00Z').getTime();
 /** One 60 fps frame of fake time. */

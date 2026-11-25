@@ -4,12 +4,12 @@
 // absolute numbers are pessimistic; compare the variants with each other and confirm on the phone (A56).
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { AGENT_BUDGET } from '../../../src/content/agents.ts';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { FROZEN_NOW } from '../../../src/ui/debug/gameDebug.ts';
 import { MAX_DRAW_CALLS, PARTICLE_BUDGET, SPEC_MAX_DRAW_CALLS } from '../helpers/budgets.ts';
-import { assertNativeFrames, gotoReady, nativeFrames } from '../helpers/world.ts';
+import { gotoReady } from '../helpers/world.ts';
 
 const RUNS = [
   ['baseline 13:00 (no shafts)', '13:00', 'med'],
@@ -279,13 +279,11 @@ Draw calls, particles and agents are maxima over the sweep (every zone and seam)
       test.setTimeout(480_000); // ≈ 520 frames at ≈ 10 fps under SwiftShader + CPU ×4, plus start-up
       header();
       await page.clock.install({ time: M2_CLOCK });
-      await nativeFrames(page);
       const cdp = await page.context().newCDPSession(page);
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
       await cdp.send('Performance.enable');
       const query = `time=${time}&seed=${String(M2_SEED)}&weather=${weather}&quality=${tier}&state=${state}&ui=1`;
       await gotoReady(page, `/?${query}`);
-      await assertNativeFrames(page);
       const taskSeconds = async (): Promise<number> => {
         const { metrics } = await cdp.send('Performance.getMetrics');
         return metrics.find((m) => m.name === 'TaskDuration')?.value ?? 0;

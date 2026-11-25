@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from './helpers/test.ts';
 import { gotoReady } from './helpers/world.ts';
 
 // Seed for Playwright test agents: opens the test-mode web build in a deterministic state (debug params,

@@ -4,7 +4,8 @@
 // (nothing built yet) and `state=showcase` (every plot built), on 390×844; one day shot on 360 and 412.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { screensDir } from '../helpers/reports.ts';
@@ -106,6 +107,8 @@ test.describe('M2-18 villagers by the hour @screens @villagers', () => {
  * at work until a spell ends and its glint is in the air, then a shot of it rising over the worker.
  */
 test.describe('M2-18 work-done glint @screens @villagers', () => {
+  // The clock's fake rAF: the stats read after each `runFor` are of that moment's frame (helpers/test.ts).
+  test.use({ frames: 'clock' });
   test.skip(({ viewport }) => viewport?.width !== 390, 'runs on the 390×844 project only');
 
   test('a glint rises over a villager who finishes work (not a coin)', async ({ page }, testInfo) => {

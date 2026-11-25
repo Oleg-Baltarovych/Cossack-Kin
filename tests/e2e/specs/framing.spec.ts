@@ -4,7 +4,8 @@
 // each one measures the horizon from the DOM rects and the frame.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { FRAMING } from '../../../src/render/atmosphere/config.ts';
 import { horizonY } from '../../../src/render/layers/Layer.ts';
 import { computeViewport, worldTargetSize } from '../../../src/render/viewport.ts';

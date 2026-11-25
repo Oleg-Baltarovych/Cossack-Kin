@@ -3,7 +3,8 @@
 // writes day and night shots of the agents in every zone to reports/screens/<date>/agents-*.png for review.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { AGENT_BUDGET, type AgentRole } from '../../../src/content/agents.ts';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { decodePng } from '../../../tools/lib/png.ts';

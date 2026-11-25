@@ -33,6 +33,17 @@ const RENDER_WRITES = {
     'imports[render-actions]: render must not import game actions or reducers — read state via core selectors and store events (render/bridge.ts).',
   allowTypeImports: true,
 };
+/**
+ * E2E specs take `test` from tests/e2e/helpers/test.ts: its fixture GPU-paces the frames and drains the GPU after each
+ * test, so a WebGL backlog never reaches the next one. Types (`type Page`, …) still come from Playwright.
+ */
+const E2E_TEST = {
+  name: '@playwright/test',
+  importNames: ['test'],
+  message:
+    'imports[test-fixture]: import `test`/`expect` from tests/e2e/helpers/test.ts — its fixture paces and drains the GPU.',
+  allowTypeImports: true,
+};
 const CORE_PATTERNS = [
   { regex: '^(pixi\\.js|pixi-filters|react|react-dom|howler)(/.*)?$', message: RENDER_PACKAGE },
   { regex: '^@(pixi|capacitor)/', message: RENDER_PACKAGE },
@@ -136,6 +147,11 @@ export default defineConfig(
   {
     files: ['src/render/**/*.{ts,tsx}'],
     rules: { 'no-restricted-imports': ['error', { patterns: [BIG_LIB, RENDER_WRITES] }] },
+  },
+  {
+    files: ['tests/e2e/**/*.ts'],
+    ignores: ['tests/e2e/helpers/**'],
+    rules: { 'no-restricted-imports': ['error', { paths: [E2E_TEST], patterns: [BIG_LIB] }] },
   },
   {
     // The one door to break_eternity.js (keeps the core boundary and the .ts rule).

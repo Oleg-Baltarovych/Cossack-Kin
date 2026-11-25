@@ -4,9 +4,10 @@
 // day (UTC midnight) leaves a raid on the road alone; «менше руху» opens the chest on its finished list.
 // Every test boots a save built here with the core (the page loads the save, never a `?state=` preset: a preset is not
 // saved, and these tests reload). The clock is Playwright's fixed clock (`setFixedTime`, stepped by the test) with native,
-// GPU-paced frames (`nativeFrames`, CONTEXT §6); the zone is UTC like CI, so the new game's zone matches the save's.
+// GPU-paced frames (the `test` fixture, helpers/test.ts); the zone is UTC like CI, so the new game's zone matches the save's.
 // Raid lengths come from the content (`raidTier`), never as literals.
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { advance } from '../../../src/core/advance.ts';
 import { applyAction } from '../../../src/core/actions.ts';
 import type { Big } from '../../../src/core/big.ts';
@@ -17,7 +18,7 @@ import { dueBeats } from '../../../src/core/systems/story.ts';
 import type { RaidRoll } from '../../../src/core/systems/raids.ts';
 import type { RaidTierId } from '../../../src/content/raids.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
-import { assertNativeFrames, nativeFrames, waitReady } from '../helpers/world.ts';
+import { waitReady } from '../helpers/world.ts';
 
 test.use({ timezoneId: 'UTC' });
 
@@ -80,8 +81,6 @@ async function gameState(page: Page): Promise<GameState> {
 /** Boots `state` as the save of the first slot, once (a reload loads what the page saved), on a clock fixed at `now`. */
 async function openGame(page: Page, state: GameState, now: number, query = ''): Promise<void> {
   await page.clock.setFixedTime(now);
-  // The fixed clock fakes the frames too; native ones keep the GPU from falling behind (helper doc).
-  await nativeFrames(page);
   await page.addInitScript(
     (save) => {
       if (sessionStorage.getItem('seeded')) return;
@@ -92,7 +91,6 @@ async function openGame(page: Page, state: GameState, now: number, query = ''): 
   );
   await page.goto(`/?seed=${String(SEED)}&time=13:00&ui=1${query}`);
   await waitReady(page);
-  await assertNativeFrames(page);
 }
 
 async function setVisibility(page: Page, state: 'visible' | 'hidden'): Promise<void> {
@@ -176,7 +174,6 @@ test.describe('M3-17 raids end to end', () => {
     for (let i = 0; i < 3; i++) {
       await page.reload();
       await waitReady(page);
-      await assertNativeFrames(page);
       await expect(page.getByRole('dialog')).toHaveCount(0);
       const after = runningRaid(await gameState(page));
       expect(after.success).toBe(started.success);
