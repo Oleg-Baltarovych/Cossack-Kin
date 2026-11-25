@@ -10,7 +10,17 @@ import { encodeSave } from '../../../src/core/save/serialize.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';
-import { gotoReady, waitReady } from '../helpers/world.ts';
+import { assertNativeFrames, gotoReady, nativeFrames, waitReady } from '../helpers/world.ts';
+
+const T0 = new Date('2026-06-01T10:00:00Z').getTime();
+
+// A running fake clock (not `setFixedTime`: the saves below are made at T0 and the game's clock and highlight timers
+// must keep advancing) with native, GPU-paced frames. Otherwise the fake rAF queues ~60 WebGL frames/s, the full sheet
+// of the first test hides the canvas, and the next test's `app.init` waits out SwiftShader's backlog (helper doc, M2-24).
+test.beforeEach(async ({ page }) => {
+  await page.clock.install({ time: T0 });
+  await nativeFrames(page);
+});
 
 const url = (time: string, extra = '') => `/?time=${time}&freeze&seed=1&state=rich&ui=1&lang=uk&zone=sich${extra}`;
 
@@ -41,6 +51,7 @@ async function camSettled(page: Page): Promise<number> {
 /** The rich farm with its field bought (drawn), so the chain's first step «Засій поле» is on the strip. */
 async function fieldStep(page: Page, time: string, extra = ''): Promise<void> {
   await gotoReady(page, url(time, extra));
+  await assertNativeFrames(page);
   expect(await dispatch(page, { type: 'buyBuilding', id: 'field', mode: 10 })).toContain('BuildingUpgraded');
   await expect(goButton(page)).toBeVisible();
 }
@@ -100,7 +111,7 @@ async function hireStep(page: Page, extra = ''): Promise<void> {
  * cannot reach a late step through actions in a few calls.
  */
 async function onChainStep(page: Page, id: string, time: string): Promise<void> {
-  const s0 = createInitialState({ seed: 1, now: Date.now() });
+  const s0 = createInitialState({ seed: 1, now: T0 });
   const index = QUEST_CHAIN.findIndex((q) => q.id === id);
   const state: GameState = {
     ...s0,
@@ -112,6 +123,7 @@ async function onChainStep(page: Page, id: string, time: string): Promise<void> 
   }, encodeSave(state));
   await page.goto(`/?time=${time}&seed=1&ui=1&lang=uk`);
   await waitReady(page);
+  await assertNativeFrames(page);
 }
 
 test('M3-15 from the full sheet: a row low in the list ends wholly in view at half', async ({ page, viewport }) => {

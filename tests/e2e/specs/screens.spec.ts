@@ -1,6 +1,6 @@
 // Screenshot spec (plan M0-04/06/07, ART-04). Writes artifacts to reports/screens/<date>/ on every platform;
 // baselines (`toHaveScreenshot`) are compared on Linux only — SwiftShader output differs per OS.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
@@ -10,9 +10,10 @@ import { shaftLevel } from '../../../src/render/atmosphere/rays.ts';
 import { framedY, split } from '../../../src/render/camera.ts';
 import { horizonY } from '../../../src/render/layers/Layer.ts';
 import { validateState } from '../../../src/core/state.ts';
+import { expectBaseline } from '../helpers/baseline.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { decodePng, encodePng, type RgbaImage } from '../../../tools/lib/png.ts';
-import { gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts';
+import { cameraSettled, gotoReady, readStats, readWebGl, waitReady } from '../helpers/world.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
@@ -27,15 +28,6 @@ import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
  */
 const SCENE = '/?seed=1&freeze&time=13:00';
 const CAM = 10.5;
-const COMPARE_BASELINES = process.platform === 'linux';
-/**
- * ART-04 changed every frame (time-of-day sky + LUT grading), so the M0 Linux baselines are stale. Until the
- * ART-04 set is committed (marker: its 1300 baseline), baselines are compared only in an
- * `--update-snapshots=all` run (CI workflow_dispatch with update_snapshots), which writes the new set.
- */
-const BASELINES_PENDING = !existsSync(
-  'tests/e2e/__screenshots__/specs/screens.spec.ts/khortytsia-farm-1300-clear-390x844-3-linux.png',
-);
 /** The 6 time-of-day keys (plan §0) — ART-04 matrix, farm zone, clear weather. */
 const SKY_KEY_TIMES = ['0530', '0700', '1300', '1930', '2100', '2300'] as const;
 /** Low-light keys where the "never black" rule applies. */
@@ -55,48 +47,12 @@ const today = (): string => {
 };
 const SCREENS_DIR = join('reports', 'screens', today());
 
-/**
- * Waits until the camera stands still: the same `__CK__.stats.cam` over at least 3 rendered frames (a tab glide takes
- * `CAMERA.glideMs`; a shot during it differs from run to run). `leaving`: the camera's x before the glide (not settled there).
- */
-async function cameraSettled(page: Page, leaving?: number): Promise<void> {
-  let last: { cam: number; frames: number } | null = null;
-  await expect
-    .poll(
-      async () => {
-        const now = await page.evaluate(() => {
-          const s = window.__CK__?.stats;
-          return s ? { cam: s.cam, frames: s.frames } : null;
-        });
-        if (!now) throw new Error('window.__CK__.stats is missing — is this a --mode test build?');
-        if (!last || now.cam !== last.cam) last = now;
-        return now.cam === leaving ? 0 : now.frames - last.frames;
-      },
-      { intervals: [50], timeout: 15_000 },
-    )
-    .toBeGreaterThanOrEqual(3);
-}
-
 async function shoot(page: Page, testInfo: TestInfo, name: string): Promise<Buffer> {
   mkdirSync(SCREENS_DIR, { recursive: true });
   const file = `${name}-${testInfo.project.name}.png`;
   const png = await page.screenshot({ path: join(SCREENS_DIR, file), scale: 'device' });
   await testInfo.attach(file, { body: png, contentType: 'image/png' });
   return png;
-}
-
-async function expectBaseline(page: Page, testInfo: TestInfo, name: string): Promise<void> {
-  const updating = testInfo.config.updateSnapshots === 'all';
-  if (!COMPARE_BASELINES) return;
-  if (BASELINES_PENDING && !updating) {
-    testInfo.annotations.push({
-      type: 'baseline-pending',
-      description: `${name}: regenerate Linux baselines (ART-04)`,
-    });
-    return;
-  }
-  // SwiftShader on CI needs > 5 s to get two identical 3.5x-DPR shots for the stable-screenshot loop.
-  await expect(page).toHaveScreenshot(`${name}.png`, { timeout: 30_000 });
 }
 
 async function expectWebGlWithinBudget(page: Page): Promise<number> {
@@ -152,7 +108,7 @@ test.describe('M0 screens @screens', () => {
     await waitReady(page);
     const second = await page.screenshot({ scale: 'device' });
     expect(second.equals(first), 'two shots of the same URL after reload differ').toBe(true);
-    await expectBaseline(page, testInfo, 'm0-sky-ground');
+    await expectBaseline(page, 'm0-sky-ground');
   });
 
   test(`camera ${String(CAM)}: sub-pixel shift keeps whole blocks`, async ({ page }, testInfo) => {
@@ -163,7 +119,7 @@ test.describe('M0 screens @screens', () => {
     expect(fracDevicePx).toBeGreaterThan(0);
     const png = await shoot(page, testInfo, `m0-sky-ground-cam${String(CAM)}`);
     expectPixelGrid(png, testInfo, scale, fracDevicePx);
-    await expectBaseline(page, testInfo, `m0-sky-ground-cam${String(CAM)}`);
+    await expectBaseline(page, `m0-sky-ground-cam${String(CAM)}`);
   });
 
   test('debug overlay at 13:00', async ({ page }, testInfo) => {
@@ -266,7 +222,7 @@ test.describe('ART-04 time of day @screens', () => {
       // ART-BIBLE §8: *night* is never black. By day, sprites legitimately use the darkest palette steps (outlines).
       if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
       if (hhmm === '2300') expectGroundDarkerThanHorizon(png, scale);
-      await expectBaseline(page, testInfo, name);
+      await expectBaseline(page, name);
     });
   }
 });
@@ -363,8 +319,11 @@ test.describe('ART-11 the Sich @screens', () => {
       const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
       await gotoReady(page, `/?time=${time}&freeze&seed=1&zone=sich`);
       const scale = await expectWebGlWithinBudget(page);
-      const png = await shoot(page, testInfo, `khortytsia-sich-${hhmm}-clear`);
+      const name = `khortytsia-sich-${hhmm}-clear`;
+      const png = await shoot(page, testInfo, name);
       expectPixelGrid(png, testInfo, scale, 0);
+      // M3-18: day and night of the Sich (Cossacks, campfire, light pools) are Linux baselines.
+      if (hhmm === '1300' || hhmm === '2300') await expectBaseline(page, name);
     });
   }
 });
@@ -692,8 +651,11 @@ test.describe('M2-05 every building at tier N @screens', () => {
       test(`tiers ${String(tier)} ${zone} 1300: plots by tier, budget, pixel grid`, async ({ page }, testInfo) => {
         await gotoReady(page, `/?time=13:00&freeze&seed=1&zone=${zone}&state=tiers&tier=${String(tier)}`);
         const scale = await expectWebGlWithinBudget(page);
-        const png = await shoot(page, testInfo, `tiers-${String(tier)}-${zone}-1300`);
+        const name = `tiers-${String(tier)}-${zone}-1300`;
+        const png = await shoot(page, testInfo, name);
         expectPixelGrid(png, testInfo, scale, 0);
+        // M3-18 (M2-30 item 3): the first and the last tier of the farm and the Sich are Linux baselines.
+        if (tier === 1 || tier === 6) await expectBaseline(page, name);
       });
     }
   }
@@ -746,9 +708,12 @@ test.describe('M2-08 the suburb @screens', () => {
       await gotoReady(page, `/?time=${time}&freeze=1.3&seed=1&zone=suburb&weather=${weather}`);
       const scale = await expectWebGlWithinBudget(page);
       expect((await readStats(page)).particles).toBeLessThanOrEqual(PARTICLE_BUDGET);
-      const png = await shoot(page, testInfo, `khortytsia-suburb-${hhmm}-${weather}`);
+      const name = `khortytsia-suburb-${hhmm}-${weather}`;
+      const png = await shoot(page, testInfo, name);
       expectPixelGrid(png, testInfo, scale, 0);
       if (DARK_KEYS.has(hhmm)) expectNoBlack(png);
+      // M3-18: the suburb by day is a Linux baseline.
+      if (hhmm === '1300' && weather === 'clear') await expectBaseline(page, name);
     });
   }
 
