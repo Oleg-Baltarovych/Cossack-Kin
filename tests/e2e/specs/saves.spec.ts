@@ -1,6 +1,7 @@
 // Saves in the real page (plan M1-13; M1-20 adds the v1 fixture and the fake-clock reload): progress survives a
 // reload, a damaged save is explained. No debug preset here — presets play in memory — so the page loads the save.
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { closeWelcome } from '../helpers/story.ts';

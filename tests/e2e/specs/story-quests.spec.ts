@@ -5,11 +5,12 @@
 // are claimed in the quest strip (the chore's taps go through the dev/test `__CK_GAME__.dispatch`). After the reload the beats and the quests are the saved ones, and the
 // beat does not fire again: its glory is not granted twice.
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import type { Action } from '../../../src/core/actions.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
-import { assertNativeFrames, nativeFrames, waitReady } from '../helpers/world.ts';
+import { waitReady } from '../helpers/world.ts';
 
 const URL = '/?time=13:00&seed=7&ui=1';
 const FIXTURE = readFileSync('tests/fixtures/saves/v3.json', 'utf8').trim();
@@ -42,8 +43,6 @@ test.describe('M2-24 story beats and quests across a reload', () => {
   test('a beat reached and a chain step claimed survive the reload; the beat never fires twice', async ({ page }) => {
     // Eight hours after the fixture was saved: the return window pays the ducats the church's unlock costs.
     await page.clock.setFixedTime(LAST_SEEN + AWAY_MS);
-    // The fixed clock fakes the frames too; native ones keep the GPU from falling behind (helper doc, M2-24).
-    await nativeFrames(page);
     // The played v3 game in the first slot, once: the reload must load what the page saved, not the fixture again.
     await page.addInitScript((save) => {
       if (sessionStorage.getItem('seeded')) return;
@@ -52,7 +51,6 @@ test.describe('M2-24 story beats and quests across a reload', () => {
     }, FIXTURE);
     await page.goto(URL);
     await waitReady(page);
-    await assertNativeFrames(page);
     const welcome = page.getByRole('dialog', { name: 'З поверненням!' });
     await welcome.getByRole('button', { name: 'Забрати' }).click();
     await expect(welcome).toBeHidden();
@@ -137,7 +135,6 @@ test.describe('M2-24 story beats and quests across a reload', () => {
     });
     await page.reload();
     await waitReady(page);
-    await assertNativeFrames(page);
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const after = await gameState(page);
     expect(after.story).toEqual(before.story);

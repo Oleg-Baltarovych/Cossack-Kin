@@ -6,13 +6,14 @@
 // art. Each shot checks the layout: the whole map on the screen, every button ≥ --tap, no line or button cut. The map on
 // its suggested card (uk) is also a Linux baseline (M3-18), on a fixed clock.
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { raidTier } from '../../../src/core/systems/raids.ts';
 // Type-only: brings the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { expectBaseline } from '../helpers/baseline.ts';
-import { assertNativeFrames, gotoReady, nativeFrames } from '../helpers/world.ts';
+import { gotoReady } from '../helpers/world.ts';
 
 test.use({ timezoneId: 'Europe/Kyiv' });
 
@@ -182,12 +183,10 @@ test.describe('M3-11 raid map @screens', () => {
     if (lang === 'uk')
       test(`baseline: the map on its suggested card (${lang})`, async ({ page }) => {
         // The day picks the board (raidBoard(seed, day)) and the «Повернуться о …» times come from the clock: fixed;
-        // native frames keep the GPU paced under it (helpers/world.ts). `still`: the rider on the road stands on its
+        // the `test` fixture keeps the frames GPU-paced (helpers/test.ts). `still`: the rider on the road stands on its
         // first frame and «Забрати» launches no coins. Nothing left that moves, so no mask.
         await page.clock.setFixedTime(T0);
-        await nativeFrames(page);
         await gotoReady(page, `/?time=13:00&freeze&seed=1&state=raids&ui=1&lang=${lang}&still`);
-        await assertNativeFrames(page);
         const map = await openRaids(page, lang);
         await expect(map.locator('[data-map="ready"]')).toBeVisible();
         await expect(map.locator('[data-fact="success"]')).toBeVisible();

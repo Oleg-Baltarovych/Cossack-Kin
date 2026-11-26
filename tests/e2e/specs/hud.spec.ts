@@ -3,7 +3,8 @@
 // the count the button names.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { decodePng, type RgbaImage } from '../../../tools/lib/png.ts';
 import { gotoReady } from '../helpers/world.ts';
 

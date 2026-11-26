@@ -6,13 +6,14 @@
 // buttons ≥ --tap, nothing cut, nothing past the screen. The finished chest (`?still`) and «Скарбниця» (uk) are also
 // Linux baselines (M3-18), on a fixed clock.
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { RAID_REVEAL } from '../../../src/content/juice.ts';
 // Type-only: brings the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { expectBaseline } from '../helpers/baseline.ts';
-import { assertNativeFrames, gotoReady, nativeFrames } from '../helpers/world.ts';
+import { gotoReady } from '../helpers/world.ts';
 
 test.use({ timezoneId: 'Europe/Kyiv' });
 
@@ -184,12 +185,10 @@ test.describe('M3-12 chest, return window, treasury @screens', () => {
 test.describe('M3-18 chest and treasury baselines @screens', () => {
   test.beforeEach(async ({ page }) => {
     await page.clock.setFixedTime(T0);
-    await nativeFrames(page);
   });
 
   test('the finished chest of both squads, with the relic (uk)', async ({ page }) => {
     await gotoReady(page, '/?time=13:00&freeze&seed=1&state=chests&ui=1&lang=uk&still');
-    await assertNativeFrames(page);
     await page.getByRole('tab', { name: T.uk.sich }).click();
     await page.getByRole('button', { name: T.uk.all }).click();
     const chest = page.getByRole('dialog', { name: T.uk.chest });
@@ -199,7 +198,6 @@ test.describe('M3-18 chest and treasury baselines @screens', () => {
 
   test('«Скарбниця» on the full sheet (uk)', async ({ page }) => {
     await gotoReady(page, '/?time=13:00&freeze&seed=1&state=raids&ui=1&lang=uk&still');
-    await assertNativeFrames(page);
     await page.getByRole('tab', { name: T.uk.more }).click();
     await page.getByRole('button', { name: T.uk.sheet }).click();
     const treasury = page.getByRole('region', { name: T.uk.treasury });

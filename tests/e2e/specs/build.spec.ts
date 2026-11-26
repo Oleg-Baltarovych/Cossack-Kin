@@ -1,11 +1,12 @@
 // Construction and tier juice (plan M2-12, SPEC §6.5/§6.7, Q5): buying a building's first level puts the level in the
 // state at once while the world plays scaffold stages → pop → confetti; a milestone shows the «Тір II» banner, the
 // flash and the rising standard. «Менше руху» keeps the information (the stages, the banner text) and drops the pop and
-// the confetti. Time is Playwright's fake clock (paused, `runFor`; frames are native, `nativeFrames`), so every shot is
+// the confetti. Time is Playwright's fake clock (paused, `runFor`; frames are native, helpers/test.ts), so every shot is
 // of an exact moment; each stage is written to reports/screens/<date>/build-*.png (day and night) for the art review.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';
 import { BUILD } from '../../../src/render/atmosphere/config.ts';
@@ -15,7 +16,7 @@ import { PARTICLE_BUDGET } from '../../../src/render/fx/registry.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { SPEC_MAX_DRAW_CALLS } from '../helpers/budgets.ts';
-import { assertNativeFrames, gotoReady, nativeFrames, readStats } from '../helpers/world.ts';
+import { gotoReady, readStats } from '../helpers/world.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 
@@ -45,9 +46,7 @@ async function openPaused(page: Page, url: string): Promise<void> {
   await page.clock.install({ time: T0 });
   // `runFor(2400)` would fire 150 fake 16-ms frames at once, each a full WebGL frame: the next screenshot waited out
   // that backlog on CI SwiftShader (≈ 0.4 s a frame, 64 s for one shot). One native frame draws the moment instead.
-  await nativeFrames(page);
   await gotoReady(page, url);
-  await assertNativeFrames(page);
   await page.clock.pauseAt(T0 + 60_000);
   await advance(page, SETTLE_MS);
 }

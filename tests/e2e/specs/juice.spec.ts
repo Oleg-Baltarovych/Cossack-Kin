@@ -3,12 +3,16 @@
 // still says the new amount. One review shot (390 only): coins mid-flight on a paused clock →
 // reports/screens/<date>/m2-26-coins-<project>.png.
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { BUTTON, COIN_FLIGHT } from '../../../src/content/juice.ts';
 import type { Action } from '../../../src/core/actions.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';
 import { gotoReady } from '../helpers/world.ts';
+
+// The clock's fake rAF: `runFor` itself moves the coins, so a read right after it sees the new moment (helpers/test.ts).
+test.use({ frames: 'clock' });
 
 const URL = '/?time=13:00&freeze&seed=1&state=mid&ui=1';
 

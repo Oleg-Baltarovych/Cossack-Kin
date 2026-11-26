@@ -5,7 +5,8 @@
 // one Sich day shot on 360 and 412.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { decodePng } from '../../../tools/lib/png.ts';
 import { checkPixelGrid } from '../helpers/pixelGrid.ts';
 import { screensDir } from '../helpers/reports.ts';

@@ -2,7 +2,8 @@
 // baselines (`toHaveScreenshot`) are compared on Linux only — SwiftShader output differs per OS.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { KHORTYTSIA_WORLD } from '../../../src/content/villages/khortytsia.layout.ts';
 import { CLOUDS, FRAMING } from '../../../src/render/atmosphere/config.ts';
 import { dayCycle } from '../../../src/render/atmosphere/dayCycle.ts';

@@ -2,7 +2,8 @@
 // clock is fixed with Playwright's `clock.setFixedTime` (Date.now stands still, timers and frames run), so the
 // numbers are exact; the save the page will load is read from
 // localStorage and decoded in Node with the same core.
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { chooseSave } from '../../../src/core/save/load.ts';
 import { resume } from '../../../src/core/offline.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';

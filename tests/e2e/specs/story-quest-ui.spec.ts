@@ -5,7 +5,8 @@
 // game's first action → «Берег Дніпра». Each shot also checks the layout: claim buttons no taller than one tap target,
 // no strip text cut, the portrait at ×2 (whole logical px).
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import type { Action } from '../../../src/core/actions.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';

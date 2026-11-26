@@ -2,7 +2,8 @@
 // building opens half with its row marked and earns nothing; a tap on open ground still earns.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
+import { expect, test } from '../helpers/test.ts';
 import { SPEC_MAX_DRAW_CALLS } from '../helpers/budgets.ts';
 import type { PlotBuilding } from '../../../src/content/villages/khortytsia.layout.ts';
 import { gotoReady, readStats } from '../helpers/world.ts';
