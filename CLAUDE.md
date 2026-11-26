@@ -50,7 +50,8 @@ No backend in v1.
 - Visual work is verified by looking at it: screenshots in 390×844 (day + night), judged against `docs/art/` references, not by reading code.
 
 ## Git
-- Branches `feat/*`, `fix/*`, `art/*`, `chore/*` from `main`; Conventional Commits; one logical change per commit/PR, referencing the milestone task ID / SPEC section.
+- Branches `feat/*`, `fix/*`, `art/*`, `chore/*`, `docs/*`, `test/*` from `main`; Conventional Commits; one logical change per commit/PR, referencing the milestone task ID / SPEC section.
+- `main` is protected: no direct pushes; merge commits only. Per task: branch → commit → push → `gh pr create` (what / why / verification / balance) → required checks green («Check, build», «Secret scan (gitleaks)», «e2e (functional)»; docs-only skips e2e) → `gh pr merge N --merge`. A change that can move pixels runs the full `@screens` matrix first (`gh workflow run ci.yml --ref <branch>`). Procedure: `/ship`.
 - Local commits on a task branch are fine. Never push, merge, force-push, rebase, or delete files/branches without the user's explicit approval in this session (the permission rules in `.claude/settings.json` mirror this).
 
 ## Team & workflow (details: `docs/AI-WORKFLOW.md`)

@@ -11,6 +11,8 @@ paths:
   - "src/core/save/**"
   - "src/platform/**"
   - "src/render/debug/**"
+  - "tools/check-dist.ts"
+  - "tools/lib/{csp,dist-leaks}.ts"
   - "capacitor.config.ts"
   - "android/**"
   - "ios/**"
@@ -29,3 +31,18 @@ Threats that matter here: supply chain (npm, GitHub Actions), untrusted input (s
 - **Secrets:** never in the repo, logs or bundles: keystores, `key.properties`, `.env*`, real AdMob unit ids for release (test ids in dev). CI secret scanning on every push.
 - **Ads integrity:** reward only on `rewarded`; caps in core; offline/clock-cheat rules from SPEC §3.8 (see `platform.md`).
 - Review: changes under these paths → `security-reviewer` (and `platform-reviewer` for policy). Before each release → `/release-check`.
+
+## Toolchain facts
+- pnpm 12 `pnpm-workspace.yaml` keys: `allowBuilds` (map), `strictDepBuilds`, `minimumReleaseAge` (minutes; 4320 = 3 d). Unknown keys fail. `install --frozen-lockfile` also checks locked versions against the age policy. `pnpm ignored-builds` printing «no node_modules found» is harmless.
+- TypeScript stays `~6.0.x` (typescript-eslint needs `< 6.1`). Tools code is erasable-only (`erasableSyntaxOnly`) with `.ts` import extensions (Node runs it without tsx).
+- CI: pnpm comes from `packageManager` via pnpm/action-setup without `version` (both error). `pnpm security` stays after `build`. To bump a pinned action resolve the SHA with `gh api repos/<o>/<r>/git/ref/tags/<tag>` and dereference annotated tags. Workflow YAML is Prettier-formatted.
+
+## Debug code and dist
+- Debug-only code sits behind `__CK_DEBUG__` (vite `define`, `isDebugMode` = development | test) so Rolldown drops it. Name `RenderSettings` fields neutrally (`frozenAt`, not `freeze`): property names survive minification.
+- `check:dist` matches quoted keys (`"freeze"`, `` `freeze` ``, `"zoom"`, `"tier"`), `location.search`/`URLSearchParams`, `__CK__`, `debug-overlay`, source maps. Positive control: `node tools/check-dist.ts <test-mode outDir>` must fail.
+- Pixi probes `new Function` and Rolldown prints it as `Function(`: check-dist bans `eval(` and any `Function(` except the Pixi sites in `PIXI_FUNCTION_SIGNATURES` — a Pixi upgrade may add one: review, then extend the list.
+- `page.evaluate` bypasses CSP: CSP e2e probes use an inline `<script>` and a string `setTimeout`. The dev server has a relaxed policy (React-refresh preamble, Vite `<style>`, `ws:`).
+
+## gitleaks exceptions
+- `.gitleaks.toml`, inline `gitleaks:allow` and commit-less fingerprints are refused. `.gitleaksignore` holds only exact `<40-hex commit>:<path>:<rule>:<line>` entries, each with a dated `#` reason above.
+- False positive: reproduce locally with the pinned version (`gitleaks git --redact --no-banner --exit-code 1 .`), confirm it is not a secret (a real one → rotate + history rewrite, never an exception), add one fingerprint, rerun → 0, security-reviewer reviews, owner approves. A rewritten commit changes the SHA and the finding returns.

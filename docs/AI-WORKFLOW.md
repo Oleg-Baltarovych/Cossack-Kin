@@ -8,8 +8,8 @@ core, balance as data, art judged by eyes, and store-policy instead of web-secur
 | Layer | Loaded | Purpose |
 |---|---|---|
 | `CLAUDE.md` | every session (~60 lines) | non-negotiable rules, commands, where to look |
-| `docs/CONTEXT.md` | on demand, read first | status, repo map, system status, decisions, gotchas, SPEC index |
-| `.claude/rules/*.md` | automatically when matching files are touched | core, content, render, ui, art, audio, platform, save, testing |
+| `docs/CONTEXT.md` | on demand, read first (≤ ~20 KB) | status, repo map, system status, decisions, cross-cutting gotchas, SPEC index |
+| `.claude/rules/*.md` | automatically when matching files are touched | core, content, render, ui, art, audio, platform, save, security, testing — area rules plus the traps learned in that area |
 | `docs/SPEC.md` | only the section needed | product/engineering spec (source of truth) + `docs/adr/` |
 | `docs/art/` | for visual work | art bible, palette, references, licenses |
 | `docs/plans/*.md` | per task | architect's implementation plan for one feature |
@@ -45,7 +45,7 @@ The main session is the orchestrator (subagents cannot spawn subagents): it rout
 | `/implement <plan>` | plan already approved | lead-developer → reviewers → verify → qa-lead |
 | `/review [base]` | before verify/ship | only the reviewers matching the touched paths, in parallel |
 | `/verify` | Definition-of-Done gate | none (typecheck/test/lint, balance, screenshots + DoD) |
-| `/ship [issue]` | commit + PR | verify → drafts → **you approve** → commit/push/PR |
+| `/ship [issue]` | commit + PR + merge | verify → drafts → **you approve** → commit → push branch → PR → required checks → merge commit |
 | `/bugfix <bug>` | bugs | failing test (or reproducible screenshot) first → fix → review |
 | `/e2e <flow>` | critical flows only (SPEC §12.2) | Playwright planner → generator → healer |
 | `/art-review [scene]` | after render/sprite changes | screenshots day/dusk/night → art-director |
@@ -53,6 +53,19 @@ The main session is the orchestrator (subagents cannot spawn subagents): it rout
 | `/sync-context` | after structural changes | none (refreshes `docs/CONTEXT.md`) |
 
 Procedures (model-invocable, used inside flows): `/sprite`, `/new-village`, `/balance`, `/save-migration`, `/adr`.
+
+## Plans and what they record
+- A plan (`docs/plans/<date>-<slug>.md`) holds decisions and ordered steps; each task ends with a «Результат» note of **≤ 5 lines**: what was built, commits, deviations, open items. Detail belongs in the PR and git history.
+- A non-obvious trap found during a task becomes one imperative line (what to do + why) in the matching `.claude/rules/*.md`; only cross-cutting ones go to `docs/CONTEXT.md` §6; a real decision becomes an ADR.
+
+## Git and PR flow
+`main` is protected (admins included): no direct pushes, no force-push or deletion, conversation resolution required, 0 approvals (solo project), merge commits only.
+
+1. Branch from `main`: `feat/*`, `fix/*`, `art/*`, `chore/*`, `docs/*`, `test/*`; Conventional Commits, one logical change per PR, referencing the milestone task / SPEC §.
+2. Commit → push the branch → `gh pr create` with the template body: what / why / verification / balance (if content or formulas changed).
+3. Required checks green: «Check, build», «Secret scan (gitleaks)», «e2e (functional)». Docs-only changes (`docs/`, `.claude/`, top-level and `.github/` markdown) skip the functional e2e via the `changes` job.
+4. A change that can move pixels: run the full `@screens` matrix on the branch first (`gh workflow run ci.yml --ref <branch>`); otherwise the nightly run (02:00 UTC, if main changed) is the safety net.
+5. `gh pr merge <N> --merge`; the branch is deleted on merge. `/ship` runs steps 2–5 after `/verify` and the user's approval.
 
 ## Guardrails (`.claude/settings.json`, `.claude/hooks/`)
 - `guard-paths.mjs`: blocks any access to `.env*`, keystores and signing properties; blocks edits to generated `public/atlases/` and to committed save fixtures.
@@ -71,7 +84,7 @@ Enabled at project scope (`enabledPlugins`, `extraKnownMarketplaces` in `.claude
 | typescript-lsp | type-aware navigation |
 | frontend-design | **disabled** (2026-11-25): `ui-reviewer` + `.claude/rules/ui.md` cover DOM UI quality |
 | context7 | current docs for Pixi v8, pixi-filters, Capacitor, break_eternity (hosted MCP; queries leave the machine) |
-| Playwright Test Agents | `.claude/agents/playwright-test-*`, `.mcp.json`; regenerate after a Playwright upgrade (see CONTEXT §6) |
+| Playwright Test Agents | `.claude/agents/playwright-test-*`, `.mcp.json` (`pnpm exec playwright run-test-mcp-server`, pinned via the lockfile; `cmd /c` wrapper on Windows). Adapted from Playwright 1.65.1: after a major upgrade re-run `npx playwright init-agents --loop=claude`, then re-apply the short descriptions, `tests/e2e/` paths and the «Game-specific notes» block |
 
 ### Recommended external skills (verified 2026-11-16, not installed yet — review SKILL.md/scripts and pin a commit before installing)
 | When | Tool | Install | Why |

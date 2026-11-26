@@ -13,5 +13,5 @@ Bug: $ARGUMENTS
    If you cannot reproduce, stop and report what you tried.
 3. Fix the cause, not the symptom — no guards that only hide the crash. Smallest change.
 4. Run the test + `pnpm test`. Then `/review` on the changed files.
-5. Add a line to `docs/CONTEXT.md` → Gotchas if the bug reveals a non-obvious trap.
+5. If the bug reveals a non-obvious trap, add a one-line imperative rule (what to do + why) to the matching `.claude/rules/*.md` (cross-cutting: `docs/CONTEXT.md` §6, ≤ 15 bullets).
 6. Report: root cause, fix, test name (or before/after screenshots), checks. Suggest `/ship`.
