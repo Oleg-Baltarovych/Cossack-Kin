@@ -18,8 +18,8 @@
   gap: calc(4 * var(--px));
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: calc(env(safe-area-inset-top) + 4 * var(--px)) env(safe-area-inset-right)
-    calc(env(safe-area-inset-bottom) + 8 * var(--px)) env(safe-area-inset-left);
+  /* No bottom padding: the footer sticks to the very bottom and carries the bottom inset itself (.go, .empty). */
+  padding: calc(env(safe-area-inset-top) + 4 * var(--px)) env(safe-area-inset-right) 0 env(safe-area-inset-left);
   color: var(--c-plaster-5);
   line-height: 1.5;
 }
@@ -30,9 +30,6 @@
 
 .top {
   flex: none;
-  /* With .cardArea's bottom margin: the window's content sits together as one block, centred in a screen taller than
-     it (no dead band between the map and the card); on a screen it overflows, both are 0 and it scrolls. */
-  margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -284,24 +281,22 @@
   composes: srOnly from '../a11y.module.css';
 }
 
-/* --- the offer card: right under the map, «Вирушити» in the lower part of the screen (thumb reach) ------------ */
-
-.cardArea {
-  flex: none;
-  margin-bottom: auto;
-}
+/* --- the offer card: top-anchored right under the map, so choosing another flag never moves the map (cards differ in
+   height); the spare height goes under the card (auto margin), and its footer sticks to the window's bottom ------- */
 
 .empty {
-  margin: 0;
-  padding: calc(6 * var(--px));
+  flex: none;
+  margin: 0 0 auto;
+  padding: calc(6 * var(--px)) calc(6 * var(--px)) calc(6 * var(--px) + env(safe-area-inset-bottom));
   color: var(--c-plaster-4);
   text-align: center;
 }
 
 .card {
+  flex: none;
   display: grid;
   gap: calc(3 * var(--px));
-  margin: 0 calc(6 * var(--px));
+  margin: 0 calc(6 * var(--px)) auto;
   padding: calc(6 * var(--px));
   background: var(--c-wood-1);
   border: var(--px) solid var(--c-ink-0);
@@ -392,12 +387,14 @@
   color: var(--c-gold-5);
 }
 
-/* The footer — the reason and «Вирушити» — sticks to the window's bottom while a long card (larger text, a small
-   phone) runs past it: the button stays in thumb reach without scrolling. */
+/* The footer — the reason and «Вирушити» — is the window's own, full width, pinned to its bottom: on a tall screen
+   the spare height stands between the card and it; a long card (larger text, a small phone) scrolls under it, opaque,
+   and the button stays in thumb reach without scrolling. */
 .go {
   position: sticky;
   bottom: 0;
-  margin: 0 calc(-6 * var(--px)) calc(-6 * var(--px));
+  flex: none;
+  margin: 0;
   padding: calc(3 * var(--px)) calc(6 * var(--px)) calc(6 * var(--px) + env(safe-area-inset-bottom));
   background: var(--c-wood-1);
   display: flex;

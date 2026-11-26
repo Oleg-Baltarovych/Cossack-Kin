@@ -244,9 +244,7 @@ describe('«Вирушити» (M3-11)', () => {
     const map = openMap(2);
     const o = offerOf(store.getState(), 'm30');
     fireEvent.click(flag(map, o));
-    fireEvent.click(
-      within(card(map, o)).getByRole('button', { name: `Вирушити: Дозор — ${regionName('uk', o)}, загін 2` }),
-    );
+    fireEvent.click(within(map).getByRole('button', { name: `Вирушити: Дозор — ${regionName('uk', o)}, загін 2` }));
     expect(sent.filter((a) => a.type === 'startRaid')).toEqual([{ type: 'startRaid', slot: 1, tier: 'm30' }]);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(store.getState().raids.slots[1]?.kind).toBe('running');
@@ -270,11 +268,11 @@ describe('«Вирушити» (M3-11)', () => {
     const o = offerOf(store.getState(), 'h1');
     fireEvent.click(flag(map, o));
     expect(within(map).getByText(/^У дорозі: загін 2 — Розвідка — /)).toBeTruthy();
-    const go = within(card(map, o)).getByRole('button', { name: /^Вирушити: .*, загін 1$/ });
+    const go = within(map).getByRole('button', { name: /^Вирушити: .*, загін 1$/ });
     act(() => {
       store.dispatch({ type: 'startRaid', slot: 0, tier: 'm5' }, store.getState().time.lastSeen);
     });
-    const off = within(card(map, o)).getByRole('button', { name: /^Вирушити/ });
+    const off = within(map).getByRole('button', { name: /^Вирушити/ });
     expect((off as HTMLButtonElement).disabled).toBe(true);
     expect(description(off)).toBe('Усі загони в дорозі');
     expect(go).toBe(off);
@@ -290,7 +288,7 @@ describe('«Вирушити» (M3-11)', () => {
     const { sent } = mount(s);
     const map = openMap(1);
     fireEvent.click(flag(map, o));
-    const go = within(card(map, o)).getByRole('button', { name: /^Вирушити/ });
+    const go = within(map).getByRole('button', { name: /^Вирушити/ });
     expect((go as HTMLButtonElement).disabled).toBe(true);
     expect(description(go)).toBe('Замало сили для цього походу');
     expect(fact(card(map, o), 'Успіх')).toBe(loot('uk', o.success));
@@ -305,12 +303,15 @@ describe('«Вирушити» (M3-11)', () => {
     const map = openMap(1);
     const o = offerOf(s, 'm5');
     fireEvent.click(flag(map, o));
-    const go = within(card(map, o)).getByRole('button', { name: /^Вирушити/ });
+    const go = within(map).getByRole('button', { name: /^Вирушити/ });
     fireEvent.click(go);
     expect(sent.filter((a) => a.type === 'startRaid')).toEqual([{ type: 'startRaid', slot: 0, tier: 'm5' }]);
     expect(screen.getByRole('dialog')).toBe(map);
     expect(description(go)).toBe('Цей загін уже в дорозі');
-    expect(within(card(map, o)).getByRole('status').textContent).toBe('Цей загін уже в дорозі');
+    // The reason is the footer's polite status line (the footer is the window's own row, under the card).
+    const note = document.getElementById(go.getAttribute('aria-describedby') ?? '');
+    expect(note?.getAttribute('role')).toBe('status');
+    expect(note?.textContent).toBe('Цей загін уже в дорозі');
   });
 });
 

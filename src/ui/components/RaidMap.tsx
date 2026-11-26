@@ -5,8 +5,8 @@
 // missing to set off). While the art is loading, if it never comes, if a flag's frame is missing, or at ×1 (the tap
 // boxes would overlap: raid-map-layout test), the five offers are a visible list of buttons under the map instead.
 // The map opens on the suggested offer (`raidSuggested`: the onboarding tier, else the rumour, else the longest tier in
-// reach); its card sits right under the map (the window's content is one block, centred on a tall screen), «Вирушити» in
-// thumb reach, with exactly the numbers the start would roll (shown = granted,
+// reach); its card sits right under the map — the content is top-anchored, so another flag's taller or shorter card
+// never moves the map — and its footer, the reason and «Вирушити», is pinned to the window's bottom in thumb reach, with exactly the numbers the start would roll (shown = granted,
 // §0.1 П3): duration and «повернуться о …» on the game clock, the chance and the loot of a success first, then the
 // failure's loot, the relic and pysanky chances (Q21), the rumour's bonus, «реліквія близько» (П5), the power to 100 %,
 // and «Вирушити» — off with its reason when no squad is free or the army is too weak (then the card says how much power
@@ -241,72 +241,75 @@ function OfferCard({ offer, slot, onStarted }: { offer: RaidOfferView; slot: num
   const name = where(text, offer.tier, offer.region);
   // What a raid that cannot set off yet would bring is shown dim: the player sees what is coming, not a promise.
   const minor = [styles.fact, styles.minor, weak ? styles.dim : ''].join(' ');
+  // Two of the window's own rows: the card, then its footer pinned to the window's bottom (not the card's).
   return (
-    <section
-      className={styles.card}
-      aria-labelledby={titleId}
-      data-offer={offer.tier}
-      data-blocked={offer.blocked ?? ''}
-    >
-      <header className={styles.cardHead}>
-        <h3 id={titleId} className={styles.cardTitle}>
-          {name}
-        </h3>
-        <p className={styles.when}>{text.t('ui.map.when', { time: text.dur(offer.durationSec), back })}</p>
-      </header>
-      {weak && (
-        <p className={styles.need}>
-          {text.t('ui.map.toStart', { value: text.num(offer.powerToStart), count: offer.powerToStart })}
-        </p>
-      )}
-      <dl className={styles.facts}>
-        {!weak && (
-          <div className={[styles.fact, styles.major].join(' ')} data-fact="chance">
-            <dt>{text.t('ui.map.chance')}</dt>
-            <dd>{pct(text, offer.chancePct)}</dd>
-          </div>
+    <>
+      <section
+        className={styles.card}
+        aria-labelledby={titleId}
+        data-offer={offer.tier}
+        data-blocked={offer.blocked ?? ''}
+      >
+        <header className={styles.cardHead}>
+          <h3 id={titleId} className={styles.cardTitle}>
+            {name}
+          </h3>
+          <p className={styles.when}>{text.t('ui.map.when', { time: text.dur(offer.durationSec), back })}</p>
+        </header>
+        {weak && (
+          <p className={styles.need}>
+            {text.t('ui.map.toStart', { value: text.num(offer.powerToStart), count: offer.powerToStart })}
+          </p>
         )}
-        <div className={[styles.fact, styles.major, weak ? styles.dim : ''].join(' ')} data-fact="success">
-          <dt>{text.t('ui.map.success')}</dt>
-          <dd className={weak ? undefined : styles.good}>{lootText(text, offer.success)}</dd>
-        </div>
-        <div className={minor} data-fact="failure">
-          <dt>{text.t('ui.map.failure')}</dt>
-          <dd>{lootText(text, offer.failure)}</dd>
-        </div>
-        {offer.relicPct > 0 && (
-          <div className={minor} data-fact="relic">
-            <dt>{text.t('ui.map.relic')}</dt>
-            <dd>{text.t('ui.map.relicValue', { chance: pct(text, offer.relicPct) })}</dd>
+        <dl className={styles.facts}>
+          {!weak && (
+            <div className={[styles.fact, styles.major].join(' ')} data-fact="chance">
+              <dt>{text.t('ui.map.chance')}</dt>
+              <dd>{pct(text, offer.chancePct)}</dd>
+            </div>
+          )}
+          <div className={[styles.fact, styles.major, weak ? styles.dim : ''].join(' ')} data-fact="success">
+            <dt>{text.t('ui.map.success')}</dt>
+            <dd className={weak ? undefined : styles.good}>{lootText(text, offer.success)}</dd>
           </div>
-        )}
-        {offer.pysankyPct > 0 && (
-          <div className={minor} data-fact="pysanky">
-            <dt>{text.t('ui.map.pysanky')}</dt>
-            <dd>
-              {text.t('ui.map.pysankyValue', {
-                chance: pct(text, offer.pysankyPct),
-                min: RAIDS.pysanky.min,
-                count: RAIDS.pysanky.max,
-              })}
-            </dd>
+          <div className={minor} data-fact="failure">
+            <dt>{text.t('ui.map.failure')}</dt>
+            <dd>{lootText(text, offer.failure)}</dd>
           </div>
+          {offer.relicPct > 0 && (
+            <div className={minor} data-fact="relic">
+              <dt>{text.t('ui.map.relic')}</dt>
+              <dd>{text.t('ui.map.relicValue', { chance: pct(text, offer.relicPct) })}</dd>
+            </div>
+          )}
+          {offer.pysankyPct > 0 && (
+            <div className={minor} data-fact="pysanky">
+              <dt>{text.t('ui.map.pysanky')}</dt>
+              <dd>
+                {text.t('ui.map.pysankyValue', {
+                  chance: pct(text, offer.pysankyPct),
+                  min: RAIDS.pysanky.min,
+                  count: RAIDS.pysanky.max,
+                })}
+              </dd>
+            </div>
+          )}
+        </dl>
+        {rumor && (
+          <p className={styles.rumor}>
+            {text.t(rumor.effect.kind === 'loot' ? 'ui.map.rumorLoot' : 'ui.map.rumorRelic', {
+              name: text.t(rumor.nameKey),
+              value: pct(text, wholePercent(rumor.effect.share)),
+            })}
+          </p>
         )}
-      </dl>
-      {rumor && (
-        <p className={styles.rumor}>
-          {text.t(rumor.effect.kind === 'loot' ? 'ui.map.rumorLoot' : 'ui.map.rumorRelic', {
-            name: text.t(rumor.nameKey),
-            value: pct(text, wholePercent(rumor.effect.share)),
-          })}
-        </p>
-      )}
-      {offer.relicSure && <p className={styles.sure}>{text.t('ui.map.relicSure')}</p>}
-      {!weak && offer.powerToFull > 0 && (
-        <p className={styles.quiet}>
-          {text.t('ui.map.toFull', { value: text.num(offer.powerToFull), count: offer.powerToFull })}
-        </p>
-      )}
+        {offer.relicSure && <p className={styles.sure}>{text.t('ui.map.relicSure')}</p>}
+        {!weak && offer.powerToFull > 0 && (
+          <p className={styles.quiet}>
+            {text.t('ui.map.toFull', { value: text.num(offer.powerToFull), count: offer.powerToFull })}
+          </p>
+        )}
+      </section>
       <footer className={styles.go}>
         <p id={noteId} className={styles.note} role="status">
           {refused ?? reason}
@@ -331,7 +334,7 @@ function OfferCard({ offer, slot, onStarted }: { offer: RaidOfferView; slot: num
           {text.t('ui.map.go')}
         </button>
       </footer>
-    </section>
+    </>
   );
 }
 
@@ -618,13 +621,11 @@ export function RaidMap({ slot, onClose }: RaidMapProps) {
         <p className={styles.sr} role="status">
           {said && <span key={said.id}>{said.text}</span>}
         </p>
-        <div className={styles.cardArea}>
-          {offer ? (
-            <OfferCard key={offer.tier} offer={offer} slot={target} onStarted={onClose} />
-          ) : (
-            <p className={styles.empty}>{text.t('ui.map.empty')}</p>
-          )}
-        </div>
+        {offer ? (
+          <OfferCard key={offer.tier} offer={offer} slot={target} onStarted={onClose} />
+        ) : (
+          <p className={styles.empty}>{text.t('ui.map.empty')}</p>
+        )}
       </section>
     </div>
   );
