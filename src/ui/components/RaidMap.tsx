@@ -5,7 +5,8 @@
 // missing to set off). While the art is loading, if it never comes, if a flag's frame is missing, or at ×1 (the tap
 // boxes would overlap: raid-map-layout test), the five offers are a visible list of buttons under the map instead.
 // The map opens on the suggested offer (`raidSuggested`: the onboarding tier, else the rumour, else the longest tier in
-// reach); its card sits at the bottom, in thumb reach, with exactly the numbers the start would roll (shown = granted,
+// reach); its card sits right under the map (the window's content is one block, centred on a tall screen), «Вирушити» in
+// thumb reach, with exactly the numbers the start would roll (shown = granted,
 // §0.1 П3): duration and «повернуться о …» on the game clock, the chance and the loot of a success first, then the
 // failure's loot, the relic and pysanky chances (Q21), the rumour's bonus, «реліквія близько» (П5), the power to 100 %,
 // and «Вирушити» — off with its reason when no squad is free or the army is too weak (then the card says how much power

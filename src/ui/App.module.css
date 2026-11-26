@@ -13,6 +13,11 @@
   pointer-events: none;
 }
 
+/* Under an opaque full-screen window (the raid map): kept in layout (sheet height, scroll, snaps), never painted. */
+.layer[data-covered] {
+  visibility: hidden;
+}
+
 .layer > * {
   pointer-events: auto;
 }

@@ -30,6 +30,9 @@
 
 .top {
   flex: none;
+  /* With .cardArea's bottom margin: the window's content sits together as one block, centred in a screen taller than
+     it (no dead band between the map and the card); on a screen it overflows, both are 0 and it scrolls. */
+  margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -281,11 +284,11 @@
   composes: srOnly from '../a11y.module.css';
 }
 
-/* --- the offer card: at the bottom of the window, «Вирушити» in thumb reach ---------------------------------- */
+/* --- the offer card: right under the map, «Вирушити» in the lower part of the screen (thumb reach) ------------ */
 
 .cardArea {
   flex: none;
-  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .empty {

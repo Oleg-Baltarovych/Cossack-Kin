@@ -81,7 +81,9 @@ export function App({ game }: { game: Game }) {
  * map (M3-11) is a window the player opens from a squad's «Обрати похід»: story beats wait while it is open, and the
  * save notice or the return window close it (nothing is lost: the board is the day's, the map opens again). A raid's
  * chest (M3-12) opens on a claim — one window per action, so «Забрати все» is one — after the save notice and the
- * return window, before the story beats (a beat a claim fired waits for the chest).
+ * return window, before the story beats (a beat a claim fired waits for the chest). The map is opaque and covers the
+ * whole screen, so under it HUD and panel are also hidden (laid out, not painted): at 412@3.5 the screen's last device
+ * row is half outside the 915-css viewport and showed the sheet's text through the map's edge (M3 deferred 8).
  */
 export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game['notice'] }) {
   const away = useGame((s) => s.returnReport !== null);
@@ -123,7 +125,7 @@ export function GameUi({ world, notice }: { world: WorldApp | null; notice: Game
     <div className={styles.ui}>
       <CoinFlight buildingAt={buildingAt}>
         <TapFeedback world={world} />
-        <div className={styles.layer} inert={windowOpen}>
+        <div className={styles.layer} inert={windowOpen} data-covered={mapOpen ? '' : undefined}>
           <Hud />
           <Panel
             onZone={(zone) => world?.focusZone(zone)}
