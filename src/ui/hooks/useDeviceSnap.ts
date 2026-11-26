@@ -4,7 +4,10 @@ import { useLayoutEffect, useRef, type DependencyList, type RefObject } from 're
 import { deviceSnap } from '../pixelSnap.ts';
 
 /**
- * Moves the box onto whole device px (`translate`: layout is untouched) on mount, resize, font load and parent resize.
+ * Moves the box onto whole device px (`translate`: layout is untouched) on mount, window resize, font load and a resize
+ * of any ancestor. Ancestors, not only the parent: the bottom sheet's height tween moves its content without resizing the
+ * icon's parent, and a snap measured on a mid-tween frame stayed there (412@3.5 landed on a different translate run to
+ * run). Every ancestor's resize is reported once per frame after layout, so the last snap measures the settled box.
  * `deps`: what decides whether the ref'd element is in the page (it may appear only once an atlas arrived) or where it
  * stands — the listeners are set up again when one changes.
  */
@@ -22,9 +25,8 @@ export function useDeviceSnap<T extends HTMLElement = HTMLSpanElement>(deps: Dep
       if (dx !== 0 || dy !== 0) el.style.translate = `${String(dx)}px ${String(dy)}px`;
     };
     snap();
-    const parent = el.parentElement;
-    const observer = typeof ResizeObserver === 'undefined' || !parent ? null : new ResizeObserver(snap);
-    if (parent) observer?.observe(parent);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(snap);
+    for (let a = el.parentElement; a && observer; a = a.parentElement) observer.observe(a);
     window.addEventListener('resize', snap);
     // The pixel font arriving moves the line boxes (vertical-align) without resizing the parent.
     const fonts = typeof document.fonts === 'undefined' ? null : document.fonts;

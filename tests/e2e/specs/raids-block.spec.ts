@@ -76,11 +76,8 @@ test.describe('M3-09 «Походи» block @screens', () => {
         expect(peek, 'the hire row stays within 7 px of the sheet edge').toBeGreaterThanOrEqual(-7);
       else expect(peek, 'the hire row shows under the block').toBeGreaterThanOrEqual(8);
       await shot(page, `idle-half-${lang}`);
-      // Clock fixed and native frames (beforeEach), world frozen, nothing in the block counts down. Mask: the quest
-      // strip's scroll icon — on 412@3.5 its device-px snap (useDeviceSnap) lands on one of two resamplings run to run
-      // (596 px inside the 18×22 icon, 1 run in 4 locally); the strip has its own checks (hud/quest specs).
-      if (lang === 'uk')
-        await expectBaseline(page, 'm3-raids-half', [page.locator('[data-quest] [data-icon="quest"]')]);
+      // Clock fixed and native frames (beforeEach), world frozen, nothing in the block counts down.
+      if (lang === 'uk') await expectBaseline(page, 'm3-raids-half');
     });
 
     test(`on the road and back (${lang})`, async ({ page }) => {

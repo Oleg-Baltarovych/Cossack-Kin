@@ -26,7 +26,7 @@ paths:
 ## Pixel and font
 - Press Start 2P: 1000 units/em = 8 font px; crisp only at whole device px (`uiScale`). Its space is a full cell → `word-spacing: -0.5em` on #root, buttons need `word-spacing: inherit`. No ⚙ or − (U+2212) glyphs.
 - NBSP: Prettier/the format hook turns a `' '` escape into a literal NBSP — build it with `String.fromCharCode(0xa0)` (i18n `NBSP`).
-- Icons are DOM CSS sprites at natural size + `transform: scale(var(--px-n))` (a `background-size` in `--px` rounds to 1/64 css px → seams at 3.5 dpr). Frames 18×18 (16×16 + 1-px margin), no `overflow: hidden`; `Icon` snaps its box to whole device px (`pixelSnap.ts`). `ICON_IDS` must equal the generator's `ICONS`.
+- Icons are DOM CSS sprites at natural size + `transform: scale(var(--px-n))` (a `background-size` in `--px` rounds to 1/64 css px → seams at 3.5 dpr). Frames 18×18 (16×16 + 1-px margin), no `overflow: hidden`; `Icon` snaps its box to whole device px (`pixelSnap.ts`); `useDeviceSnap` re-measures on any ancestor's resize (a sheet height tween moves the box without resizing its parent) — never snap only on mount/parent, never mask a snapped box in a baseline. `ICON_IDS` must equal the generator's `ICONS`.
 - Do not grow the `ui` atlas (at 113×56 the HUD icons went soft at 412@3.5): new DOM icons go to another sheet (`useIconAtlas(id)`). Every `RelicId` needs `<id>` and `<id>-unknown` in `loot`.
 - Raid map: draw at `--mpx` = `--k` × `--px`; text is never inside a scaled box. Without art, a missing flag frame or at ×1 show the offers as a button list.
 - Prices: `formatPrice` (≤ `PRICE_MAX_CHARS`), the full form in `aria-label`; no atlas → `Icon fallback` text.
