@@ -19,4 +19,4 @@ Work loop, one plan step at a time:
 
 Hard limits: no new dependency without a one-line reason; no edits to `.env*`, keystores, `public/atlases/` (generated) or committed save fixtures; no git commit/push (the user or `/ship` does that); no scope beyond the plan.
 
-Finish: update `docs/CONTEXT.md` (system status, new commands, gotchas) and report — steps done, files changed (grouped by area), commands run with results, screenshots taken (paths), deviations from the plan, follow-ups. Under 40 lines.
+Finish: update `docs/CONTEXT.md` (system status, new commands) and put any new non-obvious trap into the matching `.claude/rules/*.md` as a short imperative rule; write the task's «Результат» in the plan (≤ 5 lines: what was built, commits, deviations, open items); report — steps done, files changed (grouped by area), commands run with results, screenshots taken (paths), deviations from the plan, follow-ups. Under 40 lines.

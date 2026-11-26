@@ -4,7 +4,7 @@
 // highlight), old smoke cools and darkens into the air (stone) — art-director M2-11. Lit from the top-left. Binary
 // alpha thinned by a fixed scatter of holes instead of soft alpha: the puffs live in the graded world (the night
 // grade darkens them like the roofs), and the grade filter does not re-premultiply a half-transparent px — a soft
-// puff over the sky would glow at night (CONTEXT §6 «Building life»). Pivot = bottom centre.
+// puff over the sky would glow at night (`.claude/rules/art.md` «Generator contract»). Pivot = bottom centre.
 import { compose } from '../../lib/passes.ts';
 import { Plot } from '../../lib/plot.ts';
 import type { RampName, SpriteGenerator } from '../../lib/types.ts';

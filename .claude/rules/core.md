@@ -15,3 +15,24 @@ paths:
 - No magic numbers: formulas take constants from `src/content/`. A literal other than 0/1/unit conversion needs a content key.
 - Every buff flows through `collectModifiers(state, now)`; systems never read culture/heroes/relics directly.
 - Illegal states unrepresentable: `ActiveRaid` as a union of `running | returned`, weather as a union, etc.
+- Relative imports end in `.ts` (Node runs core directly: `node tools/hello-core.ts`).
+
+## Time and actions
+- An action acts at `lastSeen` after `advance` (`at` in `applyAction`), never the raw `now`: a clock behind would store times before `created` and the save gate would refuse the game's own save. An action never integrates a gap itself (the store ticks first).
+- `resume(state, now)` is the only path that reports `clockBack`; 10 Hz ticks stay quiet while the clock is behind.
+- `integrate` is income only (capped offline). Anything that must reach the real `now` past the cap (raid returns) runs after it, like `returnRaids` in `advance`/`applyOffline`.
+- Time alone never emits level/tier events: `TierReached` comes only from buy actions.
+- Rewards use `steadyModifiers` (no wind of the moment), so online = offline. The glory cap (`gloryCapSec`) bounds only passive/offline accrual; grants from beats, quests and raid claims go straight in.
+
+## State invariants
+- `validateState` does not enforce derived invariants — formulas must not assume them. It drops unknown `story.seen` ids (rename-safe).
+- Quest completion is derived (level ≥, or `stats[stat] − base ≥ n`), never stored. The quest day is monotone (`max(stored, now)`): clock back or a westward zone gives no new day.
+- `raids.slots` length is frozen in the save shape (`V4_RAID_SLOTS` 3): changing `RAIDS.maxSlots` needs a migration. The v4 gate wants `returnAt = startedAt + duration` exactly — widen it when `raidTimeMult` is applied (M4).
+- The raid gate bounds `pity` by `pityThreshold(found + relics in slots)`, not `relics.length`. A running slot's view shows no chance (the roll stores only `success`).
+- Treasury levels raise raid loot twice (defence → income, and `lootMult`): isolate the loot share with `lootOf(sameState, tier, 1)`.
+
+## Seeded picks (frozen)
+- `hash32` values, `VARIANT_SALT`, plot-variant `key`s, chore/visitor salts are pinned by golden tests: changing them reshuffles saved schedules.
+- `pickStable` options may grow, never shrink. Chores: the first `CHORES.moduloCount` (8) keep the modulo pick; every appended chore joins by the reservoir step (`nextChore`) — never widen the modulo set.
+- `choreSystems` offers raid chores only when `raidReady` (no chore skip exists — never offer one the player cannot begin).
+- `core/systems/visitors.ts` is imported by nothing else in core (test).

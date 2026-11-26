@@ -16,3 +16,12 @@ paths:
 - Verify plugin APIs and Capacitor-version compatibility from installed typings / official docs (context7), not memory.
 - Never commit or read keystores, `key.properties`, `.env*`. Real AdMob ids come from build config; test ids in dev.
 - Store/policy-facing changes (ads, analytics, notifications, permissions, data collected) → `platform-reviewer`.
+
+## As built
+- A hidden tab is an absence: `driveGame` stops the loop while hidden/pagehide (throttled background timers would otherwise count as online time — no caps, no return window).
+- `createLoop.start` goes through `resume`, so a loaded save resumes like a return; it writes the device zone via `setSettings({ tzOffsetMin })` when it differs.
+- The saver always writes the slot that was NOT just loaded/written; a «newer» save disables saving. Debug `?state=` presets and `?freeze` play in memory and never touch `ck.save_a/b`. One tab runs the game (Web Lock `cossack-kin-game`).
+- Autosave listens to `store.onEvents` (one write per commit) and writes at once after `RaidStarted`/`RaidClaimed`.
+- Notification plan: schedule `raid.0…k-1` first (same id replaces), then cancel leftover ids up to `RAIDS.maxSlots` (never a gap), serialised in one promise chain, only `at > now()`. Replan on start, claim, `StateReplaced`, a language change, every resume and once at boot. The whole replan is in try/catch — never throw into store delivery.
+- M6 adapter: int ids via a stable table, inexact scheduling only (no `SCHEDULE_EXACT_ALARM`), adapter-owned channel (plan M3 «Відкладено після M3»).
+- Stale deploy: `chunkReload.ts` reloads once per tab session on `vite:preloadError`.

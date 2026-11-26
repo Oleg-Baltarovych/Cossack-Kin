@@ -80,7 +80,7 @@ export function createFxLayer({ layout, frame, lessMotion, quality }: FxLayerOpt
       },
       update: ({ ambient, scene, camX }) => {
         // The claim counts every standing chimney's puffs, on screen or not: like the campfire sparks, a particle
-        // claim is the world-wide worst case (CONTEXT §6 «Continuous world»), so the budget reading does not jump with
+        // claim is the world-wide worst case (`.claude/rules/render.md` «World and scene»), so the budget reading does not jump with
         // the camera — only the drawing is culled.
         let live = 0;
         for (const { prop, vent, x, sprites } of chimneys) {
