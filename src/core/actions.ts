@@ -5,7 +5,11 @@
 // the quests finished by it report `QuestCompleted` (M2-23: only actions move levels and counters).
 // Raids (M3-05, ADR 012): `startRaid` rolls on the advanced state at the effective time; `claimRaid` / `claimAllRaids`
 // grant what was rolled. `RaidClaimed` / `RelicFound` come only from here; `RaidReturned` only from time.
+// Culture and heroes (M4-05): `buyCulture` / `levelHero` (systems/culture.ts); `CultureBought` / `HeroLevelled` only
+// from here.
+import type { CultureNodeId } from '../content/culture.ts';
 import { FARM, SICH, TAP } from '../content/economy.ts';
+import type { HeroId } from '../content/heroes.ts';
 import { BUILD_SYSTEMS, type SystemId } from '../content/quests.ts';
 import type { RaidTierId } from '../content/raids.ts';
 import { SICH_BUILDINGS, type SichBuildingId } from '../content/sich.ts';
@@ -18,6 +22,7 @@ import { collectModifiers, farmIncomeRate, sichUnlocked, villageOf } from './mod
 import { TZ_OFFSET_MIN, type GameState, type Lang, type NumberFormat } from './state.ts';
 import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
+import { buyCulture, levelHero } from './systems/culture.ts';
 import { claimQuest, questCompletions, type QuestKind } from './systems/quests.ts';
 import { claimAllRaids, claimRaid, claimRaidAgain, raidReady, startRaid } from './systems/raids.ts';
 import { checkStory } from './systems/story.ts';
@@ -38,6 +43,10 @@ export type Action =
   | { readonly type: 'claimRaid'; readonly slot: number; readonly again?: boolean }
   /** «Забрати все» (Q17): claimRaid on every returned slot. */
   | { readonly type: 'claimAllRaids' }
+  /** Learn one rank of a culture node (SPEC §3.5; M4-05). */
+  | { readonly type: 'buyCulture'; readonly id: CultureNodeId }
+  /** Raise a hero who came, by the shared ×1/×10/×25/Max picker (SPEC §3.5; M4-05). */
+  | { readonly type: 'levelHero'; readonly id: HeroId; readonly mode: BuyMode }
   | {
       readonly type: 'setSettings';
       readonly lang?: Lang;
@@ -219,6 +228,12 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
       break;
     case 'claimAllRaids':
       result = claimAllRaids(s);
+      break;
+    case 'buyCulture':
+      result = buyCulture(s, action.id);
+      break;
+    case 'levelHero':
+      result = levelHero(s, action.id, action.mode);
       break;
   }
   if (result === null) return advanced;

@@ -36,7 +36,7 @@ const GROWTH = 1.25;
 
 export const HEROES: readonly HeroDef[] = [
   // «Рада на майдані» (Майдан 10), M4-04.
-  hero('otaman', 300, GROWTH, [{ kind: 'power', perRank: 0.03 }]),
+  hero('otaman', 300, GROWTH, [{ kind: 'power', perRank: 0.015 }]),
   // «Кобзар біля шинку» (шинок 10), M4-08.
   hero('kobzar', 500, GROWTH, [
     { kind: 'cultureCost', perRank: 0.01 },

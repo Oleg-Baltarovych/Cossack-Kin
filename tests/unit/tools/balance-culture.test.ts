@@ -1,6 +1,6 @@
 // The sim's stand-in for the first culture rank (plan M4-04, coordinator decision (a) as for `raid1` in M3-04): until
-// `buyCulture` (M4-05) and the bot's culture policy (M4-09), the bot learns one rank of «Кобзарські думи» on the
-// chain step `culture1` — and only there — paying its content price in glory, as the action will.
+// the bot's culture policy (M4-09), the bot learns one rank of «Кобзарські думи» on the chain step `culture1` — and
+// only there — through the real `buyCulture` action (M4-05), paying its content price in glory.
 import { describe, expect, it } from 'vitest';
 import { CULTURE_NODES } from '../../../src/content/culture.ts';
 import { CHAIN_STEP_IDS, type ChainStepId } from '../../../src/content/quests.ts';
@@ -28,7 +28,7 @@ function onStep(id: ChainStepId, { tavern = 1, glory = 1e6 }: { tavern?: number;
 /** The first rank's price: base × growth^0 × cultureCostMult (plan §0), read from content and the modifiers. */
 const firstPrice = (s: GameState): Big => Big.from(dumy?.base ?? Number.NaN).mul(steadyModifiers(s).cultureCostMult);
 
-describe('standInCulture (M4-04 stand-in; M4-05 + M4-09 replace it)', () => {
+describe('standInCulture (M4-04 stand-in, the real action since M4-05; M4-09 replaces it)', () => {
   it('on `culture1`: one rank of «Кобзарські думи», cultureRanks + 1, its price paid in glory; the step is done', () => {
     const s = onStep('khortytsia.culture1');
     const after = standInCulture(s);

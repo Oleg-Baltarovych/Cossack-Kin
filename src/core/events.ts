@@ -1,5 +1,6 @@
 // Domain events (SPEC §9.2; plan §0): a discriminated union of plain data. The core returns them with every state
 // change; the store forwards them to render and audio, which react but never write state. Grows with M1-11/12.
+import type { CultureNodeId } from '../content/culture.ts';
 import type { HeroId } from '../content/heroes.ts';
 import type { SichBuildingId } from '../content/sich.ts';
 import type { StoryBeatId } from '../content/story.ts';
@@ -29,6 +30,8 @@ export type RejectReason =
   | 'noReport'
   | 'notDone'
   | 'range'
+  /** buyCulture: the node's prerequisites (a node of the row above at rank ≥ 1, or both for the top) do not hold. */
+  | 'prereq'
   /** startRaid: the slot is running or returned (claim it first). */
   | 'slotBusy'
   /** startRaid: ArmyPower < minPowerShare × P. */
@@ -57,6 +60,10 @@ export type GameEvent =
   | { readonly type: 'StoryBeatReached'; readonly id: StoryBeatId; readonly granted: Granted | null }
   /** A hero arrived at level 1 with his story beat (right after its StoryBeatReached; may come from time — M4-04). */
   | { readonly type: 'HeroJoined'; readonly id: HeroId }
+  /** A culture rank was learnt (from the buyCulture action only: one rank, `to` = `from` + 1). */
+  | { readonly type: 'CultureBought'; readonly id: CultureNodeId; readonly from: number; readonly to: number }
+  /** A hero was levelled (from the levelHero action only). */
+  | { readonly type: 'HeroLevelled'; readonly id: HeroId; readonly from: number; readonly to: number }
   /** A quest's goal was reached (once per quest); its reward waits for `claimQuest` (SPEC §3.10). */
   | { readonly type: 'QuestCompleted'; readonly kind: QuestKind; readonly id: QuestId }
   /** A finished quest was claimed; `granted` is null for a chore past the day's reward limit. */

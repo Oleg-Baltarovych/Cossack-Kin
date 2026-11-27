@@ -43,6 +43,16 @@ describe('story beats of land 1 (M2-22, Q7)', () => {
     }
   });
 
+  it('a hero beat is due only right after an action (M4-05): its trigger is a building, a Sich level or hires', () => {
+    // A hero raises rates from his arrival on; a beat that time could make due (storms, bloom) would bring him inside
+    // an `advance` gap, at its end in one 8 h call but early in 0.1 s ticks — online ≠ offline. An action checks the
+    // story at once, so an action-met trigger never stays due across a gap.
+    const ACTION_MET = new Set(['building', 'sich', 'hired']);
+    const heroBeats = STORY_BEATS.filter((b) => b.reward?.kind === 'unlock');
+    expect(heroBeats.length).toBeGreaterThan(0);
+    for (const b of heroBeats) expect(ACTION_MET.has(b.trigger.kind), b.id).toBe(true);
+  });
+
   it('title and text keys are story.<land>.<beat>.title|text and exist in uk and en', () => {
     const uk = locale('uk');
     const en = locale('en');

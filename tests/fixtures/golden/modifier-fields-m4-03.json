@@ -1,0 +1,2452 @@
+[
+  {
+    "now": 1764101457270,
+    "live": {
+      "incomeMult": 1.775,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2,
+      "powerMult": 2.3,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 22800,
+      "lootMult": 1.1400000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.775,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2,
+      "powerMult": 2.3,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 22800,
+      "lootMult": 1.1400000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765226643381,
+    "live": {
+      "incomeMult": 1.9500000000000002,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.59,
+      "powerMult": 2.9299999999999997,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 37800,
+      "lootMult": 1.4900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.9500000000000002,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.59,
+      "powerMult": 2.9299999999999997,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 37800,
+      "lootMult": 1.4900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764231229603,
+    "live": {
+      "incomeMult": 2.3600000000000003,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.7799999999999998,
+      "powerMult": 4.6,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 40200,
+      "lootMult": 1.53,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.3600000000000003,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.7799999999999998,
+      "powerMult": 4.6,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 40200,
+      "lootMult": 1.53,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764477826787,
+    "live": {
+      "incomeMult": 2.51,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.31,
+      "powerMult": 3.15,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 38400,
+      "lootMult": 1.4,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.51,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.31,
+      "powerMult": 3.15,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 38400,
+      "lootMult": 1.4,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764593856783,
+    "live": {
+      "incomeMult": 1.495,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.2,
+      "powerMult": 2.25,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 27600,
+      "lootMult": 1.22,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.495,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.2,
+      "powerMult": 2.25,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 27600,
+      "lootMult": 1.22,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764853401158,
+    "live": {
+      "incomeMult": 2.01,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.62,
+      "powerMult": 1.93,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25200,
+      "lootMult": 1.28,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.01,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.62,
+      "powerMult": 1.93,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25200,
+      "lootMult": 1.28,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765004274144,
+    "live": {
+      "incomeMult": 1.975,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.45,
+      "powerMult": 3.26,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 17400,
+      "lootMult": 1.1500000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.975,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.45,
+      "powerMult": 3.26,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 17400,
+      "lootMult": 1.1500000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765989657943,
+    "live": {
+      "incomeMult": 2.02,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.4,
+      "powerMult": 2.4099999999999997,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 28800,
+      "lootMult": 1.24,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.02,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.4,
+      "powerMult": 2.4099999999999997,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 28800,
+      "lootMult": 1.24,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764320071773,
+    "live": {
+      "incomeMult": 2.365,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.64,
+      "powerMult": 4.159999999999999,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 23400,
+      "lootMult": 1.15,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.365,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.64,
+      "powerMult": 4.159999999999999,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 23400,
+      "lootMult": 1.15,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765891397584,
+    "live": {
+      "incomeMult": 2.2750000000000004,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.22,
+      "powerMult": 2.34,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 16800,
+      "lootMult": 1.1400000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.2750000000000004,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.22,
+      "powerMult": 2.34,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 16800,
+      "lootMult": 1.1400000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763970663180,
+    "live": {
+      "incomeMult": 1.835,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.31,
+      "powerMult": 3.4399999999999995,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 24000,
+      "lootMult": 1.26,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.835,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.31,
+      "powerMult": 3.4399999999999995,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 24000,
+      "lootMult": 1.26,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763737454226,
+    "live": {
+      "incomeMult": 1.875,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.9600000000000002,
+      "powerMult": 2.49,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 36600,
+      "lootMult": 1.37,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.875,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.9600000000000002,
+      "powerMult": 2.49,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 36600,
+      "lootMult": 1.37,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765381890704,
+    "live": {
+      "incomeMult": 2.665,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.36,
+      "powerMult": 3.2699999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 43800,
+      "lootMult": 1.49,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.665,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.36,
+      "powerMult": 3.2699999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 43800,
+      "lootMult": 1.49,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764073649745,
+    "live": {
+      "incomeMult": 2.045,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.34,
+      "powerMult": 2.3899999999999997,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 28200,
+      "lootMult": 1.33,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.045,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.34,
+      "powerMult": 2.3899999999999997,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 28200,
+      "lootMult": 1.33,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763465896989,
+    "live": {
+      "incomeMult": 2.175,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.8699999999999999,
+      "powerMult": 3.51,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 36600,
+      "lootMult": 1.4700000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.175,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.8699999999999999,
+      "powerMult": 3.51,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 36600,
+      "lootMult": 1.4700000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764051058936,
+    "live": {
+      "incomeMult": 1.69,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.93,
+      "powerMult": 2.26,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25800,
+      "lootMult": 1.19,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.69,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.93,
+      "powerMult": 2.26,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25800,
+      "lootMult": 1.19,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764304293723,
+    "live": {
+      "incomeMult": 1.92,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.38,
+      "powerMult": 3.11,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 39000,
+      "lootMult": 1.4100000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.92,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.38,
+      "powerMult": 3.11,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 39000,
+      "lootMult": 1.4100000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765361729886,
+    "live": {
+      "incomeMult": 2.02,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.4,
+      "powerMult": 2.69,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 40800,
+      "lootMult": 1.54,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.02,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.4,
+      "powerMult": 2.69,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 40800,
+      "lootMult": 1.54,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764532826487,
+    "live": {
+      "incomeMult": 1.79,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.44,
+      "powerMult": 3.11,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 19800,
+      "lootMult": 1.1900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.79,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.44,
+      "powerMult": 3.11,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 19800,
+      "lootMult": 1.1900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764674781158,
+    "live": {
+      "incomeMult": 1.79,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.17,
+      "powerMult": 3.69,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 15600,
+      "lootMult": 1.02,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.79,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.17,
+      "powerMult": 3.69,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 15600,
+      "lootMult": 1.02,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765826544979,
+    "live": {
+      "incomeMult": 2.2,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.43,
+      "powerMult": 2.0599999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 20400,
+      "lootMult": 1.1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.2,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.43,
+      "powerMult": 2.0599999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 20400,
+      "lootMult": 1.1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765488499294,
+    "live": {
+      "incomeMult": 2.7,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.51,
+      "powerMult": 3.03,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 35400,
+      "lootMult": 1.4500000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.7,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.51,
+      "powerMult": 3.03,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 35400,
+      "lootMult": 1.4500000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763981020607,
+    "live": {
+      "incomeMult": 1.565,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.74,
+      "powerMult": 2.3099999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 19800,
+      "lootMult": 1.1900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.565,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.74,
+      "powerMult": 2.3099999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 19800,
+      "lootMult": 1.1900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765852329762,
+    "live": {
+      "incomeMult": 2.19,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.66,
+      "powerMult": 3.0399999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 39600,
+      "lootMult": 1.42,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.19,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.66,
+      "powerMult": 3.0399999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 39600,
+      "lootMult": 1.42,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764813745833,
+    "live": {
+      "incomeMult": 2.7350000000000003,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.49,
+      "powerMult": 3.29,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 14400,
+      "lootMult": 1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.7350000000000003,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.49,
+      "powerMult": 3.29,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 14400,
+      "lootMult": 1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764901744175,
+    "live": {
+      "incomeMult": 2.62,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.7200000000000002,
+      "powerMult": 2.59,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 37800,
+      "lootMult": 1.4900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.62,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.7200000000000002,
+      "powerMult": 2.59,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 37800,
+      "lootMult": 1.4900000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765090009199,
+    "live": {
+      "incomeMult": 2.2750000000000004,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.42,
+      "powerMult": 2.98,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 23400,
+      "lootMult": 1.25,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.2750000000000004,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.42,
+      "powerMult": 2.98,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 23400,
+      "lootMult": 1.25,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764390863563,
+    "live": {
+      "incomeMult": 1.935,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.31,
+      "powerMult": 1.48,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 34800,
+      "lootMult": 1.34,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.935,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.31,
+      "powerMult": 1.48,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 34800,
+      "lootMult": 1.34,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764333013438,
+    "live": {
+      "incomeMult": 1.8900000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.08,
+      "powerMult": 4.489999999999999,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 27000,
+      "lootMult": 1.21,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.8900000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.08,
+      "powerMult": 4.489999999999999,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 27000,
+      "lootMult": 1.21,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765177581973,
+    "live": {
+      "incomeMult": 1.9300000000000002,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.32,
+      "powerMult": 2.99,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 24600,
+      "lootMult": 1.27,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.9300000000000002,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.32,
+      "powerMult": 2.99,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 24600,
+      "lootMult": 1.27,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765326304285,
+    "live": {
+      "incomeMult": 1.865,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.12,
+      "powerMult": 2.71,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 21000,
+      "lootMult": 1.2100000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.865,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.12,
+      "powerMult": 2.71,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 21000,
+      "lootMult": 1.2100000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764487176882,
+    "live": {
+      "incomeMult": 2.205,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.33,
+      "powerMult": 2.96,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 33000,
+      "lootMult": 1.31,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.205,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.33,
+      "powerMult": 2.96,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 33000,
+      "lootMult": 1.31,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765585432205,
+    "live": {
+      "incomeMult": 2.325,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.19,
+      "powerMult": 2.94,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 32400,
+      "lootMult": 1.3,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.325,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.19,
+      "powerMult": 2.94,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 32400,
+      "lootMult": 1.3,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764738051876,
+    "live": {
+      "incomeMult": 1.9100000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.4,
+      "powerMult": 2.67,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 21600,
+      "lootMult": 1.2200000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.9100000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.4,
+      "powerMult": 2.67,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 21600,
+      "lootMult": 1.2200000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764361549108,
+    "live": {
+      "incomeMult": 1.9649999999999999,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.0700000000000003,
+      "powerMult": 3.51,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25800,
+      "lootMult": 1.29,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.9649999999999999,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.0700000000000003,
+      "powerMult": 3.51,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25800,
+      "lootMult": 1.29,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764656959412,
+    "live": {
+      "incomeMult": 2.34,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.34,
+      "powerMult": 2.63,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 14400,
+      "lootMult": 1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.34,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.34,
+      "powerMult": 2.63,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 14400,
+      "lootMult": 1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763844533168,
+    "live": {
+      "incomeMult": 2.4699999999999998,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.18,
+      "powerMult": 3.2699999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 15000,
+      "lootMult": 1.01,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.4699999999999998,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.18,
+      "powerMult": 3.2699999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 15000,
+      "lootMult": 1.01,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764676148092,
+    "live": {
+      "incomeMult": 1.855,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.53,
+      "powerMult": 3.62,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 42000,
+      "lootMult": 1.56,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.855,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.53,
+      "powerMult": 3.62,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 42000,
+      "lootMult": 1.56,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764464163306,
+    "live": {
+      "incomeMult": 2.245,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.25,
+      "powerMult": 2.63,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 39600,
+      "lootMult": 1.52,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.245,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.25,
+      "powerMult": 2.63,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 39600,
+      "lootMult": 1.52,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764633003812,
+    "live": {
+      "incomeMult": 2.225,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.52,
+      "powerMult": 3.51,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 14400,
+      "lootMult": 1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.225,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.52,
+      "powerMult": 3.51,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 14400,
+      "lootMult": 1,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763791209189,
+    "live": {
+      "incomeMult": 2.265,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.23,
+      "powerMult": 3.8199999999999994,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 43200,
+      "lootMult": 1.48,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.265,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.23,
+      "powerMult": 3.8199999999999994,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 43200,
+      "lootMult": 1.48,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765758125325,
+    "live": {
+      "incomeMult": 1.9100000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.2800000000000002,
+      "powerMult": 3.06,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25800,
+      "lootMult": 1.29,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.9100000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.2800000000000002,
+      "powerMult": 3.06,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 25800,
+      "lootMult": 1.29,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763733342752,
+    "live": {
+      "incomeMult": 1.665,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.47,
+      "powerMult": 3.9899999999999998,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 15000,
+      "lootMult": 1.11,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.665,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.47,
+      "powerMult": 3.9899999999999998,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 15000,
+      "lootMult": 1.11,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1765770184665,
+    "live": {
+      "incomeMult": 1.6400000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.24,
+      "powerMult": 3.1099999999999994,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 16800,
+      "lootMult": 1.04,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.6400000000000001,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.24,
+      "powerMult": 3.1099999999999994,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 16800,
+      "lootMult": 1.04,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1763734351161,
+    "live": {
+      "incomeMult": 1.5550000000000002,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.26,
+      "powerMult": 2.7199999999999998,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 21600,
+      "lootMult": 1.12,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.5550000000000002,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.26,
+      "powerMult": 2.7199999999999998,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 21600,
+      "lootMult": 1.12,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764499293683,
+    "live": {
+      "incomeMult": 1.81,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.25,
+      "powerMult": 1.99,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 34200,
+      "lootMult": 1.4300000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 6,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.81,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.25,
+      "powerMult": 1.99,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 34200,
+      "lootMult": 1.4300000000000002,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764700694472,
+    "live": {
+      "incomeMult": 2.325,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.6099999999999999,
+      "powerMult": 2.5199999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 31800,
+      "lootMult": 1.3900000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 2.325,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.6099999999999999,
+      "powerMult": 2.5199999999999996,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 31800,
+      "lootMult": 1.3900000000000001,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764555815437,
+    "live": {
+      "incomeMult": 1.8599999999999999,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.9200000000000002,
+      "powerMult": 3.83,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 27000,
+      "lootMult": 1.21,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.8599999999999999,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.9200000000000002,
+      "powerMult": 3.83,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 27000,
+      "lootMult": 1.21,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764117546029,
+    "live": {
+      "incomeMult": 1.82,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.42,
+      "powerMult": 2.4599999999999995,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 31200,
+      "lootMult": 1.28,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.82,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 2.42,
+      "powerMult": 2.4599999999999995,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 31200,
+      "lootMult": 1.28,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  },
+  {
+    "now": 1764023426304,
+    "live": {
+      "incomeMult": 1.9,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.55,
+      "powerMult": 2.92,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 24000,
+      "lootMult": 1.26,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 1,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    },
+    "steady": {
+      "incomeMult": 1.9,
+      "costMult": 1,
+      "cultureCostMult": 1,
+      "gloryMult": 1.55,
+      "powerMult": 2.92,
+      "offlineMult": 1,
+      "offlineCapSec": 28800,
+      "gloryCapSec": 24000,
+      "lootMult": 1.26,
+      "relicChanceMult": 1,
+      "raidTimeMult": 1,
+      "buildingMult": {
+        "field": 1,
+        "garden": 1,
+        "apiary": 1,
+        "windmill": 2,
+        "potter": 1,
+        "smithy": 1,
+        "tavern": 1,
+        "fair": 1
+      }
+    }
+  }
+]
