@@ -22,7 +22,7 @@ import { collectModifiers, farmIncomeRate, sichUnlocked, villageOf } from './mod
 import { TZ_OFFSET_MIN, type GameState, type Lang, type NumberFormat } from './state.ts';
 import { creditReport } from './offline.ts';
 import { canHire } from './systems/army.ts';
-import { buyCulture, levelHero } from './systems/culture.ts';
+import { buyCulture, learnableNode, levelHero, levellableHero } from './systems/culture.ts';
 import { claimQuest, questCompletions, type QuestKind } from './systems/quests.ts';
 import { claimAllRaids, claimRaid, claimRaidAgain, raidReady, startRaid } from './systems/raids.ts';
 import { checkStory } from './systems/story.ts';
@@ -164,10 +164,24 @@ function claimReturn(s: GameState): ActionResult | RejectReason {
 /** A time zone outside UTC−12…+14 or not whole minutes is refused ('range' — the platform's bug, not the player's). */
 /**
  * The systems a chore may need that this game can do now (plan M3-07 review): the build's, raids only once the army
- * can start the lowest tier — there is no skip for a chore, so none is offered that the player cannot begin.
+ * can start the lowest tier, culture while a rank can be learned, heroes while one who came has a level left (M4-08;
+ * glory aside — the player saves up) — there is no skip for a chore, so none is offered that the player cannot begin.
  */
 function choreSystems(s: GameState): readonly SystemId[] {
-  return BUILD_SYSTEMS.filter((x) => x !== 'raids' || raidReady(s));
+  return BUILD_SYSTEMS.filter((x) => systemReady(s, x));
+}
+
+function systemReady(s: GameState, x: SystemId): boolean {
+  switch (x) {
+    case 'raids':
+      return raidReady(s);
+    case 'culture':
+      return learnableNode(s) !== null;
+    case 'heroes':
+      return levellableHero(s) !== null;
+    case 'storks':
+      return true;
+  }
 }
 
 function setSettings(s: GameState, a: Extract<Action, { type: 'setSettings' }>): ActionResult | RejectReason {

@@ -18,7 +18,7 @@ paths:
 - Economy tests mark all story beats seen in their builders; a new debug preset joins `tests/unit/ui/debug-presets.test.ts` via `PRESETS` (every preset must be a state play can reach).
 - jsdom: React listens for `webkitAnimationEnd` — dispatch both `animationend` names; `checkVisibility` is missing; fake timers also fake rAF + `performance` (count frames with `vi.getTimerCount()`).
 - `tests/unit/lint/core-purity.test.ts` lints a virtual `src/core/…` path, so it applies `disableTypeChecked`; ESLint core-purity rules mirror `.claude/hooks/core-purity.mjs` — change both.
-- A hero whose beat does not exist yet: mock the story content with `tests/unit/core/hero-beats.ts` (`withHeroBeats`) and store his level with his stand-in beat seen; never call `heroLevel` workarounds in src.
+- A hero in a test: mark his beat seen (all of `STORY_BEAT_IDS`) and store his level, as a save after his beat would; to see him arrive, leave his beat unseen and meet its trigger with an action.
 - Content/tool tests read frame names from generator metadata (`frameNames`), never from `public/atlases/` (CI runs tests before `pnpm sprites`).
 
 ## E2E harness

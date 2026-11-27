@@ -10,8 +10,8 @@ import type { GameState, Stats } from '../state.ts';
 import { bloomStatus, type BloomFacts } from './bloom.ts';
 import { grantReward } from './reward.ts';
 
-/** What a trigger reads: the land and the hire counter (narrow, so a raw v1 save can be checked too). */
-export type StoryFacts = BloomFacts & { readonly stats: Pick<Stats, 'hires'> };
+/** What a trigger reads: the land, the hire and won-raid counters (narrow, so a raw v1 save can be checked too). */
+export type StoryFacts = BloomFacts & { readonly stats: Pick<Stats, 'hires' | 'raidsWon'> };
 
 export function triggerMet(facts: StoryFacts, t: StoryTrigger): boolean {
   switch (t.kind) {
@@ -23,6 +23,8 @@ export function triggerMet(facts: StoryFacts, t: StoryTrigger): boolean {
       return facts.village.sichLevels[t.id] >= t.level;
     case 'hired':
       return facts.stats.hires >= t.count;
+    case 'raidsWon':
+      return facts.stats.raidsWon >= t.count;
     case 'storms':
       return facts.village.mechanic.stormsSurvived >= t.count;
     case 'bloom':

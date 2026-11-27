@@ -42,6 +42,23 @@ export function culturePrereqMet(node: CultureNode, state: Pick<GameState, 'cult
   }
 }
 
+/**
+ * The first node, in content order (roots first in each branch), a rank of which can be learned now — glory aside: an
+ * open branch, its prerequisites held, a rank left. null when none (the «learn a rank» chore is then not offered).
+ */
+export function learnableNode(state: GameState): CultureNode | null {
+  return (
+    CULTURE_NODES.find(
+      (n) => cultureNodeOpen(n, state) && (state.culture[n.id] ?? 0) < n.maxRank && culturePrereqMet(n, state),
+    ) ?? null
+  );
+}
+
+/** The first hero, in content order, who came and has a level left — glory aside; null when none. */
+export function levellableHero(state: Pick<GameState, 'heroes' | 'story'>): HeroDef | null {
+  return HEROES.find((h) => heroLevel(h.id, state) > 0 && heroLevel(h.id, state) < h.levelMax) ?? null;
+}
+
 /** One rank of `id`. The price needs no time: `cultureCostMult` does not depend on the wind (steady modifiers). */
 export function buyCulture(s: GameState, id: CultureNodeId): Result | RejectReason {
   const node = CULTURE_NODES.find((n) => n.id === id);

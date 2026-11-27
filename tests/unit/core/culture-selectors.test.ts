@@ -1,8 +1,7 @@
 // Culture and hero selectors (plan M4-07, §0.1 П1/П3/П4/П8; SPEC §3.5 «Модель M4», §10.3; ADR 013): what the
 // «Культура» tab, the buff breakdown and the scene read. The preview of a purchase is the state after the real action;
-// the breakdown folds to the very field the economy uses; the red dot lights only for something new. The Кобзар's and
-// the Характерник's beats are M4-08: stand-in beats bring them here (hero-beats.ts).
-import { describe, expect, it, vi } from 'vitest';
+// the breakdown folds to the very field the economy uses; the red dot lights only for something new.
+import { describe, expect, it } from 'vitest';
 import { CULTURE_NODES, type CultureNode, type CultureNodeId } from '../../../src/content/culture.ts';
 import { EFFECT_KINDS, type EffectKind } from '../../../src/content/effects.ts';
 import { HERO_IDS, HEROES, type HeroId } from '../../../src/content/heroes.ts';
@@ -37,10 +36,6 @@ import { hudView, questTarget } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { culturePrice } from '../../../src/core/systems/culture.ts';
 import { randomState } from './modifier-samples.ts';
-
-vi.mock('../../../src/content/story.ts', async (importOriginal) =>
-  (await import('./hero-beats.ts')).withHeroBeats(await importOriginal()),
-);
 
 const T0 = 1_763_400_000_000;
 const LOTS = 1e9;

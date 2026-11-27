@@ -30,6 +30,7 @@ import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { canHire } from '../../../src/core/systems/army.ts';
 import { bloomStatus } from '../../../src/core/systems/bloom.ts';
 import { chainQuest, choreQuest, questRef } from '../../../src/core/systems/quests.ts';
+import { learnableNode, levellableHero } from '../../../src/core/systems/culture.ts';
 import { canStart, previewRaid } from '../../../src/core/systems/raids.ts';
 import { stormStarts } from '../../../src/core/systems/village-mechanics/wind.ts';
 
@@ -51,6 +52,27 @@ export function standInCulture(s: GameState): GameState | null {
   const q = chainQuest(s);
   if (q?.id !== CULTURE_STEP || q.done) return null;
   const r = applyAction(s, { type: 'buyCulture', id: CULTURE_ROOT }, s.time.lastSeen);
+  return r.events.some((e) => e.type === 'ActionRejected') ? null : r.state;
+}
+
+/**
+ * Stand-in for the culture chores until M4-09 (M4-08, as `standInCulture`): on an unfinished «Вивчи ранг культури»
+ * learns one rank of the first learnable node, on «Підвищ героя» one level of the first hero with a level left — the
+ * real actions at the state's own time. Without it the bot would never finish them and its chore rotation would stop.
+ * null when the chore is another one or the action is refused (too little glory). Not counted as an action.
+ */
+export function standInChore(s: GameState): GameState | null {
+  const q = choreQuest(s);
+  if (q.done) return null;
+  const node = q.id === 'chore.culture1' ? learnableNode(s) : null;
+  const hero = q.id === 'chore.hero1' ? levellableHero(s) : null;
+  const action: Action | null = node
+    ? { type: 'buyCulture', id: node.id }
+    : hero
+      ? { type: 'levelHero', id: hero.id, mode: 1 }
+      : null;
+  if (!action) return null;
+  const r = applyAction(s, action, s.time.lastSeen);
   return r.events.some((e) => e.type === 'ActionRejected') ? null : r.state;
 }
 const DAY_MS = 24 * HOUR_MS;
@@ -461,6 +483,8 @@ export function simulate(options: SimOptions): SimResult {
   const claimAll = (t: number, claims: { chain: number; chore: number; choreRewards: number }): void => {
     // The culture stand-in until M4-09: the first culture rank on the step `culture1` (not counted as an action).
     state = standInCulture(state) ?? state;
+    // And for the culture chores (M4-08): the next loop claims them.
+    state = standInChore(state) ?? state;
     for (;;) {
       const q = chainQuest(state);
       if (!q?.done) break;

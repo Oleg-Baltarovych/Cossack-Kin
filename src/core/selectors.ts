@@ -6,6 +6,7 @@
 // the button; the reducer then refuses with ActionRejected and nothing is lost. Accepted (M1-17 review).
 import { DEFENCE, FARM, FOOD, SICH, TIER_LEVELS, type Milestone } from '../content/economy.ts';
 import { CULTURE_BRANCHES, CULTURE_NODES, type CultureNodeId, type CultureUnlock } from '../content/culture.ts';
+import type { HeroId } from '../content/heroes.ts';
 import { SICH_BUILDINGS, type SichBuildingId, type SichUnlock } from '../content/sich.ts';
 import type { FarmBuildingId, WindLevel } from '../content/villages/khortytsia.ts';
 import { Big } from './big.ts';
@@ -13,7 +14,6 @@ import { bulkCost, buyCount, prodRate, tier, type BuyMode, type Priced } from '.
 import {
   collectModifiers,
   cultureBranchOpen,
-  cultureNodeOpen,
   defence,
   farmIncomeRate,
   kharch,
@@ -40,7 +40,7 @@ import {
   type QuestKind,
 } from './systems/quests.ts';
 import { raidSlotsView, type RaidSlotView } from './raid-selectors.ts';
-import { culturePrereqMet } from './systems/culture.ts';
+import { learnableNode, levellableHero } from './systems/culture.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -389,6 +389,8 @@ export type QuestTarget =
       /** Its branch's condition while the branch is closed; null when open. */
       readonly locked: CultureUnlock | null;
     }
+  /** A hero's card on «Культура» (M4-08). */
+  | { readonly kind: 'hero'; readonly id: HeroId }
   | { readonly kind: 'tap' }
   | { readonly kind: 'none' };
 
@@ -407,9 +409,7 @@ function raidSlotIn(slots: readonly RaidSlotView[], order: readonly RaidSlotView
  * condition; none → the first node.
  */
 function cultureTarget(state: GameState): QuestTarget {
-  const learnable = CULTURE_NODES.find(
-    (n) => cultureNodeOpen(n, state) && (state.culture[n.id] ?? 0) < n.maxRank && culturePrereqMet(n, state),
-  );
+  const learnable = learnableNode(state);
   if (learnable) return { kind: 'culture', id: learnable.id, locked: null };
   const closed = CULTURE_BRANCHES.find((b) => !cultureBranchOpen(b, state));
   const node = CULTURE_NODES.find((n) => n.branch === (closed ?? CULTURE_BRANCHES[0])?.id);
@@ -441,10 +441,13 @@ function goalTarget(state: GameState, goal: QuestGoal): QuestTarget {
           return { kind: 'tap' };
         case 'cultureRanks':
           return cultureTarget(state);
+        case 'heroLevels': {
+          // «Підвищ героя» (M4-08): the first hero who came with a level left (the chore is offered only then).
+          const hero = levellableHero(state);
+          return hero ? { kind: 'hero', id: hero.id } : { kind: 'none' };
+        }
         case 'purchases':
         case 'levelsBought':
-        // A hero's card as a target comes with the hero chores (M4-08) and the tab (M4-12/16).
-        case 'heroLevels':
           return { kind: 'none' };
       }
   }

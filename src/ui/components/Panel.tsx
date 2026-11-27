@@ -126,8 +126,9 @@ function aimOf(target: QuestTarget): Aim | null {
       return { tab: 'sich', key: 'hire', building: null, half: true, locked: null };
     case 'raid':
       return { tab: 'sich', key: `raid.${String(target.slot)}`, building: null, half: true, locked: null };
-    // The «Культура» tab comes with M4-12; the culture1 tap leads to its node with M4-16 (a plain hint until then).
+    // The «Культура» tab comes with M4-12; culture/hero taps lead to the node/card with M4-16 (a plain hint until then).
     case 'culture':
+    case 'hero':
     case 'tap':
     case 'none':
       return null;

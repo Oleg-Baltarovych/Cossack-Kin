@@ -1,8 +1,8 @@
 // Culture and hero actions (plan M4-05, SPEC §3.5 «Модель M4», ADR 013): `buyCulture` (one rank), `levelHero` (the
 // shared ×1/×10/×25/Max picker), their events and refusals, and the culture/hero sources of `modifierSources` — only
-// open branches and heroes that came count, a crafted save gains nothing. The Кобзар's and the Характерник's beats are
-// M4-08: stand-in beats bring them here (hero-beats.ts), so every effect kind has its case (M4-06).
-import { describe, expect, it, vi } from 'vitest';
+// open branches and heroes that came count, a crafted save gains nothing. Every hero has his beat (M4-08), so every
+// effect kind has its case (M4-06).
+import { describe, expect, it } from 'vitest';
 import { CULTURE_BRANCHES, CULTURE_NODES, type CultureNode, type CultureNodeId } from '../../../src/content/culture.ts';
 import {
   EFFECT_FLOORS,
@@ -30,10 +30,6 @@ import { applyOffline } from '../../../src/core/offline.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { culturePrice, heroPrice } from '../../../src/core/systems/culture.ts';
 
-vi.mock('../../../src/content/story.ts', async (importOriginal) =>
-  (await import('./hero-beats.ts')).withHeroBeats(await importOriginal()),
-);
-
 const T0 = 1_763_400_000_000;
 const HOUR = 3600 * 1000;
 const LOTS = 1e15;
@@ -48,7 +44,7 @@ const heroOf = (id: HeroId): HeroDef => {
   if (!h) throw new Error(`content: ${id}`);
   return h;
 };
-/** Heroes some story beat brings (with the stand-ins: all of them). */
+/** Heroes some story beat brings (since M4-08: all of them). */
 const ARRIVING = new Set(STORY_BEATS.flatMap((b) => (b.reward?.kind === 'unlock' ? [b.reward.hero] : [])));
 
 /**

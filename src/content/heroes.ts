@@ -42,7 +42,7 @@ export const HEROES: readonly HeroDef[] = [
     { kind: 'cultureCost', perRank: 0.01 },
     { kind: 'glory', perRank: 0.015 },
   ]),
-  // «Характерник на Січі» (10 raids won), M4-08. 1 % × 25 = the −25 % bound of the raid-time gate (content test).
+  // «Характерник на Січі» (raids won), M4-08. 1 % × 25 = the −25 % bound of the raid-time gate (content test).
   hero('kharakternyk', 1000, GROWTH, [
     { kind: 'raidTime', perRank: 0.01 },
     { kind: 'relicChance', perRank: 0.02 },

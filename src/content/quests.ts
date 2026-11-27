@@ -46,10 +46,11 @@ export type QuestGoal = LevelGoal | CountGoal;
 
 /**
  * Systems a quest can need that this build may not have: a chore with `requires` is offered only when its system is in
- * `BUILD_SYSTEMS`. Raids came with M3 (plan M3-07: «Відправ похід», «Заверши 2 походи»), storks come with M6.
+ * `BUILD_SYSTEMS` (and the game can use it now — core `choreSystems`). Raids came with M3 (plan M3-07: «Відправ
+ * похід», «Заверши 2 походи»), culture and heroes with M4 (M4-08: a rank to learn / a hero to level), storks with M6.
  */
-export type SystemId = 'raids' | 'storks';
-export const BUILD_SYSTEMS: readonly SystemId[] = ['raids'];
+export type SystemId = 'raids' | 'culture' | 'heroes' | 'storks';
+export const BUILD_SYSTEMS: readonly SystemId[] = ['raids', 'culture', 'heroes'];
 
 export const CHAIN_STEP_IDS = [
   'khortytsia.field1',
@@ -174,6 +175,9 @@ export const CHORE_IDS = [
   // M3-07: appended (never reorder) — they join the rotation by the reservoir pick (CHORES.moduloCount).
   'chore.raid1',
   'chore.raids2',
+  // M4-08: appended (never reorder), offered while there is something to buy (plan M4 §0 «Квести»).
+  'chore.culture1',
+  'chore.hero1',
 ] as const;
 export type ChoreId = (typeof CHORE_IDS)[number];
 
@@ -208,6 +212,10 @@ const CHORE_POOL: readonly ChoreDef[] = [
   // Raids (M3-07; SPEC §3.10 «Відправ похід»): a start moves `raidsSent`, a claim `raidsDone`. Army chores pay glory.
   chore('chore.raid1', 'raidsSent', 1, glory(CHORE_MINUTES), 'raids'),
   chore('chore.raids2', 'raidsDone', 2, glory(CHORE_MINUTES), 'raids'),
+  // Culture and heroes (M4-08): one rank, one hero level bought (a hero's free arrival is not one). They cost glory, so
+  // they pay glory.
+  chore('chore.culture1', 'cultureRanks', 1, glory(CHORE_MINUTES), 'culture'),
+  chore('chore.hero1', 'heroLevels', 1, glory(CHORE_MINUTES), 'heroes'),
 ];
 
 export const CHORES = {

@@ -94,4 +94,7 @@ export const CALENDAR_LAND1: readonly CalendarEntry[] = [
   { id: 'first-raid', kind: 'firstRaid', ref: '', sessions: { min: 1, max: 1 } },
   { id: 'first-relic', kind: 'firstRelic', ref: '', sessions: { min: 2, max: 5 } },
   { id: 'raid-4h', kind: 'raidTier', ref: 'h4', sessions: { min: 6, max: 10 } },
+  // M4-08 (SPEC §2.4, plan M4 Q4/Q5): the heroes' beats — the Кобзар with tavern 10, the Характерник after the raids won of his beat.
+  { id: 'beat-kobzar', kind: 'storyBeat', ref: 'khortytsia.kobzar', sessions: { min: 5, max: 8 } },
+  { id: 'beat-kharakternyk', kind: 'storyBeat', ref: 'khortytsia.kharakternyk', sessions: { min: 8, max: 12 } },
 ];

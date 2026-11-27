@@ -1,9 +1,9 @@
 // The Характерник on raids (plan M4-06, SPEC §3.4 «Час походу», ADR 013, Q8): `raidTimeMult` (steady) shortens a raid
 // at its start — `returnAt = startedAt + ceil(durMs × raidTimeMult)`, stored, inside the v5 gate's window
 // [ceil(durMs × RAIDS.minTimeMult), durMs]; a raid on the road never changes when he levels up; the card shows the
-// roll's time and relic chance; a shortened raid returns alike by ticks, one advance and applyOffline. His beat is
-// M4-08: a stand-in beat brings him here (hero-beats.ts), the state stores his level after it, as a save would.
-import { describe, expect, it, vi } from 'vitest';
+// roll's time and relic chance; a shortened raid returns alike by ticks, one advance and applyOffline. The state has
+// his beat seen and stores his level after it, as a save would.
+import { describe, expect, it } from 'vitest';
 import { HEROES, type HeroDef } from '../../../src/content/heroes.ts';
 import { RAID_TIER_IDS, RAID_TIERS, RAIDS, type RaidTierId } from '../../../src/content/raids.ts';
 import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
@@ -16,10 +16,6 @@ import { applyOffline, tick } from '../../../src/core/offline.ts';
 import { createRng } from '../../../src/core/rng.ts';
 import { createInitialState, validateState, type GameState } from '../../../src/core/state.ts';
 import { previewRaid, rollRaid, type RaidRoll } from '../../../src/core/systems/raids.ts';
-
-vi.mock('../../../src/content/story.ts', async (importOriginal) =>
-  (await import('./hero-beats.ts')).withHeroBeats(await importOriginal()),
-);
 
 const T0 = 1_763_400_000_000;
 const SEC = 1000;
