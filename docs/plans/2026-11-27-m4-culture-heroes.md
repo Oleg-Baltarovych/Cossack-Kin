@@ -80,7 +80,8 @@
 
 **M4-02** — `content/culture.ts`, `content/heroes.ts` (числа §3 — гіпотези), `story.ts` тип нагороди `unlock`; i18n `culture.<branch>.name`, `culture.<node>.name|text|fact`, `hero.<id>.name|title|phrase|fact|unlock` uk/en (глосарій «характерник», §11). Ще ніхто не читає.
 - AC (тест контенту): ids унікальні й append-only коментарем; передумови — лише на попередній ряд тієї ж гілки, без циклів; ціни ростуть; Σ max `offlineCapSec` ≤ 24 год; Σ max знижок `costMult`/`cultureCostMult` ≤ межі контенту; Σ max `raidTime` ≤ 1 − `minTimeMult`; кожен ключ у uk і en, `{value}` збігається.
-- Результат: —
+- Результат (2026-11-27, lead-developer; `feat/m4-02-content`, 1 коміт): `content/culture.ts` (2 гілки × 6 вузлів за §3: корінь + 2 + 2 + вершина; ціни-гіпотези), `heroes.ts` (3 герої, рівні до 25), новий `effects.ts` (`EFFECT_KINDS` 1:1 до полів `Modifiers`, `EFFECT_FLOORS`: ціни 0.5, `raidTime` = `RAIDS.minTimeMult` 0.75 у `raids.ts`); `StoryReward = Reward | unlock` у `story.ts` (core поки пропускає `unlock`, тест: жодна віха його не має до M4-04); i18n uk/en 67 ключів + `docs/content-sources.md`; `tests/unit/content/culture.test.ts` (19 тестів); `pnpm balance --check` — звіт без змін.
+- Відхилення: (1) «3 ряди × 2 + вершина» у SPEC §3.5/ADR 013 = 7 вузлів, а таблиця §3 і AC M4 — 6; зроблено за таблицею (ряд 1 — один корінь), текст SPEC/ADR — виправити architect. (2) Ефекти показує спільний ключ `effect.<kind>` з `{value}` (рядок «зараз → після» для M4-07/13), `text` вузла — опис без чисел; ключ `culture.<branch>.unlock` додано (П1). (3) У `HEROES` нема `unlockBeat`/`agent`: героя дає нагорода віхи (одне джерело, ADR 013), `agent` — з рендером M4-15.
 
 **M4-03** — `modifierSources(state)` + згортка в `collectModifiers`/`steadyModifiers`; поле `cultureCostMult` = 1.
 - AC (test-first): для 50 випадкових станів (seed-и `raid-sequences`) нове = старе на кожному полі; `pnpm balance --check` — звіт байт у байт; тест «добуток/сума джерел = поле».

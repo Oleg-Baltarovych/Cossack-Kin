@@ -113,6 +113,9 @@ export const RAIDS = {
   squadSize: 5, // гіпотеза (art: M3-14)
   alertMergeSec: 1800,
   pysanky: { min: 1, max: 2 },
+  // The shortest a raid may become under `raidTimeMult` (ADR 013): the v5 save gate accepts `returnAt − startedAt` in
+  // [ceil(durationMs × minTimeMult), durationMs]; a content test keeps every `raidTime` source within 1 − minTimeMult.
+  minTimeMult: 0.75,
 } as const;
 
 /**

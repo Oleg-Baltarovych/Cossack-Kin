@@ -38,7 +38,7 @@ describe('story beats of land 1 (M2-22, Q7)', () => {
         expect(t.level).toBeLessThanOrEqual(SICH.levelMax);
       }
       const r = b.reward;
-      if (r && r.kind !== 'pysanky') expect(r.minutes, b.id).toBeGreaterThan(0);
+      if (r?.kind === 'incomeMinutes' || r?.kind === 'gloryMinutes') expect(r.minutes, b.id).toBeGreaterThan(0);
       if (r?.kind === 'pysanky') expect(Number.isInteger(r.n) && r.n > 0, b.id).toBe(true);
     }
   });

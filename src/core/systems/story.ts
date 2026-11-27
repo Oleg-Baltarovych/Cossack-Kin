@@ -48,7 +48,9 @@ export function checkStory(state: GameState): { state: GameState; events: GameEv
   let s = state;
   const events: GameEvent[] = [];
   for (const beat of due) {
-    const g = beat.reward ? grantReward(s, beat.reward) : null;
+    const r = beat.reward;
+    // A hero (`unlock`) needs the save v5 `heroes` record: granted from M4-04; until then no beat carries one (test).
+    const g = r !== null && r.kind !== 'unlock' ? grantReward(s, r) : null;
     s = g ? g.state : s;
     s = { ...s, story: { seen: [...s.story.seen, beat.id] } };
     events.push({ type: 'StoryBeatReached', id: beat.id, granted: g ? g.granted : null });
