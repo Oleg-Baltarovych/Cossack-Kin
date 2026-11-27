@@ -2,19 +2,21 @@
 // with their chests from before the load — no parade, Q14; 12 Cossacks): squad 1's chest is claimed and the squad sent
 // again; it musters on the maidan, marches up the trail into the gate and is gone; a live return brings it back the
 // same way with the chest, set down mid-maidan, villagers cheering at the Sich's threshold. A live world (no `?freeze`)
-// on a paused, stepped page clock with native frames (build.spec), so every shot is an exact moment; the game's own
-// loop runs on the same clock. Draw calls within the world shots' budget, particles ≤ 300 at every shot.
+// on a page clock paused before the load and then stepped, with native frames, so every shot is an exact moment; the
+// game's own loop runs on the same clock. Draw calls within the world shots' budget, particles ≤ 300 at every shot.
 // `@raid` checks the phases (functional run, 13:00); `@raid @screens` writes reports/screens/<date>/raid-<step>-<hhmm>-
-// <project>.png at 13:00 and 23:00 for the art review.
+// <project>.png at 13:00 and 23:00 for the art review, and the squad at the gate is a Linux baseline
+// (`m3-squad-gate-<hhmm>`, M3 deferred 6).
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect, test } from '../helpers/test.ts';
+import { expectBaseline } from '../helpers/baseline.ts';
 // Type-only: the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { MAX_DRAW_CALLS, PARTICLE_BUDGET } from '../helpers/budgets.ts';
 import { screensDir } from '../helpers/reports.ts';
-import { gotoReady, readStats, type WorldStats } from '../helpers/world.ts';
+import { gotoReadyPaused, readStats, type WorldStats } from '../helpers/world.ts';
 
 const T0 = new Date('2026-06-01T10:00:00Z').getTime();
 /** The Sich zone (x 1152) and a little of the road before it: the threshold where villagers cheer is in view. */
@@ -78,9 +80,10 @@ async function round(page: Page, time: string, shoot: boolean): Promise<void> {
     return stats;
   };
 
+  // Paused before the load (M3 deferred 6): the same frames every run, so the squad at the gate can be a baseline.
   await page.clock.install({ time: T0 });
-  await gotoReady(page, `/?seed=1&time=${time}&cam=${String(CAM)}&state=chests`);
   await page.clock.pauseAt(T0 + 60_000);
+  await gotoReadyPaused(page, `/?seed=1&time=${time}&cam=${String(CAM)}&state=chests`);
   await step(page, 48);
 
   // Loaded with both squads back: two chests on the maidan, no parade.
@@ -95,6 +98,8 @@ async function round(page: Page, time: string, shoot: boolean): Promise<void> {
   await until(page, 'out');
   await step(page, 2000);
   await shot('1-leave');
+  // The banner in the gate, the column on the trail behind it.
+  if (shoot) await expectBaseline(page, `m3-squad-gate-${key}`, { pausedClock: true });
 
   // On the road: the squad is not on the scene.
   const away = await until(page, 'away');
