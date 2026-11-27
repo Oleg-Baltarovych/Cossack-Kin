@@ -1,12 +1,29 @@
 // Food, defence and the single modifier collector (SPEC §3.0, §3.2, §3.2.1, §9.6; plan M1-06, M4-03; ADR 013). Every
 // buff is a `ModSource` of `modifierSources(state)`, and `collectModifiers(state, now)` folds them — systems never read
 // buff buildings, relics, culture or heroes directly. Sich effects count only for unlocked buildings, relics only once
-// found (plan M3-06): the save gate does not enforce unlocks, so a crafted save with a level on a locked building gains
-// nothing from it (security review M1-04). No cache yet (measure first, plan §0).
+// found (plan M3-06), culture ranks only in an open branch and heroes only once they came (M4-05): the save gate does
+// not enforce unlocks, so a crafted save with a level on a locked building gains nothing from it (security review
+// M1-04). No cache yet (measure first, plan §0).
+import {
+  CULTURE_BRANCHES,
+  CULTURE_NODES,
+  type CultureBranch,
+  type CultureNode,
+  type CultureNodeId,
+} from '../content/culture.ts';
 import { ARMY, DEFENCE, FOOD, OFFLINE } from '../content/economy.ts';
-import { EFFECT_FLOORS, EFFECT_KINDS, EFFECT_TARGETS, type EffectField, type EffectKind } from '../content/effects.ts';
+import {
+  EFFECT_FLOORS,
+  EFFECT_KINDS,
+  EFFECT_TARGETS,
+  type EffectField,
+  type EffectKind,
+  type RankedEffect,
+} from '../content/effects.ts';
+import { HEROES, type HeroId } from '../content/heroes.ts';
 import { RELIC_DEFS, type RelicEffect, type RelicId } from '../content/relics.ts';
 import { SICH_BUILDINGS, type SichBuilding, type SichBuildingId } from '../content/sich.ts';
+import { STORY_BEATS } from '../content/story.ts';
 import {
   FARM_BUILDING_IDS,
   KHORTYTSIA,
@@ -25,7 +42,7 @@ export interface Modifiers {
   /** Per-building income multiplier (the land passive and the wind on the windmill). */
   readonly buildingMult: Readonly<Record<FarmBuildingId, number>>;
   readonly costMult: number;
-  /** Culture prices (Кобзар, «Кобза діда»; M4-05). A reduction: 1 − Σ share, floored in content. 1 until M4-05. */
+  /** Culture prices (Кобзар; «Кобза діда» M4-06). A reduction: 1 − Σ share, floored in content. */
   readonly cultureCostMult: number;
   readonly gloryMult: number;
   /** Army power (the smithy, the maidan, …). */
@@ -64,15 +81,17 @@ const EFFECT_FIELD: Readonly<Record<EffectField, ScalarField>> = {
 };
 
 /**
- * Who gives a share. M4-05 adds `{ kind: 'culture'; id }` and `{ kind: 'hero'; id }` (open branches, heroes that
- * came), each ranked effect sent to its field through `EFFECT_TARGETS` — the fold and the UI breakdown stay as they are.
+ * Who gives a share. Culture nodes count only in an open branch, heroes only once they came (M4-05): each ranked
+ * effect goes to its field through `EFFECT_TARGETS`.
  */
 export type ModSourceRef =
   | { readonly kind: 'farm'; readonly id: FarmBuildingId }
   | { readonly kind: 'sich'; readonly id: SichBuildingId }
   | { readonly kind: 'defence' }
   | { readonly kind: 'relic'; readonly id: RelicId }
-  | { readonly kind: 'land'; readonly id: Village['id'] };
+  | { readonly kind: 'land'; readonly id: Village['id'] }
+  | { readonly kind: 'culture'; readonly id: CultureNodeId }
+  | { readonly kind: 'hero'; readonly id: HeroId };
 
 /** One contribution to one field: a share of a multiplier (0.03 = +3 %), seconds for the caps. Never 0. */
 export type ModSource = (
@@ -156,6 +175,42 @@ export function sichUnlocked(
   }
 }
 
+/**
+ * Whether a culture branch is open (ADR 013: derived, never stored). A Sich condition also needs the building unlocked:
+ * a crafted level on a locked church opens nothing (as it gives no Sich effect).
+ */
+export function cultureBranchOpen(
+  branch: CultureBranch,
+  state: { readonly village: Pick<VillageState, 'id' | 'levels' | 'sichLevels'> },
+): boolean {
+  const u = branch.unlock;
+  switch (u.kind) {
+    case 'building':
+      return state.village.levels[u.id] >= u.level;
+    case 'sich': {
+      const b = SICH_BUILDINGS.find((x) => x.id === u.id);
+      return b !== undefined && sichUnlocked(b, state) && state.village.sichLevels[u.id] >= u.level;
+    }
+  }
+}
+
+/** The branch of `node` is open: its ranks count and it can be bought. */
+export function cultureNodeOpen(node: CultureNode, state: GameState): boolean {
+  const branch = CULTURE_BRANCHES.find((b) => b.id === node.branch);
+  return branch !== undefined && cultureBranchOpen(branch, state);
+}
+
+/**
+ * A hero's level in force: 0 until he came — stored and his unlock beat seen (the gate checks it too, but formulas do
+ * not rely on the gate, `.claude/rules/core.md`).
+ */
+export function heroLevel(id: HeroId, state: Pick<GameState, 'heroes' | 'story'>): number {
+  const level = state.heroes[id];
+  if (level === undefined) return 0;
+  const beat = STORY_BEATS.find((b) => b.reward?.kind === 'unlock' && b.reward.hero === id);
+  return beat !== undefined && state.story.seen.includes(beat.id) ? level : 0;
+}
+
 /** Sum of `perLevel(b) × level` over the unlocked Sich buildings. */
 function sichSum(state: GameState, perLevel: (b: SichBuilding) => number | undefined): number {
   let sum = 0;
@@ -187,9 +242,10 @@ export function defence(state: GameState): number {
 
 /**
  * Every share in force (SPEC §9.6, ADR 013) — the one list the engine folds and the UI breakdown reads. Order is
- * part of the result (float sums): farm, Sich, defence, relics, land, content order within each — the pre-M4-03
- * order, so the fold equals the old per-system sums to the bit (test). Locked Sich buildings and unfound relics give
- * nothing; the wind of the moment is no source (it varies with time: `collectModifiers` applies it on top).
+ * part of the result (float sums): farm, Sich, defence, relics, land, culture, heroes, content order within each —
+ * the pre-M4-03 order with the M4-05 kinds appended, so a state without culture and heroes folds to the bit as before
+ * (golden test). Locked Sich buildings, unfound relics, nodes of a closed branch and heroes not come give nothing;
+ * the wind of the moment is no source (it varies with time: `collectModifiers` applies it on top).
  */
 export function modifierSources(state: GameState): ModSource[] {
   const village = villageOf(state);
@@ -240,6 +296,30 @@ export function modifierSources(state: GameState): ModSource[] {
     source: { kind: 'land', id: village.id },
     share: village.passive.mult - 1,
   });
+  // M4-05, appended last (the fold of the sources above stays bit-exact): culture nodes of open branches, then the
+  // heroes that came.
+  const ranked = (source: ModSourceRef, effects: readonly RankedEffect[], rank: number): void => {
+    if (rank === 0) return;
+    for (const e of effects) {
+      const share = e.perRank * rank;
+      const target = EFFECT_TARGETS[e.kind];
+      switch (target.to) {
+        case 'field':
+          add({ field: EFFECT_FIELD[target.field], source, share });
+          break;
+        case 'foodBuildings':
+          for (const b of village.buildings)
+            if (b.kharchPerLevel !== undefined) add({ field: 'buildingMult', building: b.id, source, share });
+          break;
+        default:
+          unreachable(target);
+      }
+    }
+  };
+  for (const n of CULTURE_NODES) {
+    if (cultureNodeOpen(n, state)) ranked({ kind: 'culture', id: n.id }, n.effects, state.culture[n.id] ?? 0);
+  }
+  for (const h of HEROES) ranked({ kind: 'hero', id: h.id }, h.effects, heroLevel(h.id, state));
   return out;
 }
 

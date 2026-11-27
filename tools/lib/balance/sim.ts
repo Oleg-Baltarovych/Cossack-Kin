@@ -13,7 +13,7 @@
 // It logs actions, «відчутні» purchases and novelties (SPEC §2.4: story beats, chain steps, plan Q6; the first raid,
 // each relic, each raid tier), milestone times, bloom and the raid ledger. Deterministic: the same options give the
 // same result, byte for byte.
-import { CULTURE_BRANCHES, CULTURE_NODES } from '../../../src/content/culture.ts';
+import type { CultureNodeId } from '../../../src/content/culture.ts';
 import { FARM, SICH } from '../../../src/content/economy.ts';
 import { PACING, type NoveltyKind } from '../../../src/content/pacing.ts';
 import { RAID_TIER_IDS, RAIDS, type RaidTierId } from '../../../src/content/raids.ts';
@@ -21,7 +21,6 @@ import type { RelicId } from '../../../src/content/relics.ts';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
 import type { FarmBuildingId } from '../../../src/content/villages/khortytsia.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
-import { Big } from '../../../src/core/big.ts';
 import { tier } from '../../../src/core/economy.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
 import { farmIncomeRate, sichUnlocked, steadyModifiers, villageOf } from '../../../src/core/modifiers.ts';
@@ -32,7 +31,6 @@ import { canHire } from '../../../src/core/systems/army.ts';
 import { bloomStatus } from '../../../src/core/systems/bloom.ts';
 import { chainQuest, choreQuest, questRef } from '../../../src/core/systems/quests.ts';
 import { canStart, previewRaid } from '../../../src/core/systems/raids.ts';
-import { triggerMet } from '../../../src/core/systems/story.ts';
 import { stormStarts } from '../../../src/core/systems/village-mechanics/wind.ts';
 
 const MS = 1000;
@@ -41,30 +39,19 @@ const HOUR_MS = 3600 * MS;
 
 /** The chain step the culture stand-in serves (plan M4 Q12) and the node it learns (the root of «Музика»). */
 const CULTURE_STEP = 'khortytsia.culture1';
-const CULTURE_ROOT = 'music.dumy';
+const CULTURE_ROOT: CultureNodeId = 'music.dumy';
 
 /**
- * Stand-in: M4-05 (buyCulture) + M4-09 (bot policy) replace this (M4-04, coordinator decision (a), as `standInRaid`
- * in M3-04). On the chain step `culture1` only, learns one rank of «Кобзарські думи» the way `buyCulture` will: its
- * branch open, a rank left, the price `base × growth^rank × cultureCostMult` (plan §0, content + steady modifiers) paid
- * in glory, `culture` + 1 and `stats.cultureRanks` + 1. null when it does not apply or the glory is short.
+ * Stand-in for the bot's culture policy until M4-09 (M4-04, coordinator decision (a), as `standInRaid` in M3-04): on
+ * the chain step `culture1` only, learns one rank of «Кобзарські думи» through the real `buyCulture` action (M4-05) at
+ * the state's own time. null when it does not apply or the action is refused (the branch closed, no rank left, too
+ * little glory). Not counted as an action (as before M4-05): M4-09 replaces it with a counted policy.
  */
 export function standInCulture(s: GameState): GameState | null {
   const q = chainQuest(s);
   if (q?.id !== CULTURE_STEP || q.done) return null;
-  const node = CULTURE_NODES.find((n) => n.id === CULTURE_ROOT);
-  const branch = CULTURE_BRANCHES.find((b) => b.id === node?.branch);
-  if (!node || !branch || !triggerMet(s, branch.unlock)) return null;
-  const rank = s.culture[node.id] ?? 0;
-  if (rank >= node.maxRank) return null;
-  const price = Big.from(node.base).mul(Big.from(node.growth).pow(rank)).mul(steadyModifiers(s).cultureCostMult);
-  if (s.currencies.glory.lt(price)) return null;
-  return {
-    ...s,
-    currencies: { ...s.currencies, glory: s.currencies.glory.sub(price) },
-    culture: { ...s.culture, [node.id]: rank + 1 },
-    stats: { ...s.stats, cultureRanks: s.stats.cultureRanks + 1 },
-  };
+  const r = applyAction(s, { type: 'buyCulture', id: CULTURE_ROOT }, s.time.lastSeen);
+  return r.events.some((e) => e.type === 'ActionRejected') ? null : r.state;
 }
 const DAY_MS = 24 * HOUR_MS;
 /** The bot hires while the Cossacks cost at most this share of its ducats (keeps the farm growing first). */
@@ -472,7 +459,7 @@ export function simulate(options: SimOptions): SimResult {
 
   /** Claims every finished quest now (a claimed chain step can start one already met: claimed in turn). */
   const claimAll = (t: number, claims: { chain: number; chore: number; choreRewards: number }): void => {
-    // Stand-in until M4-05/M4-09: the first culture rank on the step `culture1` (not counted as an action).
+    // The culture stand-in until M4-09: the first culture rank on the step `culture1` (not counted as an action).
     state = standInCulture(state) ?? state;
     for (;;) {
       const q = chainQuest(state);

@@ -130,7 +130,25 @@ describe('online step by step = offline in one step (M2-22 AC)', () => {
     expect(online.story.seen).toEqual(offline.state.story.seen);
     expect(online.time.lastSeen).toBe(offline.state.time.lastSeen);
     expect(online.time.lastSeen).toBe(end);
-    // And the same purse: income + glory + the beat rewards, whichever way the 8 h went.
+  });
+
+  it('advance: the same purse whichever way the 8 h went (income + glory + the beat rewards)', () => {
+    // A hero changes rates from his arrival on (M4-05: the otaman's power share), and a beat due across a gap fires
+    // 5 s in online but at the end of one advance. Play never leaves a hero beat due across a gap — its trigger is met
+    // only by an action, which checks the story at once (content test `story.test.ts`) — so the hero beats here are
+    // seen and their heroes came, as after that action; every other beat is still due.
+    const s0 = pending();
+    const heroBeats = STORY_BEATS.filter((b) => b.reward?.kind === 'unlock');
+    expect(heroBeats.length).toBeGreaterThan(0);
+    const s: GameState = {
+      ...s0,
+      story: { seen: [...s0.story.seen, ...heroBeats.map((b) => b.id)] },
+      heroes: Object.fromEntries(heroBeats.flatMap((b) => (b.reward?.kind === 'unlock' ? [[b.reward.hero, 1]] : []))),
+    };
+    const offline = advance(s, end);
+    let online = s;
+    for (let t = T0 + 5 * SEC; t <= end; t += 5 * SEC) online = advance(online, t).state;
+    expect(summary(offline.events).length).toBe(STORY_BEATS.length - s.story.seen.length);
     expect(rel(online.currencies.ducats, offline.state.currencies.ducats)).toBeLessThan(TOL);
     expect(rel(online.currencies.glory, offline.state.currencies.glory)).toBeLessThan(TOL);
     expect(rel(online.village.lifetimeDucats, offline.state.village.lifetimeDucats)).toBeLessThan(TOL);
