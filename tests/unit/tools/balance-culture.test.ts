@@ -183,6 +183,25 @@ describe('cultureChoice: the bot policy', () => {
     expect(chainQuest(after)?.done).toBe(true);
   });
 
+  it('a quest still several hero levels short: one press buys them all, the first past the horizon too', () => {
+    // «Підвищ героя» 3 levels short (its base above the counter, a crafted state), no army: no level pays back.
+    const base = onChore(mid({ heroes: { otaman: 1 } }), 'chore.hero1');
+    const short = 3;
+    const s: GameState = {
+      ...base,
+      army: { ...base.army, infantry: 0 },
+      village: { ...base.village, levels: { ...base.village.levels, tavern: 0 } },
+      quests: {
+        ...base.quests,
+        chores: { ...base.quests.chores, base: base.stats.heroLevels + short - choreQuest(base).target },
+      },
+    };
+    expect(choreQuest(s).target - choreQuest(s).progress).toBe(short);
+    const choice = cultureChoice(s);
+    if (choice?.action.type !== 'levelHero') throw new Error('no hero press');
+    expect(choreQuest(applyAction(s, choice.action, s.time.lastSeen).state).done).toBe(true);
+  });
+
   it('«Вивчи ранг культури» / «Підвищ героя» chores: the asked kind is bought and the chore is done', () => {
     const poor = (s: GameState): GameState => ({ ...s, army: { ...s.army, infantry: 0 } });
     const c = poor(onChore(mid({ glory: PURSE }), 'chore.culture1'));
@@ -236,7 +255,7 @@ describe('the bot plays culture and heroes (M4-09)', () => {
     const rows = CALENDAR_LAND1.filter((c) => ids.includes(c.id));
     expect(rows.map((c) => c.id).sort()).toEqual([...ids].sort());
     const seen = calendarSessions(r, rows);
-    expect(seen.slice(0, 2).every((x) => x !== null)).toBe(true);
+    expect(seen.every((x) => x !== null)).toBe(true);
   });
 
   it('glory spent on culture, heroes and the Sich is logged per day, within the glory the run earned', () => {

@@ -24,6 +24,7 @@ import type { RelicId } from '../../../src/content/relics.ts';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
 import type { FarmBuildingId } from '../../../src/content/villages/khortytsia.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
+import type { Big } from '../../../src/core/big.ts';
 import { bulkCost, cost, tier, type Priced } from '../../../src/core/economy.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
 import {
@@ -203,19 +204,30 @@ const isNoticeable = (e: GameEvent): boolean =>
   (e.type === 'CossackHired' && e.total === e.n);
 
 /**
- * Glory or ducat price of the next level of a building, as a plain number, cached per building, level and price
- * multiplier for the whole run (M4-09 perf: the full row views priced every candidate in `Big` on every press). The
- * same `bulkCost` the row view's ×1 offer shows, so the bot ranks by the very numbers the player sees.
+ * Glory or ducat price of the next level of a building, cached per building, level, scale and price multiplier for
+ * the whole run (M4-09 perf: the full row views priced every candidate in `Big` on every press). The same `bulkCost`
+ * the row view's ×1 offer shows, so the bot ranks by the very numbers the player sees: as a plain number where it is
+ * finite, the `Big` kept for the compare past a double (later lands).
  */
-type PriceCache = Map<string, number>;
-function nextPrice(cache: PriceCache, b: Priced, id: string, level: number, scale: number, mult: number): number {
-  const key = `${id}@${String(level)}×${String(mult)}`;
+interface NextPrice {
+  readonly n: number;
+  readonly big: Big;
+}
+type PriceCache = Map<string, NextPrice>;
+function nextPrice(cache: PriceCache, b: Priced, id: string, level: number, scale: number, mult: number): NextPrice {
+  const key = `${id}@${String(level)}×${String(scale)}×${String(mult)}`;
   let p = cache.get(key);
   if (p === undefined) {
-    p = bulkCost(b, level, 1, scale, mult).toNumber();
+    const big = bulkCost(b, level, 1, scale, mult);
+    p = { n: big.toNumber(), big };
     cache.set(key, p);
   }
   return p;
+}
+
+/** Orders two prices: as numbers while both are finite, else through `Big` (a double overflows to Infinity). */
+function priceCmp(a: NextPrice, b: NextPrice): number {
+  return Number.isFinite(a.n) && Number.isFinite(b.n) ? a.n - b.n : a.big.cmp(b.big);
 }
 
 /**
@@ -239,7 +251,8 @@ function bestFarm(s: GameState, mods: Modifiers, prices: PriceCache): FarmBuildi
     };
     // The next level's own modifiers: a farm level can move a field (farm effects, a branch that opens).
     const gain = farmIncomeRate(next, steadyModifiers(next)).toNumber() - income;
-    const price = nextPrice(prices, b, b.id, level, village.scale, mods.costMult);
+    // Past a double the score is Infinity: such a level is never the soonest payback (no NaN from Infinity − x).
+    const price = nextPrice(prices, b, b.id, level, village.scale, mods.costMult).n;
     const short = Math.max(0, price - ducats);
     const wait = short === 0 ? 0 : income > 0 ? short / income : Infinity;
     const score = gain > 0 ? wait + price / gain : Infinity;
@@ -317,8 +330,9 @@ function scalarFields(mods: Modifiers): Record<ScalarField, number> {
 }
 
 /**
- * The next press of the bot, or null when nothing is worth pressing now; culture and heroes only on `reviewCulture`. The modifiers are folded once per press, and
- * MAX is pressed only when it buys a level: money ≥ the next level's price (what MAX's `maxAffordable` > 0 means).
+ * The next press of the bot, or null when nothing is worth pressing now; culture and heroes only on `reviewCulture`.
+ * The modifiers are folded once per press, and MAX is pressed only when it buys a level: money ≥ the next level's
+ * price (what MAX's `maxAffordable` > 0 means).
  */
 function nextAction(
   s: GameState,
@@ -341,7 +355,7 @@ function nextAction(
       if (!b || !sichUnlocked(b, s) || level >= SICH.levelMax) return [];
       return [{ b, level, price: nextPrice(prices, b, b.id, level, village.gloryScale, 1) }];
     })
-    .sort((a, c) => a.level - c.level || a.price - c.price);
+    .sort((a, c) => a.level - c.level || priceCmp(a.price, c.price));
   const sich = open[0];
   if (sich && s.currencies.glory.gte(cost(sich.b, sich.level, village.gloryScale)))
     return { type: 'buySich', id: sich.b.id, mode: 'max' };

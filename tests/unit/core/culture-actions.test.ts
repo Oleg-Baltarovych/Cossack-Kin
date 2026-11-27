@@ -160,9 +160,11 @@ describe('levelHero (M4-05)', () => {
     expect(one.state.stats.heroLevels).toBe(1);
     expect(relDiff(one.state.currencies.glory, Big.from(LOTS).sub(heroPrice(otaman, 1, 1)))).toBeLessThan(1e-12);
 
+    // ×10 from level 1: ten levels, or the rest to the cap (read from content).
+    const tenTo = Math.min(1 + 10, otaman.levelMax);
     const ten = applyAction(late(), { type: 'levelHero', id: 'otaman', mode: 10 }, T0);
-    expect(ten.state.heroes.otaman).toBe(11);
-    expect(ten.state.stats.heroLevels).toBe(10);
+    expect(ten.state.heroes.otaman).toBe(tenTo);
+    expect(ten.state.stats.heroLevels).toBe(tenTo - 1);
     // ×25 a few levels below the cap: the rest up to the cap (read from content, whatever the cap is).
     const near = otaman.levelMax - 5;
     const all = applyAction(late({ heroes: { otaman: near } }), { type: 'levelHero', id: 'otaman', mode: 25 }, T0);

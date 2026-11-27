@@ -150,10 +150,15 @@ export function cultureAsked(s: GameState): boolean {
 }
 
 /** The culture / hero stats an unfinished chain step or chore of `s` counts. */
-function asked(s: GameState): { readonly culture: boolean; readonly heroes: boolean } {
+function asked(s: GameState): { readonly culture: boolean; readonly heroes: boolean; readonly heroLevels: number } {
   const stats = new Set<string>();
-  for (const q of [chainQuest(s), choreQuest(s)]) if (q && !q.done && q.goal.kind === 'count') stats.add(q.goal.stat);
-  return { culture: stats.has('cultureRanks'), heroes: stats.has('heroLevels') };
+  let heroLevels = 0;
+  for (const q of [chainQuest(s), choreQuest(s)]) {
+    if (!q || q.done || q.goal.kind !== 'count') continue;
+    stats.add(q.goal.stat);
+    if (q.goal.stat === 'heroLevels') heroLevels = Math.max(heroLevels, q.target - q.progress);
+  }
+  return { culture: stats.has('cultureRanks'), heroes: stats.has('heroLevels'), heroLevels };
 }
 
 export interface CultureChoice {
@@ -179,17 +184,19 @@ export function cultureChoice(s: GameState, pressed: ReadonlySet<HeroId> = NONE)
     const isAsked = action.type === 'buyCulture' ? ask.culture : ask.heroes;
     if (isAsked && (!bestAsked || c.paybackMin < bestAsked.paybackMin)) bestAsked = c;
   }
-  if (best && best.paybackMin <= PAYBACK_HORIZON_MIN) return { ...best, action: heroPress(s, best.action) };
-  return bestAsked;
+  if (best && best.paybackMin <= PAYBACK_HORIZON_MIN) return { ...best, action: heroPress(s, best.action, 0) };
+  return bestAsked && { ...bestAsked, action: heroPress(s, bestAsked.action, ask.heroLevels) };
 }
 
 /**
  * A hero is levelled with the picker (one press, one action — SPEC §12.3), as a player would: n = the levels in a row
  * that each pay back within the horizon and are paid for (each measured on the state after the ones before), pressed
  * as MAX when MAX buys exactly those n, else as the largest ×k of the picker with k ≤ n (the rest on the next presses).
+ * While a quest is `needed` levels short, the press covers them, paying back or not: n ≥ needed, and the smallest
+ * affordable ×k ≥ n (else MAX, which then buys fewer than that step) — one press, as the once-a-session rule allows.
  * A culture rank is one press each (no picker on a node).
  */
-function heroPress(s: GameState, a: Action): Action {
+function heroPress(s: GameState, a: Action, needed: number): Action {
   if (a.type !== 'levelHero') return a;
   const hero = HEROES.find((h) => h.id === a.id);
   if (!hero) return a;
@@ -203,8 +210,13 @@ function heroPress(s: GameState, a: Action): Action {
     n += 1;
   }
   const level = heroLevel(a.id, s);
-  if (buyCount(hero, level, s.currencies.glory, CULTURE_PRICE_SCALE, hero.levelMax, 'max') === n)
-    return { ...a, mode: 'max' };
-  const k = [...BUY_MODES].reverse().find((m): m is Exclude<BuyMode, 'max'> => m !== 'max' && m <= n) ?? 1;
-  return { ...a, mode: k };
+  const affordable = buyCount(hero, level, s.currencies.glory, CULTURE_PRICE_SCALE, hero.levelMax, 'max');
+  const steps = BUY_MODES.filter((m): m is Exclude<BuyMode, 'max'> => m !== 'max');
+  if (needed > n) {
+    n = needed;
+    if (affordable <= n) return { ...a, mode: 'max' };
+    return { ...a, mode: steps.find((k) => k >= n && k <= affordable) ?? 'max' };
+  }
+  if (affordable === n) return { ...a, mode: 'max' };
+  return { ...a, mode: [...steps].reverse().find((k) => k <= n) ?? 1 };
 }
