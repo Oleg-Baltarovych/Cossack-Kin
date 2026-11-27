@@ -1,8 +1,10 @@
-// The UI icon atlases (plan M2-14; M3-12 `loot`): `pnpm sprites` packs the 16×16 icons (assets-src/gen/ui/icon,
-// assets-src/gen/loot/icon) into public/atlases/ui|loot.png|json; the DOM draws them as a CSS sprite (`components/Icon.tsx`), scaled by whole `--px` with
-// `image-rendering: pixelated`. The JSON is fetched once, on the first icon mounted (same origin: CSP `connect-src
-// 'self'`, `img-src 'self'`). Until it arrives — or if it never does — an icon is an empty box of its size: every icon
-// stands next to its text (SPEC §6.8), so nothing is lost but the picture.
+// The UI icon atlases (plan M2-14; M3-12 `loot`; M4-10 `culture`): `pnpm sprites` packs the 16×16 icons
+// (assets-src/gen/ui/icon, assets-src/gen/loot/icon, assets-src/gen/culture/icon) into public/atlases/<atlas>.png|json;
+// the DOM draws them as a CSS sprite (`components/Icon.tsx`), scaled by whole `--px` with `image-rendering: pixelated`.
+// The JSON is fetched once, on the first icon mounted (same origin: CSP `connect-src 'self'`, `img-src 'self'`). Until
+// it arrives — or if it never does — an icon is an empty box of its size: every icon stands next to its text
+// (SPEC §6.8), so nothing is lost but the picture.
+import type { CultureBranchId, CultureNodeId } from '../content/culture.ts';
 import { ATLAS_DIR, ATLAS_IMAGE, atlasSource, isCount, isRecord } from './atlasSource.ts';
 
 /** Icons of the atlas (the generator's `ICONS`; tests/unit/ui/icons.test.ts keeps the two lists equal). */
@@ -34,9 +36,48 @@ export const LOOT_ICON_IDS = [
   'kobza',
   'kobza-unknown',
 ] as const;
+/**
+ * The `culture` atlas (plan M4-10; assets-src/gen/culture/icon): a node's icon is its id with `-` for `.` (frame-name
+ * segments allow no dot), a branch's is its id. DOM-only, like `loot`: the `ui` sheet does not grow.
+ */
+export const CULTURE_ICON_IDS = [
+  'music-dumy',
+  'music-maidan',
+  'music-campaign',
+  'music-bandura',
+  'music-lirnyky',
+  'music-great',
+  'customs-vechornytsi',
+  'customs-toloka',
+  'customs-hostyna',
+  'customs-obzhynky',
+  'customs-kupala',
+  'customs-didukh',
+  'music',
+  'customs',
+] as const;
 export type UiIconId = (typeof ICON_IDS)[number];
 export type LootIconId = (typeof LOOT_ICON_IDS)[number];
-export type IconId = UiIconId | LootIconId;
+export type CultureIconId = (typeof CULTURE_ICON_IDS)[number];
+export type IconId = UiIconId | LootIconId | CultureIconId;
+
+/** The icon of a culture node or branch (exhaustive: a new node fails to compile until it has its icon). */
+export const CULTURE_ICON: Readonly<Record<CultureNodeId | CultureBranchId, CultureIconId>> = {
+  'music.dumy': 'music-dumy',
+  'music.maidan': 'music-maidan',
+  'music.campaign': 'music-campaign',
+  'music.bandura': 'music-bandura',
+  'music.lirnyky': 'music-lirnyky',
+  'music.great': 'music-great',
+  'customs.vechornytsi': 'customs-vechornytsi',
+  'customs.toloka': 'customs-toloka',
+  'customs.hostyna': 'customs-hostyna',
+  'customs.obzhynky': 'customs-obzhynky',
+  'customs.kupala': 'customs-kupala',
+  'customs.didukh': 'customs-didukh',
+  music: 'music',
+  customs: 'customs',
+};
 
 export interface IconFrame {
   readonly x: number;
@@ -55,7 +96,7 @@ export interface IconAtlas {
 export type IconSource = IconAtlas | 'loading' | 'failed';
 
 const FRAME_END = '/idle/00';
-/** A frame name `<generator id>.<icon id>/idle/00` → the icon id (the generator ids: `icon`, `loot-icon`). */
+/** A frame name `<generator id>.<icon id>/idle/00` → the icon id (generator ids: `icon`, `loot-icon`, `culture-icon`). */
 const frameId = (name: string, prefix: string): string | undefined =>
   name.startsWith(`${prefix}.`) && name.endsWith(FRAME_END)
     ? name.slice(prefix.length + 1, -FRAME_END.length)
@@ -115,11 +156,13 @@ const sheet = (file: string, name: string, ids: readonly IconId[], prefix: strin
 
 const ui = sheet('ui.json', 'UI', ICON_IDS, 'icon');
 const loot = sheet('loot.json', 'loot', LOOT_ICON_IDS, 'loot-icon');
+const culture = sheet('culture.json', 'culture', CULTURE_ICON_IDS, 'culture-icon');
 const isLoot = (id: IconId): id is LootIconId => (LOOT_ICON_IDS as readonly string[]).includes(id);
+const isCulture = (id: IconId): id is CultureIconId => (CULTURE_ICON_IDS as readonly string[]).includes(id);
 
 /** The sheet of `id`, `loading` until it arrives, or `failed`; the first call starts the load. */
 export function useIconAtlas(id: IconId): IconSource {
   // Each sheet's `use` is the same hooks in the same order. An icon never changes sheets (chest → chest-open and
   // relic → silhouette stay in `loot`), so the load effect of the sheet it mounted with is the one it needs.
-  return (isLoot(id) ? loot : ui).use();
+  return (isLoot(id) ? loot : isCulture(id) ? culture : ui).use();
 }
