@@ -21,11 +21,17 @@ import type { RelicId } from '../../../src/content/relics.ts';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
 import type { FarmBuildingId } from '../../../src/content/villages/khortytsia.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
-import { tier } from '../../../src/core/economy.ts';
+import { bulkCost, cost, tier, type Priced } from '../../../src/core/economy.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
-import { farmIncomeRate, sichUnlocked, steadyModifiers, villageOf } from '../../../src/core/modifiers.ts';
+import {
+  farmIncomeRate,
+  sichUnlocked,
+  steadyModifiers,
+  villageOf,
+  type Modifiers,
+} from '../../../src/core/modifiers.ts';
 import { tick } from '../../../src/core/offline.ts';
-import { farmRowView, sichRowView, visibleSichIds } from '../../../src/core/selectors.ts';
+import { visibleSichIds } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { canHire } from '../../../src/core/systems/army.ts';
 import { bloomStatus } from '../../../src/core/systems/bloom.ts';
@@ -217,25 +223,43 @@ const isNoticeable = (e: GameEvent): boolean =>
   (e.type === 'CossackHired' && e.total === e.n);
 
 /**
+ * Glory or ducat price of the next level of a building, as a plain number, cached per building, level and price
+ * multiplier for the whole run (M4-09 perf: the full row views priced every candidate in `Big` on every press). The
+ * same `bulkCost` the row view's ×1 offer shows, so the bot ranks by the very numbers the player sees.
+ */
+type PriceCache = Map<string, number>;
+function nextPrice(cache: PriceCache, b: Priced, id: string, level: number, scale: number, mult: number): number {
+  const key = `${id}@${String(level)}×${String(mult)}`;
+  let p = cache.get(key);
+  if (p === undefined) {
+    p = bulkCost(b, level, 1, scale, mult).toNumber();
+    cache.set(key, p);
+  }
+  return p;
+}
+
+/**
  * The farm building whose next level pays back soonest, counting the wait for its price: (price − ducats) / income +
  * price / gain (null when all are at the cap). Gains and income are the steady ones (`steadyModifiers`: no wind of
- * the moment). M2-27: ranked by gain per ducat alone, and with the storm's ×3, the bot saved a whole session for a 13K
- * windmill while a 10-ducat field or an affordable garden was there to buy.
+ * the moment; `mods` folded once per press). M2-27: ranked by gain per ducat alone, and with the storm's ×3, the bot
+ * saved a whole session for a 13K windmill while a 10-ducat field or an affordable garden was there to buy.
  */
-function bestFarm(s: GameState): FarmBuildingId | null {
+function bestFarm(s: GameState, mods: Modifiers, prices: PriceCache): FarmBuildingId | null {
   let best: FarmBuildingId | null = null;
   let bestScore = Infinity;
-  const income = farmIncomeRate(s, steadyModifiers(s)).toNumber();
+  const income = farmIncomeRate(s, mods).toNumber();
   const ducats = s.currencies.ducats.toNumber();
-  for (const b of villageOf(s).buildings) {
-    const v = farmRowView(s, b.id, 1);
-    if (v.blocked === 'max') continue;
+  const village = villageOf(s);
+  for (const b of village.buildings) {
+    const level = s.village.levels[b.id];
+    if (level >= FARM.levelMax) continue;
     const next: GameState = {
       ...s,
-      village: { ...s.village, levels: { ...s.village.levels, [b.id]: s.village.levels[b.id] + 1 } },
+      village: { ...s.village, levels: { ...s.village.levels, [b.id]: level + 1 } },
     };
+    // The next level's own modifiers: a farm level can move a field (farm effects, a branch that opens).
     const gain = farmIncomeRate(next, steadyModifiers(next)).toNumber() - income;
-    const price = v.price.toNumber();
+    const price = nextPrice(prices, b, b.id, level, village.scale, mods.costMult);
     const short = Math.max(0, price - ducats);
     const wait = short === 0 ? 0 : income > 0 ? short / income : Infinity;
     const score = gain > 0 ? wait + price / gain : Infinity;
@@ -294,19 +318,31 @@ export function bestRaid(s: GameState, slot: number): RaidTierId | null {
   return best;
 }
 
-/** The next press of the bot, or null when nothing is worth pressing now. */
-function nextAction(s: GameState, now: number): Action | null {
+/**
+ * The next press of the bot, or null when nothing is worth pressing now. The modifiers are folded once per press, and
+ * MAX is pressed only when it buys a level: money ≥ the next level's price (what MAX's `maxAffordable` > 0 means).
+ */
+function nextAction(s: GameState, now: number, prices: PriceCache): Action | null {
   const hire = hireCount(s, now);
   if (hire > 0) return { type: 'hire', n: hire };
-  // Glory: level the open Sich evenly (bloom wants all of them at 25).
+  const village = villageOf(s);
+  // Glory: level the open Sich evenly (bloom wants all of them at 25), the cheaper first on a tie.
   const open = visibleSichIds(s)
-    .map((id) => sichRowView(s, id, 1))
-    .filter((v) => v.blocked !== 'locked' && v.blocked !== 'max')
-    .sort((a, b) => a.level - b.level || a.price.cmp(b.price));
+    .flatMap((id) => {
+      const b = SICH_BUILDINGS.find((x) => x.id === id);
+      const level = s.village.sichLevels[id];
+      if (!b || !sichUnlocked(b, s) || level >= SICH.levelMax) return [];
+      return [{ b, level, price: nextPrice(prices, b, b.id, level, village.gloryScale, 1) }];
+    })
+    .sort((a, c) => a.level - c.level || a.price - c.price);
   const sich = open[0];
-  if (sich && sichRowView(s, sich.id, 'max').blocked === null) return { type: 'buySich', id: sich.id, mode: 'max' };
-  const farm = bestFarm(s);
-  if (farm && farmRowView(s, farm, 'max').blocked === null) return { type: 'buyBuilding', id: farm, mode: 'max' };
+  if (sich && s.currencies.glory.gte(cost(sich.b, sich.level, village.gloryScale)))
+    return { type: 'buySich', id: sich.b.id, mode: 'max' };
+  const mods = steadyModifiers(s);
+  const farm = bestFarm(s, mods, prices);
+  const fb = farm && village.buildings.find((b) => b.id === farm);
+  if (fb && s.currencies.ducats.gte(cost(fb, s.village.levels[fb.id], village.scale, mods.costMult)))
+    return { type: 'buyBuilding', id: fb.id, mode: 'max' };
   return null;
 }
 
@@ -322,6 +358,7 @@ export function simulate(options: SimOptions): SimResult {
   const sec = (t: number): number => Math.round((t - t0) / MS);
 
   const novelties: Novelty[] = [];
+  const prices: PriceCache = new Map();
   const seen = new Set<string>();
   const milestones: Record<string, number> = {};
   const sessions: SessionLog[] = [];
@@ -526,7 +563,7 @@ export function simulate(options: SimOptions): SimResult {
       claimRaids(t, raids);
       claimAll(t, claims);
       for (let p = 0; p < MAX_PRESSES_PER_STEP; p += 1) {
-        const a = nextAction(state, t);
+        const a = nextAction(state, t, prices);
         if (!a) break;
         const r = act(a, t);
         if (!r.ok) break;
