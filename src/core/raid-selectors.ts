@@ -18,18 +18,9 @@ import {
 } from './systems/raids.ts';
 import type { GameState } from './state.ts';
 import { chainQuest } from './systems/quests.ts';
+import { wholePercent } from './percent.ts';
 
 const PERCENT = 100;
-/**
- * Floating-point slack for a whole percent: a share written as a whole percent (0.29) is 28.999…96 after × 100 in
- * binary, and must still read 29. Far below any real difference between two chances (content shares are ≥ 0.01).
- */
-const PERCENT_EPS = 1e-9;
-
-/** A share (0…1) as the whole percent the player reads: rounded down, so a shown chance never overstates the real one. */
-export function wholePercent(share: number): number {
-  return Math.floor(share * PERCENT + PERCENT_EPS);
-}
 
 /** The open slots of the state (closed ones are always idle, the save gate; M4+ open more). */
 function openSlots(state: GameState): readonly RaidSlot[] {

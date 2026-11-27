@@ -10,7 +10,6 @@ import {
   raidClaimable,
   raidGuide,
   raidSuggested,
-  wholePercent,
   raidSceneView,
   raidSlotsView,
   relicHint,
@@ -18,6 +17,7 @@ import {
   type RaidSceneView,
   type RaidSlotView,
 } from '../../../src/core/raid-selectors.ts';
+import { wholePercent } from '../../../src/core/percent.ts';
 import { QUEST_CHAIN } from '../../../src/content/quests.ts';
 import { applyAction } from '../../../src/core/actions.ts';
 import { createRng } from '../../../src/core/rng.ts';

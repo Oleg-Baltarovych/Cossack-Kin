@@ -12,7 +12,7 @@ import { cultureNodeOpen, heroLevel, steadyModifiers } from '../modifiers.ts';
 import type { GameState } from '../state.ts';
 
 /** Culture and hero prices are not scaled by the land (glory scale applies to Sich buildings only; M5 decides). */
-const UNSCALED = 1;
+export const CULTURE_PRICE_SCALE = 1;
 
 interface Result {
   readonly state: GameState;
@@ -21,12 +21,12 @@ interface Result {
 
 /** Glory price of rank `rank` → `rank + 1` (plan §0). */
 export function culturePrice(node: CultureNode, rank: number, cultureCostMult: number): Big {
-  return cost(node, rank, UNSCALED, cultureCostMult);
+  return cost(node, rank, CULTURE_PRICE_SCALE, cultureCostMult);
 }
 
 /** Glory price of `n` hero levels from `level` (the level of `level + 1` costs base × growth^level). */
 export function heroPrice(hero: HeroDef, level: number, n: number): Big {
-  return bulkCost(hero, level, n, UNSCALED);
+  return bulkCost(hero, level, n, CULTURE_PRICE_SCALE);
 }
 
 /** Whether `node`'s prerequisites hold: the root always, any/all of the listed nodes at rank ≥ 1. */
@@ -69,7 +69,7 @@ export function levelHero(s: GameState, id: HeroId, mode: BuyMode): Result | Rej
   const level = heroLevel(id, s);
   if (!hero || level === 0) return 'locked';
   if (level >= hero.levelMax) return 'max';
-  const n = buyCount(hero, level, s.currencies.glory, UNSCALED, hero.levelMax, mode);
+  const n = buyCount(hero, level, s.currencies.glory, CULTURE_PRICE_SCALE, hero.levelMax, mode);
   if (n === 0) return 'glory';
   const to = level + n;
   return {

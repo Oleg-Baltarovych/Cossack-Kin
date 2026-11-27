@@ -5,12 +5,15 @@
 // coming back ticks on `visibilitychange` first). If a wind change falls inside that gap the click can disagree with
 // the button; the reducer then refuses with ActionRejected and nothing is lost. Accepted (M1-17 review).
 import { DEFENCE, FARM, FOOD, SICH, TIER_LEVELS, type Milestone } from '../content/economy.ts';
+import { CULTURE_BRANCHES, CULTURE_NODES, type CultureNodeId, type CultureUnlock } from '../content/culture.ts';
 import { SICH_BUILDINGS, type SichBuildingId, type SichUnlock } from '../content/sich.ts';
 import type { FarmBuildingId, WindLevel } from '../content/villages/khortytsia.ts';
 import { Big } from './big.ts';
 import { bulkCost, buyCount, prodRate, tier, type BuyMode, type Priced } from './economy.ts';
 import {
   collectModifiers,
+  cultureBranchOpen,
+  cultureNodeOpen,
   defence,
   farmIncomeRate,
   kharch,
@@ -37,6 +40,7 @@ import {
   type QuestKind,
 } from './systems/quests.ts';
 import { raidSlotsView, type RaidSlotView } from './raid-selectors.ts';
+import { culturePrereqMet } from './systems/culture.ts';
 
 const PERCENT = 100;
 const FARM_MILESTONES = FARM.milestones.map((m) => m.level);
@@ -76,15 +80,15 @@ export function hudView(state: GameState): HudView {
 /** Why a buy button is off (null = it can be pressed). */
 export type BuyBlock = 'ducats' | 'glory' | 'max' | 'locked' | null;
 
-interface Offer {
+export interface Offer {
   /** Levels the button buys (MAX with too little money shows one level). 0 only at the cap. */
   readonly count: number;
   readonly price: Big;
   readonly affordable: boolean;
 }
 
-/** What the buy button of `mode` offers for a building at `level`. */
-function offer(
+/** What the buy button of `mode` offers for a building (or a hero, culture-selectors.ts) at `level`. */
+export function offer(
   b: Priced,
   level: number,
   levelMax: number,
@@ -379,6 +383,12 @@ export type QuestTarget =
     }
   | { readonly kind: 'hire' }
   | { readonly kind: 'raid'; readonly slot: number }
+  | {
+      readonly kind: 'culture';
+      readonly id: CultureNodeId;
+      /** Its branch's condition while the branch is closed; null when open. */
+      readonly locked: CultureUnlock | null;
+    }
   | { readonly kind: 'tap' }
   | { readonly kind: 'none' };
 
@@ -389,6 +399,21 @@ function raidSlotIn(slots: readonly RaidSlotView[], order: readonly RaidSlotView
     if (hit) return hit.slot;
   }
   return 0;
+}
+
+/**
+ * The node a «learn a rank» quest leads to (`culture1` → «Кобзарські думи»): the first, in content order (roots first
+ * in each branch), a rank can be learned of now — glory aside; none → the first node of a closed branch, with its
+ * condition; none → the first node.
+ */
+function cultureTarget(state: GameState): QuestTarget {
+  const learnable = CULTURE_NODES.find(
+    (n) => cultureNodeOpen(n, state) && (state.culture[n.id] ?? 0) < n.maxRank && culturePrereqMet(n, state),
+  );
+  if (learnable) return { kind: 'culture', id: learnable.id, locked: null };
+  const closed = CULTURE_BRANCHES.find((b) => !cultureBranchOpen(b, state));
+  const node = CULTURE_NODES.find((n) => n.branch === (closed ?? CULTURE_BRANCHES[0])?.id);
+  return node ? { kind: 'culture', id: node.id, locked: closed?.unlock ?? null } : { kind: 'none' };
 }
 
 function goalTarget(state: GameState, goal: QuestGoal): QuestTarget {
@@ -414,10 +439,11 @@ function goalTarget(state: GameState, goal: QuestGoal): QuestTarget {
         case 'taps':
         case 'tapIncomeSec':
           return { kind: 'tap' };
+        case 'cultureRanks':
+          return cultureTarget(state);
         case 'purchases':
         case 'levelsBought':
-        // The «Культура» tab and its target come with M4-07/M4-12.
-        case 'cultureRanks':
+        // A hero's card as a target comes with the hero chores (M4-08) and the tab (M4-12/16).
         case 'heroLevels':
           return { kind: 'none' };
       }

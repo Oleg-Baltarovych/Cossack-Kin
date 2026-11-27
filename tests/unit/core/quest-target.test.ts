@@ -59,10 +59,11 @@ function expected(goal: QuestGoal): QuestTarget {
     case 'taps':
     case 'tapIncomeSec':
       return { kind: 'tap' };
+    // A new game: the «Музика» root, its branch still closed (M4-07; culture-selectors.test.ts has the rest).
+    case 'cultureRanks':
+      return { kind: 'culture', id: 'music.dumy', locked: { kind: 'building', id: 'tavern', level: 1 } };
     case 'purchases':
     case 'levelsBought':
-    // No culture target until the «Культура» tab (M4-07).
-    case 'cultureRanks':
     case 'heroLevels':
       return { kind: 'none' };
   }
@@ -75,10 +76,10 @@ describe('questTarget: chain steps (M3-15)', () => {
     expect(questTarget(onStep(game(), index), 'chain')).toEqual(expected(step.goal));
   });
 
-  it('every kind of step is covered by the list: a farm, a Sich building, the hire row and a raid slot', () => {
+  it('every kind of step is covered by the list: a farm, a Sich building, the hire row, a raid slot, a culture node', () => {
     const kinds = new Set(QUEST_CHAIN.map((_, i) => questTarget(onStep(game(), i), 'chain').kind));
-    // `none`: the culture1 step (M4-04, Q12) has no target until the «Культура» tab (M4-07).
-    expect([...kinds].sort()).toEqual(['farm', 'hire', 'none', 'raid', 'sich']);
+    // `culture`: the culture1 step (M4-04, Q12) leads to its node (M4-07).
+    expect([...kinds].sort()).toEqual(['culture', 'farm', 'hire', 'raid', 'sich']);
   });
 
   it('a generated step leads to its building (farm or Sich)', () => {
