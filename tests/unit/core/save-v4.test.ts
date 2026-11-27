@@ -30,6 +30,15 @@ const migrated = (payload: unknown): Record<string, unknown> => {
   if (!m.ok) throw new Error('migration');
   return m.value as Record<string, unknown>;
 };
+/** A v4 payload on through the rest of the chain (the gate is the current version's). */
+const latest = (v4: unknown): unknown => {
+  const m = migrate(v4, 4);
+  if (!m.ok) throw new Error('migration');
+  return m.value;
+};
+
+/** The v4 chain as it shipped: the v3 one with `raid1` after `hire1` (live content has `culture1` too since v5). */
+const v4Chain = (v3: readonly string[]): string[] => [...v3.slice(0, 3), 'khortytsia.raid1', ...v3.slice(3)];
 
 /** The v3 chain as it shipped (pinned, not derived from live content: the migration is frozen to it). */
 const V3_CHAIN = [
@@ -77,7 +86,8 @@ describe('migration v3 → v4 (M3-04)', () => {
     expect(v4['relics']).toEqual([]);
     const stats = v4['stats'] as Record<string, unknown>;
     expect([stats['raidsSent'], stats['raidsDone'], stats['raidsWon']]).toEqual([0, 0, 0]);
-    expect(validateState(v4).ok).toBe(true);
+    // The gate is the current version's: on through the rest of the chain.
+    expect(validateState(latest(v4)).ok).toBe(true);
   });
 
   it('grants nothing: everything but the version, the new fields, the counters and the chain index is the v3 game', () => {
@@ -97,32 +107,34 @@ describe('migration v3 → v4 (M3-04)', () => {
     expect(QUEST_CHAIN.map((q) => q.id)).toEqual([...CHAIN_STEP_IDS]);
     const v3 = payloadOf(raw(3)) as { quests: Record<string, unknown> };
     expect(V3_CHAIN).toHaveLength(28);
+    const V4_CHAIN = v4Chain(V3_CHAIN);
     V3_CHAIN.forEach((id, index) => {
       const base = 0;
       const out = migrated({ ...v3, quests: { ...v3.quests, chain: { kind: 'listed', index, base } } }) as {
         quests: { chain: { kind: string; index: number; base: number } };
       };
       expect(out.quests.chain.kind).toBe('listed');
-      expect(CHAIN_STEP_IDS[out.quests.chain.index], `v3 step ${String(index)}`).toBe(id);
+      expect(V4_CHAIN[out.quests.chain.index], `v3 step ${String(index)}`).toBe(id);
     });
     // On `hire1` itself the step stays: the player meets `raid1` next.
     const onHire = migrated({ ...v3, quests: { ...v3.quests, chain: { kind: 'listed', index: 2, base: 0 } } }) as {
       quests: { chain: { index: number } };
     };
-    expect(onHire.quests.chain.index).toBe(CHAIN_STEP_IDS.indexOf('khortytsia.hire1'));
+    expect(onHire.quests.chain.index).toBe(V4_CHAIN.indexOf('khortytsia.hire1'));
   });
 
-  it('Q7 boundaries pass the gate: `hire1` stays at 2, the last v3 step 27 becomes 28 (still the last step)', () => {
+  it('Q7 boundaries pass the gate (through v5): `hire1` stays `hire1`, the last v3 step stays the last step', () => {
     const v3 = payloadOf(raw(3)) as { quests: Record<string, unknown> };
-    const at = (index: number): unknown => {
-      const r = validateState(migrated({ ...v3, quests: { ...v3.quests, chain: { kind: 'listed', index, base: 0 } } }));
+    const at = (index: number): string | undefined => {
+      const v4 = migrated({ ...v3, quests: { ...v3.quests, chain: { kind: 'listed', index, base: 0 } } });
+      const r = validateState(latest(v4));
       if (!r.ok) throw new Error(`${r.error.reason} at ${r.error.path}`);
-      return r.state.quests.chain;
+      const c = r.state.quests.chain;
+      return c.kind === 'listed' ? CHAIN_STEP_IDS[c.index] : c.kind;
     };
-    expect(at(2)).toEqual({ kind: 'listed', index: 2, base: 0 });
-    expect(at(27)).toEqual({ kind: 'listed', index: 28, base: 0 });
-    expect(CHAIN_STEP_IDS[28]).toBe(V3_CHAIN[27]);
-    expect(CHAIN_STEP_IDS).toHaveLength(29);
+    expect(at(2)).toBe('khortytsia.hire1');
+    expect(at(27)).toBe(V3_CHAIN[27]);
+    expect(CHAIN_STEP_IDS.at(-1)).toBe(V3_CHAIN[27]);
   });
 
   it('Q7: a generated step and a finished chain pass unchanged', () => {
@@ -153,11 +165,11 @@ describe('migration v3 → v4 (M3-04)', () => {
 });
 
 describe('v4 saves load, and a newer one is never touched (M3-04)', () => {
-  it('v4.json passes chooseSave and holds a played game with raids in the slots', () => {
+  it('v4.json passes chooseSave (migrated) and holds a played game with raids in the slots', () => {
     const boot = chooseSave(raw(4), null);
     if (boot.kind !== 'loaded') throw new Error(boot.kind);
     const s = boot.state;
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(STATE_VERSION);
     expect(s.army.infantry).toBeGreaterThan(0);
     const kinds = s.raids.slots.map((slot) => slot.kind);
     expect(kinds).toContain('running');
@@ -165,20 +177,20 @@ describe('v4 saves load, and a newer one is never touched (M3-04)', () => {
     expect(s.stats.raidsSent).toBeGreaterThanOrEqual(kinds.filter((k) => k !== 'idle').length);
   });
 
-  it('a v5 save (envelope or payload) is «newer»: refused and blocks both slots', () => {
+  it('a save newer than this build (envelope or payload) next to v4 is «newer»: refused and blocks both slots', () => {
     const v4 = payloadOf(raw(4));
-    expect(decodeSave(envelope(v4, 5))).toEqual({ ok: false, reason: 'newer' });
-    expect(decodeSave(envelope({ ...v4, version: 5 }, 4))).toEqual({ ok: false, reason: 'newer' });
-    expect(chooseSave(raw(4), envelope({ ...v4, version: 5 }, 5))).toEqual({ kind: 'newer' });
+    const newer = STATE_VERSION + 1;
+    expect(decodeSave(envelope(v4, newer))).toEqual({ ok: false, reason: 'newer' });
+    expect(decodeSave(envelope({ ...v4, version: newer }, 4))).toEqual({ ok: false, reason: 'newer' });
+    expect(chooseSave(raw(4), envelope({ ...v4, version: newer }, newer))).toEqual({ kind: 'newer' });
   });
 
-  it('decode → encode → decode leaves the v4 save unchanged', () => {
+  it('decode → encode → decode leaves the migrated v4 save unchanged (the byte-exact check is the current fixture)', () => {
     const first = decodeSave(raw(4));
     if (!first.ok) throw new Error(first.reason);
     const again = decodeSave(encodeSave(first.state, first.seq));
     if (!again.ok) throw new Error(again.reason);
     expect(again.state).toEqual(first.state);
-    expect(encodeSave(again.state, again.seq)).toBe(raw(4));
   });
 });
 
@@ -257,7 +269,7 @@ describe('validateState v4: one refusal per invariant of plan §0 (M3-04)', () =
     expect(reason(game([running(roll({ returnAt: T0 - 1 }))]))).toBe('range at raids.slots.0.raid.returnAt');
   });
 
-  it('returnAt = startedAt + the duration of its tier, exactly (no time modifier before M4)', () => {
+  it('returnAt within the duration of its own tier (v5 widened the exact v4 rule to a window: save-v5.test.ts)', () => {
     const m30 = RAID_TIERS.find((t) => t.id === 'm30')?.durationSec ?? 0;
     expect(reason(game([running(roll({ returnAt: T0 + m30 * 1000 }))]))).toBe('ok');
     expect(reason(game([running(roll({ returnAt: T0 + m30 * 1000 + 1 }))]))).toBe(

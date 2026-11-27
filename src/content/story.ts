@@ -1,7 +1,7 @@
 // Story beats of the lands (SPEC §2.5; plan §0 «Віхи», M2-22, Q7, Q14). A beat is a short historical scene — a title,
 // 1–3 sentences and a portrait from the sprites the game already has — that fires once, when its monotone trigger
 // first holds (checked by the core after every `advance` and action, so offline too). Land 1 in M2 has only the
-// beats whose triggers exist in this build: «Рада на майдані» rewards glory until the hero comes (M4), «Вниз за
+// beats whose triggers exist in this build: «Рада на майдані» brings the otaman (M4-04, save v5), «Вниз за
 // пороги» (bloom → resettling) comes with M5. Texts: i18n `story.<land>.<beat>.title|text`, sources in
 // docs/content-sources.md. Reward sizes: гіпотеза, kept small — 10/15/30 min pushed Майдан 10 to S2 and the session
 // actions over 15 (pnpm balance, M2-22); kept in M2-27 (the retune slowed the economy instead, plan R4).
@@ -37,7 +37,7 @@ export type StoryTrigger =
 
 /**
  * What a beat gives when it fires: a reward in minutes or pysanky (shared with quests), or a hero (M4, ADR 013: he
- * arrives at level 1, event `HeroJoined`; granted by the core from M4-04). Culture branches open by a derived
+ * arrives at level 1, event `HeroJoined`; `checkStory`). Culture branches open by a derived
  * condition, not by a reward (culture.ts).
  */
 export type StoryReward = Reward | { readonly kind: 'unlock'; readonly hero: HeroId };
@@ -77,7 +77,8 @@ export const STORY_BEATS: readonly StoryBeat[] = [
     land: 'khortytsia',
     trigger: { kind: 'sich', id: 'maidan', level: 10 },
     portrait: 'otaman',
-    reward: { kind: 'gloryMinutes', minutes: 2 },
+    // Q16 (plan M4): the otaman himself is the reward (the 2 min of glory before M4-04 are gone).
+    reward: { kind: 'unlock', hero: 'otaman' },
     titleKey: 'story.khortytsia.council.title',
     textKey: 'story.khortytsia.council.text',
   },

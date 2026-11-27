@@ -925,7 +925,7 @@ culture: Readonly<Partial<Record<CultureNodeId, number>>>;  // ранг 1..maxRa
 heroes: Readonly<Partial<Record<HeroId, number>>>;          // рівень 1..levelMax; нема = ще не прийшов
 stats: { …v4; cultureRanks: number; heroLevels: number };   // монотонні: куплені ранги, підвищені рівні (для справ і ланцюжка)
 ```
-Розріджені записи: нові вузли й герої (M5+, M10+) не потребують bump. `validateState` v5: ранг/рівень цілі в межах контенту, невідомий id відкидається (як `story.seen`), `cultureRanks ≥ Σ рангів`, `heroLevels ≥ Σ (рівень − 1)`; відкриття гілок, передумови й прихід героя не перевіряє (похідні; `collectModifiers` рахує лише відкрите). Походи: `returnAt − startedAt ∈ [ceil(durationMs × RAIDS.minTimeMult), durationMs]` замість точної рівності v4 (§3.4 «Час походу»); решта гейту v4 без змін. Фікстура `v5.json` (`capture-save`: отаман прийшов, похід у дорозі).
+Розріджені записи: нові вузли й герої (M5+, M10+) не потребують bump. `validateState` v5: ранг/рівень цілі в межах контенту, невідомий id відкидається (як `story.seen`), `cultureRanks ≥ Σ рангів`, `heroLevels ≥ Σ (рівень − 1)`; збережений герой — лише якщо віха, що його приводить, є в `story.seen` (зв'язок віха → герой — з контенту); відкриття гілок і передумови не перевіряє (похідні; `collectModifiers` рахує лише відкрите). Походи: `returnAt − startedAt ∈ [ceil(durationMs × RAIDS.minTimeMult), durationMs]` замість точної рівності v4 (§3.4 «Час походу»); решта гейту v4 без змін. Фікстура `v5.json` (`capture-save`: отаман прийшов, похід у дорозі).
 
 **Цільова форма (ескіз на v1.0, поля додаються з етапами):**
 ```ts

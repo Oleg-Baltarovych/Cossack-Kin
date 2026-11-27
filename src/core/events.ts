@@ -1,5 +1,6 @@
 // Domain events (SPEC §9.2; plan §0): a discriminated union of plain data. The core returns them with every state
 // change; the store forwards them to render and audio, which react but never write state. Grows with M1-11/12.
+import type { HeroId } from '../content/heroes.ts';
 import type { SichBuildingId } from '../content/sich.ts';
 import type { StoryBeatId } from '../content/story.ts';
 import type { RaidTierId, RegionId } from '../content/raids.ts';
@@ -54,6 +55,8 @@ export type GameEvent =
   | { readonly type: 'OfflineApplied'; readonly report: ReturnReport }
   /** A story beat fired (once); its reward, if any, is already credited (SPEC §2.5). */
   | { readonly type: 'StoryBeatReached'; readonly id: StoryBeatId; readonly granted: Granted | null }
+  /** A hero arrived at level 1 with his story beat (right after its StoryBeatReached; may come from time — M4-04). */
+  | { readonly type: 'HeroJoined'; readonly id: HeroId }
   /** A quest's goal was reached (once per quest); its reward waits for `claimQuest` (SPEC §3.10). */
   | { readonly type: 'QuestCompleted'; readonly kind: QuestKind; readonly id: QuestId }
   /** A finished quest was claimed; `granted` is null for a chore past the day's reward limit. */

@@ -138,10 +138,6 @@ describe('heroes (M4-02, plan §3, Q6)', () => {
     }
   });
 
-  it('no beat grants a hero before save v5 holds heroes (M4-04 gives «Рада на майдані» the otaman and drops this)', () => {
-    expect(STORY_BEATS.filter((b) => b.reward?.kind === 'unlock').map((b) => b.id)).toEqual([]);
-  });
-
   it('an unlock reward names a real hero, and no hero arrives through two beats', () => {
     const unlocked = STORY_BEATS.flatMap((b) => (b.reward?.kind === 'unlock' ? [b.reward.hero] : []));
     for (const hero of unlocked) expect(HERO_IDS).toContain(hero);

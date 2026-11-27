@@ -12,7 +12,7 @@ import { createInitialState, STATE_VERSION, validateState } from '../../../src/c
 
 const T0 = 1_763_400_000_000;
 /** The v4 raid counters a current state carries next to the v2 ones (M3-04). */
-const RAID_COUNTERS = { raidsSent: 0, raidsDone: 0, raidsWon: 0 };
+const RAID_COUNTERS = { raidsSent: 0, raidsDone: 0, raidsWon: 0, cultureRanks: 0, heroLevels: 0 };
 const v1Raw = readFileSync('tests/fixtures/saves/v1.json', 'utf8').trim();
 const v1Payload = (): Record<string, unknown> =>
   JSON.parse((JSON.parse(v1Raw) as { payload: string }).payload) as Record<string, unknown>;
