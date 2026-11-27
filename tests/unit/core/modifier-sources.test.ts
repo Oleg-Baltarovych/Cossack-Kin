@@ -2,6 +2,9 @@
 // pre-M4-03 `modifiersUnder`, kept verbatim below (only here) and compared to the fold field by field with exact
 // equality on random states — random farm/Sich levels around the unlock thresholds (crafted saves with locked levels
 // too), random relics and random moments for the wind, drawn from the seeded core RNG like the raid sequences.
+// Exact equality is the point here (not a tolerance): it is float-order-sensitive, so it also pins the source order.
+// Retire the oracle at M4-05, when culture and hero sources join existing fields: replace it with a golden snapshot of
+// the field values of these states taken before M4-05.
 import { describe, expect, it } from 'vitest';
 import { ARMY, DEFENCE, OFFLINE } from '../../../src/content/economy.ts';
 import { EFFECT_FLOORS, EFFECT_TARGETS } from '../../../src/content/effects.ts';
@@ -11,11 +14,13 @@ import { FARM_BUILDING_IDS, type FarmBuildingId } from '../../../src/content/vil
 import {
   collectModifiers,
   defence,
+  foldSources,
   modifierSources,
   sichUnlocked,
   steadyModifiers,
   villageOf,
   type ModSource,
+  type ModSourceRef,
   type Modifiers,
 } from '../../../src/core/modifiers.ts';
 import { createRng, next, type Rng } from '../../../src/core/rng.ts';
@@ -140,6 +145,56 @@ const REDUCING = new Set(
 );
 const close = (a: number, b: number): boolean => Math.abs(a - b) <= 1e-12 * Math.max(1, Math.abs(b));
 
+const DEF: ModSourceRef = { kind: 'defence' };
+const NONE = foldSources([], 1);
+
+describe('foldSources: base ± shares, floors, the wind (M4-03)', () => {
+  it('no source: every field at its base, the windmill at the wind', () => {
+    expect(NONE).toStrictEqual({ ...BASE, buildingMult: Object.fromEntries(FARM_BUILDING_IDS.map((id) => [id, 1])) });
+    expect(foldSources([], 1.5).buildingMult.windmill).toBe(1.5);
+  });
+
+  it('a bonus share raises its field only', () => {
+    const m = foldSources(
+      [
+        { source: DEF, field: 'gloryMult', share: 0.25 },
+        { source: DEF, field: 'gloryMult', share: 0.5 },
+      ],
+      1,
+    );
+    expect(m).toStrictEqual({ ...NONE, gloryMult: BASE.gloryMult + 0.75 });
+  });
+
+  it('a reduction share lowers its field (every reducing field)', () => {
+    expect(REDUCING.size).toBeGreaterThan(0);
+    for (const field of REDUCING) {
+      if (field === 'buildingMult') throw new Error('content');
+      const m = foldSources([{ source: DEF, field, share: 0.125 }], 1);
+      expect(m, field).toStrictEqual({ ...NONE, [field]: BASE[field] - 0.125 });
+    }
+  });
+
+  it('a reduction past its floor stops at the floor', () => {
+    const floor = EFFECT_FLOORS.cost;
+    const m = foldSources(
+      [
+        { source: DEF, field: 'costMult', share: 0.75 * (1 - floor) },
+        { source: DEF, field: 'costMult', share: 1 - floor },
+      ],
+      1,
+    );
+    expect(m.costMult).toBe(floor);
+  });
+
+  it('a building share raises only that building, the wind multiplies the windmill after it', () => {
+    const m = foldSources([{ source: DEF, field: 'buildingMult', building: 'garden', share: 0.5 }], 2);
+    expect(m.buildingMult).toStrictEqual({ ...NONE.buildingMult, garden: 1.5, windmill: 2 });
+    const w = foldSources([{ source: DEF, field: 'buildingMult', building: 'windmill', share: 0.5 }], 2);
+    expect(w.buildingMult.windmill).toBe(3);
+  });
+});
+
+// The M4-07 breakdown contract: what the UI lists (base ± Σ of a field's sources) is the number the economy uses.
 describe('the sources add up to each field (the UI breakdown, M4-07)', () => {
   it.each(SAMPLES.map((x, i) => [i + 1, x] as const))('state %i: base ± Σ share = the steady field', (_, x) => {
     const sources = modifierSources(x.state);

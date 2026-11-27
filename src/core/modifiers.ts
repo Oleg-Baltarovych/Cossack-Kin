@@ -5,9 +5,15 @@
 // nothing from it (security review M1-04). No cache yet (measure first, plan §0).
 import { ARMY, DEFENCE, FOOD, OFFLINE } from '../content/economy.ts';
 import { EFFECT_FLOORS, EFFECT_KINDS, EFFECT_TARGETS, type EffectField, type EffectKind } from '../content/effects.ts';
-import { RELIC_DEFS, type RelicId } from '../content/relics.ts';
+import { RELIC_DEFS, type RelicEffect, type RelicId } from '../content/relics.ts';
 import { SICH_BUILDINGS, type SichBuilding, type SichBuildingId } from '../content/sich.ts';
-import { FARM_BUILDING_IDS, KHORTYTSIA, type FarmBuildingId, type Village } from '../content/villages/khortytsia.ts';
+import {
+  FARM_BUILDING_IDS,
+  KHORTYTSIA,
+  type FarmBuildingId,
+  type FarmEffect,
+  type Village,
+} from '../content/villages/khortytsia.ts';
 import type { Big } from './big.ts';
 import { incomeRate } from './economy.ts';
 import type { GameState, VillageState } from './state.ts';
@@ -103,13 +109,28 @@ const FLOOR_LIST: readonly (readonly [ScalarField, number])[] = (() => {
         floors.push([EFFECT_FIELD[target.field], floor]);
         break;
       case 'foodBuildings':
-        // A content error caught at load: a per-building multiplier only grows (no reduction on `buildingMult`).
+        // A content error (content test `culture.test.ts`): a per-building multiplier only grows.
         throw new Error(`reducing effect ${kind} cannot target food buildings`);
+      default:
+        return unreachable(target);
     }
   }
   return floors;
 })();
-const FLOORS: Readonly<Partial<Record<ScalarField, number>>> = Object.fromEntries(FLOOR_LIST);
+const REDUCING: ReadonlySet<ScalarField> = new Set(FLOOR_LIST.map(([field]) => field));
+
+function unreachable(x: never): never {
+  throw new Error(`unexpected ${JSON.stringify(x)}`);
+}
+
+/** The field each ranked farm-building effect raises (`fairDay` is a scene event, no modifier). */
+const FARM_EFFECT_FIELD: Readonly<Record<Exclude<FarmEffect['kind'], 'fairDay'>, ScalarField>> = {
+  armyPower: 'powerMult',
+  glory: 'gloryMult',
+};
+
+/** The field each relic effect raises (1:1, `content/relics.ts`). */
+const RELIC_FIELD: Readonly<Record<RelicEffect['kind'], ScalarField>> = { power: 'powerMult', loot: 'lootMult' };
 
 /** The farm building a land passive multiplies. */
 const PASSIVE_BUILDING: Readonly<Record<Village['passive']['kind'], FarmBuildingId>> = { windmillMult: 'windmill' };
@@ -177,9 +198,22 @@ export function modifierSources(state: GameState): ModSource[] {
     if (src.share !== 0) out.push(src);
   };
   for (const b of village.buildings) {
-    if (b.effect === undefined || b.effect.kind === 'fairDay') continue;
-    const field = b.effect.kind === 'glory' ? 'gloryMult' : 'powerMult';
-    add({ field, source: { kind: 'farm', id: b.id }, share: b.effect.perLevel * state.village.levels[b.id] });
+    const e = b.effect;
+    if (e === undefined) continue;
+    switch (e.kind) {
+      case 'armyPower':
+      case 'glory':
+        add({
+          field: FARM_EFFECT_FIELD[e.kind],
+          source: { kind: 'farm', id: b.id },
+          share: e.perLevel * state.village.levels[b.id],
+        });
+        break;
+      case 'fairDay':
+        break;
+      default:
+        unreachable(e);
+    }
   }
   for (const b of SICH_BUILDINGS) {
     if (!sichUnlocked(b, state)) continue;
@@ -197,8 +231,7 @@ export function modifierSources(state: GameState): ModSource[] {
   add({ field: 'incomeMult', source: { kind: 'defence' }, share: defence(state) * DEFENCE.incomePerPoint });
   for (const r of RELIC_DEFS) {
     if (!state.relics.includes(r.id)) continue;
-    const field = r.effect.kind === 'power' ? 'powerMult' : 'lootMult';
-    add({ field, source: { kind: 'relic', id: r.id }, share: r.effect.share });
+    add({ field: RELIC_FIELD[r.effect.kind], source: { kind: 'relic', id: r.id }, share: r.effect.share });
   }
   // The land passive «Вітряки ×N» as the share N − 1 of its building.
   add({
@@ -223,17 +256,22 @@ export function steadyModifiers(state: GameState): Modifiers {
   return modifiersUnder(state, 1);
 }
 
+function modifiersUnder(state: GameState, windmillMult: number): Modifiers {
+  return foldSources(modifierSources(state), windmillMult);
+}
+
 /**
- * The fold of `modifierSources`, then the wind: each field is its base ± every share of it in list order (a
+ * The fold of sources, then the wind on the windmill: each field is its base ± every share of it in list order (a
  * reduction — a field with a floor — subtracts and never falls below the floor). Fields multiply where the systems
  * combine them.
  */
-function modifiersUnder(state: GameState, windmillMult: number): Modifiers {
+export function foldSources(sources: readonly ModSource[], windmillMult: number): Modifiers {
   const fields: Record<ScalarField, number> = { ...BASE };
+  // fromEntries over FARM_BUILDING_IDS yields every id: the string-keyed result is the full record.
   const buildingMult = Object.fromEntries(FARM_BUILDING_IDS.map((id) => [id, 1])) as Record<FarmBuildingId, number>;
-  for (const s of modifierSources(state)) {
+  for (const s of sources) {
     if (s.field === 'buildingMult') buildingMult[s.building] += s.share;
-    else fields[s.field] += FLOORS[s.field] === undefined ? s.share : -s.share;
+    else fields[s.field] += REDUCING.has(s.field) ? -s.share : s.share;
   }
   for (const [field, floor] of FLOOR_LIST) fields[field] = Math.max(floor, fields[field]);
   buildingMult.windmill *= windmillMult;
