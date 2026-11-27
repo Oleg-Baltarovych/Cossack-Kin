@@ -3,10 +3,11 @@
 > Orientation map for AI agents and humans: read this first instead of exploring. Keep it terse (≤ ~20 KB).
 > Update it in the same change that alters structure, systems, commands or decisions. Area-specific traps live in
 > `.claude/rules/*.md` (load automatically for matching paths); per-task history lives in `docs/plans/` and git.
-> Last updated: 2026-11-26 (compacted; gotchas moved into area rules; PR flow).
+> Last updated: 2026-11-27 (M4 plan approved, ADR 013).
 
 ## 1. Status
 - **Current:** M3 (Військо) accepted with open items (qa-lead, M3-20, 2026-11-25). Plan `docs/plans/2026-11-23-m3-army.md`; deferred items in its «Відкладено після M3» table (under M3-19). Fixed since acceptance: 412 quest-icon snap (#7), raid-map layout (#8), squad-at-gate baseline on a clock paused before load (#6). Still open before M4: «nightly green twice» not yet observed (#17).
+- **M4 (Культура і герої):** plan `docs/plans/2026-11-27-m4-culture-heroes.md` approved 2026-11-27 (Q1–Q16 defaults); M4-01 done (SPEC + ADR 013), next M4-02.
 - **Next (owner's MVP order):** M4 → M5 → M8 (+ daily calendar/quests from M6), then M7 and the rest of M6. Before M4: process diagnostic (this compaction is part of it).
 - **M2** accepted with open items (M2-30, 2026-11-23; plan `docs/plans/2026-11-19-m2-living-village.md`): phone fps for AC M2 3 (steps in plan M2-28 «Результат») and cold start ≤ 3 s are unmeasured. Deferred list: plan M2-29 «Відкладено після M2».
 - **Done:** M0 (2026-11-16), M-ART ART-01…21 (2026-11-17), M1 (2026-11-19, plan `docs/plans/2026-11-17-m1-core.md`), M2a (2026-11-20).
@@ -56,7 +57,7 @@ Commands: see `CLAUDE.md` «Commands» (single source).
 | economy (farm + Sich), kharch/defence, wind, infantry + passive glory, store, `advance`, saves, return window, `pnpm balance` | M1 | ✅ |
 | living village: continuous world (3 zones), tiers + construction, camera/zoom, bottom sheet, villagers/Cossacks/carts/visitors, story beats, chain + chores, juice | M2 | ✅ with open items (phone fps, cold start) |
 | raids: slots, board, rumours, relics + pity, map, chest, treasury, squad on the scene, notification hook, save v4 | M3 | ✅ with open items — `core/systems/raids.ts`, `core/raid-selectors.ts`, `ui/components/{Raids,RaidMap,RaidChest,Treasury}.tsx`, `render/agents/sim.ts` |
-| culture (2 branches), heroes (3), modifiers | M4 | — |
+| culture (2 branches), heroes (3), modifier sources, save v5 | M4 | 🚧 plan approved, M4-01 done |
 | bloom/prestige, legacy tree, land 2 (Velykyi Luh) | M5 | — |
 | meta: daily/weekly quests, stork, real notifications, weather/seasons | M6 | — |
 | audio | M7 | — |
@@ -73,6 +74,7 @@ Legend: — not started · 🚧 in progress · ✅ done.
 - Pacing & variety (009, SPEC §2.4–2.6): novelty every session in week 1, daily after — measured by `pnpm balance` from `content/pacing.ts`; variety only from seed + time.
 - Continuous world (011): one `KHORTYTSIA_WORLD` (1920 px: farm 0–768 → suburb 768–1152 → Sich 1152–1920); tabs follow the camera; 2 integer zoom levels; camera never in `GameState`.
 - Raids (012, SPEC §3.4): army power is a snapshot (no losses); outcome rolled once at `startRaid` and stored; `returnAt` is an `advance` breakpoint; `applyOffline` finishes raids to the real `now`; board = pure `raidBoard(seed, day)`; relic pity; manual claim; preview = grant.
+- Culture & heroes (013, SPEC §3.5; M4, planned): glory currency; permanent ranked nodes, whole tree visible, no respec; branch/hero unlocks derived (tavern 1 → «Музика», church → «Звичаї», beats → hero at level 1; all in land 1); `modifierSources` folded by `collectModifiers` and read by the UI breakdown; raid `returnAt` fixed at start within `[dur × minTimeMult, dur]`; Чайки not in M4 (M10+); save v5 with sparse `culture`/`heroes`.
 - Quests (SPEC §3.10): chain «Наказ кошового» + chores (M2), daily/weekly (M6). Save is v4 (migrations 001–003).
 - Names: «Козацький хутір» / «Cossack Kin»; applicationId `com.cossackkin.game` (fixed at first Play upload).
 
@@ -100,17 +102,17 @@ Read only the section you need: `grep -n "^##" docs/SPEC.md`, then read that ran
 |---|---|---|
 | 0 | 14 | instructions for Claude Code (stage gates, core purity, balance, i18n, screenshots, art gate) |
 | 1–2 | 27 | vision, names, pillars, micro/macro loop, pacing targets + novelty + free/ads/payer bounds, 2.4 discovery calendar, 2.5 story beats, 2.6 seeded variety |
-| 3 | 171 | 3.0 settlement zones, currencies, farm + Sich buildings (tuned land-1 tables), taps/stork, army/raids (M3 model, presentation rules, Q16–Q21), culture/heroes, prestige, lands, offline `advance`/`applyOffline`/`resume` + `ReturnReport`, meta, 3.10 quests |
-| 4 | 433 | monetization: principles, 4.1 pysanky, 4.2 shop + sinks + never-sold, 4.3 rewarded placements/caps, 4.4 billing tech, 4.5 onboarding |
-| 5 | 521 | art direction: 320–400 px, sizes, palette, font, code-generated art pipeline |
-| 6 | 562 | visuals: screen + UI as built, layers, atmosphere stack, characters, buildings (tiers, construction), village life (agents), juice, a11y |
-| 7 | 704 | audio: folk instruments via physical modelling, ambience, SFX |
-| 8 | 739 | tech stack |
-| 9 | 760 | architecture: repo tree, data flow + store + events, key types (GameState v4 + migration chain), platform interfaces, saves, modifiers |
-| 10–11 | 986 | UX flows (onboarding incl. `raid1`, «Січ» raids block), localization |
-| 12 | 1016 | quality: unit, e2e + debug params, balance sim metrics (novelty, profiles, raids bot, S1 cap), performance budgets |
-| 13 | 1070 | analytics events (+ IAP, pysanky) |
-| 14 | 1079 | roadmap M0 … M10 with acceptance criteria; status line; MVP |
-| 15–17 | 1103 | release & store (+ billing setup), cultural notes, resolved/open questions |
+| 3 | 172 | 3.0 settlement zones, currencies, farm + Sich buildings (tuned land-1 tables), taps/stork, army/raids (M3 model, presentation rules, Q16–Q21, raid time at start M4), culture/heroes (+ M4 model), prestige, lands, offline `advance`/`applyOffline`/`resume` + `ReturnReport`, meta, 3.10 quests |
+| 4 | 449 | monetization: principles, 4.1 pysanky, 4.2 shop + sinks + never-sold, 4.3 rewarded placements/caps, 4.4 billing tech, 4.5 onboarding |
+| 5 | 537 | art direction: 320–400 px, sizes, palette, font, code-generated art pipeline |
+| 6 | 578 | visuals: screen + UI as built, layers, atmosphere stack, characters, buildings (tiers, construction), village life (agents), juice, a11y |
+| 7 | 720 | audio: folk instruments via physical modelling, ambience, SFX |
+| 8 | 755 | tech stack |
+| 9 | 776 | architecture: repo tree, data flow + store + events, key types (GameState v4 + planned v5 + migration chain), platform interfaces, saves, modifiers (+ M4 `modifierSources`) |
+| 10–11 | 1015 | UX flows (onboarding incl. `raid1`, «Січ» raids block, «Культура» M4), localization |
+| 12 | 1045 | quality: unit, e2e + debug params, balance sim metrics (novelty, profiles, raids bot, culture bot M4, S1 cap), performance budgets |
+| 13 | 1100 | analytics events (+ IAP, pysanky) |
+| 14 | 1109 | roadmap M0 … M10 with acceptance criteria; status line; MVP |
+| 15–17 | 1133 | release & store (+ billing setup), cultural notes, resolved/open questions |
 
 Art: `docs/art/ART-BIBLE.md` (style source of truth), `docs/art/palette.png`, `assets-src/palettes/master.json`.
