@@ -11,14 +11,25 @@ import { cameraSettled } from './world.ts';
 
 export const COMPARE_BASELINES = process.platform === 'linux';
 
+export interface BaselineOptions {
+  /** A region that is variable by design; the call site says why. */
+  readonly mask?: readonly Locator[];
+  /**
+   * The page clock is paused (`gotoReadyPaused`): Pixi draws no new frame while the time stands, so `cameraSettled`
+   * (which counts frames) would never return; the caller keeps the camera still (`?cam`, no tap).
+   */
+  readonly pausedClock?: boolean;
+}
+
 /**
  * Compares the page with its Linux baseline `name`. Every caller pins what would move: the clock (`setFixedTime` or a
- * paused one), the seed, the world (`?freeze`, or a stepped paused clock) and motion (`?still` where the UI animates);
- * `mask` is for a region that is variable by design and must say why at the call site.
+ * paused one), the seed, the world (`?freeze`, or a paused clock stepped from before the load) and motion (`?still`
+ * where the UI animates).
  */
-export async function expectBaseline(page: Page, name: string, mask: readonly Locator[] = []): Promise<void> {
+export async function expectBaseline(page: Page, name: string, options: BaselineOptions = {}): Promise<void> {
+  const mask = options.mask ?? [];
   // A tab tap glides the camera (CAMERA.glideMs): a shot mid-glide differs from run to run (M3-18, 360 «Походи»).
-  await cameraSettled(page);
+  if (!options.pausedClock) await cameraSettled(page);
   await page.evaluate(() => document.fonts.ready);
   if (!COMPARE_BASELINES) {
     mkdirSync(screensDir(), { recursive: true });

@@ -38,9 +38,42 @@ export interface WorldStats {
  * plot is built (`state=showcase`, the M-ART scene) unless the URL picks a state.
  */
 export async function gotoReady(page: Page, url: string): Promise<void> {
+  await page.goto(withDefaults(url));
+  await waitReady(page);
+}
+
+function withDefaults(url: string): string {
   const extra = [/[?&]ui=/.test(url) ? '' : 'ui=0', /[?&]state=/.test(url) ? '' : 'state=showcase'].filter(Boolean);
-  const full = extra.length === 0 ? url : `${url}${url.includes('?') ? '&' : '?'}${extra.join('&')}`;
-  await page.goto(full);
+  return extra.length === 0 ? url : `${url}${url.includes('?') ? '&' : '?'}${extra.join('&')}`;
+}
+
+/**
+ * `gotoReady` on a page clock paused BEFORE the load (`clock.install` + `clock.pauseAt` first; M3 deferred 6): a live
+ * world (no `?freeze`) whose frames are the same in every run. The render clock starts at `performance.now()` when the
+ * world is made; on a clock that ran during the load, that start, and the frames drawn before the pause, fell at a
+ * different moment each run, and the agents with them. Here the page's time moves only in `runFor(1)` steps, each
+ * followed by one native frame, until the first world frame is drawn: the load needs them (Pixi's `Spritesheet.parse`
+ * yields between frame batches with a `setTimeout(0)` that the clock files 1 ms ahead), and Pixi's ticker skips a frame
+ * whose time did not move. However long the load took, the first frame falls 1 ms after the world was made: the ticker
+ * starts (`app.init`) and the render clock is made in one task, so the first step after it is the one that draws. From
+ * then on only `clock.runFor` moves the scene. The game's clock moves with the steps (≈ 1 ms a frame of the load): what
+ * is judged is the scene.
+ */
+export async function gotoReadyPaused(page: Page, url: string): Promise<void> {
+  await page.goto(withDefaults(url));
+  const deadline = Date.now() + READY_TIMEOUT_MS;
+  while (!(await page.evaluate(() => document.body.dataset['ready'] !== undefined))) {
+    if (Date.now() > deadline) throw new Error(`the world was not ready after ${String(READY_TIMEOUT_MS)} ms`);
+    await page.clock.runFor(1);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            resolve();
+          });
+        }),
+    );
+  }
   await waitReady(page);
 }
 
