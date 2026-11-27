@@ -137,7 +137,8 @@ async function sendFromMap(page: Page, tier: RaidTierId): Promise<{ success: str
   const card = map.getByRole('region', { name: new RegExp(`^${TIER_NAME[tier]} — `) });
   const success = norm(await card.locator('[data-fact="success"] dd').innerText());
   const failure = norm(await card.locator('[data-fact="failure"] dd').innerText());
-  await card.getByRole('button', { name: /^Вирушити: .*, загін 1$/ }).click();
+  // The footer is the window's own row under the card (M3 deferred 8); the button's name names the offer.
+  await map.getByRole('button', { name: new RegExp(`^Вирушити: ${TIER_NAME[tier]} — .*, загін 1$`) }).click();
   await expect(map).toBeHidden();
   return { success, failure };
 }

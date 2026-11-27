@@ -71,7 +71,7 @@ test.describe('M3-11 raid map', () => {
     await expect(card.locator('[data-fact="relic"], [data-fact="pysanky"]')).toHaveCount(0);
     const success = (await card.locator('[data-fact="success"] dd').innerText()).replace(/\s+/g, ' ').trim();
     expect(success).toMatch(/^\+.+ дук\., \+.+ слави$/);
-    await card.getByRole('button', { name: /^Вирушити: Розвідка — .*, загін 1$/ }).click();
+    await map.getByRole('button', { name: /^Вирушити: Розвідка — .*, загін 1$/ }).click();
     await expect(map).toBeHidden();
 
     // Away for the raid's length and a minute more, so it is surely back.
@@ -117,6 +117,34 @@ test.describe('M3-11 raid map', () => {
     await page.keyboard.press('Escape');
     await expect(map).toBeHidden();
     await expect(page.getByRole('button', { name: T.uk.choose })).toBeFocused();
+  });
+});
+
+// M3 deferred 8 (ui-reviewer): the window's content is top-anchored, so choosing another flag — whose card is taller
+// or shorter — never moves the map under the finger (a centred block did, off the device-px grid at 412@3.5); and
+// «Вирушити», which closes the map, leaves the focus on the page's controls, never on the body. Every phone.
+test.describe('M3 deferred 8: the raid map stands still', () => {
+  test('the map keeps its place whichever flag is chosen; «Вирушити» leaves the focus on a control', async ({
+    page,
+  }) => {
+    await gotoReady(page, '/?seed=1&state=mid&ui=1&time=13:00&freeze');
+    const map = await openMap(page, 'uk');
+    await expect(map.locator('[data-map="ready"]')).toBeVisible();
+    const flags = map.getByRole('group', { name: T.uk.flags }).getByRole('button');
+    await expect(flags).toHaveCount(5);
+    const tops: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      await flags.nth(i).click();
+      await expect(flags.nth(i)).toHaveAttribute('aria-pressed', 'true');
+      tops.push(await map.locator('[data-map]').evaluate((el) => el.getBoundingClientRect().top));
+    }
+    expect(tops).toEqual(tops.map(() => tops[0]));
+    await flags.first().click();
+    await map.getByRole('button', { name: /^Вирушити: Розвідка — .*, загін 1$/ }).click();
+    await expect(map).toBeHidden();
+    expect(await page.evaluate(() => document.activeElement !== null && document.activeElement !== document.body)).toBe(
+      true,
+    );
   });
 });
 
