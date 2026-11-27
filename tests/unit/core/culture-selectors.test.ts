@@ -103,6 +103,9 @@ const heroView = (s: GameState, id: HeroId, mode: 1 | 10 | 'max' = 1): HeroView 
   if (!v) throw new Error(`no view of ${id}`);
   return v;
 };
+/** A hero's level cap, from content. */
+const heroMax = (id: HeroId): number => HEROES.find((h) => h.id === id)?.levelMax ?? Number.NaN;
+
 const nodeOf = (id: CultureNodeId): CultureNode => {
   const n = CULTURE_NODES.find((x) => x.id === id);
   if (!n) throw new Error(`content: ${id}`);
@@ -186,14 +189,19 @@ describe('preview = the state after the real action (M4-07, П4)', () => {
   });
 
   it('the shown line is the own share: effectPercent(perRank × rank), seconds for the caps', () => {
-    const s = late({ culture: { ...RANK1, 'music.dumy': 3 }, heroes: { otaman: 1, kobzar: 3, kharakternyk: 1 } });
+    // A rank below the max (read from content): the line shows it now and the next one after.
+    const dumyRank = nodeOf('music.dumy').maxRank - 1;
+    const s = late({
+      culture: { ...RANK1, 'music.dumy': dumyRank },
+      heroes: { otaman: 1, kobzar: 3, kharakternyk: 1 },
+    });
     const dumyShare = nodeOf('music.dumy').effects[0]?.perRank ?? 0;
     const dumy = nodeView(s, 'music.dumy').effects[0];
     expect(dumy).toMatchObject({
       kind: 'income',
       unit: 'percent',
-      now: effectPercent(dumyShare * 3),
-      after: effectPercent(dumyShare * 4),
+      now: effectPercent(dumyShare * dumyRank),
+      after: effectPercent(dumyShare * (dumyRank + 1)),
     });
     // The Кобзар's glory moves in half percents (content test): level 3 keeps its .5.
     const kobzarShare = heroShare('kobzar', 'glory');
@@ -275,8 +283,11 @@ describe('blocked mirrors the engine (M4-07)', () => {
     early(LOTS),
     late({ glory: 2000, culture: { 'music.dumy': 1 } }),
     late({ culture: RANK1 }),
-    late({ church: 0, culture: { 'music.dumy': 5, 'music.campaign': 3 } }),
-    late({ tavern: 0, heroes: { otaman: 25 } }),
+    late({
+      church: 0,
+      culture: { 'music.dumy': nodeOf('music.dumy').maxRank, 'music.campaign': nodeOf('music.campaign').maxRank },
+    }),
+    late({ tavern: 0, heroes: { otaman: heroMax('otaman') } }),
   ];
 
   it('a node: null ⇔ buyCulture is accepted, else the very refusal; the price is what it takes', () => {
@@ -337,7 +348,7 @@ describe('modifierBreakdown (M4-07, П3): sources with shares, folded = the fiel
   function sample(seed: number): GameState {
     const { state, now } = randomState(seed);
     const culture = Object.fromEntries(CULTURE_NODES.map((n, i) => [n.id, (seed + i) % (n.maxRank + 1) || 1]));
-    const heroes = Object.fromEntries(HERO_IDS.map((id, i) => [id, 1 + ((seed * (i + 3)) % 25)]));
+    const heroes = Object.fromEntries(HERO_IDS.map((id, i) => [id, 1 + ((seed * (i + 3)) % heroMax(id))]));
     return {
       ...state,
       story: { seen: [...STORY_BEAT_IDS] },
@@ -461,7 +472,7 @@ describe('questTarget: culture1 leads to «Кобзарські думи» (M4-0
   });
 
   it('the first node a rank can be learned of now, in content order', () => {
-    const s = onStep(early(0, { culture: { 'music.dumy': 5 } }));
+    const s = onStep(early(0, { culture: { 'music.dumy': nodeOf('music.dumy').maxRank } }));
     expect(questTarget(s, 'chain')).toEqual({ kind: 'culture', id: 'music.maidan', locked: null });
   });
 });

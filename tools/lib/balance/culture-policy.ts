@@ -14,7 +14,7 @@
 // review measures a day of play per candidate (two `applyOffline`s), too dear for every press.
 import { CULTURE_NODES } from '../../../src/content/culture.ts';
 import { BUY_MODES } from '../../../src/content/economy.ts';
-import { HEROES } from '../../../src/content/heroes.ts';
+import { HEROES, type HeroId } from '../../../src/content/heroes.ts';
 import { PACING } from '../../../src/content/pacing.ts';
 import { RAID_TIER_IDS, RAIDS } from '../../../src/content/raids.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
@@ -32,6 +32,7 @@ const MS = 1000;
 const HOUR_MS = 3600 * MS;
 const DAY_HOURS = 24;
 const MIN_PER_DAY = DAY_HOURS * 60;
+const NONE: ReadonlySet<HeroId> = new Set();
 
 /**
  * The bot buys a rank / a level unasked only when it pays back within this many minutes of play (wall time, absences
@@ -121,8 +122,11 @@ export function paybackMinutes(s: GameState, a: Action, now: DayValue = dayValue
   return gain > 0 ? price.toNumber() / ((now.glory / MIN_PER_DAY) * gain) : Infinity;
 }
 
-/** Every rank / level the bot could buy now: open, prerequisites held, a rank left, and paid for (×1 levels). */
-export function cultureCandidates(s: GameState): Action[] {
+/**
+ * Every rank / level the bot could buy now: open, prerequisites held, a rank left, and paid for (×1 levels); a hero in
+ * `pressed` (levelled already in this session's review) is left out.
+ */
+export function cultureCandidates(s: GameState, pressed: ReadonlySet<HeroId> = NONE): Action[] {
   const out: Action[] = [];
   const glory = s.currencies.glory;
   const cultureCostMult = steadyModifiers(s).cultureCostMult;
@@ -133,7 +137,7 @@ export function cultureCandidates(s: GameState): Action[] {
   }
   for (const h of HEROES) {
     const level = heroLevel(h.id, s);
-    if (level > 0 && level < h.levelMax && glory.gte(heroPrice(h, level, 1)))
+    if (!pressed.has(h.id) && level > 0 && level < h.levelMax && glory.gte(heroPrice(h, level, 1)))
       out.push({ type: 'levelHero', id: h.id, mode: 1 });
   }
   return out;
@@ -159,10 +163,11 @@ export interface CultureChoice {
 
 /**
  * The rank / level the bot buys now, or null: the candidate of the lowest payback within the horizon; while a quest
- * asks for a rank (a level), the best of that kind whatever its payback.
+ * asks for a rank (a level), the best of that kind whatever its payback. A hero is pressed at most once a session
+ * (`pressed`: the sim's record of this session), with the picker (`heroPress`) — never a run of ×1 presses.
  */
-export function cultureChoice(s: GameState): CultureChoice | null {
-  const candidates = cultureCandidates(s);
+export function cultureChoice(s: GameState, pressed: ReadonlySet<HeroId> = NONE): CultureChoice | null {
+  const candidates = cultureCandidates(s, pressed);
   if (candidates.length === 0) return null;
   const now = dayValue(s);
   const ask = asked(s);

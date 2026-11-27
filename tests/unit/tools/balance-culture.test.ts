@@ -3,6 +3,7 @@
 // the chain step and the chore that ask for a rank / a level are followed at once, as a guided player would.
 import { describe, expect, it } from 'vitest';
 import { CULTURE_NODES, type CultureNodeId } from '../../../src/content/culture.ts';
+import { HEROES } from '../../../src/content/heroes.ts';
 import { BUY_MODES } from '../../../src/content/economy.ts';
 import { CALENDAR_LAND1 } from '../../../src/content/pacing.ts';
 import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
@@ -10,6 +11,7 @@ import { CHAIN_STEP_IDS, type ChainStepId, type ChoreId } from '../../../src/con
 import { applyAction, type Action } from '../../../src/core/actions.ts';
 import { Big } from '../../../src/core/big.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
+import { culturePrice, heroPrice } from '../../../src/core/systems/culture.ts';
 import { chainQuest, choreQuest } from '../../../src/core/systems/quests.ts';
 import {
   cultureCandidates,
@@ -24,10 +26,20 @@ const T0 = 1_763_400_000_000;
 /** Every beat seen (rules/testing.md): a hero is the one the state stores; no beat fires inside a test. */
 const ALL_SEEN: GameState['story']['seen'] = [...STORY_BEAT_IDS];
 
+/** Glory for any first rank or first hero level (×2), from content: a retune of prices does not break the fixtures. */
+const PURSE =
+  2 *
+  Math.max(
+    ...CULTURE_NODES.map((n) => culturePrice(n, 0, 1).toNumber()),
+    ...HEROES.map((h) => heroPrice(h, 1, 1).toNumber()),
+  );
+/** Glory far past any single price (the top rank of the dearest node × 1000). */
+const LOTS = 1000 * Math.max(...CULTURE_NODES.map((n) => culturePrice(n, n.maxRank - 1, 1).toNumber()));
+
 /** A mid game: the farm and the Sich built up, «Музика» open (tavern), `glory` in the purse, the chain on `step`. */
 function mid({
   step = 'khortytsia.treasury1',
-  glory = 1e6,
+  glory = LOTS,
   heroes = {},
   culture = {},
 }: {
@@ -54,6 +66,21 @@ const onChore = (s: GameState, id: ChoreId): GameState => ({
   ...s,
   quests: { ...s.quests, chores: { ...s.quests.chores, active: id, base: 0 } },
 });
+
+/**
+ * `s` with an army big enough that some candidate pays back within the horizon: doubled until one does (derived through
+ * the policy's own measure, so it holds whatever the prices are).
+ */
+function paying(
+  s: GameState,
+  ok: (x: GameState) => boolean = (x) => cultureCandidates(x).some((a) => paybackMinutes(x, a) <= PAYBACK_HORIZON_MIN),
+): GameState {
+  for (let infantry = Math.max(1, s.army.infantry); infantry < 1e9; infantry *= 2) {
+    const x: GameState = { ...s, army: { ...s.army, infantry } };
+    if (ok(x)) return x;
+  }
+  throw new Error('no army makes the purchase pay back');
+}
 
 const refused = (s: GameState, a: Action): boolean =>
   applyAction(s, a, s.time.lastSeen).events.some((e) => e.type === 'ActionRejected');
@@ -85,7 +112,7 @@ describe('paybackMinutes: the purchase measured on the state after the real acti
 
 describe('cultureChoice: the bot policy', () => {
   it('unasked: the affordable candidate of the lowest payback, and only within the horizon', () => {
-    const s = mid({ heroes: { otaman: 1 } });
+    const s = paying(mid({ heroes: { otaman: 1 } }));
     const choice = cultureChoice(s);
     if (!choice) throw new Error('nothing chosen');
     const all = cultureCandidates(s).map((a) => paybackMinutes(s, a));
@@ -94,38 +121,60 @@ describe('cultureChoice: the bot policy', () => {
     expect(refused(s, choice.action)).toBe(false);
   });
 
-  it('a hero is levelled with one press of the picker: MAX or ×k, every level it buys paying back within the horizon', () => {
-    // «Музика» closed (no tavern): the otaman is the only candidate; a big army makes his power worth a lot of glory.
-    const base = mid({ heroes: { otaman: 1 } });
-    const s: GameState = {
-      ...base,
-      army: { ...base.army, infantry: 80 },
-      village: { ...base.village, levels: { ...base.village.levels, tavern: 0 } },
-    };
+  /** «Музика» closed (no tavern): the otaman is the only candidate; the army makes his level pay back. */
+  const otamanOnly = (glory: number, ok?: (x: GameState) => boolean): GameState => {
+    const base = mid({ heroes: { otaman: 1 }, glory });
+    return paying({ ...base, village: { ...base.village, levels: { ...base.village.levels, tavern: 0 } } }, ok);
+  };
+  const ONE: Action = { type: 'levelHero', id: 'otaman', mode: 1 };
+  const otaman = HEROES.find((h) => h.id === 'otaman');
+  if (!otaman) throw new Error('no otaman');
+  /** Levels of `n` ×1 presses from `s`, each paying back within the horizon (the policy's measure). */
+  const allPay = (s: GameState, n: number): boolean => {
+    let cur = s;
+    for (let i = 0; i < n; i += 1) {
+      if (refused(cur, ONE) || paybackMinutes(cur, ONE) > PAYBACK_HORIZON_MIN) return false;
+      cur = applyAction(cur, ONE, cur.time.lastSeen).state;
+    }
+    return true;
+  };
+
+  it('a hero press is MAX when every level MAX buys pays back within the horizon', () => {
+    // Glory for exactly two levels (from content): MAX buys two; the big army makes both pay back.
+    const s = otamanOnly(heroPrice(otaman, 1, 2).toNumber() * 1.0001, (x) => allPay(x, 2));
+    expect(cultureChoice(s)?.action).toEqual({ type: 'levelHero', id: 'otaman', mode: 'max' });
+  });
+
+  it('else the largest ×k of the picker whose every level pays back — never MAX past the horizon', () => {
+    const s = otamanOnly(LOTS);
     const choice = cultureChoice(s);
     if (choice?.action.type !== 'levelHero') throw new Error('no hero press');
-    expect(BUY_MODES).toContain(choice.action.mode);
-    expect(refused(s, choice.action)).toBe(false);
-    const bought = (applyAction(s, choice.action, s.time.lastSeen).state.heroes.otaman ?? 0) - 1;
-    expect(bought).toBeGreaterThanOrEqual(1);
-    // Level by level, each of the levels the press bought pays back within the horizon.
-    const one: Action = { type: 'levelHero', id: 'otaman', mode: 1 };
-    let cur = s;
-    for (let i = 0; i < bought; i += 1) {
-      expect(paybackMinutes(cur, one)).toBeLessThanOrEqual(PAYBACK_HORIZON_MIN);
-      cur = applyAction(cur, one, cur.time.lastSeen).state;
-    }
+    const { mode } = choice.action;
+    if (mode === 'max') throw new Error('MAX would buy levels past the horizon');
+    expect(BUY_MODES).toContain(mode);
+    expect(allPay(s, mode)).toBe(true);
+    // The next step of the picker would buy a level that does not pay back.
+    const steps: readonly number[] = BUY_MODES.filter((m) => m !== 'max');
+    const bigger = steps.find((m) => m > mode);
+    if (bigger !== undefined) expect(allPay(s, bigger)).toBe(false);
+  });
+
+  it('one press per hero per session review: a hero already pressed is not a candidate again', () => {
+    const s = otamanOnly(LOTS);
+    expect(cultureChoice(s)?.action.type).toBe('levelHero');
+    expect(cultureChoice(s, new Set(['otaman']))).toBeNull();
+    expect(cultureCandidates(s, new Set(['otaman']))).toEqual([]);
   });
 
   it('nothing affordable (no glory) → null; a candidate always passes the real action', () => {
     expect(cultureChoice(mid({ glory: 0, heroes: { otaman: 1 } }))).toBeNull();
-    const s = mid({ glory: 2000, heroes: { otaman: 1 } });
+    const s = mid({ glory: PURSE, heroes: { otaman: 1 } });
     for (const a of cultureCandidates(s)) expect(refused(s, a)).toBe(false);
   });
 
   it('`culture1` asks for a rank: bought even past the horizon, and the step is done', () => {
     // A poor glory income (no army): every payback is far past the horizon, yet the guided player learns the rank.
-    const base = mid({ step: 'khortytsia.culture1', glory: 5000 });
+    const base = mid({ step: 'khortytsia.culture1', glory: PURSE });
     const s: GameState = { ...base, army: { ...base.army, infantry: 0 } };
     const choice = cultureChoice(s);
     expect(choice?.action.type).toBe('buyCulture');
@@ -136,11 +185,11 @@ describe('cultureChoice: the bot policy', () => {
 
   it('«Вивчи ранг культури» / «Підвищ героя» chores: the asked kind is bought and the chore is done', () => {
     const poor = (s: GameState): GameState => ({ ...s, army: { ...s.army, infantry: 0 } });
-    const c = poor(onChore(mid({ glory: 5000 }), 'chore.culture1'));
+    const c = poor(onChore(mid({ glory: PURSE }), 'chore.culture1'));
     const cc = cultureChoice(c);
     expect(cc?.action.type).toBe('buyCulture');
     if (cc) expect(choreQuest(applyAction(c, cc.action, c.time.lastSeen).state).done).toBe(true);
-    const h = poor(onChore(mid({ glory: 5000, heroes: { otaman: 1 } }), 'chore.hero1'));
+    const h = poor(onChore(mid({ glory: PURSE, heroes: { otaman: 1 } }), 'chore.hero1'));
     const hc = cultureChoice(h);
     expect(hc?.action.type).toBe('levelHero');
     if (hc) expect(choreQuest(applyAction(h, hc.action, h.time.lastSeen).state).done).toBe(true);
@@ -158,8 +207,13 @@ describe('the bot plays culture and heroes (M4-09)', () => {
     expect(r.final.stats.heroLevels).toBeGreaterThan(0);
   });
 
+  it('a session presses each hero at most once (a player uses the picker, not a run of ×1)', () => {
+    for (const x of r.sessions) for (const n of Object.values(x.heroPresses)) expect(n).toBeLessThanOrEqual(1);
+    expect(r.sessions.some((x) => Object.keys(x.heroPresses).length > 0)).toBe(true);
+  });
+
   it('a chore asking for a culture rank is claimed and the rotation moves on', () => {
-    const start = onChore(mid({ glory: 5000 }), 'chore.culture1');
+    const start = onChore(mid({ glory: PURSE }), 'chore.culture1');
     const played = simulate({ seed: 3, days: 1, initial: start });
     expect(choreQuest(played.final).id).not.toBe('chore.culture1');
     expect(played.sessions.reduce((a, s) => a + s.claims.chore, 0)).toBeGreaterThan(0);

@@ -103,8 +103,8 @@ describe('the Характерник shortens raids started after his level (Q8)
 
 describe('the v5 gate takes every raid the game starts (review M4-04)', () => {
   it('every tier, every level up to the max Σ raidTime, odd start times: the fresh save passes the gate', () => {
-    // The max Σ of the raidTime sources is his level max (content test: ≤ 1 − minTimeMult).
-    expect(1 - steadyModifiers(game(KH.levelMax)).raidTimeMult).toBeCloseTo(1 - RAIDS.minTimeMult, 12);
+    // The max Σ of the raidTime sources is his level max, within the gate's bound (content test: ≤ 1 − minTimeMult).
+    expect(steadyModifiers(game(KH.levelMax)).raidTimeMult).toBeGreaterThanOrEqual(RAIDS.minTimeMult - 1e-12);
     for (let level = 0; level <= KH.levelMax; level++) {
       for (const tier of RAID_TIER_IDS) {
         for (const dt of [0, 1, 333, 7 * MIN + 1]) {

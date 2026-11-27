@@ -16,7 +16,7 @@
 // each relic, each raid tier), milestone times, bloom and the raid ledger. Deterministic: the same options give the
 // same result, byte for byte.
 import { CULTURE_BRANCHES, CULTURE_NODES } from '../../../src/content/culture.ts';
-import { HEROES } from '../../../src/content/heroes.ts';
+import { HEROES, type HeroId } from '../../../src/content/heroes.ts';
 import { FARM, SICH } from '../../../src/content/economy.ts';
 import { PACING, type NoveltyKind } from '../../../src/content/pacing.ts';
 import { RAID_TIER_IDS, RAIDS, type RaidTierId } from '../../../src/content/raids.ts';
@@ -89,6 +89,8 @@ export interface SessionLog {
   readonly actions: number;
   /** Of `actions`: culture ranks and hero presses (M4-09). */
   readonly culture: number;
+  /** Hero presses by hero (at most one each: the picker, once a session). */
+  readonly heroPresses: Readonly<Partial<Record<HeroId, number>>>;
   readonly noticeable: number;
   /** Noticeable purchases made at the session's first step, i.e. from what the offline time brought. */
   readonly noticeableAtOpen: number;
@@ -318,11 +320,17 @@ function scalarFields(mods: Modifiers): Record<ScalarField, number> {
  * The next press of the bot, or null when nothing is worth pressing now; culture and heroes only on `reviewCulture`. The modifiers are folded once per press, and
  * MAX is pressed only when it buys a level: money ≥ the next level's price (what MAX's `maxAffordable` > 0 means).
  */
-function nextAction(s: GameState, now: number, prices: PriceCache, reviewCulture: boolean): Action | null {
+function nextAction(
+  s: GameState,
+  now: number,
+  prices: PriceCache,
+  reviewCulture: boolean,
+  heroesPressed: ReadonlySet<HeroId>,
+): Action | null {
   const hire = hireCount(s, now);
   if (hire > 0) return { type: 'hire', n: hire };
   // Culture and heroes after the raids (claimed before the presses) and before the Sich (culture-policy.ts).
-  const culture = reviewCulture ? cultureChoice(s) : null;
+  const culture = reviewCulture ? cultureChoice(s, heroesPressed) : null;
   if (culture) return culture.action;
   const village = villageOf(s);
   // Glory: level the open Sich evenly (bloom wants all of them at 25), the cheaper first on a tie.
@@ -570,6 +578,8 @@ export function simulate(options: SimOptions): SimResult {
     const start = starts[i] ?? 0;
     let actions = 0;
     let culturePresses = 0;
+    const heroesPressed = new Set<HeroId>();
+    const heroPresses: Partial<Record<HeroId, number>> = {};
     let noticeable = 0;
     let atOpen = 0;
     const claims = { chain: 0, chore: 0, choreRewards: 0 };
@@ -585,12 +595,16 @@ export function simulate(options: SimOptions): SimResult {
       claimRaids(t, raids);
       claimAll(t, claims);
       for (let p = 0; p < MAX_PRESSES_PER_STEP; p += 1) {
-        const a = nextAction(state, t, prices, t === start || cultureAsked(state));
+        const a = nextAction(state, t, prices, t === start || cultureAsked(state), heroesPressed);
         if (!a) break;
         const r = act(a, t);
         if (!r.ok) break;
         actions += 1;
         if (a.type === 'buyCulture' || a.type === 'levelHero') culturePresses += 1;
+        if (a.type === 'levelHero') {
+          heroesPressed.add(a.id);
+          heroPresses[a.id] = (heroPresses[a.id] ?? 0) + 1;
+        }
         stepNoticeable += r.noticeable;
         claimAll(t, claims);
       }
@@ -606,6 +620,7 @@ export function simulate(options: SimOptions): SimResult {
       start: sec(start),
       actions,
       culture: culturePresses,
+      heroPresses,
       noticeable,
       noticeableAtOpen: atOpen,
       claims: { chain: claims.chain, chore: claims.chore },

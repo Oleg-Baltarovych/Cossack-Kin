@@ -163,11 +163,12 @@ describe('levelHero (M4-05)', () => {
     const ten = applyAction(late(), { type: 'levelHero', id: 'otaman', mode: 10 }, T0);
     expect(ten.state.heroes.otaman).toBe(11);
     expect(ten.state.stats.heroLevels).toBe(10);
-    // ×25 from level 1: the rest up to the cap (24 levels).
-    const all = applyAction(late(), { type: 'levelHero', id: 'otaman', mode: 25 }, T0);
+    // ×25 a few levels below the cap: the rest up to the cap (read from content, whatever the cap is).
+    const near = otaman.levelMax - 5;
+    const all = applyAction(late({ heroes: { otaman: near } }), { type: 'levelHero', id: 'otaman', mode: 25 }, T0);
     expect(all.state.heroes.otaman).toBe(otaman.levelMax);
     expect(
-      relDiff(all.state.currencies.glory, Big.from(LOTS).sub(heroPrice(otaman, 1, otaman.levelMax - 1))),
+      relDiff(all.state.currencies.glory, Big.from(LOTS).sub(heroPrice(otaman, near, otaman.levelMax - near))),
     ).toBeLessThan(1e-12);
     // Max: as many as the glory covers.
     const purse = heroPrice(otaman, 1, 4).toNumber() * 1.0001;
