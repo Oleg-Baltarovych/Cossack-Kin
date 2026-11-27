@@ -16,16 +16,18 @@ describe('story beats of land 1 (M2-22, Q7)', () => {
     for (const b of STORY_BEATS) expect(b.id.startsWith(`${b.land}.`), b.id).toBe(true);
   });
 
-  it('land 1: the four Q7 beats, then the M4 heroes (tavern 10, raids won); bloom (resettling) waits for M5', () => {
-    expect(STORY_BEATS.map((b) => [b.id, b.trigger])).toEqual([
-      ['khortytsia.shore', { kind: 'start' }],
-      ['khortytsia.messenger', { kind: 'hired', count: 3 }],
-      ['khortytsia.council', { kind: 'sich', id: 'maidan', level: 10 }],
-      ['khortytsia.pokrova', { kind: 'sich', id: 'church', level: 1 }],
+  it('land 1: the four Q7 beats, then the M4 heroes (the tavern, raids won); bloom (resettling) waits for M5', () => {
+    // Ids, kinds and buildings only: levels and counts are balance numbers (checked for range below).
+    const target = (t: (typeof STORY_BEATS)[number]['trigger']): string =>
+      t.kind === 'building' || t.kind === 'sich' ? `${t.kind}:${t.id}` : t.kind;
+    expect(STORY_BEATS.map((b) => [b.id, target(b.trigger)])).toEqual([
+      ['khortytsia.shore', 'start'],
+      ['khortytsia.messenger', 'hired'],
+      ['khortytsia.council', 'sich:maidan'],
+      ['khortytsia.pokrova', 'sich:church'],
       // M4-08 (Q4, Q5): appended — ids are only ever appended, like chores.
-      ['khortytsia.kobzar', { kind: 'building', id: 'tavern', level: 10 }],
-      // The count is a balance number (M4-08: 15), checked to be a positive integer below.
-      ['khortytsia.kharakternyk', { kind: 'raidsWon', count: expect.any(Number) as number }],
+      ['khortytsia.kobzar', 'building:tavern'],
+      ['khortytsia.kharakternyk', 'raidsWon'],
     ]);
   });
 
@@ -47,7 +49,8 @@ describe('story beats of land 1 (M2-22, Q7)', () => {
         expect(t.level).toBeGreaterThan(0);
         expect(t.level).toBeLessThanOrEqual(SICH.levelMax);
       }
-      if (t.kind === 'raidsWon') expect(Number.isInteger(t.count) && t.count > 0, b.id).toBe(true);
+      if (t.kind === 'raidsWon' || t.kind === 'hired')
+        expect(Number.isInteger(t.count) && t.count > 0, b.id).toBe(true);
       const r = b.reward;
       if (r?.kind === 'incomeMinutes' || r?.kind === 'gloryMinutes') expect(r.minutes, b.id).toBeGreaterThan(0);
       if (r?.kind === 'pysanky') expect(Number.isInteger(r.n) && r.n > 0, b.id).toBe(true);

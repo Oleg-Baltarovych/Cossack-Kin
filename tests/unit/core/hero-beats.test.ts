@@ -86,9 +86,8 @@ function oneShort(slot0: RaidSlot, seed = 3): GameState {
       JSON.stringify({
         ...s,
         time: { lastSeen: NOW, maxSeen: NOW, created: T0 },
-        army: { infantry: 12 },
         story: { seen: ['khortytsia.shore', 'khortytsia.messenger'] },
-        stats: { ...s.stats, hires: 12, raidsSent: WINS + 1, raidsDone: WINS, raidsWon: WINS - 1 },
+        stats: { ...s.stats, raidsSent: WINS + 1, raidsDone: WINS, raidsWon: WINS - 1 },
         raids: { ...s.raids, slots },
       }),
     ),

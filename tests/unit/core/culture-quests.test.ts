@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { CULTURE_NODES } from '../../../src/content/culture.ts';
 import { HEROES } from '../../../src/content/heroes.ts';
 import { BUILD_SYSTEMS, CHORE_IDS, CHORES, type ChoreId, type SystemId } from '../../../src/content/quests.ts';
-import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
+import { STORY_BEAT_IDS, STORY_BEATS } from '../../../src/content/story.ts';
 import { FARM_BUILDING_IDS } from '../../../src/content/villages/khortytsia.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
 import { Big } from '../../../src/core/big.ts';
@@ -17,6 +17,10 @@ import { choreQuest, nextChore } from '../../../src/core/systems/quests.ts';
 
 const T0 = 1_763_400_000_000;
 const SEC = 1000;
+
+/** The tavern level that brings the Кобзар (content). */
+const kobzarAt = STORY_BEATS.find((b) => b.id === 'khortytsia.kobzar')?.trigger;
+const TAVERN = kobzarAt?.kind === 'building' ? kobzarAt.level : Number.NaN;
 
 const CULTURE_CHORES = new Set<string>(
   CHORES.pool.filter((c) => c.requires === 'culture' || c.requires === 'heroes').map((c) => c.id),
@@ -139,11 +143,11 @@ describe('the real actions finish them (M4-08)', () => {
   });
 
   it('«Підвищ героя»: one level by levelHero; the hero arriving (level 1 for free) is not one', () => {
-    const g = game({ tavern: 0, heroes: { otaman: 1 } });
+    const g = game({ tavern: TAVERN - 1, heroes: { otaman: 1 } });
     const unseen = { ...g, story: { seen: g.story.seen.filter((id) => id !== 'khortytsia.kobzar') } };
     const s0 = withChore(unseen, 'chore.hero1');
-    // The Кобзар comes with tavern 10 bought: his free level does not move the chore.
-    const joined = act(s0, { type: 'buyBuilding', id: 'tavern', mode: 10 }, T0 + SEC);
+    // The Кобзар comes with the tavern level of his beat bought: his free level does not move the chore.
+    const joined = act(s0, { type: 'buyBuilding', id: 'tavern', mode: 1 }, T0 + SEC);
     expect(joined.events).toContainEqual({ type: 'HeroJoined', id: 'kobzar' });
     expect(choreQuest(joined.state).done).toBe(false);
     const r = act(joined.state, { type: 'levelHero', id: 'kobzar', mode: 1 }, T0 + 2 * SEC);
