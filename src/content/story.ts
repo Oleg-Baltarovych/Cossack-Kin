@@ -1,8 +1,8 @@
 // Story beats of the lands (SPEC §2.5; plan §0 «Віхи», M2-22, Q7, Q14). A beat is a short historical scene — a title,
 // 1–3 sentences and a portrait from the sprites the game already has — that fires once, when its monotone trigger
-// first holds (checked by the core after every `advance` and action, so offline too). Land 1 in M2 has only the
-// beats whose triggers exist in this build: «Рада на майдані» brings the otaman (M4-04, save v5), «Вниз за
-// пороги» (bloom → resettling) comes with M5. Texts: i18n `story.<land>.<beat>.title|text`, sources in
+// first holds (checked by the core after every `advance` and action, so offline too). Land 1 has the beats whose
+// triggers exist in this build: «Рада на майдані» brings the otaman (M4-04, save v5), «Кобзар біля шинку» and
+// «Характерник на Січі» their heroes (M4-08), «Вниз за пороги» (bloom → resettling) comes with M5. Texts: i18n `story.<land>.<beat>.title|text`, sources in
 // docs/content-sources.md. Reward sizes: гіпотеза, kept small — 10/15/30 min pushed Майдан 10 to S2 and the session
 // actions over 15 (pnpm balance, M2-22); kept in M2-27 (the retune slowed the economy instead, plan R4).
 import type { HeroId } from './heroes.ts';
@@ -15,6 +15,9 @@ export const STORY_BEAT_IDS = [
   'khortytsia.messenger',
   'khortytsia.council',
   'khortytsia.pokrova',
+  // M4-08 (plan M4 Q4, Q5): the heroes' beats, appended — an id once shipped is never renamed or reordered.
+  'khortytsia.kobzar',
+  'khortytsia.kharakternyk',
 ] as const;
 export type StoryBeatId = (typeof STORY_BEAT_IDS)[number];
 
@@ -33,6 +36,11 @@ export type StoryTrigger =
   | { readonly kind: 'hired'; readonly count: number }
   /** Storms the windmill weathered (`village.mechanic.stormsSurvived`). */
   | { readonly kind: 'storms'; readonly count: number }
+  /**
+   * Raids won in this land, all told (`stats.raidsWon`, M4-08): raised by the claim of a won raid, never by its return,
+   * so only an action meets it (a hero beat may use it — rules/core.md).
+   */
+  | { readonly kind: 'raidsWon'; readonly count: number }
   | { readonly kind: 'bloom' };
 
 /**
@@ -91,5 +99,25 @@ export const STORY_BEATS: readonly StoryBeat[] = [
     reward: { kind: 'gloryMinutes', minutes: 3 },
     titleKey: 'story.khortytsia.pokrova.title',
     textKey: 'story.khortytsia.pokrova.text',
+  },
+  {
+    id: 'khortytsia.kobzar',
+    land: 'khortytsia',
+    // Q5 (plan M4): the tavern at 10 (S5–S8); «Музика» opened with its first level, the Кобзар comes to sing there.
+    trigger: { kind: 'building', id: 'tavern', level: 10 },
+    portrait: 'kobzar',
+    reward: { kind: 'unlock', hero: 'kobzar' },
+    titleKey: 'story.khortytsia.kobzar.title',
+    textKey: 'story.khortytsia.kobzar.text',
+  },
+  {
+    id: 'khortytsia.kharakternyk',
+    land: 'khortytsia',
+    // Q4 (plan M4): fifteen raids won (S8–S12; tuned from ten, which fired at S5–S7). The portrait is a Cossack in his coat until his own sprite (M4-11).
+    trigger: { kind: 'raidsWon', count: 15 },
+    portrait: 'messenger',
+    reward: { kind: 'unlock', hero: 'kharakternyk' },
+    titleKey: 'story.khortytsia.kharakternyk.title',
+    textKey: 'story.khortytsia.kharakternyk.text',
   },
 ];

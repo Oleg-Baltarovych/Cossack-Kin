@@ -32,6 +32,9 @@ function wealthy(seed = 5): GameState {
   };
 }
 
+/** Raids won that bring the Характерник (content; M4-08). */
+const WINS = STORY_BEATS.reduce((n, b) => (b.trigger.kind === 'raidsWon' ? Math.max(n, b.trigger.count) : n), 0);
+
 /** A mid game whose beats (all but the start) are due but not fired: what an online or offline step must fire. */
 function pending(seed = 9): GameState {
   const s = wealthy(seed);
@@ -40,7 +43,7 @@ function pending(seed = 9): GameState {
     ...s,
     currencies: { ...s.currencies, ducats: Big.from(5000), glory: Big.from(300) },
     army: { infantry: 12 },
-    stats: { ...s.stats, hires: 12 },
+    stats: { ...s.stats, hires: 12, raidsSent: WINS, raidsDone: WINS, raidsWon: WINS },
     village: { ...s.village, levels, sichLevels: { ...s.village.sichLevels, maidan: 10, church: 1, kurins: 4 } },
   };
 }
@@ -88,16 +91,19 @@ describe('story beats fire once (M2-22, SPEC §2.5)', () => {
     now += 8 * HOUR;
     all.push(...tick(s, now).events);
 
+    // Every beat but «Характерник на Січі»: raids won come from raid claims (hero-beats.test.ts plays those).
+    const played = STORY_BEATS.filter((b) => b.trigger.kind !== 'raidsWon');
     const counts = new Map<string, number>();
     for (const e of reached(all)) counts.set(e.id, (counts.get(e.id) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual(Object.fromEntries(STORY_BEATS.map((b) => [b.id, 1])));
+    expect(Object.fromEntries(counts)).toEqual(Object.fromEntries(played.map((b) => [b.id, 1])));
     expect(firedBy).toEqual({
       'khortytsia.shore': 'tap',
       'khortytsia.messenger': 'hire 3',
       'khortytsia.council': 'maidan 10',
       'khortytsia.pokrova': 'church 1',
+      'khortytsia.kobzar': 'farm tavern',
     });
-    expect(s.story.seen).toEqual(STORY_BEATS.map((b) => b.id));
+    expect([...s.story.seen].sort()).toEqual(played.map((b) => b.id).sort());
   });
 
   it('a beat reward is credited at once: glory beats add their glory to the currency', () => {

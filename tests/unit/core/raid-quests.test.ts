@@ -1,7 +1,7 @@
 // Quests with raids (plan M3-07, SPEC §3.10, Q7): the chain step `raid1` and the raid chores are completed by the real
 // raid actions — `startRaid` moves `raidsSent`, `claimRaid` moves `raidsDone` — counted from the quest's `base`.
 import { describe, expect, it } from 'vitest';
-import { CHORE_IDS, CHORES, type ChoreId } from '../../../src/content/quests.ts';
+import { CHORES, type ChoreId } from '../../../src/content/quests.ts';
 import type { RaidTierId } from '../../../src/content/raids.ts';
 import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
@@ -101,7 +101,7 @@ describe('the chain step `raid1` (M3-07, Q7)', () => {
 });
 
 describe('raid chores (M3-07)', () => {
-  const RAID_CHORES = new Set<string>(CHORE_IDS.slice(CHORES.moduloCount));
+  const RAID_CHORES = new Set<string>(CHORES.pool.filter((c) => c.requires === 'raids').map((c) => c.id));
 
   /**
    * The ids of `claims` chores in a row, each met (its counter set straight to the goal — only the picks matter here)

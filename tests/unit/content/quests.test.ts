@@ -87,6 +87,9 @@ describe('chores (M2-23)', () => {
     expect(raid.map((c) => [c.id, c.goal.stat, c.goal.n, c.requires])).toEqual([
       ['chore.raid1', 'raidsSent', 1, 'raids'],
       ['chore.raids2', 'raidsDone', 2, 'raids'],
+      // M4-08: appended after them.
+      ['chore.culture1', 'cultureRanks', 1, 'culture'],
+      ['chore.hero1', 'heroLevels', 1, 'heroes'],
     ]);
     // The M2 eight need no system: the modulo pick over them never runs dry.
     for (const c of CHORES.pool.slice(0, CHORES.moduloCount)) expect(c.requires, c.id).toBeUndefined();

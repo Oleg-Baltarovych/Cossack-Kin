@@ -24,7 +24,7 @@ paths:
 - `resume(state, now)` is the only path that reports `clockBack`; 10 Hz ticks stay quiet while the clock is behind.
 - `integrate` is income only (capped offline). Anything that must reach the real `now` past the cap (raid returns) runs after it, like `returnRaids` in `advance`/`applyOffline`.
 - Time alone never emits level/tier events: `TierReached` comes only from buy actions; `CultureBought`/`HeroLevelled` only from `buyCulture`/`levelHero`.
-- A hero changes rates from his arrival on, and `advance` integrates rates fixed for the whole gap: a hero beat's trigger kind must be one an action meets — today `building`, `sich`, `hired` (the whitelist of the content test in `tests/unit/content/story.test.ts`) — never one time meets (storms, bloom, a raid return). A new action-raised kind (M4-08 `raidsWon`, raised by `claimRaid`) joins `StoryTrigger` and that whitelist together.
+- A hero changes rates from his arrival on, and `advance` integrates rates fixed for the whole gap: a hero beat's trigger kind must be one an action meets — today `building`, `sich`, `hired`, `raidsWon` (raised by the raid claim, never the return; the whitelist of the content test in `tests/unit/content/story.test.ts`) — never one time meets (storms, bloom, a raid return). A new action-raised kind joins `StoryTrigger` and that whitelist together. A migration that marks beats seen pins its own beat list (`001` `V2_BEATS`): a beat added later must stay unseen so it fires with its modal and hero.
 - Rewards use `steadyModifiers` (no wind of the moment), so online = offline. The glory cap (`gloryCapSec`) bounds only passive/offline accrual; grants from beats, quests and raid claims go straight in.
 
 ## State invariants

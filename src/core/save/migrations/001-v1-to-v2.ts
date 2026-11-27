@@ -1,5 +1,5 @@
 // Save v1 → v2 (plan M2-22, SPEC §2.5 «Міграція v1 → v2», §3.10). New: `story.seen` and the quest counters.
-//   story.seen          = the beats whose triggers a v1 game already meets — silently: no event, no reward (owner)
+//   story.seen          = the v2 beats whose triggers a v1 game already meets — silently: no event, no reward (owner)
 //   stats.levelsBought  = Σ farm + Sich levels (v1 has no resets)
 //   stats.hires         = the infantry (v1 has no losses)
 //   stats.tapIncomeSec  = 0 (v1 did not count it)
@@ -12,6 +12,17 @@ import { dueBeats } from '../../systems/story.ts';
 import type { Migration } from './index.ts';
 
 type Obj = Record<string, unknown>;
+
+/**
+ * The beats of v2, pinned (a migration never reads live content, rules/core.md): a beat added later — M4-08's hero
+ * beats — must stay unseen here, so that it fires on the first check with its modal and its hero (SPEC §2.5).
+ */
+const V2_BEATS: readonly string[] = [
+  'khortytsia.shore',
+  'khortytsia.messenger',
+  'khortytsia.council',
+  'khortytsia.pokrova',
+];
 
 function obj(value: unknown, what: string): Obj {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error(`v1: ${what}`);
@@ -51,7 +62,10 @@ export const V1_TO_V2: Migration = {
     };
     const hires = count(obj(root['army'], 'army')['infantry'], 'infantry');
     const sum = (r: Readonly<Record<string, number>>): number => Object.values(r).reduce((a, b) => a + b, 0);
-    const seen = dueBeats({ village: land, stats: { hires } }, []).map((b) => b.id);
+    // v1 had no raids: none won.
+    const seen = dueBeats({ village: land, stats: { hires, raidsWon: 0 } }, [])
+      .map((b) => b.id)
+      .filter((id) => V2_BEATS.includes(id));
     return {
       ...root,
       version: 2,

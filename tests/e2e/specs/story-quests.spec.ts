@@ -10,6 +10,7 @@ import { expect, test } from '../helpers/test.ts';
 import type { Action } from '../../../src/core/actions.ts';
 import { validateState, type GameState } from '../../../src/core/state.ts';
 import type {} from '../../../src/ui/debug/gameDebug.ts';
+import { closeBeat } from '../helpers/story.ts';
 import { waitReady } from '../helpers/world.ts';
 
 const URL = '/?time=13:00&seed=7&ui=1';
@@ -54,7 +55,11 @@ test.describe('M2-24 story beats and quests across a reload', () => {
     const welcome = page.getByRole('dialog', { name: 'З поверненням!' });
     await welcome.getByRole('button', { name: 'Забрати' }).click();
     await expect(welcome).toBeHidden();
+    // The fixture's tavern is past 10: «Кобзар біля шинку» (M4-08) fires on the first check of the old save, with its
+    // window (SPEC §2.5 — never silently), queued after the return window.
+    await closeBeat(page, 'Кобзар біля шинку');
     const start = await gameState(page);
+    expect(start.heroes['kobzar']).toBe(1);
     expect(start.story.seen).not.toContain('khortytsia.pokrova');
     // The sheet fully open: the rows below the half sheet are in reach (a click there never settled, M2-24).
     await page.getByRole('button', { name: /панель/i }).click();
@@ -79,7 +84,8 @@ test.describe('M2-24 story beats and quests across a reload', () => {
     expect(reached.currencies.glory.gt(gloryBefore)).toBe(true);
     // Its window (M2-25) tells of it and holds the focus; Esc closes it and gives the focus back to the church button.
     const pokrova = page.getByRole('dialog', { name: 'Освячення Покрови' });
-    await expect(pokrova).toContainText(/Нагорода\+\d+ слави/);
+    // Any formatted amount (the Кобзар's glory share since M4-08 lifts it past «тис.»).
+    await expect(pokrova).toContainText(/Нагорода\+\d[^А-Яа-яІіЇїЄє]*(тис\. )?слави/);
     await expect(pokrova.getByRole('button', { name: 'Гаразд' })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(pokrova).toBeHidden();

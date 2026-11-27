@@ -56,8 +56,9 @@ describe('migration v1 → v2 (M2-22)', () => {
     const r = decodeSave(v1Raw);
     if (!r.ok) throw new Error(r.reason);
     const a = advance(r.state, r.state.time.lastSeen + 60_000);
-    expect(a.events.filter((e) => e.type === 'StoryBeatReached')).toEqual([]);
-    expect(a.state.story.seen).toEqual(r.state.story.seen);
+    // Only a beat v2 did not have fires: «Кобзар біля шинку» (tavern 21), with its hero (M4-08, SPEC §2.5).
+    expect(a.events.filter((e) => e.type === 'StoryBeatReached').map((e) => e.id)).toEqual(['khortytsia.kobzar']);
+    expect(a.state.story.seen).toEqual([...r.state.story.seen, 'khortytsia.kobzar']);
   });
 
   it('a new v1 game (nothing bought): only the start beat is seen; the church once it stands', () => {

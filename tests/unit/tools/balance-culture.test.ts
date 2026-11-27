@@ -3,13 +3,13 @@
 // only there — through the real `buyCulture` action (M4-05), paying its content price in glory.
 import { describe, expect, it } from 'vitest';
 import { CULTURE_NODES } from '../../../src/content/culture.ts';
-import { CHAIN_STEP_IDS, type ChainStepId } from '../../../src/content/quests.ts';
+import { CHAIN_STEP_IDS, type ChainStepId, type ChoreId } from '../../../src/content/quests.ts';
 import { Big } from '../../../src/core/big.ts';
 import { steadyModifiers } from '../../../src/core/modifiers.ts';
 import { decodeSave, encodeSave } from '../../../src/core/save/serialize.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
-import { chainQuest } from '../../../src/core/systems/quests.ts';
-import { simulate, standInCulture } from '../../../tools/lib/balance/sim.ts';
+import { chainQuest, choreQuest } from '../../../src/core/systems/quests.ts';
+import { simulate, standInChore, standInCulture } from '../../../tools/lib/balance/sim.ts';
 
 const T0 = 1_763_400_000_000;
 const dumy = CULTURE_NODES.find((n) => n.id === 'music.dumy');
@@ -64,5 +64,37 @@ describe('standInCulture (M4-04 stand-in, the real action since M4-05; M4-09 rep
     expect(steps).toContain('khortytsia.culture1');
     expect(steps).toContain('khortytsia.treasury1');
     expect(r.final.culture['music.dumy']).toBe(1);
+  });
+});
+
+describe('standInChore (M4-08 stand-in for the culture chores; M4-09 replaces it)', () => {
+  const onChore = (id: ChoreId, heroes: GameState['heroes'] = {}): GameState => {
+    const s = onStep('khortytsia.treasury1');
+    const seen: GameState['story']['seen'] = ['khortytsia.shore', 'khortytsia.council'];
+    return {
+      ...s,
+      heroes,
+      story: { seen },
+      quests: { ...s.quests, chores: { ...s.quests.chores, active: id, base: 0 } },
+    };
+  };
+
+  it('«Вивчи ранг культури»: one rank of the first learnable node; the chore is done', () => {
+    const after = standInChore(onChore('chore.culture1'));
+    expect(after?.culture).toEqual({ 'music.dumy': 1 });
+    expect(after && choreQuest(after).done).toBe(true);
+  });
+
+  it('«Підвищ героя»: one level of the first hero with a level left; the chore is done', () => {
+    const after = standInChore(onChore('chore.hero1', { otaman: 1 }));
+    expect(after?.heroes).toEqual({ otaman: 2 });
+    expect(after && choreQuest(after).done).toBe(true);
+  });
+
+  it('any other chore, nothing to buy or too little glory → nothing', () => {
+    expect(standInChore(onChore('chore.taps50'))).toBeNull();
+    expect(standInChore(onChore('chore.hero1'))).toBeNull();
+    const poor = onChore('chore.culture1');
+    expect(standInChore({ ...poor, currencies: { ...poor.currencies, glory: Big.ZERO } })).toBeNull();
   });
 });
