@@ -80,35 +80,41 @@ function dumy(i: Icon): void {
   paint(i, KOBZA, KOBZA_LEGEND);
 }
 
-/** Пісні на майдані: the Sich's литаври (a copper kettle drum the довбиш beat to call the rada), two sticks on it. */
+/**
+ * Пісні на майдані: the Sich's литаври (the copper kettle drum the довбиш beat to call the rada) — a round bowl on a
+ * flat foot, a cord band with three rivets under an ink rim, a pale drumhead; two sticks with knob heads rest on it.
+ */
 function maidan(i: Icon): void {
   paint(
     i,
     [
       '................',
       '..kk........kk..',
-      '..kc........ck..',
+      '..kK........Kk..',
       '....W......W....',
       '.....W....W.....',
-      '......W..W......',
-      '...uTTTTttttu...',
-      '..uttttttttttu..',
-      '..444444433333..',
-      '..334333332221..',
+      '....PPPPpppq....',
+      '...PPPpppppqq...',
+      '...iiiiiiiiii...',
+      '..bbobbobbbobb..',
+      '..343333332221..',
+      '..343333322221..',
       '...3433322221...',
-      '...3433222221...',
-      '....33222211....',
+      '....33322211....',
       '.....222111.....',
-      '......1111......',
+      '......111.......',
       '................',
     ],
     {
       k: ['wood', 5],
-      c: ['wood', 3],
+      K: ['wood', 3],
       W: ['wood', 4],
-      T: ['thatch', 6],
-      t: ['thatch', 5],
-      u: ['thatch', 4],
+      P: ['plaster', 6],
+      p: ['plaster', 5],
+      q: ['plaster', 4],
+      i: ['ink', 2],
+      b: ['gold', 2],
+      o: ['gold', 5],
       '1': ['gold', 1],
       '2': ['gold', 2],
       '3': ['gold', 3],
@@ -154,41 +160,62 @@ function campaign(i: Icon): void {
   );
 }
 
-/** Бандура в курені: the many-stringed bandura — a wide round body, a short neck off its bass side, strings on it. */
+/**
+ * Бандура в курені: the bandura — an asymmetric body (the bass side round, the treble shoulder flat and wide), a short
+ * neck in its upper left with a curled head, four pale strings fanning to a low bridge, and the приструнки (short
+ * treble strings) as pale dots along the right shoulder: what tells it from a kobza.
+ */
 function bandura(i: Icon): void {
-  paint(
-    i,
-    [
-      '................',
-      '...gaaa.........',
-      '....aaag........',
-      '....bsa.........',
-      '....bsa.........',
-      '....bbbbbba.....',
-      '...bTlTlTlTla...',
-      '..bTTlTlTltlta..',
-      '..bTTlTlTltlta..',
-      '..bTTlTltltlta..',
-      '..bTtltltltlta..',
-      '..btTltltltlta..',
-      '...baaaaaaaaa...',
-      '....btttttta....',
-      '......aaaa......',
-      '................',
-    ],
-    {
-      a: ['wood', 1],
-      b: ['wood', 2],
-      l: ['wood', 2],
-      s: ['thatch', 6],
-      T: ['thatch', 5],
-      t: ['thatch', 4],
-      g: ['gold', 3],
-    },
-  );
+  const rows: readonly (readonly [number, number, number])[] = [
+    [4, 6, 12],
+    [5, 3, 13],
+    [6, 2, 13],
+    [7, 1, 13],
+    [8, 1, 13],
+    [9, 1, 13],
+    [10, 1, 12],
+    [11, 1, 12],
+    [12, 2, 11],
+    [13, 3, 10],
+    [14, 5, 8],
+  ];
+  const inBody = (x: number, y: number): boolean => rows.some(([ry, x0, x1]) => ry === y && x >= x0 && x <= x1);
+  for (const [y, x0, x1] of rows)
+    for (let x = x0; x <= x1; x++) {
+      const lit = x + y < 14;
+      const rim = !inBody(x - 1, y) || !inBody(x + 1, y) || !inBody(x, y - 1) || !inBody(x, y + 1);
+      i.set(x, y, 'wood', rim ? (lit ? 2 : 1) : lit ? 4 : 3, { flat: true });
+    }
+  // The neck merged into the upper left (lit edge, string, shadow edge) and its curled head.
+  for (let y = 2; y <= 4; y++) {
+    i.set(3, y, 'wood', 3, { flat: true });
+    i.set(4, y, 'thatch', 6, { flat: true });
+    i.set(5, y, 'wood', 1, { flat: true });
+  }
+  for (const [x, y] of [
+    [2, 1],
+    [3, 1],
+    [2, 2],
+  ] as const)
+    i.set(x, y, 'wood', 1, { flat: true });
+  // Four strings fanning from the neck to the bridge; the low bridge; the приструнки along the treble shoulder.
+  for (const end of [4, 6, 8, 10])
+    for (let y = 5; y <= 10; y++) i.set(4 + Math.round(((end - 4) * (y - 5)) / 5), y, 'thatch', 6, { flat: true });
+  for (let x = 3; x <= 10; x++) i.set(x, 11, 'wood', 1, { flat: true });
+  for (const [x, y] of [
+    [9, 5],
+    [11, 5],
+    [12, 7],
+    [12, 9],
+  ] as const)
+    i.set(x, y, 'thatch', 6, { flat: true });
 }
 
-/** Лірники на шляху: the колісна ліра (hurdy-gurdy) — a waisted body, the key box along it, the crank at its tail. */
+/**
+ * Лірники на шляху: the колісна ліра (hurdy-gurdy) — a waisted body, an ink pegbox with a scroll curl on the left, a
+ * dark key box with pale keys along it, the wheel cover as a dark arc over the right lobe, the L-shaped crank with a
+ * brass knob sticking out past the tail.
+ */
 function lirnyky(i: Icon): void {
   paint(
     i,
@@ -197,64 +224,107 @@ function lirnyky(i: Icon): void {
       '................',
       '................',
       '................',
-      '...bccb...bccb..',
-      '..bdddcb.bddcca.',
-      '.bddddcccdddcca.',
-      '.bddaaaaaaaaca..',
-      '.cdda.k.k.k.aS..',
-      '.cddaaaaaaaacas.',
-      '.bccccccccccca.n',
-      '..bccca..bcca..n',
-      '...aaa....aaa...',
+      '................',
+      '.....dd..aaaa...',
+      '....dddc.ccce...',
+      '.p..dxxxxxxce...',
+      '.pppdxkxkxkcehh.',
+      '....cxxxxxxce.h.',
+      '....ccceeccee.g.',
+      '....ecee.eeea...',
+      '.....aa...aa....',
       '................',
       '................',
       '................',
     ],
     {
       a: ['wood', 1],
-      b: ['wood', 3],
       c: ['wood', 4],
       d: ['wood', 5],
+      e: ['wood', 3],
+      x: ['ink', 2],
       k: ['thatch', 6],
-      S: ['stone', 5],
-      s: ['stone', 3],
-      n: ['wood', 5],
+      p: ['ink', 3],
+      h: ['ink', 3],
+      g: ['gold', 4],
     },
   );
 }
 
-/** Велика дума: the kobza in a gold sun of rays — the crowning node of the music branch. */
+/** A small kobza (the great duma's): pegbox, neck with its string, bowl with the hole, the bridge. */
+const SMALL_KOBZA = [
+  '................',
+  '................',
+  '................',
+  '................',
+  '.......aag......',
+  '.......sa.......',
+  '......bsda......',
+  '.....besdda.....',
+  '.....behhda.....',
+  '.....becdda.....',
+  '.....baaada.....',
+  '......aaaa......',
+  '................',
+  '................',
+  '................',
+  '................',
+] as const;
+
+/**
+ * Велика дума: the crowning node — a small kobza in a ring of eight short radial rays of pale gold, a clear px of the
+ * background between the rays and the kobza's outline. The rays are not solid: no outline of their own.
+ */
 function great(i: Icon): void {
-  for (let y = 0; y < ICON_SIZE; y++) {
-    for (let x = 0; x < ICON_SIZE; x++) {
-      const dx = x - 7.5;
-      const dy = y - 7.5;
-      const d2 = dx * dx + dy * dy;
-      // Eight rays (on the axes and the diagonals) out to the edge; a disc between them.
-      const ray = (Math.abs(dx) < 1 || Math.abs(dy) < 1 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 1) && d2 <= 50;
-      if (d2 <= 30 || ray) i.set(x, y, 'gold', dx + dy < -2 ? 4 : dx + dy > 2 ? 2 : 3, { flat: true });
-    }
-  }
-  paint(i, KOBZA, KOBZA_LEGEND);
+  paint(i, SMALL_KOBZA, KOBZA_LEGEND);
+  const rays: readonly (readonly [number, number, number])[] = [
+    // On the axes, 2 px wide: the inner px brighter.
+    [7, 1, 5],
+    [8, 1, 5],
+    [7, 0, 4],
+    [8, 0, 4],
+    [7, 14, 5],
+    [8, 14, 5],
+    [7, 15, 4],
+    [8, 15, 4],
+    [2, 7, 5],
+    [2, 8, 5],
+    [1, 7, 4],
+    [1, 8, 4],
+    [13, 7, 5],
+    [13, 8, 5],
+    [14, 7, 4],
+    [14, 8, 4],
+    // On the diagonals, 1 px wide.
+    [3, 3, 5],
+    [2, 2, 4],
+    [12, 3, 5],
+    [13, 2, 4],
+    [3, 12, 5],
+    [2, 13, 4],
+    [12, 12, 5],
+    [13, 13, 4],
+  ];
+  for (const [x, y, s] of rays) i.set(x, y, 'gold', s, { flat: true, solid: false });
 }
 
 /**
  * Вечорниці: a clay каганець (oil lamp) burning, as the young spun by it on winter evenings, and a spindle (веретено)
- * wound with flax thread beside it.
+ * wound with yarn under a pale tuft of flax.
  */
 function vechornytsi(i: Icon): void {
   paint(
     i,
     [
       '................',
-      '....o.......n...',
-      '...oY.......n...',
-      '...YZo......n...',
-      '..oZZY......T...',
-      '..YZZYo....tTu..',
-      '...YYo.....tTu..',
-      '....n......tTu..',
-      '.EEEEEEEEe..T...',
+      '....o......wwv..',
+      '...oY......wwv..',
+      '...YZo.....wvv..',
+      '..oZZY.....vvu..',
+      '..YZZYo.....n...',
+      '...YYo.....TTs..',
+      '....k......TTs..',
+      '.EEEEEEEEe.TTs..',
       '.fEeeeeeef..m...',
       '..feeeeeg...m...',
       '...ggggg....m...',
@@ -267,11 +337,14 @@ function vechornytsi(i: Icon): void {
       o: ['gold', 3],
       Y: ['gold', 4],
       Z: ['gold', 5],
-      n: ['wood', 2],
-      m: ['wood', 4],
-      T: ['wood', 5],
-      t: ['wood', 6],
-      u: ['wood', 4],
+      w: ['thatch', 6],
+      v: ['thatch', 5],
+      u: ['thatch', 4],
+      T: ['thatch', 4],
+      s: ['thatch', 3],
+      m: ['thatch', 3],
+      n: ['thatch', 2],
+      k: ['earth', 1],
       E: ['earth', 5],
       e: ['earth', 4],
       f: ['earth', 3],
@@ -280,19 +353,19 @@ function vechornytsi(i: Icon): void {
   );
 }
 
-/** Толока: the community's work — a wooden pitchfork (вила) crossed with an axe. */
+/** Толока: the community's work — a wooden pitchfork (вила, three spread tines) crossed with an axe. */
 function toloka(i: Icon): void {
   paint(
     i,
     [
       '................',
-      '................',
-      '..SS.......W....',
-      '.SSs......W.W...',
-      '.Sss.c...W.W.W..',
-      '..ss.c.W.W.W....',
-      '.....c.W.W......',
-      '......cW........',
+      '.........W......',
+      '..SS....W...W...',
+      '.SSs...W...W....',
+      '.Sss.c..W.W...W.',
+      '..ss.c...W...W..',
+      '.....c..W.W.W...',
+      '......cW...W....',
       '......Wc........',
       '.....W..c.......',
       '....W....c......',
@@ -311,21 +384,24 @@ function toloka(i: Icon): void {
   );
 }
 
-/** Гостина: bread and salt (хліб-сіль) — a round коровай with a salt cellar on it, on an embroidered рушник. */
+/**
+ * Гостина: bread and salt (хліб-сіль) — a round коровай, wide at its foot, with a pale plaited band round its middle
+ * and a white mound of salt in an ink cellar on top, on an embroidered рушник.
+ */
 function hostyna(i: Icon): void {
   paint(
     i,
     [
       '................',
       '................',
-      '......PPPp......',
-      '......pqqq......',
-      '....eeffffd.....',
-      '...efffffeddd...',
-      '..effcfcfcfdc...',
-      '..efffffffddc...',
-      '..dffddddddcc...',
-      '.PPPPPPPPPPPPq..',
+      '......iPPi......',
+      '......iiii......',
+      '....eeffffdd....',
+      '...efffffffdd...',
+      '..ececececec....',
+      '.efffffffffddc..',
+      '.ddddddddddccc..',
+      '.PPPPPPPPPPPPpq.',
       '.PppppppppppqqC.',
       '.Pp.........qC..',
       '.rR.........rR..',
@@ -334,6 +410,7 @@ function hostyna(i: Icon): void {
       '................',
     ],
     {
+      i: ['ink', 2],
       c: ['wood', 3],
       d: ['wood', 4],
       e: ['wood', 6],
@@ -384,7 +461,10 @@ function obzhynky(i: Icon): void {
     i.set(x, y, 'crimson', s, { flat: true });
 }
 
-/** Купальська ніч: the fern flower (цвіт папороті) of the Kupala legend, glowing on its frond. */
+/**
+ * Купальська ніч: the fern flower (цвіт папороті) of the Kupala legend on a pinnate frond (a stem with alternating
+ * leaflets); four pale gold glints round the bloom (not solid: no outline).
+ */
 function kupala(i: Icon): void {
   paint(
     i,
@@ -398,11 +478,11 @@ function kupala(i: Icon): void {
       '...Rr.YYrrd.....',
       '...r..ryd..d....',
       '.......g........',
-      '..GG...gG.GG....',
-      '...GG..g.GG.....',
-      '.GG.GG.gGG.GG...',
-      '..GG..GgG..G....',
-      '....GG.g.GG.....',
+      '.....GGg........',
+      '.......gHH......',
+      '....GGGg........',
+      '.......gHHH.....',
+      '...GGGGg........',
       '.......h........',
       '................',
     ],
@@ -414,10 +494,18 @@ function kupala(i: Icon): void {
       Z: ['gold', 5],
       y: ['gold', 3],
       G: ['grass', 5],
+      H: ['grass', 4],
       g: ['grass', 3],
       h: ['grass', 2],
     },
   );
+  for (const [x, y] of [
+    [1, 1],
+    [13, 1],
+    [1, 7],
+    [13, 7],
+  ] as const)
+    i.set(x, y, 'gold', 5, { flat: true, solid: false });
 }
 
 /** Дідух: the tall Christmas sheaf of the last ears — a fan of ears, crimson ties, the stalks splayed at its foot. */
@@ -453,29 +541,29 @@ function didukh(i: Icon): void {
   );
 }
 
-/** Музика (branch): a сопілка (folk flute) on the slant, its finger holes on top, a crimson ribbon at its foot. */
+/**
+ * Музика (branch): a сопілка (folk flute) on the slant — a 2-px body under a pale rim (top left), four dark finger
+ * holes, the pale window by the mouthpiece, a crimson ribbon tied at its foot with a bent tail.
+ */
 function music(i: Icon): void {
-  for (let x = 2; x <= 13; x++) {
-    i.set(x, 15 - x, 'wood', 5, { flat: true });
+  for (let x = 3; x <= 13; x++) {
+    i.set(x, 14 - x, 'wood', 6, { flat: true });
+    i.set(x, 15 - x, 'wood', 4, { flat: true });
     i.set(x, 16 - x, 'wood', 3, { flat: true });
   }
-  // The fipple block at the mouth (upper right), the finger holes, the open foot.
-  i.set(13, 2, 'wood', 2, { flat: true });
-  i.set(13, 3, 'wood', 1, { flat: true });
-  i.set(12, 3, 'ink', 2, { flat: true });
-  for (const x of [6, 8, 10]) i.set(x, 15 - x, 'ink', 2, { flat: true });
-  i.set(2, 14, 'wood', 1, { flat: true });
-  // The ribbon tied round the tube, its two tails hanging.
+  for (const x of [6, 8, 10, 12]) i.set(x, 15 - x, 'ink', 2, { flat: true });
+  // The mouthpiece end and its window; the open foot.
+  i.set(13, 2, 'wood', 6, { flat: true });
+  i.set(13, 3, 'wood', 2, { flat: true });
+  for (let y = 11; y <= 13; y++) i.set(3, y, 'wood', 2, { flat: true });
+  // The ribbon tied round the tube, its tail hanging off the low side, then turning.
   for (const [x, y, s] of [
-    [4, 11, 4],
-    [4, 12, 3],
+    [5, 9, 4],
+    [5, 10, 3],
     [5, 11, 3],
-    [5, 12, 3],
-    [6, 12, 4],
+    [6, 12, 3],
     [6, 13, 3],
-    [7, 14, 2],
-    [3, 13, 3],
-    [3, 14, 2],
+    [7, 13, 2],
   ] as const)
     i.set(x, y, 'crimson', s, { flat: true });
 }
