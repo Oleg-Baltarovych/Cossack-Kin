@@ -102,14 +102,19 @@ describe('migration v4 → v5 (M4-04)', () => {
     expect(q1.chain.base).toBe(q0.chain.base);
   });
 
-  it('a hero only for a seen unlock beat: none before «Рада на майдані», unknown beat ids ignored', () => {
-    const seen = (ids: string[]): unknown => migrated(v4With({ story: { seen: ids } }))['heroes'];
-    expect(seen(['khortytsia.shore', 'khortytsia.messenger'])).toEqual({});
-    expect(seen(['khortytsia.shore', 'khortytsia.gone', 'khortytsia.council'])).toEqual({ otaman: 1 });
-    // Every hero of an unlock beat, whichever beats carry one.
-    const all = STORY_BEATS.map((b) => b.id);
-    const heroes = STORY_BEATS.flatMap((b) => (b.reward?.kind === 'unlock' ? [b.reward.hero] : []));
-    expect(seen(all)).toEqual(Object.fromEntries(heroes.map((h) => [h, 1])));
+  const heroesAfter = (ids: string[]): unknown => migrated(v4With({ story: { seen: ids } }))['heroes'];
+
+  it('a hero only for a seen «Рада на майдані» (the one unlock beat of v4): none before it, unknown ids ignored', () => {
+    expect(heroesAfter(['khortytsia.shore', 'khortytsia.messenger'])).toEqual({});
+    expect(heroesAfter(['khortytsia.shore', 'khortytsia.gone', 'khortytsia.council'])).toEqual({ otaman: 1 });
+    expect(heroesAfter(STORY_BEATS.map((b) => b.id))).toEqual({ otaman: 1 });
+  });
+
+  it('frozen to v4: no other beat id a v4 save may hold — a later hero beat included — brings a hero', () => {
+    // A v4 game could not have fired a beat this build adds later (M4-08 Кобзар, Характерник): if one is ever an id
+    // the migration reads from live content, an old save holding it (crafted or renamed) must still get nobody.
+    const others = ['khortytsia.shore', 'khortytsia.messenger', 'khortytsia.pokrova', 'khortytsia.kobzar'];
+    expect(heroesAfter([...others, 'khortytsia.kharakternyk'])).toEqual({});
   });
 
   it('Q12: `culture1` sits right after `tavern1`; a v4 index keeps its step — those past `tavern1` shift by one', () => {
@@ -211,19 +216,30 @@ describe('v5 saves load, and a newer one is never touched (M4-04)', () => {
 
 // --- the v5 gate ----------------------------------------------------------------------------------------------
 
-/** A fresh v5 game, two hours in, with `over` on top (JSON form). */
+/** A fresh v5 game, two hours in, «Рада на майдані» seen (the otaman may be there), with `over` on top (JSON form). */
 function game(over: Json = {}, stats: Json = {}): Json {
   const g = JSON.parse(JSON.stringify(createInitialState({ seed: 7, now: T0 }))) as Json;
   return {
     ...g,
     time: { lastSeen: T0 + 2 * HOUR, maxSeen: T0 + 2 * HOUR, created: T0 },
+    story: { seen: ['khortytsia.shore', 'khortytsia.council'] },
     ...over,
     stats: { ...(g['stats'] as Json), ...stats },
   };
 }
 
-const dumy = CULTURE_NODES.find((n) => n.id === 'music.dumy');
-const otaman = HEROES.find((h) => h.id === 'otaman');
+function found<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`content: no ${what}`);
+  return value;
+}
+const dumy = found(
+  CULTURE_NODES.find((n) => n.id === 'music.dumy'),
+  'music.dumy',
+);
+const otaman = found(
+  HEROES.find((h) => h.id === 'otaman'),
+  'otaman',
+);
 
 describe('validateState v5: culture and heroes (M4-04, SPEC §9.3)', () => {
   it('a new game: empty records, counters 0', () => {
@@ -235,8 +251,8 @@ describe('validateState v5: culture and heroes (M4-04, SPEC §9.3)', () => {
   });
 
   it('ranks and levels inside the content pass and round-trip', () => {
-    const max = dumy?.maxRank ?? 0;
-    const top = otaman?.levelMax ?? 0;
+    const max = dumy.maxRank;
+    const top = otaman.levelMax;
     const g = game(
       { culture: { 'music.dumy': max }, heroes: { otaman: top } },
       { cultureRanks: max, heroLevels: top - 1 },
@@ -250,7 +266,7 @@ describe('validateState v5: culture and heroes (M4-04, SPEC §9.3)', () => {
   });
 
   it('a rank is a whole number in 1…maxRank of its node (0 is not stored: a missing node is rank 0)', () => {
-    const max = dumy?.maxRank ?? 0;
+    const max = dumy.maxRank;
     const at = (rank: unknown): string => reason(game({ culture: { 'music.dumy': rank } }, { cultureRanks: 100 }));
     expect(at(1)).toBe('ok');
     expect(at(max + 1)).toBe('range at culture.music.dumy');
@@ -260,7 +276,7 @@ describe('validateState v5: culture and heroes (M4-04, SPEC §9.3)', () => {
   });
 
   it('a level is a whole number in 1…levelMax of its hero', () => {
-    const top = otaman?.levelMax ?? 0;
+    const top = otaman.levelMax;
     const at = (level: unknown): string => reason(game({ heroes: { otaman: level } }, { heroLevels: 100 }));
     expect(at(1)).toBe('ok');
     expect(at(top + 1)).toBe('range at heroes.otaman');
@@ -276,6 +292,14 @@ describe('validateState v5: culture and heroes (M4-04, SPEC §9.3)', () => {
     if (!r.ok) throw new Error(`${r.error.reason} at ${r.error.path}`);
     expect(r.state.culture).toEqual({ 'music.dumy': 1 });
     expect(r.state.heroes).toEqual({});
+  });
+
+  it('a hero is there only after his beat: the otaman with «Рада на майдані» unseen is a crafted save', () => {
+    const heroes = { otaman: 1 };
+    expect(reason(game({ heroes }))).toBe('ok');
+    expect(reason(game({ heroes, story: { seen: ['khortytsia.shore'] } }))).toBe('range at heroes.otaman');
+    // A hero with no unlock beat in this build (Кобзар until M4-08) cannot have arrived either.
+    expect(reason(game({ heroes: { kobzar: 1 } }))).toBe('range at heroes.kobzar');
   });
 
   it('records are plain objects without forbidden keys', () => {
@@ -296,7 +320,7 @@ describe('validateState v5: culture and heroes (M4-04, SPEC §9.3)', () => {
   });
 
   it('heroLevels ≥ Σ (level − 1): the free first level is not counted', () => {
-    const heroes = { otaman: 4, kobzar: 1 };
+    const heroes = { otaman: 4 };
     expect(reason(game({ heroes }, { heroLevels: 3 }))).toBe('ok');
     expect(reason(game({ heroes }, { heroLevels: 2 }))).toBe('range at stats.heroLevels');
     expect(reason(game({}, { heroLevels: -1 }))).toBe('range at stats.heroLevels');

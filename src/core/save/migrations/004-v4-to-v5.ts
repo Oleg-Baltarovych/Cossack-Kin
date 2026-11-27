@@ -10,20 +10,25 @@
 //                                     counts as passed for those saves, silently and with no reward. A save on
 //                                     `tavern1` or before keeps its index and meets `culture1` next. `base` belongs to
 //                                     the same step, so it stays. A generated step and `done` are untouched.
-// The chain shift is frozen to the v4 chain (`tavern1` was step 20), not read from live content. The hero map reads
-// live STORY_BEATS: beat ids are saved and frozen (story.seen), and an unknown id is simply not a hero beat.
+// Both are frozen to v4, not read from live content: the chain shift (`tavern1` was step 20) and the hero map (code
+// review M4-04: a hero beat added later — M4-08 Кобзар, Характерник — must not hand its hero to an old save that holds
+// its id; a v4 game could not have fired it, and the beat fires normally on the first check after the load).
 // It reads the raw payload: a malformed one throws, and `migrate` turns that into a refused save. Whatever else is
 // wrong is validateState's to catch after the chain.
-import { STORY_BEATS } from '../../../content/story.ts';
+import type { HeroId } from '../../../content/heroes.ts';
 import type { Migration } from './index.ts';
 
 type Obj = Record<string, unknown>;
+
+/** The unlock beats of v4 and their heroes: only «Рада на майдані» → the otaman (plan Q16). */
+const V4_HERO_BEATS = { 'khortytsia.council': 'otaman' } as const satisfies Readonly<Record<string, HeroId>>;
 
 /** The first v4 chain index past `khortytsia.tavern1` (v4 index 20): where `culture1` now stands. */
 const V4_FIRST_SHIFTED = 21;
 
 function obj(value: unknown, what: string): Obj {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error(`v4: ${what}`);
+  // Checked just above: a non-null, non-array object; its keys are read as unknown.
   return value as Obj;
 }
 
@@ -34,12 +39,11 @@ function shiftChain(chain: Obj): Obj {
   return index >= V4_FIRST_SHIFTED ? { ...chain, index: index + 1 } : chain;
 }
 
-/** Level 1 for the hero of every seen unlock beat (unknown and non-string ids are no hero beat). */
+/** Level 1 for the hero of every seen v4 unlock beat (any other id, known or not, brings nobody). */
 function arrivedHeroes(seen: unknown): Obj {
   if (!Array.isArray(seen)) throw new Error('v4: story.seen');
   const heroes: Obj = {};
-  for (const beat of STORY_BEATS)
-    if (beat.reward?.kind === 'unlock' && seen.includes(beat.id)) heroes[beat.reward.hero] = 1;
+  for (const [beat, hero] of Object.entries(V4_HERO_BEATS)) if (seen.includes(beat)) heroes[hero] = 1;
   return heroes;
 }
 

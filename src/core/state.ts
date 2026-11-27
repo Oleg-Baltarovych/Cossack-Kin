@@ -12,7 +12,7 @@ import { CHORE_IDS, CHORES, type ChainStep, type ChoreId, type LevelGoal } from 
 import { RAID_TIER_IDS, RAID_TIERS, RAIDS, REGION_IDS, tierRank } from '../content/raids.ts';
 import { RELIC_IDS, RELICS, pityThreshold, type RelicId } from '../content/relics.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../content/sich.ts';
-import { STORY_BEAT_IDS, type StoryBeatId } from '../content/story.ts';
+import { STORY_BEAT_IDS, STORY_BEATS, type StoryBeatId } from '../content/story.ts';
 import { FARM_BUILDING_IDS, type FarmBuildingId } from '../content/villages/khortytsia.ts';
 import { Big } from './big.ts';
 import { createRng, type Rng } from './rng.ts';
@@ -511,8 +511,10 @@ function raidCounters(stats: Obj): Pick<Stats, 'raidsSent' | 'raidsDone' | 'raid
 // --- culture and heroes (v5) -------------------------------------------------------------------------------------
 // Sparse records (ADR 013): an id this build does not know is dropped (rename-safe, as story.seen); a stored value is a
 // whole rank 1…maxRank / level 1…levelMax (0 is never stored: missing = 0 / not arrived — the stricter reading of SPEC
-// §9.3 «ранг/рівень цілі в межах контенту»). Branch unlocks, prerequisites and arrivals are derived and not checked
-// here: the modifier sources count only what is open (M4-05), so a crafted record grants nothing.
+// §9.3 «ранг/рівень цілі в межах контенту»). A hero is there only once his unlock beat is in `story.seen` (platform
+// review M4-04: a hero's level 1 is free, so a crafted arrival is refused, not just ignored); the link is read from
+// today's STORY_BEATS — this gate checks current-version saves against current content (the migration is frozen).
+// Branch unlocks and prerequisites are derived and not checked: the modifier sources count only open branches (M4-05).
 
 /** `ids` known to the content with their bound; every other key dropped. Built on a fresh object (no prototype keys). */
 function sparse<K extends string>(
@@ -533,6 +535,14 @@ function sparse<K extends string>(
 
 const NODE_BOUNDS = CULTURE_NODES.map((n) => ({ id: n.id, max: n.maxRank }));
 const HERO_BOUNDS = HEROES.map((h) => ({ id: h.id, max: h.levelMax }));
+/** Every stored hero arrived: his unlock beat was seen (a hero no beat brings in this build cannot be there). */
+function heroesArrived(heroes: Partial<Record<HeroId, number>>, seen: readonly StoryBeatId[]): void {
+  for (const id of Object.keys(heroes)) {
+    const beat = STORY_BEATS.find((b) => b.reward?.kind === 'unlock' && b.reward.hero === id);
+    if (!beat || !seen.includes(beat.id)) fail('range', `$.heroes.${id}`);
+  }
+}
+
 const sum = (r: Readonly<Partial<Record<string, number>>>, less = 0): number =>
   Object.values(r).reduce<number>((a, v) => a + (v ?? 0) - less, 0);
 
@@ -605,6 +615,8 @@ function parse(raw: unknown): GameState {
   // Every relic found came with a won raid.
   if (relics.length > counters.raidsWon) fail('range', '$.relics');
   const time = { lastSeen, maxSeen, created };
+  const seen = beats(story['seen'], '$.story.seen');
+  heroesArrived(heroes, seen);
   return {
     version: STATE_VERSION,
     seed: int(root['seed'], '$.seed', 0, UINT32_MAX),
@@ -629,7 +641,7 @@ function parse(raw: unknown): GameState {
     army: { infantry },
     returnReport: parseReport(root['returnReport']),
     stats: counters,
-    story: { seen: beats(story['seen'], '$.story.seen') },
+    story: { seen },
     quests: parseQuests(root['quests'], chainSteps({ village: { id: landId } }), counters, maxSeen),
     raids: parseRaids(root['raids'], counters, time, relics),
     relics,
