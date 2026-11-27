@@ -5,6 +5,7 @@ import { ATLAS_DIR, ATLAS_IMAGE, atlasSource, isCount, isRecord, type AtlasState
 
 /** The sprite frame each portrait shows (the messenger is a Cossack in his coat, `kozak.b`, Q14). */
 export const PORTRAIT_FRAMES: Readonly<Record<PortraitId, string>> = {
+  kharakternyk: 'kharakternyk.a/idle/00',
   kobzar: 'kobzar.a/idle/00',
   messenger: 'kozak.b/idle/00',
   otaman: 'otaman.a/idle/00',

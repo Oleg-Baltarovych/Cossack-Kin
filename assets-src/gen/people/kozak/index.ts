@@ -69,8 +69,39 @@ const LOCK: readonly Mask[] = [
   ['...hH..', '.hhj...', 'hj.....', '.......'],
 ];
 
-/** Head kinds: шапка with шлик, bare head with the long оселедець, bare head with the short lock (`lock`). */
-export type KozakHead = 'hat' | 'bare' | 'lock';
+/**
+ * The old Cossack's bare head (M4-11, the Характерник): a clean shaved scalp with one highlight top-left, a 1-px pale
+ * brow over each eye (hair shade), and the moustache long enough to fall in two strands past the chin onto the chest
+ * (`ELDER_VUSA`).
+ */
+const HEAD_ELDER: Mask = [
+  '..zzzz..',
+  '.zSsssz.',
+  'zsssssz.',
+  'zsjssjz.',
+  'zsGssGs.',
+  'zssssSs.',
+  '.zsHhhh.',
+  '.zHsssh.',
+];
+/** The moustache's two strands below the chin (under HEAD_ELDER's last row), stamped after the torso. */
+const ELDER_VUSA: Mask = ['h...h', 'j...j'];
+/**
+ * The long оселедець of an old Cossack (art-director M4-11), on HEAD_ELDER's grid: one continuous strand from 1 px
+ * right of the crown's centre, 2 px wide (lit top, shaded underside) laid back over the top-left of the scalp, then
+ * 1 px falling over the near ear to the jaw. Never a separate tuft or pale px on the back edge of the skull (a halo).
+ * 0 hangs, 1 its tip swung back (walk); the root never moves.
+ */
+const ELDER_LOCK: readonly Mask[] = [
+  ['...hh...', '..hj....', '.hj.....', '.h......', '.h......', '.j......', '.j......'],
+  ['...hh...', '..hj....', '.hj.....', '.h......', '.h......', 'j.......', '........'],
+];
+
+/**
+ * Head kinds: шапка with шлик, bare head with the long оселедець, bare head with the short lock (`lock`), the old
+ * man's bare head with the long grey lock wound behind the ear and the long moustache (`elder`, M4-11).
+ */
+export type KozakHead = 'hat' | 'bare' | 'lock' | 'elder';
 
 /** Head style per variant: a/b шапка with шлик, c bare head with оселедець. */
 const HEADS: Readonly<Record<string, KozakHead>> = { a: 'hat', b: 'hat', c: 'bare' };
@@ -256,7 +287,8 @@ export const KOZAK_INKS: CossackInks = {
 };
 
 for (const [name, m] of Object.entries({ HEAD, HEAD_BARE, TORSO, SIT })) checkMask(m, `kozak ${name}`);
-for (const set of [SHLYK, OSELEDETS, LOCK, BELT_ENDS, LEGS, ARM]) {
+for (const [name, m] of Object.entries({ HEAD_ELDER, ELDER_VUSA })) checkMask(m, `kozak ${name}`);
+for (const set of [SHLYK, OSELEDETS, LOCK, ELDER_LOCK, BELT_ENDS, LEGS, ARM]) {
   set.forEach((m, i) => {
     checkMask(m, `kozak #${String(i)}`);
   });
@@ -270,6 +302,12 @@ const pick = <T>(list: readonly T[], i: number): T => {
 
 /** The head stamps (шапка + шлик, or the bare head + оселедець) at `top` (upper-body offset) and `lean`. */
 function headStamps(head: KozakHead, drift: number, top: number, lean: number): Stamp[] {
+  if (head === 'elder')
+    return [
+      { mask: HEAD_ELDER, x: HEAD_AT.x + lean, y: HEAD_AT.y + top },
+      { mask: ELDER_VUSA, x: HEAD_AT.x + 2 + lean, y: HEAD_AT.y + HEAD_ELDER.length + top },
+      { mask: pick(ELDER_LOCK, drift), x: HEAD_AT.x + lean, y: HEAD_AT.y + top },
+    ];
   return head === 'hat'
     ? [
         { mask: pick(SHLYK, drift), x: SHLYK_AT.x + lean, y: SHLYK_AT.y + top },
