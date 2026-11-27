@@ -25,7 +25,7 @@ paths:
 - `BufferImageSource` from a `Uint8Array` defaults to `bgra8unorm` — pass `format: 'rgba8unorm'`. `ColorMapFilter.destroy()` also destroys its LUT texture. LUTs decode via `createImageBitmap(…, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })` + OffscreenCanvas (CSP-safe, byte-exact).
 - `loadLuts(weather)` loads one LUT set at start; dynamic weather (M6) must load both. The moon-rim filter is GLSL only — add a WGSL program if WebGPU is enabled.
 - Pixi batches several atlases per draw call (interleaving 2 atlases measured +0). Each outline mark costs +4 draw calls, the moon bevel +3, a boat on screen +2.
-- Release atlases on world teardown and on a failed start (`unloadAtlases`). `pixiAtlases` loads only `WORLD_ATLASES` (+ debug in dev/test); DOM-only atlases (`map`, `loot`, `ui`) need nothing here.
+- Release atlases on world teardown and on a failed start (`unloadAtlases`). `pixiAtlases` loads only `WORLD_ATLASES` (+ debug in dev/test); DOM-only atlases (`map`, `loot`, `culture`, `ui`) need nothing here.
 
 ## World and scene
 - Read only `KHORTYTSIA_WORLD`. Cull off-view sprites with `renderable` (`cull.ts`), never `visible` — plots own `visible`. Particle claims are world-wide worst cases.

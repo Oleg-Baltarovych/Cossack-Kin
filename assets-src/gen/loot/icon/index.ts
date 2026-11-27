@@ -262,17 +262,20 @@ function kobza(i: Icon): void {
     i.set(x, y, 'gold', 3, { flat: true });
   i.set(13, 3, 'gold', 4, { flat: true });
   // On the soundboard the string is a fine shadowed line from the bridge to the hole; the hole and the bridge dark.
+  // The hole is ink 2, a step off the outline's ink 1 (art-director M4-06: the outline colour read as a cut-through).
   i.set(5, 11, 'wood', 3, { flat: true });
   for (const [x, y] of [
     [6, 10],
     [7, 9],
   ] as const)
-    i.set(x, y, 'ink', 1, { flat: true });
+    i.set(x, y, 'ink', 2, { flat: true });
+  // The bridge 1 px up-left, off the rim (M4-06 review), and the notch above the shoulder filled.
   for (const [x, y] of [
+    [3, 10],
     [4, 11],
-    [5, 12],
   ] as const)
     i.set(x, y, 'wood', 1, { flat: true });
+  i.set(7, 6, 'wood', 2, { flat: true });
 }
 
 /** Relics not yet found show as their silhouette (the «Скарбниця», §0.1 П5): the shape, none of the colours. */
