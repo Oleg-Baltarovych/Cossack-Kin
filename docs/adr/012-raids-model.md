@@ -1,6 +1,7 @@
 # 012. Raids: army snapshot, roll at start, `returnAt` breakpoint, board as a pure function
 
 - Status: Accepted (M3 plan `docs/plans/2026-11-23-m3-army.md` approved by the owner 2026-11-24, Q1–Q21 at the recommended defaults)
+- Amended by [ADR 013](013-culture-heroes-modifier-sources.md) (2026-11-27): M4 adds no raid slot (Чайки move to «Військова справа», M10+), and raid time is fixed at start within `[ceil(dur × minTimeMult), dur]` instead of exactly `dur`.
 - Date: 2026-11-24
 
 ## Context
