@@ -4,15 +4,15 @@
 // A running slot's view carries no result: success and loot are rolled at start but stay hidden until «Забрати» (П4) —
 // enforced by the type, not by the UI's discipline. The scene's view has no economy numbers at all.
 import { RAID_TIER_IDS, RAIDS, tierRank, type RaidTierId, type RegionId, type RumorId } from '../content/raids.ts';
-import { RELIC_DEFS, RELICS, type RelicId } from '../content/relics.ts';
+import { RELIC_DEFS, RELICS, relicOnTier, type RelicId } from '../content/relics.ts';
 import {
+  heldRelics,
   MS_PER_SEC,
   powerEnough,
   previewRaid,
   raidPower,
   raidReady,
   raidTier,
-  relicOnTier,
   type LootAmounts,
   type RaidSlot,
 } from './systems/raids.ts';
@@ -266,9 +266,12 @@ export interface RelicHintView {
  * one of those left (M4-06: only «Кобза діда» left → from 1 h); «близько» is that tier's `relicSure`.
  */
 export function relicHint(state: GameState): RelicHintView | null {
-  const left = RELIC_DEFS.filter((r) => !state.relics.includes(r.id));
-  if (left.length === 0) return null;
+  if (RELIC_DEFS.every((r) => state.relics.includes(r.id))) return null;
+  // The relics a raid can still bring: not found and not already on its way home in a slot (as the roll counts them).
+  const held = heldRelics(state);
+  const left = RELIC_DEFS.filter((r) => !held.includes(r.id));
   const pityRank = tierRank(RELICS.pityMinTier);
+  // RAID_TIER_IDS is in ascending duration (content/raids.ts), so the first match is the shortest tier.
   const fromTier =
     RAID_TIER_IDS.find(
       (t) => (raidTier(t).relicChance > 0 || tierRank(t) >= pityRank) && left.some((r) => relicOnTier(r, t)),

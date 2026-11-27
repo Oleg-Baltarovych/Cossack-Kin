@@ -4,7 +4,7 @@
 // (`relics`, raid slots) and the list order is part of every relic pick (`pickRelic`): append only, never rename.
 
 import type { EffectKind } from './effects.ts';
-import type { RaidTierId } from './raids.ts';
+import { tierRank, type RaidTierId } from './raids.ts';
 import type { Village } from './villages/khortytsia.ts';
 
 export const RELIC_IDS = ['pernach', 'porokhivnytsia', 'kobza'] as const;
@@ -55,6 +55,14 @@ export const RELIC_DEFS: readonly RelicDef[] = [
   relic('porokhivnytsia', 'm30', { kind: 'loot', share: 0.1 }),
   relic('kobza', 'h1', { kind: 'cultureCost', share: 0.05 }),
 ];
+
+/**
+ * Whether a raid of `tier` can find relic `r` at all: from its `minTier` on (M4-06). The one definition — the roll
+ * (`systems/raids.ts`), the save gate and the treasury hint all read it.
+ */
+export function relicOnTier(r: RelicDef, tier: RaidTierId): boolean {
+  return tierRank(tier) >= tierRank(r.minTier);
+}
 
 /**
  * The pity (Q5, Q16 — for every relic): `raids.pity` counts successful raids of tier ≥ `pityMinTier` that gave no

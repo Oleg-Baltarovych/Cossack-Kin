@@ -28,7 +28,7 @@ import {
   type RumorEffect,
   type RumorId,
 } from '../../content/raids.ts';
-import { RELIC_DEFS, RELICS, pityThreshold, type RelicDef, type RelicId } from '../../content/relics.ts';
+import { RELIC_DEFS, RELICS, pityThreshold, relicOnTier, type RelicId } from '../../content/relics.ts';
 import { Big } from '../big.ts';
 import type { GameEvent } from '../events.ts';
 import { steadyModifiers, villageOf } from '../modifiers.ts';
@@ -210,11 +210,6 @@ export function heldRelics(state: GameState): readonly RelicId[] {
     if (slot.kind !== 'idle' && slot.raid.loot.relic !== null) held.add(slot.raid.loot.relic);
   }
   return [...held];
-}
-
-/** Whether a raid of `tier` can find relic `r` at all: from its `minTier` on (M4-06: «Кобза діда» from 1 h). */
-export function relicOnTier(r: RelicDef, tier: RaidTierId): boolean {
-  return tierRank(tier) >= tierRank(r.minTier);
 }
 
 /**

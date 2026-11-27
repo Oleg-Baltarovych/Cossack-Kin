@@ -10,7 +10,7 @@ import { CULTURE_NODES, type CultureNodeId } from '../content/culture.ts';
 import { HEROES, type HeroId } from '../content/heroes.ts';
 import { CHORE_IDS, CHORES, type ChainStep, type ChoreId, type LevelGoal } from '../content/quests.ts';
 import { RAID_TIER_IDS, RAID_TIERS, RAIDS, REGION_IDS, tierRank } from '../content/raids.ts';
-import { RELIC_DEFS, RELIC_IDS, RELICS, pityThreshold, type RelicId } from '../content/relics.ts';
+import { RELIC_DEFS, RELIC_IDS, RELICS, pityThreshold, relicOnTier, type RelicId } from '../content/relics.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../content/sich.ts';
 import { STORY_BEAT_IDS, STORY_BEATS, type StoryBeatId } from '../content/story.ts';
 import { FARM_BUILDING_IDS, type FarmBuildingId } from '../content/villages/khortytsia.ts';
@@ -456,8 +456,8 @@ function parseRoll(
   };
   if (loot.relic !== null) {
     const id = loot.relic;
-    // M4-06: a relic only from its own minTier on («Кобза діда» from 1 h), as `relicOnTier` in rollRaid.
-    const onTier = RELIC_DEFS.some((x) => x.id === id && tierRank(tier) >= tierRank(x.minTier));
+    // M4-06: a relic only from its own minTier on («Кобза діда» from 1 h), as in rollRaid.
+    const onTier = RELIC_DEFS.some((x) => x.id === id && relicOnTier(x, tier));
     if (!success || !canRelic || !onTier || held.has(id)) fail('range', `${path}.loot.relic`);
     held.add(loot.relic);
   }
@@ -493,7 +493,7 @@ function parseRaids(value: unknown, stats: Stats, time: GameState['time'], relic
     if (slot.kind === 'idle' || slot.raid.loot.pysanky === 0) return;
     const { tier } = slot.raid;
     const def = RAID_TIERS.find((t) => t.id === tier);
-    const left = RELIC_DEFS.some((r) => tierRank(tier) >= tierRank(r.minTier) && !held.has(r.id));
+    const left = RELIC_DEFS.some((r) => relicOnTier(r, tier) && !held.has(r.id));
     if (def?.pysankyChance === 0 && (left || slot.raid.loot.relic !== null))
       fail('range', `${p}.slots.${String(i)}.raid.loot.pysanky`);
   });

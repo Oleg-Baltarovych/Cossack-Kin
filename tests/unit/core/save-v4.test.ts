@@ -335,6 +335,8 @@ describe('validateState v4: one refusal per invariant of plan §0 (M3-04)', () =
     const h1 = { tier: 'h1', returnAt: T0 + HOUR };
     expect(reason(game([running(roll(h1, { relic: 'kobza' }))]))).toBe('ok');
     expect(reason(game([running(roll({}, { relic: 'kobza' }))]))).toBe('range at raids.slots.0.raid.loot.relic');
+    // A main-written v5 save (before M4-06): both M3 relics held, a 1-h raid with pysanky — loads.
+    expect(reason(game([running(roll(h1, { pysanky: 1 }))], { relics: ['pernach', 'porokhivnytsia'] }))).toBe('ok');
     // A save from before it existed: both M3 relics held, 30-min pysanky — still valid (m30 cannot find it).
     expect(reason(game([running(roll({}, { pysanky: 1 }))], { relics: ['pernach', 'porokhivnytsia'] }))).toBe('ok');
   });
