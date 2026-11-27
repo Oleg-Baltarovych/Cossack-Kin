@@ -175,7 +175,9 @@ describe('the bot raids through the real actions (M3-08)', () => {
     const r = simulate({ seed: 1, days: 1, initial });
     expect(r.final.stats.hires).toBe(initial.stats.hires);
     const presses = r.sessions.reduce((n, x) => n + x.actions, 0);
-    expect(presses).toBe(r.final.stats.purchases - initial.stats.purchases);
+    // Culture ranks and hero levels are economy actions too (M4-09, SPEC §12.3), logged apart in `culture`.
+    const culture = r.sessions.reduce((n, x) => n + x.culture, 0);
+    expect(presses).toBe(r.final.stats.purchases - initial.stats.purchases + culture);
     expect(r.sessions.reduce((n, x) => n + x.raids.starts + x.raids.claims, 0)).toBeGreaterThan(0);
   });
 

@@ -32,6 +32,7 @@ paths:
 - The glory content test checks `maxSlots × max gloryLootSec × max lootMult ≤ gloryCapSec` with the real `collectModifiers` — keep it when adding loot relics or tiers.
 - A culture/hero/relic effect names one `EFFECT_KINDS` kind; its target lives in `EFFECT_TARGETS` (`effects.ts`, one field or the food buildings); a new reducing source (`cost`, `cultureCost`, `raidTime`) must keep `culture.test.ts`'s Σ max ≤ 1 − `EFFECT_FLOORS` — add relic shares to that sum when relics use these kinds (M4-06).
 - The bot ignores chores whose `requires` it never does — such a chore stalls its chore claims.
+- Culture ranks and hero presses are economy actions (`SessionLog.culture` ⊂ `actions`); the bot's culture review runs a day of play per candidate (`applyOffline` ×2) — keep it off the per-press path (session open / asked quest only), or the sim blows the 10 s budget.
 - Raid starts/claims are raid actions (`SessionLog.raids`), not economy actions; quest claims are not «дії» (`SessionLog.claims`).
 - Judge robustness on `pnpm balance --seeds 1,…,12` before trusting seeds 1–3; for the S2+ action median use seeds 1–36 (±2 between seeds is noise).
 - Tuning is touchy at the edges; offline is ~98 % of income at 2 × 7-min sessions/day (structural, no target). `--check` also gates sim speed (60 days ≤ 10 s CPU).

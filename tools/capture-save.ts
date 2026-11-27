@@ -4,15 +4,15 @@
 // Raids (M3-08): the bot raids through the real actions, so a played game ends with its slots out (or back,
 // unclaimed). `v4.json` was captured before that (M3-04/05: the onboarding raid and a 1-h raid this tool sent at the
 // end) and stays as committed — fixtures are immutable; this path is for the next version's fixture.
-// v5 (M4-04): the bot's game carries a hero (the otaman of «Рада на майдані»); the first culture rank comes from the
-// sim's `standInCulture` (the real `buyCulture` since M4-05; its policy until M4-09), also run in the last sweep below.
+// v5 (M4-04): the bot's game carries a hero (the otaman of «Рада на майдані»); culture ranks come from the bot's own
+// policy (M4-09; `v5.json` was captured with the stand-in before it and stays as committed).
 //   node tools/capture-save.ts --seed 7 --days 3 --out tests/fixtures/saves/v5.json
 import { existsSync, writeFileSync } from 'node:fs';
 import { RAIDS } from '../src/content/raids.ts';
 import { applyAction } from '../src/core/actions.ts';
 import { encodeSave } from '../src/core/save/serialize.ts';
 import type { GameState } from '../src/core/state.ts';
-import { simulate, standInCulture } from './lib/balance/sim.ts';
+import { simulate } from './lib/balance/sim.ts';
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -34,8 +34,7 @@ const played = simulate({ seed, days }).final;
 // The bot claims finished quests as it plays (M2-27); this last sweep — every chain step and the chore, through the
 // real action — stays so a fixture never ends on a finished, unclaimed quest (v3+).
 function claimAll(start: GameState): GameState {
-  // The sim's culture stand-in (real buyCulture, policy until M4-09): the first culture rank on the step `culture1`.
-  let s = standInCulture(start) ?? start;
+  let s = start;
   for (const kind of ['chain', 'chore'] as const) {
     for (;;) {
       const r = applyAction(s, { type: 'claimQuest', kind }, s.time.lastSeen);

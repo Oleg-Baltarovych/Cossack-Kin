@@ -1,7 +1,7 @@
 // Balance report and corridor check (SPEC §2.3, §12.3; plan M1-14). Pure: simulation results in, checks and text out
 // (byte-stable — no clock, no locale formatting).
 import { CALENDAR_LAND1, PACING, type CalendarEntry } from '../../../src/content/pacing.ts';
-import type { SimResult } from './sim.ts';
+import type { DayLog, SimResult } from './sim.ts';
 
 const DAY_SEC = 86_400;
 const SESSIONS_PER_DAY = PACING.sessionsPerDay;
@@ -217,7 +217,7 @@ export function renderReport(
   const lines: string[] = [
     '# Balance — land 1 (Хортиця)',
     '',
-    `Bot: greedy MAX (plan Q10), ${String(PACING.sessionsPerDay)} sessions/day × ${String(PACING.sessionSec / 60)} min, tap every ${String(PACING.tapEverySec)} s, claims every finished quest (not an action), claims returned raids and sends the best expected loot into each free slot (raid actions, counted apart from the economy actions; M3-08), free profile.`,
+    `Bot: greedy MAX (plan Q10), ${String(PACING.sessionsPerDay)} sessions/day × ${String(PACING.sessionSec / 60)} min, tap every ${String(PACING.tapEverySec)} s, claims every finished quest (not an action), buys the culture rank / hero level of the best payback in glory minutes within a day (asked ones at once; M4-09), claims returned raids and sends the best expected loot into each free slot (raid actions, counted apart from the economy actions; M3-08), free profile.`,
     '',
   ];
   const failed = checks.filter((c) => c.gate && !c.ok).length;
@@ -268,6 +268,39 @@ export function renderReport(
       lines.push(
         `| ${String(d.day)} | ${String(d.raidsClaimed)} | ${d.raidsClaimed > 0 ? fmt((d.raidsWon / d.raidsClaimed) * 100) : '—'} | ${d.earnedDucats > 0 ? `${fmt((d.raidDucats / d.earnedDucats) * 100)} %` : '—'} | ${String(d.pysanky)} | ${fmt(d.lootMult)} | ${fmt(d.incomeMult)} | ${fmt(d.lootMult * d.incomeMult)} |`,
       );
+    const spent = liveDays(r).reduce(
+      (a, d) => ({
+        culture: a.culture + d.glorySpent.culture,
+        heroes: a.heroes + d.glorySpent.heroes,
+        sich: a.sich + d.glorySpent.sich,
+      }),
+      { culture: 0, heroes: 0, sich: 0 },
+    );
+    const total = spent.culture + spent.heroes + spent.sich;
+    const pct = (n: number): string => (total > 0 ? `${fmt((n / total) * 100)} %` : '—');
+    lines.push(
+      '',
+      '### Glory spent (to bloom)',
+      '',
+      `Culture ${pct(spent.culture)} · heroes ${pct(spent.heroes)} · Sich ${pct(spent.sich)} (of ${fmt(total)} glory)`,
+      '',
+      '| day | culture | heroes | Sich |',
+      '|---|---|---|---|',
+    );
+    for (const d of r.dayLog)
+      lines.push(
+        `| ${String(d.day)} | ${fmt(d.glorySpent.culture)} | ${fmt(d.glorySpent.heroes)} | ${fmt(d.glorySpent.sich)} |`,
+      );
+    const fields = Object.keys(r.dayLog[0]?.modifiers ?? {}) as (keyof DayLog['modifiers'])[];
+    lines.push(
+      '',
+      '### Modifiers by day (steady, end of day)',
+      '',
+      `| day | ${fields.join(' | ')} |`,
+      `|---|${fields.map(() => '---|').join('')}`,
+    );
+    for (const d of r.dayLog)
+      lines.push(`| ${String(d.day)} | ${fields.map((f) => fmt(d.modifiers[f])).join(' | ')} |`);
     lines.push('', '### Milestones (day reached)', '', '| milestone | day |', '|---|---|');
     for (const [k, v] of Object.entries(r.milestones).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])))
       lines.push(`| ${k} | ${fmt(v / DAY_SEC)} |`);
