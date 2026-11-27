@@ -1,7 +1,9 @@
 // Property-style check (plan M3-05): any save the raid actions and time produce passes the save gate, and the raid
 // counters only grow. Random sequences of starts, claims, purchases, taps, ticks, absences and clocks set back,
-// drawn from the seeded core RNG (reproducible: the failing seed and step are in the message).
-import { describe, expect, it } from 'vitest';
+// drawn from the seeded core RNG (reproducible: the failing seed and step are in the message). M4-06: some games have
+// the Характерник (a stand-in beat brings him until M4-08, hero-beats.ts) and level him up between raids — raids he
+// shortens at their start keep the v5 gate, and those on the road never change (checkStep: same kind = same raid).
+import { describe, expect, it, vi } from 'vitest';
 import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
 import { RAID_TIER_IDS } from '../../../src/content/raids.ts';
 import { applyAction, type Action } from '../../../src/core/actions.ts';
@@ -11,6 +13,10 @@ import type { GameEvent } from '../../../src/core/events.ts';
 import { applyOffline, resume, tick } from '../../../src/core/offline.ts';
 import { createRng, next, type Rng } from '../../../src/core/rng.ts';
 import { createInitialState, validateState, type GameState } from '../../../src/core/state.ts';
+
+vi.mock('../../../src/content/story.ts', async (importOriginal) =>
+  (await import('./hero-beats.ts')).withHeroBeats(await importOriginal()),
+);
 
 const T0 = 1_763_400_000_000;
 const SEC = 1000;
@@ -22,13 +28,17 @@ const OFFLINE_GAP = 9 * HOUR;
 
 function start(seed: number): GameState {
   const s = createInitialState({ seed, now: T0 });
-  // Some games with every beat seen, some fresh (beats then fire along the way).
+  // Some games with every beat seen, some fresh (beats then fire along the way); the seen ones have the heroes (the
+  // Характерник at a level of the seed) — the others never get him (his stand-in beat cannot fire).
+  const seen = seed % 2 === 0;
+  const kharakternyk = 1 + ((seed * 7) % 20);
   return {
     ...s,
-    story: seed % 2 === 0 ? { seen: [...STORY_BEAT_IDS] } : s.story,
+    story: seen ? { seen: [...STORY_BEAT_IDS] } : s.story,
+    heroes: seen ? { otaman: 1, kobzar: 1, kharakternyk } : s.heroes,
     currencies: { ...s.currencies, ducats: Big.from(1e9), glory: Big.from(1e6) },
     army: { infantry: 40 + (seed % 5) * 300 },
-    stats: { ...s.stats, hires: 40 + (seed % 5) * 300 },
+    stats: { ...s.stats, hires: 40 + (seed % 5) * 300, heroLevels: seen ? kharakternyk - 1 : 0 },
   };
 }
 
@@ -52,7 +62,8 @@ function move(rng0: Rng): [Move, Rng] {
   if (k < 0.5) return [{ kind: 'action', action: { type: 'claimRaid', slot }, dt }, rng4];
   if (k < 0.55) return [{ kind: 'action', action: { type: 'claimAllRaids' }, dt }, rng4];
   if (k < 0.6) return [{ kind: 'action', action: { type: 'buyBuilding', id: 'field', mode: 10 }, dt }, rng4];
-  if (k < 0.63) return [{ kind: 'action', action: { type: 'claimReturn' }, dt }, rng4];
+  if (k < 0.62) return [{ kind: 'action', action: { type: 'claimReturn' }, dt }, rng4];
+  if (k < 0.63) return [{ kind: 'action', action: { type: 'levelHero', id: 'kharakternyk', mode: 1 }, dt }, rng4];
   if (k < 0.66) return [{ kind: 'action', action: { type: 'tap' }, dt }, rng4];
   if (k < 0.8) return [{ kind: 'tick', dt }, rng4];
   if (k < 0.93) return [{ kind: 'offline', dt }, rng4];
@@ -200,4 +211,10 @@ describe('random raid sequences (M3-05)', () => {
       expect(again.log).toEqual(first.log);
     },
   );
+
+  it('the games with the Характерник do level him up and send raids he shortens (else the M4-06 part says nothing)', () => {
+    const logs = [2, 4, 6, 8, 10, 12].map((seed) => run(seed, false).log.flat());
+    expect(logs.some((l) => l.some((e) => e.type === 'HeroLevelled'))).toBe(true);
+    expect(logs.every((l) => l.some((e) => e.type === 'RaidStarted'))).toBe(true);
+  });
 });

@@ -331,6 +331,14 @@ describe('validateState v4: one refusal per invariant of plan §0 (M3-04)', () =
     );
   });
 
+  it('M4-06 «Кобза діда»: only in a slot of a tier ≥ its minTier; short tiers count it out for their pysanky', () => {
+    const h1 = { tier: 'h1', returnAt: T0 + HOUR };
+    expect(reason(game([running(roll(h1, { relic: 'kobza' }))]))).toBe('ok');
+    expect(reason(game([running(roll({}, { relic: 'kobza' }))]))).toBe('range at raids.slots.0.raid.loot.relic');
+    // A save from before it existed: both M3 relics held, 30-min pysanky — still valid (m30 cannot find it).
+    expect(reason(game([running(roll({}, { pysanky: 1 }))], { relics: ['pernach', 'porokhivnytsia'] }))).toBe('ok');
+  });
+
   it('a rumour start sets rumorDay to its day: rumor = true with a rumorDay before that day is refused', () => {
     const r = running(roll({ rumor: true }));
     expect(reason(game([r], { rumorDay: dayAt(T0, 840) }))).toBe('ok');
@@ -369,14 +377,14 @@ describe('validateState v4: one refusal per invariant of plan §0 (M3-04)', () =
   });
 
   it('an unknown slot relic is dropped (a removed relic never bricks a save), never granted', () => {
-    const s = validateState(game([running(roll({}, { relic: 'kobza' }))]));
+    const s = validateState(game([running(roll({}, { relic: 'bulava' }))]));
     if (!s.ok) throw new Error('invalid');
     const slot = s.state.raids.slots[0];
     expect(slot?.kind === 'running' && slot.raid.loot.relic).toBeNull();
   });
 
   it('relics: known ids in finding order, an unknown one dropped, a duplicate refused', () => {
-    const s = validateState(game([], { relics: ['porokhivnytsia', 'kobza', 'pernach'] }));
+    const s = validateState(game([], { relics: ['porokhivnytsia', 'bulava', 'pernach'] }));
     expect(s.ok && s.state.relics).toEqual(['porokhivnytsia', 'pernach']);
     expect(reason(game([], { relics: ['pernach', 'pernach'] }))).toBe('range at relics.1');
     expect(reason(game([], { relics: [1] }))).toBe('type at relics.0');

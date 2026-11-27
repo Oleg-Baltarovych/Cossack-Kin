@@ -10,7 +10,7 @@ import { CULTURE_NODES, type CultureNodeId } from '../content/culture.ts';
 import { HEROES, type HeroId } from '../content/heroes.ts';
 import { CHORE_IDS, CHORES, type ChainStep, type ChoreId, type LevelGoal } from '../content/quests.ts';
 import { RAID_TIER_IDS, RAID_TIERS, RAIDS, REGION_IDS, tierRank } from '../content/raids.ts';
-import { RELIC_IDS, RELICS, pityThreshold, type RelicId } from '../content/relics.ts';
+import { RELIC_DEFS, RELIC_IDS, RELICS, pityThreshold, type RelicId } from '../content/relics.ts';
 import { SICH_BUILDING_IDS, type SichBuildingId } from '../content/sich.ts';
 import { STORY_BEAT_IDS, STORY_BEATS, type StoryBeatId } from '../content/story.ts';
 import { FARM_BUILDING_IDS, type FarmBuildingId } from '../content/villages/khortytsia.ts';
@@ -415,7 +415,7 @@ function slotRelic(value: unknown, path: string): RelicId | null {
  * none of them (it is added). Bounds are what `rollRaid` can store: started inside the game's time; back within the
  * tier's duration window (v5: `raidTimeMult` shortens a raid at its start, at most to `RAIDS.minTimeMult`), and by `maxSeen` once
  * returned; pysanky and a relic only on a success and on a tier that can give them (a relic tier's chance turns into
- * pysanky once every relic is held — checked in `parseRaids`, which knows every slot; the pity makes a relic sure from
+ * pysanky once every relic that tier can find is held — checked in `parseRaids`, which knows every slot; the pity makes a relic sure from
  * RELICS.pityMinTier up). A rumour start stored its day in `rumorDay`, which never falls below it.
  */
 function parseRoll(
@@ -455,7 +455,10 @@ function parseRoll(
     relic: slotRelic(l['relic'], `${path}.loot.relic`),
   };
   if (loot.relic !== null) {
-    if (!success || !canRelic || held.has(loot.relic)) fail('range', `${path}.loot.relic`);
+    const id = loot.relic;
+    // M4-06: a relic only from its own minTier on («Кобза діда» from 1 h), as `relicOnTier` in rollRaid.
+    const onTier = RELIC_DEFS.some((x) => x.id === id && tierRank(tier) >= tierRank(x.minTier));
+    if (!success || !canRelic || !onTier || held.has(id)) fail('range', `${path}.loot.relic`);
     held.add(loot.relic);
   }
   return { region, tier, startedAt, returnAt, success, rumor, loot };
@@ -483,12 +486,15 @@ function parseRaids(value: unknown, stats: Stats, time: GameState['time'], relic
     const s = object(v, at, ['kind', 'raid']);
     return { kind, raid: parseRoll(s['raid'], `${at}.raid`, kind, { time, rumorDay }, held) };
   });
-  // Pysanky on a tier without a pysanky chance come only from its relic chance once every relic is held (M3-03): held
-  // only grows (a slot relic moves to `relics` on claim), so «all held now» is needed for «all held at the roll».
+  // Pysanky on a tier without a pysanky chance come only from its relic chance once every relic that tier can find is
+  // held (M3-03; M4-06: «Кобза діда» is not one of the 30-min raid's, so a save with the M3 relics keeps its pysanky):
+  // held only grows (a slot relic moves to `relics` on claim), so «all held now» is needed for «all held at the roll».
   slots.forEach((slot, i) => {
     if (slot.kind === 'idle' || slot.raid.loot.pysanky === 0) return;
-    const def = RAID_TIERS.find((t) => t.id === slot.raid.tier);
-    if (def?.pysankyChance === 0 && (held.size < RELIC_IDS.length || slot.raid.loot.relic !== null))
+    const { tier } = slot.raid;
+    const def = RAID_TIERS.find((t) => t.id === tier);
+    const left = RELIC_DEFS.some((r) => tierRank(tier) >= tierRank(r.minTier) && !held.has(r.id));
+    if (def?.pysankyChance === 0 && (left || slot.raid.loot.relic !== null))
       fail('range', `${p}.slots.${String(i)}.raid.loot.pysanky`);
   });
   // Every raid under way was sent and is not claimed yet: a crafted slot is not a free raid.

@@ -12,6 +12,7 @@ import { OFFLINE } from '../../../src/content/economy.ts';
 import { EFFECT_FLOORS, EFFECT_KINDS, EFFECT_TARGETS, type EffectKind } from '../../../src/content/effects.ts';
 import { HERO_IDS, HEROES } from '../../../src/content/heroes.ts';
 import { RAIDS } from '../../../src/content/raids.ts';
+import { RELIC_DEFS } from '../../../src/content/relics.ts';
 import { STORY_BEATS } from '../../../src/content/story.ts';
 
 const locale = (lang: 'uk' | 'en'): Record<string, unknown> =>
@@ -21,12 +22,17 @@ const unique = (ids: readonly string[]): boolean => new Set(ids).size === ids.le
 const nodesOf = (branch: string): CultureNode[] => CULTURE_NODES.filter((n) => n.branch === branch);
 const rowOf = (branch: string, row: number): CultureNode[] => nodesOf(branch).filter((n) => n.row === row);
 
-/** Σ of `kind` at full ranks over every node and every hero at levelMax: the most the content can ever add. */
+/**
+ * Σ of `kind` at full ranks over every node, every hero at levelMax and every relic found (M4-06: «Кобза діда» lowers
+ * the culture price too): the most the content can ever add.
+ */
 const maxSum = (kind: EffectKind): number =>
   CULTURE_NODES.reduce(
     (s, n) => s + n.effects.reduce((a, e) => a + (e.kind === kind ? e.perRank : 0), 0) * n.maxRank,
     0,
-  ) + HEROES.reduce((s, h) => s + h.effects.reduce((a, e) => a + (e.kind === kind ? e.perRank : 0), 0) * h.levelMax, 0);
+  ) +
+  HEROES.reduce((s, h) => s + h.effects.reduce((a, e) => a + (e.kind === kind ? e.perRank : 0), 0) * h.levelMax, 0) +
+  RELIC_DEFS.reduce((s, r) => s + (r.effect.kind === kind ? r.effect.share : 0), 0);
 
 // Floating sums of shares (0.01 × 25) must not fail a bound they meet exactly.
 const EPS = 1e-9;
@@ -168,6 +174,8 @@ describe('bounds of the stacked effects (ADR 013)', () => {
   });
 
   it('every reduction stays above its floor: Σ max share ≤ 1 − floor (the floor never binds)', () => {
+    // The relics count too: «Кобза діда» stacks with the Кобзар on the culture price (M4-06).
+    expect(RELIC_DEFS.some((r) => r.effect.kind === 'cultureCost')).toBe(true);
     for (const [kind, floor] of Object.entries(EFFECT_FLOORS) as [EffectKind, number][]) {
       expect(floor, kind).toBeGreaterThan(0);
       expect(floor, kind).toBeLessThan(1);

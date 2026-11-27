@@ -1,7 +1,8 @@
 // Culture and hero actions (plan M4-05, SPEC §3.5 «Модель M4», ADR 013): `buyCulture` (one rank), `levelHero` (the
 // shared ×1/×10/×25/Max picker), their events and refusals, and the culture/hero sources of `modifierSources` — only
-// open branches and heroes that came count, a crafted save gains nothing.
-import { describe, expect, it } from 'vitest';
+// open branches and heroes that came count, a crafted save gains nothing. The Кобзар's and the Характерник's beats are
+// M4-08: stand-in beats bring them here (hero-beats.ts), so every effect kind has its case (M4-06).
+import { describe, expect, it, vi } from 'vitest';
 import { CULTURE_BRANCHES, CULTURE_NODES, type CultureNode, type CultureNodeId } from '../../../src/content/culture.ts';
 import {
   EFFECT_FLOORS,
@@ -29,6 +30,10 @@ import { applyOffline } from '../../../src/core/offline.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { culturePrice, heroPrice } from '../../../src/core/systems/culture.ts';
 
+vi.mock('../../../src/content/story.ts', async (importOriginal) =>
+  (await import('./hero-beats.ts')).withHeroBeats(await importOriginal()),
+);
+
 const T0 = 1_763_400_000_000;
 const HOUR = 3600 * 1000;
 const LOTS = 1e15;
@@ -43,7 +48,7 @@ const heroOf = (id: HeroId): HeroDef => {
   if (!h) throw new Error(`content: ${id}`);
   return h;
 };
-/** Heroes some story beat brings in this build (the others cannot come yet: their beats are M4-08). */
+/** Heroes some story beat brings (with the stand-ins: all of them). */
 const ARRIVING = new Set(STORY_BEATS.flatMap((b) => (b.reward?.kind === 'unlock' ? [b.reward.hero] : [])));
 
 /**
@@ -247,11 +252,10 @@ describe('a rank / a level changes exactly its fields by perRank (one case per e
     for (const k of Object.keys(want)) expect(close(now[k] ?? Number.NaN, want[k] ?? Number.NaN), k).toBe(true);
   });
 
-  it('every effect kind is covered except those only heroes not come yet carry (their beats: M4-08)', () => {
+  it('every effect kind is covered', () => {
+    expect(HEROES.every((h) => ARRIVING.has(h.id))).toBe(true);
     const covered = new Set(BY_KIND.map(([k]) => k));
-    // TODO(M4-08): the Кобзар and the Характерник get their beats; then this set is empty and the cases cover all.
-    const later = new Set(HEROES.filter((h) => !ARRIVING.has(h.id)).flatMap((h) => h.effects.map((f) => f.kind)));
-    for (const kind of EFFECT_KINDS) expect(covered.has(kind) || later.has(kind), kind).toBe(true);
+    for (const kind of EFFECT_KINDS) expect(covered.has(kind), kind).toBe(true);
   });
 });
 

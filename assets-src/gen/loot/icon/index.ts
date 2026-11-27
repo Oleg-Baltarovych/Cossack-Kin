@@ -14,6 +14,9 @@ export const LOOT_ICONS = [
   'porokhivnytsia',
   'pernach-unknown',
   'porokhivnytsia-unknown',
+  // M4-06, appended (frames keep their atlas places): «Кобза діда» and its silhouette.
+  'kobza',
+  'kobza-unknown',
 ] as const;
 export type LootIconId = (typeof LOOT_ICONS)[number];
 
@@ -194,10 +197,55 @@ function porokhivnytsia(i: Icon): void {
   }
 }
 
+/** cos 45° (no trig in generators, types.ts): the kobza lies on the diagonal like the pernach. */
+const DIAG = 0.7071;
+
+/**
+ * Кобза діда: an old kobza laid on the slant — a deep pear-shaped wooden bowl (lower left) with a dark sound hole and
+ * a bridge, a short neck rising to the upper right to a pegbox bent back with brass pegs, and pale gut strings from the
+ * bridge to the head (4 ramps: wood, thatch for the strings, gold, ink).
+ */
+function kobza(i: Icon): void {
+  // The bowl: an ellipse along the neck's axis (u), wider across it (v); the neck end a little narrower (pear).
+  const cx = 6;
+  const cy = 10;
+  i.fill(
+    (x, y) => {
+      const u = (x - cx - (y - cy)) * DIAG;
+      const v = (x - cx + (y - cy)) * DIAG;
+      const a = u > 0 ? 4.6 : 5.2;
+      const b = u > 0 ? 3.6 : 4.4;
+      return (u * u) / (a * a) + (v * v) / (b * b) <= 1;
+    },
+    'wood',
+    3,
+    { cx, cy, r: 5 },
+  );
+  // The neck and the pegbox bent back at its top.
+  stroke(i, [9, 7], [12.5, 3.5], 0.8, 'wood', 2);
+  i.rect(12, 1, 14, 3, 'wood', 2);
+  for (const [x, y] of [
+    [12, 1],
+    [14, 3],
+    [11, 2],
+  ] as const)
+    i.set(x, y, 'gold', 4, { flat: true });
+  // The sound hole, then the strings over it from the bridge to the head, and the dark bridge across them.
+  i.disc(7, 9, 1.1, 'ink', 1, { flat: true });
+  for (let k = 0; k <= 8; k++) i.set(4 + k, 12 - k, 'thatch', 5, { flat: true });
+  for (const [x, y] of [
+    [3, 11],
+    [4, 12],
+    [5, 13],
+  ] as const)
+    i.set(x, y, 'wood', 1, { flat: true });
+}
+
 /** Relics not yet found show as their silhouette (the «Скарбниця», §0.1 П5): the shape, none of the colours. */
 const SILHOUETTE: Partial<Readonly<Record<LootIconId, true>>> = {
   'pernach-unknown': true,
   'porokhivnytsia-unknown': true,
+  'kobza-unknown': true,
 };
 
 const DRAW: Readonly<Record<LootIconId, (i: Icon) => void>> = {
@@ -207,6 +255,8 @@ const DRAW: Readonly<Record<LootIconId, (i: Icon) => void>> = {
   porokhivnytsia,
   'pernach-unknown': pernach,
   'porokhivnytsia-unknown': porokhivnytsia,
+  kobza,
+  'kobza-unknown': kobza,
 };
 
 const icon: SpriteGenerator = {

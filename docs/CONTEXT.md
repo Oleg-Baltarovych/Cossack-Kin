@@ -3,11 +3,11 @@
 > Orientation map for AI agents and humans: read this first instead of exploring. Keep it terse (≤ ~20 KB).
 > Update it in the same change that alters structure, systems, commands or decisions. Area-specific traps live in
 > `.claude/rules/*.md` (load automatically for matching paths); per-task history lives in `docs/plans/` and git.
-> Last updated: 2026-11-27 (M4-05 culture/hero actions).
+> Last updated: 2026-11-27 (M4-06 raid time + «Кобза діда»).
 
 ## 1. Status
 - **Current:** M3 (Військо) accepted with open items (qa-lead, M3-20, 2026-11-25). Plan `docs/plans/2026-11-23-m3-army.md`; deferred items in its «Відкладено після M3» table (under M3-19). Fixed since acceptance: 412 quest-icon snap (#7), raid-map layout (#8), squad-at-gate baseline on a clock paused before load (#6). Still open before M4: «nightly green twice» not yet observed (#17).
-- **M4 (Культура і герої):** plan `docs/plans/2026-11-27-m4-culture-heroes.md` approved 2026-11-27 (Q1–Q16 defaults); M4-01 done (SPEC + ADR 013), M4-02 done (content, unread by core), M4-03 done (`modifierSources` fold, behaviour unchanged), M4-04 done (save v5, «Рада на майдані» → otaman, chain step `culture1`), M4-05 done (`buyCulture`/`levelHero`, culture/hero sources), next M4-06/07/08.
+- **M4 (Культура і герої):** plan `docs/plans/2026-11-27-m4-culture-heroes.md` approved 2026-11-27 (Q1–Q16 defaults); M4-01 done (SPEC + ADR 013), M4-02 done (content, unread by core), M4-03 done (`modifierSources` fold, behaviour unchanged), M4-04 done (save v5, «Рада на майдані» → otaman, chain step `culture1`), M4-05 done (`buyCulture`/`levelHero`, culture/hero sources), M4-06 done (raid time at start, «Кобза діда»), next M4-07/08.
 - **Next (owner's MVP order):** M4 → M5 → M8 (+ daily calendar/quests from M6), then M7 and the rest of M6. Before M4: process diagnostic (this compaction is part of it).
 - **M2** accepted with open items (M2-30, 2026-11-23; plan `docs/plans/2026-11-19-m2-living-village.md`): phone fps for AC M2 3 (steps in plan M2-28 «Результат») and cold start ≤ 3 s are unmeasured. Deferred list: plan M2-29 «Відкладено після M2».
 - **Done:** M0 (2026-11-16), M-ART ART-01…21 (2026-11-17), M1 (2026-11-19, plan `docs/plans/2026-11-17-m1-core.md`), M2a (2026-11-20).
@@ -57,7 +57,7 @@ Commands: see `CLAUDE.md` «Commands» (single source).
 | economy (farm + Sich), kharch/defence, wind, infantry + passive glory, store, `advance`, saves, return window, `pnpm balance` | M1 | ✅ |
 | living village: continuous world (3 zones), tiers + construction, camera/zoom, bottom sheet, villagers/Cossacks/carts/visitors, story beats, chain + chores, juice | M2 | ✅ with open items (phone fps, cold start) |
 | raids: slots, board, rumours, relics + pity, map, chest, treasury, squad on the scene, notification hook, save v4 | M3 | ✅ with open items — `core/systems/raids.ts`, `core/raid-selectors.ts`, `ui/components/{Raids,RaidMap,RaidChest,Treasury}.tsx`, `render/agents/sim.ts` |
-| culture (2 branches), heroes (3), modifier sources, save v5 | M4 | 🚧 M4-01 SPEC/ADR, M4-02 content (`content/culture.ts`, `heroes.ts`, `effects.ts`; not read yet), M4-03 `modifierSources` in `core/modifiers.ts` (no culture/hero sources yet), M4-04 save v5 (`culture`/`heroes`, `HeroJoined`, autosave on it), M4-05 `core/systems/culture.ts` (`buyCulture`, `levelHero`; sources `culture`/`hero` via `cultureNodeOpen`/`heroLevel`; sim `standInCulture` = the real action, policy until M4-09) |
+| culture (2 branches), heroes (3), modifier sources, save v5 | M4 | 🚧 M4-01 SPEC/ADR, M4-02 content (`content/culture.ts`, `heroes.ts`, `effects.ts`; not read yet), M4-03 `modifierSources` in `core/modifiers.ts` (no culture/hero sources yet), M4-04 save v5 (`culture`/`heroes`, `HeroJoined`, autosave on it), M4-05 `core/systems/culture.ts` (`buyCulture`, `levelHero`; sources `culture`/`hero` via `cultureNodeOpen`/`heroLevel`; sim `standInCulture` = the real action, policy until M4-09), M4-06 `raidTimeMult` at `rollRaid` (`RaidPreview.durationMs`), relic `kobza` (`minTier` h1, per-tier `unfound`) |
 | bloom/prestige, legacy tree, land 2 (Velykyi Luh) | M5 | — |
 | meta: daily/weekly quests, stork, real notifications, weather/seasons | M6 | — |
 | audio | M7 | — |

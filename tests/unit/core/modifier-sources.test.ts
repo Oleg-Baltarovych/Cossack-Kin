@@ -8,7 +8,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ARMY, OFFLINE } from '../../../src/content/economy.ts';
 import { EFFECT_FLOORS, EFFECT_TARGETS } from '../../../src/content/effects.ts';
-import { RELIC_IDS } from '../../../src/content/relics.ts';
 import { STORY_BEAT_IDS } from '../../../src/content/story.ts';
 import { SICH_BUILDINGS } from '../../../src/content/sich.ts';
 import { FARM_BUILDING_IDS } from '../../../src/content/villages/khortytsia.ts';
@@ -25,7 +24,7 @@ import {
 } from '../../../src/core/modifiers.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { windLookAt } from '../../../src/core/systems/village-mechanics/wind.ts';
-import { DAY, randomState, SAMPLES, STATES, T0 } from './modifier-samples.ts';
+import { DAY, GOLDEN_RELICS, randomState, SAMPLES, STATES, T0 } from './modifier-samples.ts';
 
 interface GoldenRow {
   readonly now: number;
@@ -43,7 +42,7 @@ describe('modifierSources: states without culture and heroes fold to the M4-03 v
     );
     expect(unlockedChurch.length).toBeGreaterThan(5);
     expect(unlockedChurch.length).toBeLessThan(STATES - 5);
-    expect(SAMPLES.filter(({ state }) => state.relics.length === RELIC_IDS.length).length).toBeGreaterThan(5);
+    expect(SAMPLES.filter(({ state }) => state.relics.length === GOLDEN_RELICS.length).length).toBeGreaterThan(5);
     expect(SAMPLES.filter(({ state }) => state.relics.length === 0).length).toBeGreaterThan(5);
     expect(GOLDEN).toHaveLength(STATES);
   });

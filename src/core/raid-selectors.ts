@@ -12,6 +12,7 @@ import {
   raidPower,
   raidReady,
   raidTier,
+  relicOnTier,
   type LootAmounts,
   type RaidSlot,
 } from './systems/raids.ts';
@@ -113,6 +114,7 @@ export type RaidOfferBlock = 'slotBusy' | 'power' | null;
 export interface RaidOfferView {
   readonly tier: RaidTierId;
   readonly region: RegionId;
+  /** The rolled duration: the tier's × the steady `raidTimeMult` (the Характерник, M4-06), as `returnAt` will store. */
   readonly durationSec: number;
   /** The recommended power P. */
   readonly p: number;
@@ -153,7 +155,7 @@ export function raidBoardView(state: GameState): RaidBoardView {
     return {
       tier,
       region: pre.region,
-      durationSec: raidTier(tier).durationSec,
+      durationSec: pre.durationMs / MS_PER_SEC,
       p: pre.p,
       power: pre.power,
       chance: pre.chance,
@@ -250,22 +252,28 @@ export function relicsView(state: GameState): readonly RelicView[] {
 
 /** The treasury's hint under the silhouettes (§0.1 П5): where to look, and whether the pity makes the next find sure. */
 export interface RelicHintView {
-  /** The shortest tier that can find a relic (a relic chance, or counted by the pity): «від 30 хв походу». */
+  /** The shortest tier that can find a relic still missing (a relic chance, or the pity): «від 30 хв походу». */
   readonly fromTier: RaidTierId;
   /**
-   * «Старі козаки кажуть: реліквія близько» — the next success of a tier ≥ RELICS.pityMinTier is sure to give one: the
+   * «Старі козаки кажуть: реліквія близько» — the next success of a tier ≥ `fromTier` is sure to give one: the
    * same fact as the offer card's `relicSure` (one source, `previewRaid`).
    */
   readonly near: boolean;
 }
 
-/** Null once every relic of the collection is found (nothing left to look for). */
+/**
+ * Null once every relic of the collection is found (nothing left to look for). The tier is the shortest that can find
+ * one of those left (M4-06: only «Кобза діда» left → from 1 h); «близько» is that tier's `relicSure`.
+ */
 export function relicHint(state: GameState): RelicHintView | null {
-  if (RELIC_DEFS.every((r) => state.relics.includes(r.id))) return null;
+  const left = RELIC_DEFS.filter((r) => !state.relics.includes(r.id));
+  if (left.length === 0) return null;
   const pityRank = tierRank(RELICS.pityMinTier);
   const fromTier =
-    RAID_TIER_IDS.find((t) => raidTier(t).relicChance > 0 || tierRank(t) >= pityRank) ?? RELICS.pityMinTier;
-  return { fromTier, near: previewRaid(state, RELICS.pityMinTier).relicSure };
+    RAID_TIER_IDS.find(
+      (t) => (raidTier(t).relicChance > 0 || tierRank(t) >= pityRank) && left.some((r) => relicOnTier(r, t)),
+    ) ?? RELICS.pityMinTier;
+  return { fromTier, near: previewRaid(state, fromTier).relicSure };
 }
 
 /** What render may know of raids (plan §0): which open slots' squads are away or back — no economy numbers. */

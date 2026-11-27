@@ -42,7 +42,7 @@ export interface Modifiers {
   /** Per-building income multiplier (the land passive and the wind on the windmill). */
   readonly buildingMult: Readonly<Record<FarmBuildingId, number>>;
   readonly costMult: number;
-  /** Culture prices (Кобзар; «Кобза діда» M4-06). A reduction: 1 − Σ share, floored in content. */
+  /** Culture prices (the Кобзар, «Кобза діда»). A reduction: 1 − Σ share, floored in content. */
   readonly cultureCostMult: number;
   readonly gloryMult: number;
   /** Army power (the smithy, the maidan, …). */
@@ -53,11 +53,11 @@ export interface Modifiers {
   readonly gloryCapSec: number;
   /** Raid loot (the treasury, «Порохівниця»); a raid adds its rumour's share on top (systems/raids.ts). */
   readonly lootMult: number;
-  /** Relic chance of a raid success (a relic rumour adds on top). 1 in M3: no relic or hero raises it yet. */
+  /** Relic chance of a raid success (the Характерник, «Купальська ніч»; a relic rumour adds on top). */
   readonly relicChanceMult: number;
   /**
-   * Raid duration. 1 until the M4 Характерник and not applied yet: the save v4 gate checks `returnAt = startedAt +
-   * durationSec` to the ms, so the change that applies it widens the gate to the multiplier's range too.
+   * Raid duration (the Характерник). Applied once, at a raid's start (`rollRaid`, M4-06): floored at
+   * `RAIDS.minTimeMult`, the bound of the v5 gate's `returnAt` window.
    */
   readonly raidTimeMult: number;
 }
@@ -148,8 +148,12 @@ const FARM_EFFECT_FIELD: Readonly<Record<Exclude<FarmEffect['kind'], 'fairDay'>,
   glory: 'gloryMult',
 };
 
-/** The field each relic effect raises (1:1, `content/relics.ts`). */
-const RELIC_FIELD: Readonly<Record<RelicEffect['kind'], ScalarField>> = { power: 'powerMult', loot: 'lootMult' };
+/** The field each relic effect moves (1:1, `content/relics.ts`); `cultureCostMult` is a reduction (FLOOR_LIST). */
+const RELIC_FIELD: Readonly<Record<RelicEffect['kind'], ScalarField>> = {
+  power: 'powerMult',
+  loot: 'lootMult',
+  cultureCost: 'cultureCostMult',
+};
 
 /** The farm building a land passive multiplies. */
 const PASSIVE_BUILDING: Readonly<Record<Village['passive']['kind'], FarmBuildingId>> = { windmillMult: 'windmill' };
