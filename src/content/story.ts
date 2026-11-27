@@ -5,6 +5,7 @@
 // пороги» (bloom → resettling) comes with M5. Texts: i18n `story.<land>.<beat>.title|text`, sources in
 // docs/content-sources.md. Reward sizes: гіпотеза, kept small — 10/15/30 min pushed Майдан 10 to S2 and the session
 // actions over 15 (pnpm balance, M2-22); kept in M2-27 (the retune slowed the economy instead, plan R4).
+import type { HeroId } from './heroes.ts';
 import type { Reward } from './rewards.ts';
 import type { SichBuildingId } from './sich.ts';
 import type { FarmBuildingId } from './villages/khortytsia.ts';
@@ -34,12 +35,19 @@ export type StoryTrigger =
   | { readonly kind: 'storms'; readonly count: number }
   | { readonly kind: 'bloom' };
 
+/**
+ * What a beat gives when it fires: a reward in minutes or pysanky (shared with quests), or a hero (M4, ADR 013: he
+ * arrives at level 1, event `HeroJoined`; granted by the core from M4-04). Culture branches open by a derived
+ * condition, not by a reward (culture.ts).
+ */
+export type StoryReward = Reward | { readonly kind: 'unlock'; readonly hero: HeroId };
+
 export interface StoryBeat {
   readonly id: StoryBeatId;
   readonly land: 'khortytsia';
   readonly trigger: StoryTrigger;
   readonly portrait: PortraitId;
-  readonly reward: Reward | null;
+  readonly reward: StoryReward | null;
   readonly titleKey: string;
   readonly textKey: string;
 }
