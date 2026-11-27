@@ -47,16 +47,17 @@ export const KHARAKTERNYK_OUTFIT: Outfit = {
 const INKS: CossackInks = {
   wood: { ramp: 'earth', shades: [0, 1, 3] },
   metal: { ramp: 'stone', shades: [2, 4, 5] },
-  smoke: { ramp: 'plaster', shades: [5, 6] },
+  // [far, near]: the puff's upper px plaster 4, its lower (fresh) px plaster 3 (art-director M4-11).
+  smoke: { ramp: 'plaster', shades: [4, 3] },
   ember: { ramp: 'crimson', shade: 5 },
 };
 
 /**
- * The жупан's skirt under the sash, to the knee (rows 17–21), flaring 1 px at the hem; the front edge shaded. 0 the
- * legs together (stand, recoil, passing), 1 the stride: the skirt swings open at the front and the leg shows.
+ * The жупан's skirt under the sash, to the knee (rows 17–21); the front edge shaded. 0 the legs together (stand,
+ * recoil, passing): hangs straight, flush with the back; 1 the stride: the skirt flares and swings open at the front.
  */
 const SKIRT: readonly Mask[] = [
-  ['.WWwwwwwwvvv', '.Wwwwwwwwvvv', '.Wwwwwwwwvvv', 'WWwwwwwwvvvv', 'vvvvvvvvvvVV'],
+  ['.WWwwwwwwvvv', '.Wwwwwwwwvvv', '.Wwwwwwwwvvv', '.Wwwwwwwwvvv', '.vvvvvvvvvVV'],
   ['.WWwwwwwwvvv.', '.Wwwwwwwwwvvv', 'WWwwwwwwwwvvv', 'Wwwwwwww.wvvv', 'vvvvvvv...vvV'],
 ];
 const SKIRT_AT = { x: 2, y: 17 } as const;
@@ -76,29 +77,30 @@ function lap(): Ink[] {
 }
 
 /**
- * The шабля on the left hip (behind the body in this right-facing view): hilt (a light pommel, dark grip) before the
- * belt, the scabbard slanting down-back to a steel chape — drawn only where the body is not.
+ * The шабля on the left hip (art-director M4-11): a grey grip and crossguard px just under the sash before the hip, the
+ * scabbard (earth 0: a step darker than the boots, never the pipe's brown) slanting down-back out of the coat to a
+ * steel chape — drawn only where the body is not.
  */
 function sabre(dy: number): Ink[] {
-  // ~30° off the horizontal, as a sabre hangs from the sash: the scabbard leaves the coat's back at the hip.
-  const pts = line({ x: 15, y: 12 + dy }, { x: -5, y: 22 + dy });
-  return pts.map((p: Pt, i): Ink => {
-    if (i === 0) return { ...p, ramp: 'stone', shade: 3 };
-    if (i === pts.length - 1) return { ...p, ramp: 'stone', shade: 4 };
-    if (i < 3) return { ...p, ramp: 'earth', shade: 0 };
-    return { ...p, ramp: 'earth', shade: i % 4 === 0 ? 3 : 1 };
-  });
+  const pts = line({ x: 6, y: 16 + dy }, { x: -3, y: 21 + dy });
+  return [
+    { x: 15, y: 17 + dy, ramp: 'stone', shade: 4 },
+    { x: 14, y: 18 + dy, ramp: 'stone', shade: 2 },
+    ...pts.map((p: Pt, i): Ink => ({
+      ...p,
+      ramp: i === pts.length - 1 ? 'stone' : 'earth',
+      shade: i === pts.length - 1 ? 4 : 0,
+    })),
+  ];
 }
 
-/** The люлька in his teeth (idle, walk): the stem forward from the moustache, the bowl turned up at its end. */
+/** The люлька in his teeth (idle, walk): the stem drooping down-right from the mouth, a dark bowl at its end. */
 function pipe(dy: number): Ink[] {
   const [d, m, l] = INKS.wood.shades;
   return [
-    { x: 14, y: 9 + dy, ramp: 'earth', shade: l },
-    { x: 15, y: 9 + dy, ramp: 'earth', shade: m },
-    { x: 16, y: 10 + dy, ramp: 'earth', shade: m },
-    { x: 17, y: 10 + dy, ramp: 'earth', shade: d },
-    { x: 17, y: 9 + dy, ramp: 'earth', shade: m },
+    { x: 13, y: 9 + dy, ramp: 'earth', shade: l },
+    { x: 14, y: 10 + dy, ramp: 'earth', shade: m },
+    { x: 15, y: 11 + dy, ramp: 'earth', shade: d },
   ];
 }
 
@@ -115,6 +117,9 @@ function bodyStamps(pose: Pose): Stamp[] {
   const skirt: Stamp = { mask: SKIRT[pose.legs === 1 ? 1 : 0] ?? [], x: SKIRT_AT.x, y: SKIRT_AT.y + pose.bob };
   return [legs, skirt, beltEnds, ...upper];
 }
+
+/** The kozak's walk with the weight put down: the whole body 1 px lower on the two contact (stride) frames. */
+const WALK_WEIGHTED: readonly Pose[] = WALK.map((p) => (p.legs === 1 ? { ...p, bob: 1 } : p));
 
 export const KHARAKTERNYK_FRAMES = { idle: IDLE.length, walk: WALK.length, 'sit-smoke': 2 } as const;
 
@@ -139,7 +144,7 @@ const kharakternyk: SpriteGenerator = {
       paintBehind(plot, tools, sabre(p.drop - p.lift), KOZAK_PAD);
       span = p.shadow;
     } else {
-      const pose = (anim === 'walk' ? WALK : IDLE)[frame];
+      const pose = (anim === 'walk' ? WALK_WEIGHTED : IDLE)[frame];
       if (!pose) throw new Error(`kharakternyk: no pose for ${anim} ${String(frame)}`);
       paintDoll(
         plot,

@@ -70,14 +70,15 @@ const LOCK: readonly Mask[] = [
 ];
 
 /**
- * The old Cossack's bare head (M4-11, the Характерник): the shaved skull with a 1-px brow over each eye, and the
- * moustache long enough to fall in two strands past the chin onto the chest (`ELDER_VUSA`).
+ * The old Cossack's bare head (M4-11, the Характерник): a clean shaved scalp with one highlight top-left, a 1-px pale
+ * brow over each eye (hair shade), and the moustache long enough to fall in two strands past the chin onto the chest
+ * (`ELDER_VUSA`).
  */
 const HEAD_ELDER: Mask = [
   '..zzzz..',
   '.zSsssz.',
-  'zSssssz.',
-  'zSHssHz.',
+  'zsssssz.',
+  'zsjssjz.',
   'zsGssGs.',
   'zssssSs.',
   '.zsHhhh.',
@@ -86,13 +87,14 @@ const HEAD_ELDER: Mask = [
 /** The moustache's two strands below the chin (under HEAD_ELDER's last row), stamped after the torso. */
 const ELDER_VUSA: Mask = ['h...h', 'j...j'];
 /**
- * The long оселедець of an old Cossack (M4-11): a tuft at the crown, the lock laid diagonally back over the skull and
- * down behind the ear (on the head, never around it: a white lock along the crown and the nape read as a halo) —
- * 0 hangs, 1 its end swung back (walk); the root never moves.
+ * The long оселедець of an old Cossack (art-director M4-11), on HEAD_ELDER's grid: one continuous strand from 1 px
+ * right of the crown's centre, 2 px wide (lit top, shaded underside) laid back over the top-left of the scalp, then
+ * 1 px falling over the near ear to the jaw. Never a separate tuft or pale px on the back edge of the skull (a halo).
+ * 0 hangs, 1 its tip swung back (walk); the root never moves.
  */
 const ELDER_LOCK: readonly Mask[] = [
-  ['....hH.', '...h...', '..h....', '.h.....', '.h.....', '.j.....'],
-  ['....hH.', '...h...', '..h....', '.h.....', 'h......', '.......'],
+  ['...hh...', '..hj....', '.hj.....', '.h......', '.h......', '.j......', '.j......'],
+  ['...hh...', '..hj....', '.hj.....', '.h......', '.h......', 'j.......', '........'],
 ];
 
 /**
@@ -304,7 +306,7 @@ function headStamps(head: KozakHead, drift: number, top: number, lean: number): 
     return [
       { mask: HEAD_ELDER, x: HEAD_AT.x + lean, y: HEAD_AT.y + top },
       { mask: ELDER_VUSA, x: HEAD_AT.x + 2 + lean, y: HEAD_AT.y + HEAD_ELDER.length + top },
-      { mask: pick(ELDER_LOCK, drift), x: OSELEDETS_AT.x + lean, y: OSELEDETS_AT.y + top },
+      { mask: pick(ELDER_LOCK, drift), x: HEAD_AT.x + lean, y: HEAD_AT.y + top },
     ];
   return head === 'hat'
     ? [
