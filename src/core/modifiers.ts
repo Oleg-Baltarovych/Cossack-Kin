@@ -23,7 +23,7 @@ import {
 import { HEROES, type HeroId } from '../content/heroes.ts';
 import { RELIC_DEFS, type RelicEffect, type RelicId } from '../content/relics.ts';
 import { SICH_BUILDINGS, type SichBuilding, type SichBuildingId } from '../content/sich.ts';
-import { STORY_BEATS } from '../content/story.ts';
+import { STORY_BEATS, type StoryBeatId } from '../content/story.ts';
 import {
   FARM_BUILDING_IDS,
   KHORTYTSIA,
@@ -194,11 +194,19 @@ export function cultureBranchOpen(
   }
 }
 
+/** Each branch by id, built once (`modifierSources` runs on every tick). */
+const BRANCH_BY_ID: ReadonlyMap<CultureBranch['id'], CultureBranch> = new Map(CULTURE_BRANCHES.map((b) => [b.id, b]));
+
 /** The branch of `node` is open: its ranks count and it can be bought. */
 export function cultureNodeOpen(node: CultureNode, state: GameState): boolean {
-  const branch = CULTURE_BRANCHES.find((b) => b.id === node.branch);
+  const branch = BRANCH_BY_ID.get(node.branch);
   return branch !== undefined && cultureBranchOpen(branch, state);
 }
+
+/** The beat that brings each hero (its `unlock` reward), built once; a hero no beat brings is missing. */
+const HERO_BEAT: ReadonlyMap<HeroId, StoryBeatId> = new Map(
+  STORY_BEATS.flatMap((b) => (b.reward?.kind === 'unlock' ? [[b.reward.hero, b.id] as const] : [])),
+);
 
 /**
  * A hero's level in force: 0 until he came — stored and his unlock beat seen (the gate checks it too, but formulas do
@@ -207,8 +215,8 @@ export function cultureNodeOpen(node: CultureNode, state: GameState): boolean {
 export function heroLevel(id: HeroId, state: Pick<GameState, 'heroes' | 'story'>): number {
   const level = state.heroes[id];
   if (level === undefined) return 0;
-  const beat = STORY_BEATS.find((b) => b.reward?.kind === 'unlock' && b.reward.hero === id);
-  return beat !== undefined && state.story.seen.includes(beat.id) ? level : 0;
+  const beat = HERO_BEAT.get(id);
+  return beat !== undefined && state.story.seen.includes(beat) ? level : 0;
 }
 
 /** Sum of `perLevel(b) × level` over the unlocked Sich buildings. */

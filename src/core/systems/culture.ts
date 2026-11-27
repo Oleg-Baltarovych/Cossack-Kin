@@ -8,7 +8,7 @@ import { HEROES, type HeroDef, type HeroId } from '../../content/heroes.ts';
 import type { Big } from '../big.ts';
 import { bulkCost, buyCount, cost, type BuyMode } from '../economy.ts';
 import type { GameEvent, RejectReason } from '../events.ts';
-import { collectModifiers, cultureNodeOpen, heroLevel } from '../modifiers.ts';
+import { cultureNodeOpen, heroLevel, steadyModifiers } from '../modifiers.ts';
 import type { GameState } from '../state.ts';
 
 /** Culture and hero prices are not scaled by the land (glory scale applies to Sich buildings only; M5 decides). */
@@ -42,14 +42,14 @@ export function culturePrereqMet(node: CultureNode, state: Pick<GameState, 'cult
   }
 }
 
-/** One rank of `id` at time `at` (the action's time after `advance`). */
-export function buyCulture(s: GameState, id: CultureNodeId, at: number): Result | RejectReason {
+/** One rank of `id`. The price needs no time: `cultureCostMult` does not depend on the wind (steady modifiers). */
+export function buyCulture(s: GameState, id: CultureNodeId): Result | RejectReason {
   const node = CULTURE_NODES.find((n) => n.id === id);
   if (!node || !cultureNodeOpen(node, s)) return 'locked';
   const rank = s.culture[id] ?? 0;
   if (rank >= node.maxRank) return 'max';
   if (!culturePrereqMet(node, s)) return 'prereq';
-  const price = culturePrice(node, rank, collectModifiers(s, at).cultureCostMult);
+  const price = culturePrice(node, rank, steadyModifiers(s).cultureCostMult);
   if (s.currencies.glory.lt(price)) return 'glory';
   const to = rank + 1;
   return {

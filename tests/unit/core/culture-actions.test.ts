@@ -249,12 +249,13 @@ describe('a rank / a level changes exactly its fields by perRank (one case per e
 
   it('every effect kind is covered except those only heroes not come yet carry (their beats: M4-08)', () => {
     const covered = new Set(BY_KIND.map(([k]) => k));
+    // TODO(M4-08): the Кобзар and the Характерник get their beats; then this set is empty and the cases cover all.
     const later = new Set(HEROES.filter((h) => !ARRIVING.has(h.id)).flatMap((h) => h.effects.map((f) => f.kind)));
     for (const kind of EFFECT_KINDS) expect(covered.has(kind) || later.has(kind), kind).toBe(true);
   });
 });
 
-describe('a crafted save gains nothing (the v5 gate checks neither branches nor prerequisites)', () => {
+describe('a crafted save: a rank in a closed branch or a hero whose beat is unseen gains nothing', () => {
   it('ranks in a closed branch: no culture source, the modifiers of a state without them', () => {
     const maxed = Object.fromEntries(CULTURE_NODES.map((n) => [n.id, n.maxRank]));
     const closed = late({ church: 0, culture: maxed });

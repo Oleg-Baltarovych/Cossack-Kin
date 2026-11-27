@@ -230,7 +230,7 @@ export function applyAction(state: GameState, action: Action, now: number): Acti
       result = claimAllRaids(s);
       break;
     case 'buyCulture':
-      result = buyCulture(s, action.id, at);
+      result = buyCulture(s, action.id);
       break;
     case 'levelHero':
       result = levelHero(s, action.id, action.mode);
