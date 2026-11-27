@@ -22,7 +22,7 @@ export const STORY_BEAT_IDS = [
 export type StoryBeatId = (typeof STORY_BEAT_IDS)[number];
 
 /** Who looks out of the beat's frame (Q14: an existing sprite ×2; 48×48 portraits are M9). */
-export type PortraitId = 'kobzar' | 'messenger' | 'otaman';
+export type PortraitId = 'kharakternyk' | 'kobzar' | 'messenger' | 'otaman';
 
 /** The largest sprite frame a portrait box holds (atlas px); the box is twice that (plan M2-25). Cosmetic. */
 export const PORTRAIT_MAX_PX = { w: 32, h: 36 } as const;
@@ -113,9 +113,9 @@ export const STORY_BEATS: readonly StoryBeat[] = [
   {
     id: 'khortytsia.kharakternyk',
     land: 'khortytsia',
-    // Q4 (plan M4): fifteen raids won (S8–S12; tuned from ten, which fired at S5–S7). The portrait is a Cossack in his coat until his own sprite (M4-11).
+    // Q4 (plan M4): fifteen raids won (S8–S12; tuned from ten, which fired at S5–S7).
     trigger: { kind: 'raidsWon', count: 15 },
-    portrait: 'messenger',
+    portrait: 'kharakternyk',
     reward: { kind: 'unlock', hero: 'kharakternyk' },
     titleKey: 'story.khortytsia.kharakternyk.title',
     textKey: 'story.khortytsia.kharakternyk.text',

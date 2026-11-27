@@ -278,7 +278,8 @@ export function presetState(preset: Preset, seed: number, now: number, tier = TO
  * A preset of a game already played (M2-22): its Cossacks counted as hired and the story beats it has reached seen,
  * as the v1 → v2 migration does (levels bought = Σ levels) — the first click must not fire the beats (and their glory) of a past it never had.
  * Its quests start as the v2 → v3 migration starts them (M2-23): the chain on the first step not met yet. M2-30: one
- * purchase per building standing (the fewest that buy its levels), and its ducats earned (`earned`).
+ * purchase per building standing (the fewest that buy its levels), and its ducats earned (`earned`). M4-11: the heroes
+ * its hero beats brought, at level 1.
  */
 function played(s: GameState): GameState {
   const all = [...Object.values(s.village.levels), ...Object.values(s.village.sichLevels)];
@@ -288,9 +289,12 @@ function played(s: GameState): GameState {
     purchases: all.filter((l) => l > 0).length,
     levelsBought: all.reduce((a, b) => a + b, 0),
   };
-  const due = dueBeats({ ...s, stats }, s.story.seen).map((b) => b.id);
+  const due = dueBeats({ ...s, stats }, s.story.seen);
+  // A hero beat seen brings its hero at level 1, as `checkStory` does (M4-11): the save gate wants the opposite too.
+  const heroes = { ...s.heroes };
+  for (const b of due) if (b.reward?.kind === 'unlock') heroes[b.reward.hero] ??= 1;
   const quests = newQuests({ ...s, stats }, s.seed, s.time.maxSeen, s.settings.tzOffsetMin);
-  return earned({ ...s, stats, story: { seen: [...s.story.seen, ...due] }, quests });
+  return earned({ ...s, stats, heroes, story: { seen: [...s.story.seen, ...due.map((b) => b.id)] }, quests });
 }
 
 /** The purse of a preset as income (M2-30): play only adds ducats through `lifetimeDucats`, past the start money. */

@@ -19,6 +19,12 @@ import khorunzhyi, {
   KHORUNZHYI_GROUND,
   KHORUNZHYI_OUTFIT,
 } from '../../../assets-src/gen/people/khorunzhyi/index.ts';
+import kharakternyk, {
+  KHARAKTERNYK_FRAMES,
+  KHARAKTERNYK_OUTFIT,
+} from '../../../assets-src/gen/people/kharakternyk/index.ts';
+import { PORTRAIT_MAX_PX } from '../../../src/content/story.ts';
+import { PORTRAIT_FRAMES } from '../../../src/ui/portraits.ts';
 import nosii, { REAR_OUTFIT } from '../../../assets-src/gen/people/nosii/index.ts';
 import korohva, { inNotch } from '../../../assets-src/gen/people/korohva/index.ts';
 import skrynia, { CHEST } from '../../../assets-src/gen/people/skrynia/index.ts';
@@ -318,6 +324,7 @@ describe('no state symbols in costumes (SPEC §16, art-director ART-19)', () => 
     ...Object.entries(VARTOVYI_OUTFITS).map(([k, v]): [string, Outfit] => [`vartovyi.${k}`, v]),
     ['otaman.a', OTAMAN_OUTFIT],
     ['khorunzhyi.a', KHORUNZHYI_OUTFIT],
+    ['kharakternyk.a', KHARAKTERNYK_OUTFIT],
     ['nosii.a (rear)', REAR_OUTFIT],
   ];
 
@@ -576,5 +583,54 @@ describe('the raid set (M3-13): march, the корогвоносець, the chest
     expect(new Set(colorStats(chest.image, palette).ramps)).toEqual(new Set(['earth', 'stone']));
     expect(chest.image.width).toBe(CHEST.w + 2);
     expect(byName.has('skrynia@shadow/idle/00')).toBe(true);
+  });
+});
+
+describe('the Характерник (M4-11): an old Cossack by bearing, no magic', () => {
+  const frames = [kharakternyk, kozak, otaman].flatMap(render);
+  const get = (name: string): FrameImage => {
+    const f = frames.find((x) => x.name === name);
+    if (!f) throw new Error(`no frame ${name}`);
+    return f;
+  };
+  const own = frames.filter((f) => f.name.startsWith('kharakternyk.'));
+  const base = own.filter((f) => !f.name.includes('@'));
+
+  it('has idle 4, walk 6 and sit-smoke 2 (plan M4-11), each with a ground shadow and no night light', () => {
+    expect(kharakternyk.frames).toEqual({ idle: 4, walk: 6, 'sit-smoke': 2 });
+    const n = Object.values(KHARAKTERNYK_FRAMES).reduce((a, b) => a + b, 0);
+    expect(base).toHaveLength(n);
+    expect(own.filter((f) => f.name.includes('@shadow'))).toHaveLength(n);
+    expect(own.filter((f) => f.name.includes('@emissive'))).toEqual([]);
+  });
+
+  it('stands on the Cossack ground row; every animation moves', () => {
+    for (const f of base) expect(lowestRow(f), f.name).toBe(KOZAK_GROUND);
+    for (const [anim, count] of Object.entries(KHARAKTERNYK_FRAMES))
+      for (let i = 1; i < count; i++)
+        expect(key(get(`kharakternyk.a/${anim}/0${String(i)}`)), `${anim} ${String(i)}`).not.toBe(
+          key(get(`kharakternyk.a/${anim}/0${String(i - 1)}`)),
+        );
+  });
+
+  it('people budget: ≤ 6 ramps, ≤ 32 colours, and no fire or sky ramp (no glow, no sparks: SPEC §16, Q10)', () => {
+    for (const f of base) {
+      const ramps = colorStats(f.image, palette).ramps;
+      expect(ramps.length, f.name).toBeLessThanOrEqual(6);
+      expect(colorStats(f.image, palette).colors, f.name).toBeLessThanOrEqual(32);
+      for (const glow of ['gold', 'sky', 'water']) expect(ramps, f.name).not.toContain(glow);
+    }
+  });
+
+  it('reads apart from the otaman and the rank and file: his own idle and walk silhouettes', () => {
+    for (const other of ['otaman.a', 'kozak.a', 'kozak.c'])
+      for (const anim of ['idle/00', 'walk/02'])
+        expect(alphaKey(get(`kharakternyk.a/${anim}`)), `${other} ${anim}`).not.toBe(alphaKey(get(`${other}/${anim}`)));
+  });
+
+  it('is his own story portrait: a frame of this generator that fits the portrait box', () => {
+    const f = get(PORTRAIT_FRAMES.kharakternyk);
+    expect(f.image.width).toBeLessThanOrEqual(PORTRAIT_MAX_PX.w);
+    expect(f.image.height).toBeLessThanOrEqual(PORTRAIT_MAX_PX.h);
   });
 });

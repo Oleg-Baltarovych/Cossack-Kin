@@ -64,6 +64,14 @@ describe.each(CASES)('debug preset %s is a state play can reach (M2-30)', (name,
     }
   });
 
+  it('keeps every hero its beats brought, and only those (M4-11): a seen hero beat stores the hero', () => {
+    const brought = STORY_BEATS.flatMap((b) =>
+      b.reward?.kind === 'unlock' && s.story.seen.includes(b.id) ? [b.reward.hero] : [],
+    );
+    expect(Object.keys(s.heroes).sort()).toEqual([...brought].sort());
+    for (const id of brought) expect(s.heroes[id], `${name}: ${id}`).toBeGreaterThanOrEqual(1);
+  });
+
   it('stands on a quest step play can reach: the passed level steps are met, the chores of today', () => {
     const c = s.quests.chain;
     const passed = c.kind === 'listed' ? c.index : QUEST_CHAIN.length;

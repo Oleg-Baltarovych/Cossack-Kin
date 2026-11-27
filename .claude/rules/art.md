@@ -31,6 +31,7 @@ paths:
 - Ground texture never uses thatch 4 / gold 4 (the golden curve keeps them bright: «confetti»; flecks = thatch 3). Night: suburb roofs keep thatch ≤ 4; white cloth/whitewash night half-tone = plaster remap `[1,1,1,2,3,4,4]`.
 - The farm's river band covers rows above 26: tall farm sprites (mill hub, sails) must stay under it (gen-farm test renders every sail frame).
 - Every people generator uses `PEOPLE_SELECTIVE` (warm contour). A kazan stands beside a fire, never over it (post-grade flames hide it).
+- Light (white/grey) hair goes on the head, never around it: a pale lock along the crown and down the nape reads as a halo (M4-11). Heroes carry no glow ramps (gold/sky) and no `@emissive` — tested.
 - Sky: dither fractions in quarters only; the lightest chain colour is reserved for the sun/moon disc; night ground constraints are unit-tested (`luts.test.ts`).
 
 ## Checks
