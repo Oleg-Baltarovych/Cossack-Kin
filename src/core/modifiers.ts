@@ -138,6 +138,11 @@ const FLOOR_LIST: readonly (readonly [ScalarField, number])[] = (() => {
 })();
 const REDUCING: ReadonlySet<ScalarField> = new Set(FLOOR_LIST.map(([field]) => field));
 
+/** Whether a field is a reduction (`1 − Σ share`, floored): its sources subtract (the breakdown, M4-07). */
+export function reducingField(field: ScalarField): boolean {
+  return REDUCING.has(field);
+}
+
 function unreachable(x: never): never {
   throw new Error(`unexpected ${JSON.stringify(x)}`);
 }
@@ -154,6 +159,9 @@ const RELIC_FIELD: Readonly<Record<RelicEffect['kind'], ScalarField>> = {
   loot: 'lootMult',
   cultureCost: 'cultureCostMult',
 };
+
+/** The building the wind of the moment multiplies (`collectModifiers`; the breakdown names it, M4-07). */
+export const WIND_BUILDING: FarmBuildingId = 'windmill';
 
 /** The farm building a land passive multiplies. */
 const PASSIVE_BUILDING: Readonly<Record<Village['passive']['kind'], FarmBuildingId>> = { windmillMult: 'windmill' };
@@ -211,6 +219,11 @@ export function cultureNodeOpen(node: CultureNode, state: GameState): boolean {
 const HERO_BEAT: ReadonlyMap<HeroId, StoryBeatId> = new Map(
   STORY_BEATS.flatMap((b) => (b.reward?.kind === 'unlock' ? [[b.reward.hero, b.id] as const] : [])),
 );
+
+/** The beat that brings `id` (undefined while none does): the «Прийде, коли…» condition of his card (M4-07). */
+export function heroBeat(id: HeroId): StoryBeatId | undefined {
+  return HERO_BEAT.get(id);
+}
 
 /**
  * A hero's level in force: 0 until he came — stored and his unlock beat seen (the gate checks it too, but formulas do
@@ -366,7 +379,7 @@ export function foldSources(sources: readonly ModSource[], windmillMult: number)
     else fields[s.field] += REDUCING.has(s.field) ? -s.share : s.share;
   }
   for (const [field, floor] of FLOOR_LIST) fields[field] = Math.max(floor, fields[field]);
-  buildingMult.windmill *= windmillMult;
+  buildingMult[WIND_BUILDING] *= windmillMult;
   return { ...fields, buildingMult };
 }
 

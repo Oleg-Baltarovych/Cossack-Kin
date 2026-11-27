@@ -18,7 +18,7 @@ paths:
 - Load `render/index.ts` only by dynamic `import()`; never import render runtime values statically (types and pure helpers like `render/viewport.ts`, `render/debug/params.ts` are fine; never `render/atmosphere/config.ts` — it pulls the layout into the start chunk). `check:dist` fails above 500 000 bytes of start scripts.
 - Global CSS lives in `src/ui/global.css` (no inline `<style>`: CSP). React `style` (CSSOM) is allowed.
 - Time in components = the store's `time.lastSeen` (10 Hz, frozen under `?freeze`), never `Date.now`. Local clock text: `ms + settings.tzOffsetMin` formatted in `UTC`, the day by core `dayAt` — never the device zone.
-- Percents, chances and prices come from core views (`wholePercent`, floored); never computed in UI.
+- Percents, chances and prices come from core views (`core/percent.ts`: `wholePercent` for chances, `effectPercent` — half-percent steps — for bonus lines; both floored); never computed in UI.
 - Event-driven windows read `store.onEvents` (one call per change): all `RaidClaimed` of one action = one window; never group by microtask. Window order: save notice → return window → raid chest → story beats; the HUD + sheet are `inert` while one is open.
 - Granted loot is already in state; a window only shows it. Coins fly on close (`useCoinLaunch`), never on the event; none under «менше руху».
 - Debug presets (`ui/debug/gameDebug.ts`) are memory-only and must be reachable by play (debug-presets test).

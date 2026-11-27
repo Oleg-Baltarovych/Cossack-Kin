@@ -73,3 +73,9 @@ export const EFFECT_FLOORS = {
   cultureCost: 0.5,
   raidTime: RAIDS.minTimeMult,
 } as const satisfies Partial<Record<EffectKind, number>>;
+
+/**
+ * The step a shown percent keeps (M4-07): hero shares move in half percents a level (content test), and so does the
+ * defence bonus (`DEFENCE.incomePerPoint`); a whole-percent floor would show the Кобзар's +1.5 % / level as 1, 3, 4, 6 %.
+ */
+export const PERCENT_STEP = 0.5;

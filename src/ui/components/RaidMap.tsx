@@ -37,10 +37,10 @@ import {
   raidGuide,
   raidSlotsView,
   raidSuggested,
-  wholePercent,
   type RaidBoardView,
   type RaidOfferView,
 } from '../../core/raid-selectors.ts';
+import { wholePercent } from '../../core/percent.ts';
 import type { GameState } from '../../core/state.ts';
 import { raidTier } from '../../core/systems/raids.ts';
 import { formatReturnAt } from '../../i18n/index.ts';
