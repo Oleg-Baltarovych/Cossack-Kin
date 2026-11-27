@@ -39,7 +39,7 @@ export function dueBeats(facts: StoryFacts, seen: readonly string[]): StoryBeat[
 }
 
 /**
- * Fires every due beat: marks it seen, grants its reward, emits `StoryBeatReached`. Several beats due at one check (a
+ * Fires every due beat: marks it seen, grants its reward (a hero: `HeroJoined` after it), emits `StoryBeatReached`. Several beats due at one check (a
  * long absence, a migrated save) fire in content order (STORY_BEATS), not in the order their triggers came true.
  */
 export function checkStory(state: GameState): { state: GameState; events: GameEvent[] } {
@@ -49,11 +49,16 @@ export function checkStory(state: GameState): { state: GameState; events: GameEv
   const events: GameEvent[] = [];
   for (const beat of due) {
     const r = beat.reward;
-    // A hero (`unlock`) needs the save v5 `heroes` record: granted from M4-04; until then no beat carries one (test).
     const g = r !== null && r.kind !== 'unlock' ? grantReward(s, r) : null;
     s = g ? g.state : s;
     s = { ...s, story: { seen: [...s.story.seen, beat.id] } };
     events.push({ type: 'StoryBeatReached', id: beat.id, granted: g ? g.granted : null });
+    // A hero beat brings its hero at level 1 for free (Q6, ADR 013). One already there (a crafted save, the beat unseen)
+    // keeps his level and does not join again.
+    if (r?.kind === 'unlock' && s.heroes[r.hero] === undefined) {
+      s = { ...s, heroes: { ...s.heroes, [r.hero]: 1 } };
+      events.push({ type: 'HeroJoined', id: r.hero });
+    }
   }
   return { state: s, events };
 }

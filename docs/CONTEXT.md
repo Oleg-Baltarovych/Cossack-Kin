@@ -3,11 +3,11 @@
 > Orientation map for AI agents and humans: read this first instead of exploring. Keep it terse (≤ ~20 KB).
 > Update it in the same change that alters structure, systems, commands or decisions. Area-specific traps live in
 > `.claude/rules/*.md` (load automatically for matching paths); per-task history lives in `docs/plans/` and git.
-> Last updated: 2026-11-27 (M4-02 culture/hero content).
+> Last updated: 2026-11-27 (M4-04 save v5, hero beat).
 
 ## 1. Status
 - **Current:** M3 (Військо) accepted with open items (qa-lead, M3-20, 2026-11-25). Plan `docs/plans/2026-11-23-m3-army.md`; deferred items in its «Відкладено після M3» table (under M3-19). Fixed since acceptance: 412 quest-icon snap (#7), raid-map layout (#8), squad-at-gate baseline on a clock paused before load (#6). Still open before M4: «nightly green twice» not yet observed (#17).
-- **M4 (Культура і герої):** plan `docs/plans/2026-11-27-m4-culture-heroes.md` approved 2026-11-27 (Q1–Q16 defaults); M4-01 done (SPEC + ADR 013), M4-02 done (content, unread by core), M4-03 done (`modifierSources` fold, behaviour unchanged), next M4-04.
+- **M4 (Культура і герої):** plan `docs/plans/2026-11-27-m4-culture-heroes.md` approved 2026-11-27 (Q1–Q16 defaults); M4-01 done (SPEC + ADR 013), M4-02 done (content, unread by core), M4-03 done (`modifierSources` fold, behaviour unchanged), M4-04 done (save v5, «Рада на майдані» → otaman, chain step `culture1`), next M4-05.
 - **Next (owner's MVP order):** M4 → M5 → M8 (+ daily calendar/quests from M6), then M7 and the rest of M6. Before M4: process diagnostic (this compaction is part of it).
 - **M2** accepted with open items (M2-30, 2026-11-23; plan `docs/plans/2026-11-19-m2-living-village.md`): phone fps for AC M2 3 (steps in plan M2-28 «Результат») and cold start ≤ 3 s are unmeasured. Deferred list: plan M2-29 «Відкладено після M2».
 - **Done:** M0 (2026-11-16), M-ART ART-01…21 (2026-11-17), M1 (2026-11-19, plan `docs/plans/2026-11-17-m1-core.md`), M2a (2026-11-20).
@@ -18,10 +18,10 @@
 Layout per SPEC §9.1. Root: `package.json` (pnpm 12.21, Node ≥ 24), `pnpm-workspace.yaml` (supply-chain settings only), `tsconfig.{base,app,tools,tests}.json` (solution `tsconfig.json`), `vite.config.ts`, `vitest.config.ts`, `playwright.config.ts`, `eslint.config.js`, `.prettierrc.json`, `.github/` (workflows/ci.yml, dependabot.yml, PR template).
 ```
 src/
-  core/      pure deterministic logic: big, rng, state (GameState v4 + validateState), economy, modifiers
+  core/      pure deterministic logic: big, rng, state (GameState v5 + validateState), economy, modifiers
              (modifierSources → collectModifiers/steadyModifiers), advance, offline (tick/resume/applyOffline), actions, events, selectors +
              raid-selectors (UI/render read path), store, systems/{army,bloom,raids,quests,story,reward,visitors,
-             village-mechanics/wind}, save/{checksum,serialize,load,migrations 001–003}
+             village-mechanics/wind}, save/{checksum,serialize,load,migrations 001–004}
   content/   all numbers and data: economy, pacing, story, quests, rewards, raids, relics, culture, heroes, effects (ranked effect kinds + reduction floors), juice, agents, variants;
              villages/khortytsia.{layout,paths}.ts (zones as ZoneScene → KHORTYTSIA_WORLD, path graph, agents)
   render/    Pixi world: App.ts, atlases.ts, viewport.ts, camera.ts + camera/motion.ts, clock.ts, zones.ts, cull.ts,
@@ -42,7 +42,7 @@ tools/       build-sprites + lib/sprites, contact-sheet, anim-strip, build-luts,
              lib/{png,csp,vite-atlases}.ts, balance-sim + lib/balance/{sim,report}.ts, capture-save.ts, hello-core.ts
 tests/       unit/{core,content,render,tools,ui,i18n,lint,e2e-helpers} · e2e/specs/*.spec.ts ·
              e2e/helpers/{test,world,baseline,pixelGrid,reports,story,budgets}.ts · e2e/__screenshots__/ (Linux
-             baselines) · fixtures/saves/v1–v4.json (immutable)
+             baselines) · fixtures/saves/v1–v5.json (immutable)
 docs/        SPEC.md · SPEC-REVIEW.md · CONTEXT.md · AI-WORKFLOW.md · adr/ · plans/ · art/ (ART-BIBLE, palette, LICENSES)
 .claude/     rules/ (area rules) · agents/ · skills/ · hooks/ (guard-paths, core-purity, format)
 android/ ios/  Capacitor shells, added at M9 (M0–M8 run as a web build)
@@ -57,7 +57,7 @@ Commands: see `CLAUDE.md` «Commands» (single source).
 | economy (farm + Sich), kharch/defence, wind, infantry + passive glory, store, `advance`, saves, return window, `pnpm balance` | M1 | ✅ |
 | living village: continuous world (3 zones), tiers + construction, camera/zoom, bottom sheet, villagers/Cossacks/carts/visitors, story beats, chain + chores, juice | M2 | ✅ with open items (phone fps, cold start) |
 | raids: slots, board, rumours, relics + pity, map, chest, treasury, squad on the scene, notification hook, save v4 | M3 | ✅ with open items — `core/systems/raids.ts`, `core/raid-selectors.ts`, `ui/components/{Raids,RaidMap,RaidChest,Treasury}.tsx`, `render/agents/sim.ts` |
-| culture (2 branches), heroes (3), modifier sources, save v5 | M4 | 🚧 M4-01 SPEC/ADR, M4-02 content (`content/culture.ts`, `heroes.ts`, `effects.ts`; not read yet), M4-03 `modifierSources` in `core/modifiers.ts` (no culture/hero sources yet) |
+| culture (2 branches), heroes (3), modifier sources, save v5 | M4 | 🚧 M4-01 SPEC/ADR, M4-02 content (`content/culture.ts`, `heroes.ts`, `effects.ts`; not read yet), M4-03 `modifierSources` in `core/modifiers.ts` (no culture/hero sources yet), M4-04 save v5 (`culture`/`heroes`, `HeroJoined`, autosave on it; sim stand-in `standInCulture` until M4-05/M4-09) |
 | bloom/prestige, legacy tree, land 2 (Velykyi Luh) | M5 | — |
 | meta: daily/weekly quests, stork, real notifications, weather/seasons | M6 | — |
 | audio | M7 | — |
@@ -75,7 +75,7 @@ Legend: — not started · 🚧 in progress · ✅ done.
 - Continuous world (011): one `KHORTYTSIA_WORLD` (1920 px: farm 0–768 → suburb 768–1152 → Sich 1152–1920); tabs follow the camera; 2 integer zoom levels; camera never in `GameState`.
 - Raids (012, SPEC §3.4): army power is a snapshot (no losses); outcome rolled once at `startRaid` and stored; `returnAt` is an `advance` breakpoint; `applyOffline` finishes raids to the real `now`; board = pure `raidBoard(seed, day)`; relic pity; manual claim; preview = grant.
 - Culture & heroes (013, SPEC §3.5; M4, planned): glory currency; permanent ranked nodes, whole tree visible, no respec; branch/hero unlocks derived (tavern 1 → «Музика», church → «Звичаї», beats → hero at level 1; all in land 1); `modifierSources` folded by `collectModifiers` and read by the UI breakdown; raid `returnAt` fixed at start within `[dur × minTimeMult, dur]`; Чайки not in M4 (M10+); save v5 with sparse `culture`/`heroes`.
-- Quests (SPEC §3.10): chain «Наказ кошового» + chores (M2), daily/weekly (M6). Save is v4 (migrations 001–003).
+- Quests (SPEC §3.10): chain «Наказ кошового» + chores (M2), daily/weekly (M6). Save is v5 (migrations 001–004).
 - Names: «Козацький хутір» / «Cossack Kin»; applicationId `com.cossackkin.game` (fixed at first Play upload).
 
 ## 5. Conventions

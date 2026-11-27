@@ -416,6 +416,9 @@ function goalTarget(state: GameState, goal: QuestGoal): QuestTarget {
           return { kind: 'tap' };
         case 'purchases':
         case 'levelsBought':
+        // The «Культура» tab and its target come with M4-07/M4-12.
+        case 'cultureRanks':
+        case 'heroLevels':
           return { kind: 'none' };
       }
   }

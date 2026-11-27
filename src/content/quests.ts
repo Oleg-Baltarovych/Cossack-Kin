@@ -9,7 +9,8 @@
 // FROZEN ONCE SHIPPED: chain step ids, chore ids and their order (saves store a chain index and a chore id; the v2 → v3
 // migration walks this chain). Append only — removing, renaming or reordering one needs a save migration (the order
 // was respaced in M2-27, before M2 shipped). One approved exception (owner, plan M3 Q7): `khortytsia.raid1` was
-// inserted after `khortytsia.hire1` with save v4 — the v3 → v4 migration shifts the saved indices past `hire1` by one.
+// inserted after `khortytsia.hire1` with save v4 — the v3 → v4 migration shifts the saved indices past `hire1` by one;
+// and the second (plan M4 Q12): `khortytsia.culture1` after `khortytsia.tavern1` with save v5 (004 shifts past it).
 // Goals and rewards may be retuned.
 import type { Reward } from './rewards.ts';
 import type { SichBuildingId } from './sich.ts';
@@ -21,7 +22,18 @@ export type LevelGoal =
   | { readonly kind: 'sich'; readonly id: SichBuildingId; readonly level: number };
 
 /** The monotone counters a quest can count (`GameState.stats`). */
-export type StatId = 'taps' | 'purchases' | 'levelsBought' | 'hires' | 'tapIncomeSec' | 'raidsSent' | 'raidsDone';
+export type StatId =
+  | 'taps'
+  | 'purchases'
+  | 'levelsBought'
+  | 'hires'
+  | 'tapIncomeSec'
+  | 'raidsSent'
+  | 'raidsDone'
+  /** v5 (M4): culture ranks bought, all told. */
+  | 'cultureRanks'
+  /** v5 (M4): hero levels bought (the free first level of an arrival is not one). */
+  | 'heroLevels';
 
 /** `stat` grown by `n` since the quest began. */
 export interface CountGoal {
@@ -61,6 +73,7 @@ export const CHAIN_STEP_IDS = [
   'khortytsia.potter10',
   'khortytsia.walls1',
   'khortytsia.tavern1',
+  'khortytsia.culture1',
   'khortytsia.treasury1',
   'khortytsia.smithy10',
   'khortytsia.fair1',
@@ -97,6 +110,7 @@ const farm = (id: FarmBuildingId, level: number): LevelGoal => ({ kind: 'buildin
 const sich = (id: SichBuildingId, level: number): LevelGoal => ({ kind: 'sich', id, level });
 const hired = (n: number): CountGoal => ({ kind: 'count', stat: 'hires', n });
 const raidsSent = (n: number): CountGoal => ({ kind: 'count', stat: 'raidsSent', n });
+const cultureRanks = (n: number): CountGoal => ({ kind: 'count', stat: 'cultureRanks', n });
 
 /**
  * Land 1, in the order of the calendar (SPEC §2.4 S1…S8). The first five are the onboarding (SPEC §10, M9). Spaced in
@@ -125,6 +139,9 @@ export const QUEST_CHAIN: readonly ChainStep[] = [
   step('khortytsia.potter10', farm('potter', 10), STEP.income),
   step('khortytsia.walls1', sich('walls', 1), STEP.glory),
   step('khortytsia.tavern1', farm('tavern', 1), STEP.income),
+  // Q12 (plan M4): the first culture rank once «Музика» opens with the tavern (its root «Кобзарські думи» is the one
+  // node then within reach); inserted with save v5. Paid in glory, the currency culture costs.
+  step('khortytsia.culture1', cultureRanks(1), STEP.glory),
   step('khortytsia.treasury1', sich('treasury', 1), STEP.glory),
   step('khortytsia.smithy10', farm('smithy', 10), STEP.income),
   step('khortytsia.fair1', farm('fair', 1), pysanky(2)),

@@ -1,10 +1,13 @@
-// GameState v4 (SPEC §9.3; plan §0, M1-04, M2-22, M2-23, M3-04): v2 = v1 + `story` and the quest counters in `stats`;
-// v3 adds `quests` and `settings.tzOffsetMin`; v4 adds `raids`, `relics` and the raid counters (ADR 012) — later
+// GameState v5 (SPEC §9.3; plan §0, M1-04, M2-22, M2-23, M3-04, M4-04): v2 = v1 + `story` and the quest counters in
+// `stats`; v3 adds `quests` and `settings.tzOffsetMin`; v4 adds `raids`, `relics` and the raid counters (ADR 012); v5
+// adds the sparse `culture` and `heroes` records and their counters (ADR 013) — later
 // fields come with a version bump and a migration (save/migrations). Derived values (kharch, defence, tier, wind, «unlocked») are computed, never stored.
 // `validateState` is the gate a save passes through: it takes the JSON form (Big values as strings), rejects anything
 // it does not know, and returns a typed error instead of throwing (rules: save.md, security.md).
 import { FARM, OFFLINE, SICH, START, TAP } from '../content/economy.ts';
 import { SAVE_MAX_EXPONENT } from '../content/numbers.ts';
+import { CULTURE_NODES, type CultureNodeId } from '../content/culture.ts';
+import { HEROES, type HeroId } from '../content/heroes.ts';
 import { CHORE_IDS, CHORES, type ChainStep, type ChoreId, type LevelGoal } from '../content/quests.ts';
 import { RAID_TIER_IDS, RAID_TIERS, RAIDS, REGION_IDS, tierRank } from '../content/raids.ts';
 import { RELIC_IDS, RELICS, pityThreshold, type RelicId } from '../content/relics.ts';
@@ -16,7 +19,7 @@ import { createRng, type Rng } from './rng.ts';
 import { chainSteps, dayAt, newQuests } from './systems/quests.ts';
 import type { RaidLoot, RaidRoll, RaidSlot, RaidsState } from './systems/raids.ts';
 
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 export const LANGS = ['uk', 'en'] as const;
 export const NUMBER_FORMATS = ['words', 'short'] as const;
 export const RETURN_REASONS = ['normal', 'clockBack', 'forwardJump'] as const;
@@ -59,6 +62,10 @@ export interface Stats {
   readonly raidsDone: number;
   /** v4: claimed raids that were a success; raidsWon ≤ raidsDone. */
   readonly raidsWon: number;
+  /** v5: culture ranks bought, all told; ≥ Σ ranks in `culture`. */
+  readonly cultureRanks: number;
+  /** v5: hero levels bought, all told (an arrival's free level 1 is not one); ≥ Σ (level − 1) in `heroes`. */
+  readonly heroLevels: number;
 }
 
 /**
@@ -121,6 +128,10 @@ export interface GameState {
   readonly raids: RaidsState;
   /** v4: relics found, in finding order (each kept for good). */
   readonly relics: readonly RelicId[];
+  /** v5: culture ranks, sparse — a node missing is rank 0 (SPEC §3.5, ADR 013). */
+  readonly culture: Readonly<Partial<Record<CultureNodeId, number>>>;
+  /** v5: hero levels, sparse — a hero missing has not arrived yet; one arrives at level 1 with his beat. */
+  readonly heroes: Readonly<Partial<Record<HeroId, number>>>;
   /** Taps counted in the current second (TAP.maxPerSec, plan Q8): the second's start (ms) and the count so far. */
   readonly tapWindow: { readonly start: number; readonly count: number };
   readonly settings: Settings;
@@ -163,6 +174,8 @@ export function createInitialState({ seed, now }: { seed: number; now: number })
     raidsSent: 0,
     raidsDone: 0,
     raidsWon: 0,
+    cultureRanks: 0,
+    heroLevels: 0,
   };
   return {
     version: STATE_VERSION,
@@ -178,6 +191,8 @@ export function createInitialState({ seed, now }: { seed: number; now: number })
     quests: newQuests({ village, stats }, s, now, START.tzOffsetMin),
     raids: freshRaids(),
     relics: [],
+    culture: {},
+    heroes: {},
     tapWindow: { start: now, count: 0 },
     settings: { lang: START.lang, numberFormat: START.numberFormat, tzOffsetMin: START.tzOffsetMin },
   };
@@ -397,8 +412,8 @@ function slotRelic(value: unknown, path: string): RelicId | null {
 
 /**
  * One stored roll (`kind` of its slot). `held`: the relics found or already in an earlier slot — a slot relic must be
- * none of them (it is added). Bounds are what `rollRaid` can store: started inside the game's time; back exactly the
- * tier's duration later (no time modifier yet — M4 `raidTimeMult` widens this to its range), and by `maxSeen` once
+ * none of them (it is added). Bounds are what `rollRaid` can store: started inside the game's time; back within the
+ * tier's duration window (v5: `raidTimeMult` shortens a raid at its start, at most to `RAIDS.minTimeMult`), and by `maxSeen` once
  * returned; pysanky and a relic only on a success and on a tier that can give them (a relic tier's chance turns into
  * pysanky once every relic is held — checked in `parseRaids`, which knows every slot; the pity makes a relic sure from
  * RELICS.pityMinTier up). A rumour start stored its day in `rumorDay`, which never falls below it.
@@ -416,8 +431,13 @@ function parseRoll(
   const def = RAID_TIERS.find((t) => t.id === tier) ?? fail('range', `${path}.tier`);
   const region = oneOf(r['region'], `${path}.region`, REGION_IDS);
   const startedAt = int(r['startedAt'], `${path}.startedAt`, time.created, time.maxSeen);
-  const due = startedAt + def.durationSec * MS_PER_SEC;
-  const returnAt = int(r['returnAt'], `${path}.returnAt`, due, due);
+  const durMs = def.durationSec * MS_PER_SEC;
+  const returnAt = int(
+    r['returnAt'],
+    `${path}.returnAt`,
+    startedAt + Math.ceil(durMs * RAIDS.minTimeMult),
+    startedAt + durMs,
+  );
   if (kind === 'returned' && returnAt > time.maxSeen) fail('range', `${path}.returnAt`);
   const success = bool(r['success'], `${path}.success`);
   const rumor = bool(r['rumor'], `${path}.rumor`);
@@ -488,6 +508,34 @@ function raidCounters(stats: Obj): Pick<Stats, 'raidsSent' | 'raidsDone' | 'raid
   return { raidsSent, raidsDone, raidsWon: int(stats['raidsWon'], '$.stats.raidsWon', 0, raidsDone) };
 }
 
+// --- culture and heroes (v5) -------------------------------------------------------------------------------------
+// Sparse records (ADR 013): an id this build does not know is dropped (rename-safe, as story.seen); a stored value is a
+// whole rank 1…maxRank / level 1…levelMax (0 is never stored: missing = 0 / not arrived — the stricter reading of SPEC
+// §9.3 «ранг/рівень цілі в межах контенту»). Branch unlocks, prerequisites and arrivals are derived and not checked
+// here: the modifier sources count only what is open (M4-05), so a crafted record grants nothing.
+
+/** `ids` known to the content with their bound; every other key dropped. Built on a fresh object (no prototype keys). */
+function sparse<K extends string>(
+  value: unknown,
+  path: string,
+  known: readonly { readonly id: K; readonly max: number }[],
+): Partial<Record<K, number>> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return fail('type', path);
+  const o = value as Obj;
+  const out: Partial<Record<K, number>> = {};
+  for (const k of Object.keys(o)) {
+    if (FORBIDDEN.has(k)) fail('forbiddenKey', `${path}.${k}`);
+    const def = known.find((d) => d.id === k);
+    if (def) out[def.id] = int(o[k], `${path}.${k}`, 1, def.max);
+  }
+  return out;
+}
+
+const NODE_BOUNDS = CULTURE_NODES.map((n) => ({ id: n.id, max: n.maxRank }));
+const HERO_BOUNDS = HEROES.map((h) => ({ id: h.id, max: h.levelMax }));
+const sum = (r: Readonly<Partial<Record<string, number>>>, less = 0): number =>
+  Object.values(r).reduce<number>((a, v) => a + (v ?? 0) - less, 0);
+
 const ROOT_KEYS = [
   'version',
   'seed',
@@ -502,6 +550,8 @@ const ROOT_KEYS = [
   'quests',
   'raids',
   'relics',
+  'culture',
+  'heroes',
   'tapWindow',
   'settings',
 ] as const;
@@ -530,11 +580,15 @@ function parse(raw: unknown): GameState {
     'raidsSent',
     'raidsDone',
     'raidsWon',
+    'cultureRanks',
+    'heroLevels',
   ]);
   const story = object(root['story'], '$.story', ['seen']);
   const settings = object(root['settings'], '$.settings', ['lang', 'numberFormat', 'tzOffsetMin']);
   const tw = object(root['tapWindow'], '$.tapWindow', ['start', 'count']);
   const landId = oneOf(v['id'], '$.village.id', ['khortytsia'] as const);
+  const culture = sparse(root['culture'], '$.culture', NODE_BOUNDS);
+  const heroes = sparse(root['heroes'], '$.heroes', HERO_BOUNDS);
   const counters: Stats = {
     taps: int(stats['taps'], '$.stats.taps', 0, MAX_INT),
     purchases: int(stats['purchases'], '$.stats.purchases', 0, MAX_INT),
@@ -543,6 +597,9 @@ function parse(raw: unknown): GameState {
     hires: int(stats['hires'], '$.stats.hires', infantry, MAX_INT),
     tapIncomeSec: real(stats['tapIncomeSec'], '$.stats.tapIncomeSec', 0, MAX_INT),
     ...raidCounters(stats),
+    // Every rank held was bought; every level above an arrival's free first one was bought (counters only grow).
+    cultureRanks: int(stats['cultureRanks'], '$.stats.cultureRanks', sum(culture), MAX_INT),
+    heroLevels: int(stats['heroLevels'], '$.stats.heroLevels', sum(heroes, 1), MAX_INT),
   };
   const relics = relicList(root['relics'], '$.relics');
   // Every relic found came with a won raid.
@@ -576,6 +633,8 @@ function parse(raw: unknown): GameState {
     quests: parseQuests(root['quests'], chainSteps({ village: { id: landId } }), counters, maxSeen),
     raids: parseRaids(root['raids'], counters, time, relics),
     relics,
+    culture,
+    heroes,
     tapWindow: {
       start: int(tw['start'], '$.tapWindow.start', 0, MAX_DATE_MS),
       count: int(tw['count'], '$.tapWindow.count', 0, TAP.maxPerSec),

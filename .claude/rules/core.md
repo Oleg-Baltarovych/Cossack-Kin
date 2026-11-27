@@ -26,9 +26,9 @@ paths:
 - Rewards use `steadyModifiers` (no wind of the moment), so online = offline. The glory cap (`gloryCapSec`) bounds only passive/offline accrual; grants from beats, quests and raid claims go straight in.
 
 ## State invariants
-- `validateState` does not enforce derived invariants — formulas must not assume them. It drops unknown `story.seen` ids (rename-safe).
+- `validateState` does not enforce derived invariants — formulas must not assume them. It drops unknown `story.seen`, `culture` and `heroes` ids (rename-safe); a stored rank/level is 1…max (0 is never stored: missing = 0 / not arrived). A crafted rank or hero passes the gate, so modifier sources must count only open branches and arrived heroes.
 - Quest completion is derived (level ≥, or `stats[stat] − base ≥ n`), never stored. The quest day is monotone (`max(stored, now)`): clock back or a westward zone gives no new day.
-- `raids.slots` length is frozen in the save shape (`V4_RAID_SLOTS` 3): changing `RAIDS.maxSlots` needs a migration. The v4 gate wants `returnAt = startedAt + duration` exactly — widen it when `raidTimeMult` is applied (M4).
+- `raids.slots` length is frozen in the save shape (`V4_RAID_SLOTS` 3): changing `RAIDS.maxSlots` needs a migration. The v5 gate takes `returnAt − startedAt ∈ [ceil(dur × RAIDS.minTimeMult), dur]`: apply `raidTimeMult` only at the start (M4-06) and keep every `raidTime` source within `1 − minTimeMult` (content test).
 - The raid gate bounds `pity` by `pityThreshold(found + relics in slots)`, not `relics.length`. A running slot's view shows no chance (the roll stores only `success`).
 - Treasury levels raise raid loot twice (defence → income, and `lootMult`): isolate the loot share with `lootOf(sameState, tier, 1)`.
 

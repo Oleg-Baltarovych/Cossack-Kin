@@ -61,6 +61,9 @@ function expected(goal: QuestGoal): QuestTarget {
       return { kind: 'tap' };
     case 'purchases':
     case 'levelsBought':
+    // No culture target until the «Культура» tab (M4-07).
+    case 'cultureRanks':
+    case 'heroLevels':
       return { kind: 'none' };
   }
 }
@@ -74,7 +77,8 @@ describe('questTarget: chain steps (M3-15)', () => {
 
   it('every kind of step is covered by the list: a farm, a Sich building, the hire row and a raid slot', () => {
     const kinds = new Set(QUEST_CHAIN.map((_, i) => questTarget(onStep(game(), i), 'chain').kind));
-    expect([...kinds].sort()).toEqual(['farm', 'hire', 'raid', 'sich']);
+    // `none`: the culture1 step (M4-04, Q12) has no target until the «Культура» tab (M4-07).
+    expect([...kinds].sort()).toEqual(['farm', 'hire', 'none', 'raid', 'sich']);
   });
 
   it('a generated step leads to its building (farm or Sich)', () => {

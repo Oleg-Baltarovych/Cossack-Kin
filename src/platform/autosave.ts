@@ -1,5 +1,6 @@
 // Autosave (SPEC §9.5; plan M1-13): every SAVE_EVERY_MS, and at once after an important step — a new tier (a building
-// reached a milestone), a hired Cossack, a claimed return, a raid started or claimed (M3-16).
+// reached a milestone), a hired Cossack, a claimed return, a raid started or claimed (M3-16), a hero joined (M4-04, SPEC
+// §9.2: he may come with time, from a beat — the one important event that is not an action).
 // Pausing the page saves too (lifecycle.ts `onPause`).
 import type { GameEvent } from '../core/events.ts';
 import type { GameStore } from '../core/store.ts';
@@ -14,6 +15,7 @@ const IMPORTANT: ReadonlySet<GameEvent['type']> = new Set([
   'ReturnClaimed',
   'RaidStarted',
   'RaidClaimed',
+  'HeroJoined',
 ]);
 
 /** Starts saving `store` through `saver`; returns the stop function. */

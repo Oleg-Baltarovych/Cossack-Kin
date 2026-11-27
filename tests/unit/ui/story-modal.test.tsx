@@ -97,7 +97,7 @@ describe('story beat windows (M2-25)', () => {
     }
   });
 
-  it('a beat reached online shows its reward, takes the focus, keeps Tab inside, closes on Esc, gives the focus back', () => {
+  it('a beat reached online takes the focus, keeps Tab inside, closes on Esc, gives the focus back', () => {
     // The maidan one level short of the council.
     mount(played((s) => ({ ...s, village: { ...s.village, sichLevels: { ...s.village.sichLevels, maidan: 9 } } })));
     fireEvent.click(screen.getByRole('tab', { name: 'Січ' }));
@@ -105,7 +105,8 @@ describe('story beat windows (M2-25)', () => {
     buy.focus();
     fireEvent.click(buy);
     const dialog = screen.getByRole('dialog', { name: 'Рада на майдані' });
-    expect(dialog.textContent).toMatch(/Нагорода\+\d+ слави/);
+    // The council brings the otaman, not glory (Q16, M4-04): no reward line; the hero's own CTA is M4-16.
+    expect(dialog.textContent).not.toMatch(/Нагорода/);
     const ok = within(dialog).getByRole('button', { name: 'Гаразд' });
     expect(document.activeElement).toBe(ok);
     // The HUD and the panel are out of reach while it is open.

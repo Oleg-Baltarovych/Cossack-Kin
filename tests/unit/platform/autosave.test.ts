@@ -87,3 +87,24 @@ describe('autosave (SPEC §9.5)', () => {
     expect(saver.saved).toHaveLength(1);
   });
 });
+
+describe('autosave on a hero (M4-04, SPEC §9.2)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('saves at once when a hero joins, though he came with time (a beat), not with an action', () => {
+    const state = createInitialState({ seed: 1, now: NOW });
+    const store = fakeStore(state);
+    const saver = spySaver();
+    startAutosave(store, saver);
+    store.emit(
+      { type: 'StoryBeatReached', id: 'khortytsia.council', granted: null },
+      { type: 'HeroJoined', id: 'otaman' },
+    );
+    expect(saver.saved).toEqual([state]);
+  });
+});

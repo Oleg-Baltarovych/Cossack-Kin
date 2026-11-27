@@ -254,6 +254,9 @@ describe('stats (M2-22, SPEC §3.10)', () => {
       raidsSent: 0,
       raidsDone: 0,
       raidsWon: 0,
+      // Nor a culture or hero one (v5 counters, M4-04).
+      cultureRanks: 0,
+      heroLevels: 0,
     });
   });
 
@@ -276,5 +279,66 @@ describe('stats (M2-22, SPEC §3.10)', () => {
     expect(s.stats).toEqual(poor.stats);
     for (let i = 0; i < TAP.maxPerSec + 3; i++) s = applyAction(s, { type: 'tap' }, T0 + 10).state;
     expect(s.stats.tapIncomeSec).toBeCloseTo(TAP.maxPerSec * TAP.incomeShare, 9);
+  });
+});
+
+describe('a hero beat (M4-04, SPEC §2.5, ADR 013)', () => {
+  /** maidan 10 and nothing else due: «Рада на майдані» is the beat the next check fires. */
+  function atCouncil(seed = 4): GameState {
+    const s = createInitialState({ seed, now: T0 });
+    return {
+      ...s,
+      story: { seen: ['khortytsia.shore'] },
+      village: { ...s.village, sichLevels: { ...s.village.sichLevels, maidan: 10 } },
+    };
+  }
+  type Joined = Extract<GameEvent, { type: 'HeroJoined' }>;
+  const joined = (events: readonly GameEvent[]): Joined[] => events.filter((e): e is Joined => e.type === 'HeroJoined');
+
+  it('Q16: «Рада на майдані» rewards the otaman himself, no glory', () => {
+    expect(STORY_BEATS.find((b) => b.id === 'khortytsia.council')?.reward).toEqual({ kind: 'unlock', hero: 'otaman' });
+  });
+
+  it('the beat brings its hero at level 1 and emits HeroJoined right after StoryBeatReached (granted null)', () => {
+    const s = atCouncil();
+    const r = advance(s, T0 + SEC);
+    expect(r.state.heroes).toEqual({ otaman: 1 });
+    expect(r.state.stats.heroLevels).toBe(0);
+    const story = r.events.filter((e) => e.type === 'StoryBeatReached' || e.type === 'HeroJoined');
+    expect(story).toEqual([
+      { type: 'StoryBeatReached', id: 'khortytsia.council', granted: null },
+      { type: 'HeroJoined', id: 'otaman' },
+    ]);
+    // No glory beyond the second of passive glory.
+    const income = gloryRate(s, collectModifiers(s, T0)).mul(1);
+    expect(rel(r.state.currencies.glory, s.currencies.glory.add(income))).toBeLessThan(TOL);
+    // Once: the next check fires nothing.
+    const again = advance(r.state, T0 + HOUR);
+    expect(joined(again.events)).toEqual([]);
+    expect(again.state.heroes).toEqual({ otaman: 1 });
+  });
+
+  it('from an absence too: one 8 h advance and 5 s steps bring the same hero with the same events', () => {
+    const s = atCouncil(6);
+    const end = T0 + 8 * HOUR;
+    const offline = advance(s, end);
+    let online = s;
+    const events: GameEvent[] = [];
+    for (let t = T0 + 5 * SEC; t <= end; t += 5 * SEC) {
+      const r = advance(online, t);
+      events.push(...r.events);
+      online = r.state;
+    }
+    expect(joined(offline.events)).toEqual([{ type: 'HeroJoined', id: 'otaman' }]);
+    expect(joined(events)).toEqual(joined(offline.events));
+    expect(online.heroes).toEqual(offline.state.heroes);
+  });
+
+  it('a hero already there (a crafted save with the beat unseen) keeps his level and does not join twice', () => {
+    const s = { ...atCouncil(), heroes: { otaman: 5 } };
+    const r = advance(s, T0 + SEC);
+    expect(r.state.heroes).toEqual({ otaman: 5 });
+    expect(joined(r.events)).toEqual([]);
+    expect(r.state.story.seen).toContain('khortytsia.council');
   });
 });
