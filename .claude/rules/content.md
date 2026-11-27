@@ -30,7 +30,7 @@ paths:
 
 ## Balance
 - The glory content test checks `maxSlots × max gloryLootSec × max lootMult ≤ gloryCapSec` with the real `collectModifiers` — keep it when adding loot relics or tiers.
-- A culture/hero/relic effect names one `EFFECT_KINDS` field (`effects.ts`); a new reducing source (`cost`, `cultureCost`, `raidTime`) must keep `culture.test.ts`'s Σ max ≤ 1 − `EFFECT_FLOORS` — add relic shares to that sum when relics use these kinds (M4-06).
+- A culture/hero/relic effect names one `EFFECT_KINDS` kind; its target lives in `EFFECT_TARGETS` (`effects.ts`, one field or the food buildings); a new reducing source (`cost`, `cultureCost`, `raidTime`) must keep `culture.test.ts`'s Σ max ≤ 1 − `EFFECT_FLOORS` — add relic shares to that sum when relics use these kinds (M4-06).
 - The bot ignores chores whose `requires` it never does — such a chore stalls its chore claims.
 - Raid starts/claims are raid actions (`SessionLog.raids`), not economy actions; quest claims are not «дії» (`SessionLog.claims`).
 - Judge robustness on `pnpm balance --seeds 1,…,12` before trusting seeds 1–3; for the S2+ action median use seeds 1–36 (±2 between seeds is noise).

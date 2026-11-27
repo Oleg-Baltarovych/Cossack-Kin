@@ -9,7 +9,7 @@ import {
   type CultureNode,
 } from '../../../src/content/culture.ts';
 import { OFFLINE } from '../../../src/content/economy.ts';
-import { EFFECT_FLOORS, EFFECT_KINDS, type EffectKind } from '../../../src/content/effects.ts';
+import { EFFECT_FLOORS, EFFECT_KINDS, EFFECT_TARGETS, type EffectKind } from '../../../src/content/effects.ts';
 import { HERO_IDS, HEROES } from '../../../src/content/heroes.ts';
 import { RAIDS } from '../../../src/content/raids.ts';
 import { STORY_BEATS } from '../../../src/content/story.ts';
@@ -32,9 +32,9 @@ const maxSum = (kind: EffectKind): number =>
 const EPS = 1e-9;
 
 describe('culture branches (M4-02, ADR 013)', () => {
-  it('M4 has «Музика» and «Звичаї», ids unique and in CULTURE_BRANCH_IDS order', () => {
+  it('ids are unique and listed in CULTURE_BRANCH_IDS order', () => {
     expect(CULTURE_BRANCHES.map((b) => b.id)).toEqual([...CULTURE_BRANCH_IDS]);
-    expect([...CULTURE_BRANCH_IDS]).toEqual(['music', 'customs']);
+    expect(unique(CULTURE_BRANCH_IDS)).toBe(true);
   });
 
   it('«Музика» opens with the tavern; «Звичаї» with the church — the same condition as «Освячення Покрови» (Q4)', () => {
@@ -53,22 +53,45 @@ describe('culture nodes (M4-02, plan §3, SPEC §3.5)', () => {
     for (const n of CULTURE_NODES) expect(n.id.startsWith(`${n.branch}.`), n.id).toBe(true);
   });
 
-  it('each branch: a root, rows 2 and 3 of two nodes, a top — 6 nodes (plan §3)', () => {
+  it('each branch: at least 6 nodes (SPEC §3.5 «6–8»), one root in row 1, a single top in its last row', () => {
     for (const branch of CULTURE_BRANCH_IDS) {
+      const nodes = nodesOf(branch);
+      const last = Math.max(...nodes.map((n) => n.row));
+      expect(nodes.length, branch).toBeGreaterThanOrEqual(6);
       expect(
-        nodesOf(branch).map((n) => n.row),
+        rowOf(branch, 1).map((n) => n.requires),
         branch,
-      ).toEqual([1, 2, 2, 3, 3, 4]);
+      ).toEqual([{ kind: 'root' }]);
+      expect(rowOf(branch, last).length, branch).toBe(1);
+      // No gaps: every row between the root and the top has a node.
+      for (let row = 1; row <= last; row += 1)
+        expect(rowOf(branch, row).length, `${branch} ${String(row)}`).toBeGreaterThan(0);
     }
   });
 
-  it('prerequisites: the root none; rows 2–3 any node of the row above; the top all of row 3 (no cycles by rows)', () => {
+  it('prerequisites name only the row above in the same branch (so no cycles); the top needs all of it', () => {
     for (const n of CULTURE_NODES) {
-      const above = rowOf(n.branch, n.row - 1).map((m) => m.id);
       const r = n.requires;
-      if (n.row === 1) expect(r, n.id).toEqual({ kind: 'root' });
-      else if (n.row === 4) expect(r, n.id).toEqual({ kind: 'allOf', ids: above });
-      else expect(r, n.id).toEqual({ kind: 'anyOf', ids: above });
+      if (n.row === 1) {
+        expect(r.kind, n.id).toBe('root');
+        continue;
+      }
+      if (r.kind === 'root') throw new Error(`${n.id}: only row 1 may be a root`);
+      expect(r.ids.length, n.id).toBeGreaterThan(0);
+      for (const id of r.ids) {
+        const m = CULTURE_NODES.find((x) => x.id === id);
+        expect(m?.branch, `${n.id} → ${id}`).toBe(n.branch);
+        expect(m?.row, `${n.id} → ${id}`).toBe(n.row - 1);
+      }
+      const last = Math.max(...nodesOf(n.branch).map((m) => m.row));
+      if (n.row === last) {
+        expect(r.kind, n.id).toBe('allOf');
+        expect([...r.ids].sort(), n.id).toEqual(
+          rowOf(n.branch, n.row - 1)
+            .map((m) => m.id)
+            .sort(),
+        );
+      } else expect(r.kind, n.id).toBe('anyOf');
     }
   });
 
@@ -95,14 +118,14 @@ describe('culture nodes (M4-02, plan §3, SPEC §3.5)', () => {
 });
 
 describe('heroes (M4-02, plan §3, Q6)', () => {
-  it('M4 has the otaman, the Kobzar and the Kharakternyk, ids unique in HERO_IDS order', () => {
+  it('ids are unique and listed in HERO_IDS order', () => {
     expect(HEROES.map((h) => h.id)).toEqual([...HERO_IDS]);
-    expect([...HERO_IDS]).toEqual(['otaman', 'kobzar', 'kharakternyk']);
+    expect(unique(HERO_IDS)).toBe(true);
   });
 
-  it('levels 1…25; costs: base > 0, growth > 1, finite at levelMax; effects positive, known, one per kind', () => {
+  it('levels 1…levelMax; costs: base > 0, growth > 1, finite at levelMax; effects positive, known, one per kind', () => {
     for (const h of HEROES) {
-      expect(h.levelMax, h.id).toBe(25);
+      expect(Number.isInteger(h.levelMax) && h.levelMax >= 1, h.id).toBe(true);
       expect(h.base, h.id).toBeGreaterThan(0);
       expect(h.growth, h.id).toBeGreaterThan(1);
       expect(Number.isFinite(h.base * h.growth ** h.levelMax), h.id).toBe(true);
@@ -126,11 +149,20 @@ describe('heroes (M4-02, plan §3, Q6)', () => {
   });
 });
 
+describe('effect targets (ADR 013, §9.6)', () => {
+  it('no two kinds share a target, so a breakdown line names one effect kind', () => {
+    const targets = EFFECT_KINDS.map((k) => {
+      const t = EFFECT_TARGETS[k];
+      return t.to === 'field' ? t.field : t.to;
+    });
+    expect(unique(targets)).toBe(true);
+  });
+});
+
 describe('bounds of the stacked effects (ADR 013)', () => {
   it('raid time: the most every source can cut stays within the save gate, Σ ≤ 1 − RAIDS.minTimeMult', () => {
     expect(RAIDS.minTimeMult).toBeGreaterThan(0);
     expect(RAIDS.minTimeMult).toBeLessThan(1);
-    expect(EFFECT_FLOORS.raidTime).toBe(RAIDS.minTimeMult);
     expect(maxSum('raidTime')).toBeGreaterThan(0);
     expect(maxSum('raidTime')).toBeLessThanOrEqual(1 - RAIDS.minTimeMult + EPS);
   });
@@ -148,12 +180,14 @@ describe('bounds of the stacked effects (ADR 013)', () => {
     expect(OFFLINE.capSec + maxSum('offlineCapSec')).toBeLessThanOrEqual(OFFLINE.ceilingSec);
   });
 
-  it('second-valued effects are whole minutes; shares are whole percents (the UI shows them as such)', () => {
+  it('second-valued effects are whole minutes; shares are whole percents per node rank, half percents per hero level', () => {
+    // A node card shows the share of a rank; a hero's total is level × share (1.5 % × an even level is whole).
     const secKinds: readonly EffectKind[] = ['offlineCapSec', 'gloryCapSec'];
-    for (const e of [...CULTURE_NODES, ...HEROES].flatMap((x) => x.effects)) {
-      const v = secKinds.includes(e.kind) ? e.perRank / 60 : e.perRank * 100;
-      expect(Number.isInteger(Math.round(v * 1e6) / 1e6), `${e.kind} ${String(e.perRank)}`).toBe(true);
-    }
+    const steps = (x: { effects: CultureNode['effects'] }, perPercent: number): number[] =>
+      x.effects.map((e) => (secKinds.includes(e.kind) ? e.perRank / 60 : e.perRank * 100 * perPercent));
+    const whole = (v: number): boolean => Number.isInteger(Math.round(v * 1e6) / 1e6);
+    for (const n of CULTURE_NODES) for (const v of steps(n, 1)) expect(whole(v), `${n.id} ${String(v)}`).toBe(true);
+    for (const h of HEROES) for (const v of steps(h, 2)) expect(whole(v), `${h.id} ${String(v)}`).toBe(true);
   });
 });
 

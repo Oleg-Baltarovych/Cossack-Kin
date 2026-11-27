@@ -3,7 +3,8 @@
 // respec: no choice excludes another and every effect is positive (plan §0.1 П2); they carry over resettling (§3.6).
 // The whole tree is shown from the start, locked nodes included. Ids are saved (`culture`, save v5): append only,
 // never rename. M4 builds «Музика» and «Звичаї»; «Ремесла» and «Військова справа» come later (SPEC §14).
-// Costs and effect sizes: гіпотеза for M4-09 (`pnpm balance`). Facts: docs/content-sources.md.
+// Costs and effect sizes: гіпотеза for M4-09 (`pnpm balance`; balance review M4-02: «Музика» bases ×4, «Вечорниці»
+// 45 min a rank — the first hypotheses made Music nearly free). Facts: docs/content-sources.md.
 
 import type { RankedEffect } from './effects.ts';
 import type { StoryTrigger } from './story.ts';
@@ -74,7 +75,8 @@ export interface CultureNode {
   readonly factKey: string;
 }
 
-const H = 3600; // s per hour
+const MIN = 60; // s per minute
+const H = 60 * MIN;
 const ROOT: CulturePrereq = { kind: 'root' };
 
 type NodeData = Omit<CultureNode, 'nameKey' | 'textKey' | 'factKey'>;
@@ -87,7 +89,7 @@ export const CULTURE_NODES: readonly CultureNode[] = (
       row: 1,
       requires: ROOT,
       maxRank: 5,
-      base: 150,
+      base: 600,
       growth: 1.8,
       effects: [{ kind: 'income', perRank: 0.04 }],
     },
@@ -97,7 +99,7 @@ export const CULTURE_NODES: readonly CultureNode[] = (
       row: 2,
       requires: anyOf('music.dumy'),
       maxRank: 5,
-      base: 400,
+      base: 1600,
       growth: 1.8,
       effects: [{ kind: 'glory', perRank: 0.05 }],
     },
@@ -107,7 +109,7 @@ export const CULTURE_NODES: readonly CultureNode[] = (
       row: 2,
       requires: anyOf('music.dumy'),
       maxRank: 3,
-      base: 400,
+      base: 1600,
       growth: 2,
       effects: [{ kind: 'loot', perRank: 0.05 }],
     },
@@ -117,7 +119,7 @@ export const CULTURE_NODES: readonly CultureNode[] = (
       row: 3,
       requires: anyOf('music.maidan', 'music.campaign'),
       maxRank: 3,
-      base: 1000,
+      base: 4000,
       growth: 2,
       effects: [{ kind: 'power', perRank: 0.03 }],
     },
@@ -127,7 +129,7 @@ export const CULTURE_NODES: readonly CultureNode[] = (
       row: 3,
       requires: anyOf('music.maidan', 'music.campaign'),
       maxRank: 3,
-      base: 1000,
+      base: 4000,
       growth: 2,
       effects: [{ kind: 'gloryCapSec', perRank: H }],
     },
@@ -137,7 +139,7 @@ export const CULTURE_NODES: readonly CultureNode[] = (
       row: 4,
       requires: allOf('music.bandura', 'music.lirnyky'),
       maxRank: 1,
-      base: 4000,
+      base: 16_000,
       growth: 2,
       effects: [
         { kind: 'income', perRank: 0.1 },
@@ -152,7 +154,7 @@ export const CULTURE_NODES: readonly CultureNode[] = (
       maxRank: 4,
       base: 1500,
       growth: 1.8,
-      effects: [{ kind: 'offlineCapSec', perRank: H }],
+      effects: [{ kind: 'offlineCapSec', perRank: 45 * MIN }],
     },
     {
       id: 'customs.toloka',

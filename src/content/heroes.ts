@@ -31,17 +31,19 @@ export interface HeroDef {
 }
 
 const LEVEL_MAX = 25;
+/** Price × growth per level, every hero (balance review M4-02: 1.15 let heroes max out in week 1). */
+const GROWTH = 1.25;
 
 export const HEROES: readonly HeroDef[] = [
   // «Рада на майдані» (Майдан 10), M4-04.
-  hero('otaman', 300, 1.15, [{ kind: 'power', perRank: 0.03 }]),
+  hero('otaman', 300, GROWTH, [{ kind: 'power', perRank: 0.03 }]),
   // «Кобзар біля шинку» (шинок 10), M4-08.
-  hero('kobzar', 500, 1.15, [
+  hero('kobzar', 500, GROWTH, [
     { kind: 'cultureCost', perRank: 0.01 },
-    { kind: 'glory', perRank: 0.02 },
+    { kind: 'glory', perRank: 0.015 },
   ]),
   // «Характерник на Січі» (10 raids won), M4-08. 1 % × 25 = the −25 % bound of the raid-time gate (content test).
-  hero('kharakternyk', 1000, 1.15, [
+  hero('kharakternyk', 1000, GROWTH, [
     { kind: 'raidTime', perRank: 0.01 },
     { kind: 'relicChance', perRank: 0.02 },
   ]),
