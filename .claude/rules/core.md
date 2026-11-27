@@ -13,7 +13,8 @@ paths:
 - Store emits typed domain events (`BuildingUpgraded`, `TierReached`, `RaidReturned`, …) as a discriminated union of plain data.
 - Scaling numbers use `Big` (wrapper over `break_eternity.js`); never mix raw `number` arithmetic with `Big` values. `Big` serializes to a string in saves.
 - No magic numbers: formulas take constants from `src/content/`. A literal other than 0/1/unit conversion needs a content key.
-- Every buff flows through `collectModifiers(state, now)`; systems never read culture/heroes/relics directly.
+- Every buff is a `ModSource` of `modifierSources(state)`, folded by `collectModifiers`/`steadyModifiers`; systems never derive a buff from culture/heroes/relics/buff buildings themselves, and never add a share outside the list (the UI breakdown reads the same list and would lie). One exception: a raid's own rumour share, added to its offer in `systems/raids.ts` (bound to the offer, not to the state).
+- Source order changes the fold only by float epsilon, and it is deterministic: append new source kinds last so existing exact snapshots keep holding.
 - Illegal states unrepresentable: `ActiveRaid` as a union of `running | returned`, weather as a union, etc.
 - Relative imports end in `.ts` (Node runs core directly: `node tools/hello-core.ts`).
 

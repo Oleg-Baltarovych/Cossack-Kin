@@ -167,6 +167,10 @@ describe('bounds of the stacked effects (ADR 013)', () => {
     expect(maxSum('raidTime')).toBeLessThanOrEqual(1 - RAIDS.minTimeMult + EPS);
   });
 
+  it('every reducing kind targets one scalar field, never the food buildings (a building multiplier only grows)', () => {
+    for (const kind of Object.keys(EFFECT_FLOORS) as EffectKind[]) expect(EFFECT_TARGETS[kind].to, kind).toBe('field');
+  });
+
   it('every reduction stays above its floor: Σ max share ≤ 1 − floor (the floor never binds)', () => {
     for (const [kind, floor] of Object.entries(EFFECT_FLOORS) as [EffectKind, number][]) {
       expect(floor, kind).toBeGreaterThan(0);
