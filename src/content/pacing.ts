@@ -54,14 +54,20 @@ export type NoveltyKind =
   /** A relic found, each new one (ref: the relic id). */
   | 'firstRelic'
   /** The first start of a raid tier (ref: the tier id). */
-  | 'raidTier';
+  | 'raidTier'
+  /** A hero joined (ref: the hero id; M4-09). */
+  | 'heroJoined'
+  /** A culture branch opened (ref: the branch id). */
+  | 'cultureBranch'
+  /** The first rank of a culture node (ref: the node id). */
+  | 'cultureNode';
 
 /** One entry of the discovery calendar (SPEC §2.4) the M1 simulator can measure: first seen within [min, max] sessions. */
 export interface CalendarEntry {
   readonly id: string;
   readonly kind: NoveltyKind;
   /**
-   * `building` / `sichBuilding` / `storyBeat` / `chainStep` / `raidTier`: an id; `tier` / `sichTier`: `<id>@<level>`;
+   * `building` / `sichBuilding` / `storyBeat` / `chainStep` / `raidTier` / `heroJoined` / `cultureBranch` / `cultureNode`: an id; `tier` / `sichTier`: `<id>@<level>`;
    * otherwise empty. An empty ref matches the first novelty of the kind, whatever its ref (`firstRelic`: any relic).
    */
   readonly ref: string;
@@ -97,4 +103,11 @@ export const CALENDAR_LAND1: readonly CalendarEntry[] = [
   // M4-08 (SPEC §2.4, plan M4 Q4/Q5): the heroes' beats — the Кобзар with tavern 10, the Характерник after the raids won of his beat.
   { id: 'beat-kobzar', kind: 'storyBeat', ref: 'khortytsia.kobzar', sessions: { min: 5, max: 8 } },
   { id: 'beat-kharakternyk', kind: 'storyBeat', ref: 'khortytsia.kharakternyk', sessions: { min: 8, max: 12 } },
+  // M4-09 (SPEC §2.4, §12.3): each hero as he joins (the moment of his beat, measured as the system's own novelty) and
+  // each culture branch as it opens.
+  { id: 'hero-otaman', kind: 'heroJoined', ref: 'otaman', sessions: { min: 3, max: 5 } },
+  { id: 'branch-music', kind: 'cultureBranch', ref: 'music', sessions: { min: 4, max: 6 } },
+  { id: 'hero-kobzar', kind: 'heroJoined', ref: 'kobzar', sessions: { min: 5, max: 8 } },
+  { id: 'branch-customs', kind: 'cultureBranch', ref: 'customs', sessions: { min: 6, max: 9 } },
+  { id: 'hero-kharakternyk', kind: 'heroJoined', ref: 'kharakternyk', sessions: { min: 8, max: 12 } },
 ];

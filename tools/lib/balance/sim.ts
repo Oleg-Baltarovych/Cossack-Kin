@@ -10,10 +10,13 @@
 // button (claim + the same tier in one tap): taken at the claim, before the purchases, when the tier that came back is
 // the best at that moment — by design, not an ordering slip. A raid start and a raid claim are actions (SPEC §12.3),
 // counted apart from the economy's (owner 2026-11-24: the 5–15 corridor is purchases and hires; raids have their own cap).
+// Culture and heroes (M4-09): after the raids and before the Sich it buys the rank / level of the best payback in
+// «glory minutes» (culture-policy.ts) — an economy action, counted in the 5–15 (SPEC §12.3).
 // It logs actions, «відчутні» purchases and novelties (SPEC §2.4: story beats, chain steps, plan Q6; the first raid,
 // each relic, each raid tier), milestone times, bloom and the raid ledger. Deterministic: the same options give the
 // same result, byte for byte.
-import type { CultureNodeId } from '../../../src/content/culture.ts';
+import { CULTURE_BRANCHES, CULTURE_NODES } from '../../../src/content/culture.ts';
+import { HEROES } from '../../../src/content/heroes.ts';
 import { FARM, SICH } from '../../../src/content/economy.ts';
 import { PACING, type NoveltyKind } from '../../../src/content/pacing.ts';
 import { RAID_TIER_IDS, RAIDS, type RaidTierId } from '../../../src/content/raids.ts';
@@ -24,19 +27,22 @@ import { applyAction, type Action } from '../../../src/core/actions.ts';
 import { bulkCost, cost, tier, type Priced } from '../../../src/core/economy.ts';
 import type { GameEvent } from '../../../src/core/events.ts';
 import {
+  cultureBranchOpen,
   farmIncomeRate,
   sichUnlocked,
   steadyModifiers,
   villageOf,
   type Modifiers,
+  type ScalarField,
 } from '../../../src/core/modifiers.ts';
+import { cultureAsked, cultureChoice, expectedLoot } from './culture-policy.ts';
 import { tick } from '../../../src/core/offline.ts';
 import { visibleSichIds } from '../../../src/core/selectors.ts';
 import { createInitialState, type GameState } from '../../../src/core/state.ts';
 import { canHire } from '../../../src/core/systems/army.ts';
 import { bloomStatus } from '../../../src/core/systems/bloom.ts';
 import { chainQuest, choreQuest, questRef } from '../../../src/core/systems/quests.ts';
-import { learnableNode, levellableHero } from '../../../src/core/systems/culture.ts';
+import { culturePrice, heroPrice } from '../../../src/core/systems/culture.ts';
 import { canStart, previewRaid } from '../../../src/core/systems/raids.ts';
 import { stormStarts } from '../../../src/core/systems/village-mechanics/wind.ts';
 
@@ -44,43 +50,6 @@ const MS = 1000;
 
 const HOUR_MS = 3600 * MS;
 
-/** The chain step the culture stand-in serves (plan M4 Q12) and the node it learns (the root of «Музика»). */
-const CULTURE_STEP = 'khortytsia.culture1';
-const CULTURE_ROOT: CultureNodeId = 'music.dumy';
-
-/**
- * Stand-in for the bot's culture policy until M4-09 (M4-04, coordinator decision (a), as `standInRaid` in M3-04): on
- * the chain step `culture1` only, learns one rank of «Кобзарські думи» through the real `buyCulture` action (M4-05) at
- * the state's own time. null when it does not apply or the action is refused (the branch closed, no rank left, too
- * little glory). Not counted as an action (as before M4-05): M4-09 replaces it with a counted policy.
- */
-export function standInCulture(s: GameState): GameState | null {
-  const q = chainQuest(s);
-  if (q?.id !== CULTURE_STEP || q.done) return null;
-  const r = applyAction(s, { type: 'buyCulture', id: CULTURE_ROOT }, s.time.lastSeen);
-  return r.events.some((e) => e.type === 'ActionRejected') ? null : r.state;
-}
-
-/**
- * Stand-in for the culture chores until M4-09 (M4-08, as `standInCulture`): on an unfinished «Вивчи ранг культури»
- * learns one rank of the first learnable node, on «Підвищ героя» one level of the first hero with a level left — the
- * real actions at the state's own time. Without it the bot would never finish them and its chore rotation would stop.
- * null when the chore is another one or the action is refused (too little glory). Not counted as an action.
- */
-export function standInChore(s: GameState): GameState | null {
-  const q = choreQuest(s);
-  if (q.done) return null;
-  const node = q.id === 'chore.culture1' ? learnableNode(s) : null;
-  const hero = q.id === 'chore.hero1' ? levellableHero(s) : null;
-  const action: Action | null = node
-    ? { type: 'buyCulture', id: node.id }
-    : hero
-      ? { type: 'levelHero', id: hero.id, mode: 1 }
-      : null;
-  if (!action) return null;
-  const r = applyAction(s, action, s.time.lastSeen);
-  return r.events.some((e) => e.type === 'ActionRejected') ? null : r.state;
-}
 const DAY_MS = 24 * HOUR_MS;
 /** The bot hires while the Cossacks cost at most this share of its ducats (keeps the farm growing first). */
 const HIRE_SHARE = 0.25;
@@ -113,8 +82,13 @@ export interface SessionLog {
   readonly index: number;
   /** Seconds since the start of the run. */
   readonly start: number;
-  /** Economy actions: purchase presses and hires (the 5–15 corridor, SPEC §2.3). Raid actions are in `raids`. */
+  /**
+   * Economy actions: purchase presses, hires and culture / hero presses (the 5–15 corridor, SPEC §2.3, §12.3). Raid
+   * actions are in `raids`.
+   */
   readonly actions: number;
+  /** Of `actions`: culture ranks and hero presses (M4-09). */
+  readonly culture: number;
   readonly noticeable: number;
   /** Noticeable purchases made at the session's first step, i.e. from what the offline time brought. */
   readonly noticeableAtOpen: number;
@@ -160,6 +134,10 @@ export interface DayLog {
   /** Steady modifiers at the end of the day: loot grows with both (a raid is «seconds of income» × lootMult). */
   readonly lootMult: number;
   readonly incomeMult: number;
+  /** Glory paid that day for culture ranks, hero levels and Sich levels (their prices, M4-09). */
+  readonly glorySpent: { readonly culture: number; readonly heroes: number; readonly sich: number };
+  /** Every scalar steady modifier at the end of the day (the M4 sources shown by day, SPEC §12.3). */
+  readonly modifiers: Readonly<Record<ScalarField, number>>;
 }
 
 export interface SimResult {
@@ -307,8 +285,7 @@ export function bestRaid(s: GameState, slot: number): RaidTierId | null {
   for (const id of RAID_TIER_IDS) {
     if (!canStart(s, slot, id).ok) continue;
     const p = previewRaid(s, id);
-    const ev = (k: 'ducats' | 'glory'): number =>
-      p.chance * p.success[k].toNumber() + (1 - p.chance) * p.failure[k].toNumber();
+    const ev = (k: 'ducats' | 'glory'): number => expectedLoot(p, k);
     const value = (refD > 0 ? ev('ducats') / refD : 0) + (refG > 0 ? ev('glory') / refG : 0);
     if (value > bestValue) {
       bestValue = value;
@@ -318,13 +295,35 @@ export function bestRaid(s: GameState, slot: number): RaidTierId | null {
   return best;
 }
 
+/** The scalar fields of `mods` (all but the per-building multipliers). */
+function scalarFields(mods: Modifiers): Record<ScalarField, number> {
+  // Rebuilt from the scalar fields' list, so a new field is a compile error here (per building: not a scalar).
+  const fields: Record<ScalarField, number> = {
+    incomeMult: mods.incomeMult,
+    costMult: mods.costMult,
+    cultureCostMult: mods.cultureCostMult,
+    gloryMult: mods.gloryMult,
+    powerMult: mods.powerMult,
+    offlineMult: mods.offlineMult,
+    offlineCapSec: mods.offlineCapSec,
+    gloryCapSec: mods.gloryCapSec,
+    lootMult: mods.lootMult,
+    relicChanceMult: mods.relicChanceMult,
+    raidTimeMult: mods.raidTimeMult,
+  };
+  return fields;
+}
+
 /**
- * The next press of the bot, or null when nothing is worth pressing now. The modifiers are folded once per press, and
+ * The next press of the bot, or null when nothing is worth pressing now; culture and heroes only on `reviewCulture`. The modifiers are folded once per press, and
  * MAX is pressed only when it buys a level: money ≥ the next level's price (what MAX's `maxAffordable` > 0 means).
  */
-function nextAction(s: GameState, now: number, prices: PriceCache): Action | null {
+function nextAction(s: GameState, now: number, prices: PriceCache, reviewCulture: boolean): Action | null {
   const hire = hireCount(s, now);
   if (hire > 0) return { type: 'hire', n: hire };
+  // Culture and heroes after the raids (claimed before the presses) and before the Sich (culture-policy.ts).
+  const culture = reviewCulture ? cultureChoice(s) : null;
+  if (culture) return culture.action;
   const village = villageOf(s);
   // Glory: level the open Sich evenly (bloom wants all of them at 25), the cheaper first on a tie.
   const open = visibleSichIds(s)
@@ -367,6 +366,7 @@ export function simulate(options: SimOptions): SimResult {
   const raidClaims: RaidClaimLog[] = [];
   const dayLog: DayLog[] = [];
   const day = { lifetime: state.village.lifetimeDucats.toNumber(), raidDucats: 0, claimed: 0, won: 0, pysanky: 0 };
+  const spent = { culture: 0, heroes: 0, sich: 0 };
   let bloom: number | null = null;
   let bloomSession: number | null = null;
   const bloomed = (): boolean => bloom !== null;
@@ -418,6 +418,12 @@ export function simulate(options: SimOptions): SimResult {
         case 'RelicFound':
           note(t, 'firstRelic', e.id);
           break;
+        case 'HeroJoined':
+          note(t, 'heroJoined', e.id);
+          break;
+        case 'CultureBought':
+          if (e.from === 0) note(t, 'cultureNode', e.id);
+          break;
         default:
       }
     }
@@ -426,6 +432,7 @@ export function simulate(options: SimOptions): SimResult {
 
   const afterStep = (t: number): void => {
     if (church && sichUnlocked(church, state)) note(t, 'churchOpen');
+    for (const b of CULTURE_BRANCHES) if (cultureBranchOpen(b, state)) note(t, 'cultureBranch', b.id);
     if (bloom === null && bloomStatus(state).reached) {
       bloom = sec(t);
       bloomSession = sessionOf(t, starts);
@@ -445,9 +452,27 @@ export function simulate(options: SimOptions): SimResult {
     return record(r.events, t);
   };
 
+  /** Adds the glory prices of the culture, hero and Sich levels in `events` (bought on `before`) to the day. */
+  const logSpent = (before: GameState, events: readonly GameEvent[]): void => {
+    const v = villageOf(before);
+    for (const e of events) {
+      if (e.type === 'CultureBought') {
+        const node = CULTURE_NODES.find((n) => n.id === e.id);
+        if (node) spent.culture += culturePrice(node, e.from, steadyModifiers(before).cultureCostMult).toNumber();
+      } else if (e.type === 'HeroLevelled') {
+        const hero = HEROES.find((h) => h.id === e.id);
+        if (hero) spent.heroes += heroPrice(hero, e.from, e.to - e.from).toNumber();
+      } else if (e.type === 'SichUpgraded') {
+        const b = SICH_BUILDINGS.find((x) => x.id === e.id);
+        if (b) spent.sich += bulkCost(b, e.from, e.to - e.from, v.gloryScale).toNumber();
+      }
+    }
+  };
+
   const act = (action: Action, t: number): { ok: boolean; noticeable: number } => {
     const r = applyAction(state, action, t);
     if (r.events.some((e) => e.type === 'ActionRejected')) return { ok: false, noticeable: 0 };
+    logSpent(state, r.events);
     state = r.state;
     return { ok: true, noticeable: record(r.events, t) };
   };
@@ -518,10 +543,6 @@ export function simulate(options: SimOptions): SimResult {
 
   /** Claims every finished quest now (a claimed chain step can start one already met: claimed in turn). */
   const claimAll = (t: number, claims: { chain: number; chore: number; choreRewards: number }): void => {
-    // The culture stand-in until M4-09: the first culture rank on the step `culture1` (not counted as an action).
-    state = standInCulture(state) ?? state;
-    // And for the culture chores (M4-08): the next loop claims them.
-    state = standInChore(state) ?? state;
     for (;;) {
       const q = chainQuest(state);
       if (!q?.done) break;
@@ -548,6 +569,7 @@ export function simulate(options: SimOptions): SimResult {
   for (let i = 0; i < starts.length; i += 1) {
     const start = starts[i] ?? 0;
     let actions = 0;
+    let culturePresses = 0;
     let noticeable = 0;
     let atOpen = 0;
     const claims = { chain: 0, chore: 0, choreRewards: 0 };
@@ -563,11 +585,12 @@ export function simulate(options: SimOptions): SimResult {
       claimRaids(t, raids);
       claimAll(t, claims);
       for (let p = 0; p < MAX_PRESSES_PER_STEP; p += 1) {
-        const a = nextAction(state, t, prices);
+        const a = nextAction(state, t, prices, t === start || cultureAsked(state));
         if (!a) break;
         const r = act(a, t);
         if (!r.ok) break;
         actions += 1;
+        if (a.type === 'buyCulture' || a.type === 'levelHero') culturePresses += 1;
         stepNoticeable += r.noticeable;
         claimAll(t, claims);
       }
@@ -582,6 +605,7 @@ export function simulate(options: SimOptions): SimResult {
       index: i + 1,
       start: sec(start),
       actions,
+      culture: culturePresses,
       noticeable,
       noticeableAtOpen: atOpen,
       claims: { chain: claims.chain, chore: claims.chore },
@@ -603,8 +627,11 @@ export function simulate(options: SimOptions): SimResult {
         pysanky: day.pysanky,
         lootMult: mods.lootMult,
         incomeMult: mods.incomeMult,
+        glorySpent: { ...spent },
+        modifiers: scalarFields(mods),
       });
       Object.assign(day, { lifetime, raidDucats: 0, claimed: 0, won: 0, pysanky: 0 });
+      Object.assign(spent, { culture: 0, heroes: 0, sich: 0 });
     }
     if (stopping) break;
   }
