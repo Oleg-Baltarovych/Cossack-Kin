@@ -34,6 +34,7 @@ import {
   villageOf,
   WIND_BUILDING,
   type ModSource,
+  type Modifiers,
   type ModSourceRef,
   type ScalarField,
 } from './modifiers.ts';
@@ -42,7 +43,7 @@ import { raidSuggested } from './raid-selectors.ts';
 import { offer } from './selectors.ts';
 import type { GameState } from './state.ts';
 import { armyPower, gloryRate } from './systems/army.ts';
-import { CULTURE_PRICE_SCALE, culturePrereqMet, culturePrice, heroPrice } from './systems/culture.ts';
+import { CULTURE_PRICE_SCALE, culturePrereqMet, culturePrice } from './systems/culture.ts';
 import { MS_PER_SEC, previewRaid } from './systems/raids.ts';
 import { windLookAt } from './systems/village-mechanics/wind.ts';
 
@@ -189,27 +190,29 @@ interface Meter {
 }
 
 function meter(state: GameState, tier: RaidTierId): Meter {
-  const mods = collectModifiers(state, state.time.lastSeen);
+  // Folded only when a metric is read (a card of relative-only effects reads none).
+  let folded: Modifiers | undefined;
+  const mods = (): Modifiers => (folded ??= collectModifiers(state, state.time.lastSeen));
   const bigs = new Map<BigMetric, Big>();
   const nums = new Map<NumberMetric, number>();
   const measureBig = (metric: BigMetric): Big => {
     switch (metric) {
       case 'ducatsPerSec':
-        return farmIncomeRate(state, mods);
+        return farmIncomeRate(state, mods());
       case 'offlineDucatsPerSec':
-        return farmIncomeRate(state, mods).mul(mods.offlineMult);
+        return farmIncomeRate(state, mods()).mul(mods().offlineMult);
       case 'gloryPerSec':
-        return gloryRate(state, mods);
+        return gloryRate(state, mods());
     }
   };
   const measureNum = (metric: NumberMetric): number => {
     switch (metric) {
       case 'power':
-        return armyPower(state, mods);
+        return armyPower(state, mods());
       case 'offlineCapSec':
-        return mods.offlineCapSec;
+        return mods().offlineCapSec;
       case 'gloryCapSec':
-        return mods.gloryCapSec;
+        return mods().gloryCapSec;
       case 'raidSec':
         return previewRaid(state, tier).durationMs / MS_PER_SEC;
     }
@@ -266,23 +269,37 @@ function previews(
   });
 }
 
+/** Whether any of `effects` has an absolute number (else no «after» state is measured at all). */
+function measurable(effects: readonly RankedEffect[]): boolean {
+  return effects.some((e) => KIND_METRIC[e.kind] !== null);
+}
+
 /** The raid tier whose duration a raid-time line shows: the one the map opens on (the same before and after). */
 function shownTier(state: GameState): RaidTierId {
   return raidSuggested(state) ?? RAID_TIER_IDS[0];
 }
 
-/** `buyCulture`'s refusal for `node` in `state`, in its order, at `price` (null: at the max). */
-function cultureBlock(node: CultureNode, state: GameState, price: Big | null): CultureBlock {
-  if (!cultureNodeOpen(node, state)) return 'locked';
-  if (price === null) return 'max';
-  if (!culturePrereqMet(node, state)) return 'prereq';
-  return state.currencies.glory.lt(price) ? 'glory' : null;
-}
-
-/** The next rank's price; null at the max. */
-function nextPrice(node: CultureNode, state: GameState, cultureCostMult: number): Big | null {
+/**
+ * A node's rank, its next rank's price (null at the max) and `buyCulture`'s refusal in its order — the one reading the
+ * card and the red dot share.
+ */
+function nodeState(
+  node: CultureNode,
+  state: GameState,
+  cultureCostMult: number,
+): { readonly rank: number; readonly price: Big | null; readonly blocked: CultureBlock } {
   const rank = state.culture[node.id] ?? 0;
-  return rank >= node.maxRank ? null : culturePrice(node, rank, cultureCostMult);
+  const price = rank >= node.maxRank ? null : culturePrice(node, rank, cultureCostMult);
+  const blocked: CultureBlock = !cultureNodeOpen(node, state)
+    ? 'locked'
+    : price === null
+      ? 'max'
+      : !culturePrereqMet(node, state)
+        ? 'prereq'
+        : state.currencies.glory.lt(price)
+          ? 'glory'
+          : null;
+  return { rank, price, blocked };
 }
 
 export function cultureView(state: GameState): CultureView {
@@ -290,11 +307,12 @@ export function cultureView(state: GameState): CultureView {
   const tier = shownTier(state);
   const now = meter(state, tier);
   const nodeView = (node: CultureNode): CultureNodeView => {
-    const rank = state.culture[node.id] ?? 0;
-    const price = nextPrice(node, state, mult);
+    const { rank, price, blocked } = nodeState(node, state, mult);
     const to = price === null ? null : rank + 1;
-    const counts = cultureNodeOpen(node, state);
-    const after = to === null ? null : meter({ ...state, culture: { ...state.culture, [node.id]: to } }, tier);
+    // A closed branch's node gives nothing: no absolute number, so nothing to measure.
+    const counts = cultureNodeOpen(node, state) && measurable(node.effects);
+    const after =
+      counts && to !== null ? meter({ ...state, culture: { ...state.culture, [node.id]: to } }, tier) : null;
     return {
       id: node.id,
       branch: node.branch,
@@ -306,7 +324,7 @@ export function cultureView(state: GameState): CultureView {
       rank,
       maxRank: node.maxRank,
       price,
-      blocked: cultureBlock(node, state, price),
+      blocked,
       effects: previews(node.effects, rank, to, counts ? { now, after } : null),
     };
   };
@@ -353,13 +371,14 @@ export function heroesView(state: GameState, mode: BuyMode): readonly HeroView[]
     }
     const o = offer(h, level, h.levelMax, state.currencies.glory, CULTURE_PRICE_SCALE, mode, 1);
     const to = level + o.count;
-    const after = meter({ ...state, heroes: { ...state.heroes, [h.id]: to } }, tier);
+    const counts = measurable(h.effects);
+    const after = counts ? meter({ ...state, heroes: { ...state.heroes, [h.id]: to } }, tier) : null;
     return {
       ...base,
       count: o.count,
       price: o.price,
       blocked: o.affordable ? null : 'glory',
-      effects: previews(h.effects, level, to, { now, after }),
+      effects: previews(h.effects, level, to, counts ? { now, after } : null),
     };
   });
 }
@@ -372,14 +391,17 @@ export function heroesView(state: GameState, mode: BuyMode): readonly HeroView[]
  */
 export function cultureClaimable(state: GameState): boolean {
   const mult = steadyModifiers(state).cultureCostMult;
-  const node = CULTURE_NODES.some(
-    (n) => (state.culture[n.id] ?? 0) === 0 && cultureBlock(n, state, nextPrice(n, state, mult)) === null,
-  );
+  const node = CULTURE_NODES.some((n) => {
+    const x = nodeState(n, state, mult);
+    return x.rank === 0 && x.blocked === null;
+  });
   return node || HEROES.some((h) => heroNew(h, state));
 }
 
+/** Came, never levelled, and the ×1 button of his card can be pressed (the card's own offer). */
 function heroNew(h: HeroDef, state: GameState): boolean {
-  return heroLevel(h.id, state) === 1 && h.levelMax > 1 && state.currencies.glory.gte(heroPrice(h, 1, 1));
+  if (heroLevel(h.id, state) !== 1) return false;
+  return offer(h, 1, h.levelMax, state.currencies.glory, CULTURE_PRICE_SCALE, 1, 1).affordable;
 }
 
 /** A scalar field, or one farm building's multiplier. */
@@ -402,6 +424,10 @@ export interface ModifierBreakdown {
   readonly wind: number;
   /** The field the economy uses at `lastSeen` (= `collectModifiers`). */
   readonly value: number;
+  /**
+   * The rows the player reads: every source of the field whose shown value is not 0. Content shares are multiples of
+   * `PERCENT_STEP` (content test), so the rows add up to `shownTotal` exactly.
+   */
   readonly sources: readonly BreakdownSource[];
   /** Σ shares as shown (the bonus or reduction the sources make together). */
   readonly shownTotal: number;
@@ -419,7 +445,9 @@ export function modifierBreakdown(state: GameState, field: BreakdownField): Modi
   for (const s of list) total += s.share;
   const common = {
     unit,
-    sources: list.map((s) => ({ source: s.source, share: s.share, shown: shown(unit, s.share) })),
+    sources: list
+      .map((s) => ({ source: s.source, share: s.share, shown: shown(unit, s.share) }))
+      .filter((s) => s.shown !== 0),
     shownTotal: shown(unit, total),
   };
   if (typeof field === 'string') {

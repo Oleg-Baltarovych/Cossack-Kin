@@ -94,6 +94,7 @@ Legend: — not started · 🚧 in progress · ✅ done.
 - **Debug hooks (dev/test only, compiled out of `dist/`):** `window.__CK__` (render: `stats`, `plotAt`, `buildingAt`), `window.__CK_GAME__` (`dispatch(action)`, `notifications()`); URL params in `CLAUDE.md`. `document.body.dataset.ready` = `"1"` after the first frame, `"error"` on a failed atlas load.
 - **Agents and skills** load only when the Claude Code session starts in this folder.
 - **CI shape:** push/PR → «Check, build» (typecheck → test → lint → format:check → sprites → build → `pnpm security`), «Secret scan (gitleaks)», «e2e (functional)» (`--grep-invert "@screens|@perf"`, skipped for docs-only changes by the `changes` job). `e2e-full` (7 jobs incl. `@screens`; 412 runs as 2 shards × 1 worker) runs nightly at 02:00 UTC if main changed, and on manual dispatch. Artifact `e2e-reports` (7 days).
+- **Culture red dot is derived (M4-07):** a rank-0 node the player deliberately skips keeps «Культура» lit while he can afford it; a persisted `seen` set would be a save change — revisit only if playtests complain.
 - **Screenshot baselines (Linux only):** compared only when `process.platform === 'linux'`, under `tests/e2e/__screenshots__/`. Regenerate after an intended visual change: Actions → CI → Run workflow (branch, tick `update_snapshots`) → download every `screenshot-baselines-*` artifact → unzip into `tests/e2e/__screenshots__/` → review the images → commit. With no PNG committed the run uses `--ignore-snapshots`; otherwise missing/different = red.
 
 ## 7. SPEC index (`docs/SPEC.md`)

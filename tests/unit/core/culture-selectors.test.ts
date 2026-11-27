@@ -309,6 +309,26 @@ describe('blocked mirrors the engine (M4-07)', () => {
     }
   });
 
+  it('a late-game purse (≥ 1e15): blocked, the price and what buyCulture takes', () => {
+    const purse = 1e15;
+    // Glory − a price at 1e15 keeps ~16 digits: the tolerance scales with the purse.
+    const tol = purse * 1e-12;
+    const s = late({ glory: purse, culture: RANK1 });
+    const mult = collectModifiers(s, s.time.lastSeen).cultureCostMult;
+    for (const v of cultureView(s).branches.flatMap((b) => b.nodes)) {
+      if (v.blocked !== null) continue;
+      expect(v.price?.eq(culturePrice(nodeOf(v.id), v.rank, mult)), v.id).toBe(true);
+      const r = applyAction(s, { type: 'buyCulture', id: v.id }, s.time.lastSeen);
+      const want = s.currencies.glory.sub(v.price ?? 0);
+      expect(Math.abs(r.state.currencies.glory.sub(want).toNumber()), v.id).toBeLessThanOrEqual(tol);
+    }
+    expect(
+      cultureView(s)
+        .branches.flatMap((b) => b.nodes)
+        .filter((v) => v.blocked === null).length,
+    ).toBeGreaterThan(0);
+  });
+
   it('the node price carries cultureCostMult («Кобза діда», the Кобзар)', () => {
     const s = { ...late({ heroes: { kobzar: 10 } }), relics: [...RELIC_IDS] };
     const mult = collectModifiers(s, s.time.lastSeen).cultureCostMult;
@@ -358,6 +378,11 @@ describe('modifierBreakdown (M4-07, П3): sources with shares, folded = the fiel
         for (const x of b.sources) expect(x.shown).toBe(b.unit === 'percent' ? effectPercent(x.share) : x.share);
         const total = b.sources.reduce((sum, x) => sum + x.share, 0);
         expect(b.shownTotal).toBe(b.unit === 'percent' ? effectPercent(total) : total);
+        // The rows the player adds up give the total he reads (content shares are on PERCENT_STEP).
+        expect(
+          b.sources.reduce((sum, x) => sum + x.shown, 0),
+          JSON.stringify(f),
+        ).toBe(b.shownTotal);
       }
     }
   });
