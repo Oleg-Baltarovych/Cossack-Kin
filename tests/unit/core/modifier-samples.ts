@@ -2,7 +2,7 @@
 // every Sich level random (locked ones too, as a crafted save), random relics and a random moment for the wind — drawn
 // from the seeded core RNG. No culture and no heroes: these are the states whose field values the golden file
 // `tests/fixtures/golden/modifier-fields-m4-03.json` pinned before culture and hero sources existed (M4-05).
-import { RELIC_IDS } from '../../../src/content/relics.ts';
+import type { RelicId } from '../../../src/content/relics.ts';
 import { SICH_BUILDING_IDS } from '../../../src/content/sich.ts';
 import { FARM_BUILDING_IDS } from '../../../src/content/villages/khortytsia.ts';
 import { createRng, next, type Rng } from '../../../src/core/rng.ts';
@@ -27,6 +27,9 @@ export interface Sample {
   readonly now: number;
 }
 
+/** The relics the golden file was taken with (M4-03): «Кобза діда» (M4-06) moves a field they never saw. */
+export const GOLDEN_RELICS: readonly RelicId[] = ['pernach', 'porokhivnytsia'];
+
 export function randomState(seed: number): Sample {
   const int = draws(seed);
   const s = createInitialState({ seed, now: T0 });
@@ -35,7 +38,7 @@ export function randomState(seed: number): Sample {
   for (const id of FARM_BUILDING_IDS) levels[id] = floor + int(60);
   const sichLevels = { ...s.village.sichLevels };
   for (const id of SICH_BUILDING_IDS) sichLevels[id] = int(50);
-  const relics = RELIC_IDS.filter((_, i) => (seed >> i) % 2 === 1);
+  const relics = GOLDEN_RELICS.filter((_, i) => (seed >> i) % 2 === 1);
   return { state: { ...s, relics, village: { ...s.village, levels, sichLevels } }, now: T0 + int(30 * DAY) };
 }
 

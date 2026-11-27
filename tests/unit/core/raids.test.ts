@@ -203,12 +203,12 @@ describe('rollRaid', () => {
     expect([...found].sort()).toEqual([...RELIC_IDS].sort());
   });
 
-  it('pickRelic draws among the unfound relics only', () => {
+  it('pickRelic draws among the unfound relics only (on a 30-min raid: «Кобза діда» is found from 1 h, M4-06)', () => {
     for (const u of [0, 0.25, 0.5, 0.75, 0.999]) {
-      expect(pickRelic([], u)).not.toBeNull();
-      expect(pickRelic(['pernach'], u)).toBe('porokhivnytsia');
-      expect(pickRelic(['porokhivnytsia'], u)).toBe('pernach');
-      expect(pickRelic(RELIC_IDS, u)).toBeNull();
+      expect(pickRelic([], 'm30', u)).not.toBeNull();
+      expect(pickRelic(['pernach'], 'm30', u)).toBe('porokhivnytsia');
+      expect(pickRelic(['porokhivnytsia'], 'm30', u)).toBe('pernach');
+      expect(pickRelic(RELIC_IDS, 'h8', u)).toBeNull();
     }
   });
 
@@ -339,7 +339,9 @@ describe('concurrent raids (relics held in slots)', () => {
   });
 
   it('once every relic is found or pending, the relic chance goes to the pysanky', () => {
-    const { s2 } = second(1, ['pernach'], 'returned');
+    const { s2: pending } = second(1, ['pernach'], 'returned');
+    // «Кобза діда» (M4-06) is the one left: found by the 8-h raid, so this case holds it as found already.
+    const s2: GameState = { ...pending, relics: [...pending.relics, 'kobza'] };
     expect(s2.raids.slots[0]?.kind === 'returned' && s2.raids.slots[0].raid.loot.relic).toBe('porokhivnytsia');
     const pre = previewRaid(s2, 'h8');
     expect(pre.relicChance).toBe(0);

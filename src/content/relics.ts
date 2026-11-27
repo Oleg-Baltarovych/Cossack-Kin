@@ -1,24 +1,31 @@
 // Relics (SPEC §3.4, plan M3-02, Q5, Q16): a collection found on raids, each kept for good (it survives resettling,
 // §3.6) and acting only through `collectModifiers`. No duplicates: a relic roll draws among the land's unfound relics;
-// when all are found, the relic chance becomes a pysanky chance (M3-03). Ids are saved (`relics`): never rename.
+// when all a tier can find are found, its relic chance becomes a pysanky chance (M3-03, M4-06). Ids are saved
+// (`relics`, raid slots) and the list order is part of every relic pick (`pickRelic`): append only, never rename.
 
-import type { RaidTierId } from './raids.ts';
+import type { EffectKind } from './effects.ts';
+import { tierRank, type RaidTierId } from './raids.ts';
 import type { Village } from './villages/khortytsia.ts';
 
-export const RELIC_IDS = ['pernach', 'porokhivnytsia'] as const;
+export const RELIC_IDS = ['pernach', 'porokhivnytsia', 'kobza'] as const;
 export type RelicId = (typeof RELIC_IDS)[number];
 
 /**
- * A relic's passive bonus: + share (0.05 = +5 %) to the `Modifiers` field its kind names, 1:1 — `power` → `powerMult`,
- * `loot` → `lootMult` (M3-06, `collectModifiers`). The UI fills `{value}` of `textKey` with share × 100.
+ * A relic's passive bonus: a share (0.05 = 5 %) of the `Modifiers` field its kind names, 1:1 like the ranked effects
+ * (effects.ts) — `power` → +`powerMult`, `loot` → +`lootMult` (M3-06), `cultureCost` → −`cultureCostMult` (a reducing
+ * kind, floored by `EFFECT_FLOORS`; M4-06). The UI fills `{value}` of `textKey` with share × 100.
  */
-export type RelicEffect =
-  { readonly kind: 'power'; readonly share: number } | { readonly kind: 'loot'; readonly share: number };
+export interface RelicEffect {
+  readonly kind: Extract<EffectKind, 'power' | 'loot' | 'cultureCost'>;
+  readonly share: number;
+}
 
 export interface RelicDef {
   readonly id: RelicId;
   /** The land whose raids find it. */
   readonly village: Village['id'];
+  /** The shortest raid tier that can find it (content test: that tier has a relic chance or counts for the pity). */
+  readonly minTier: RaidTierId;
   readonly effect: RelicEffect;
   readonly nameKey: string;
   readonly textKey: string;
@@ -26,10 +33,11 @@ export interface RelicDef {
   readonly factKey: string;
 }
 
-function relic(id: RelicId, effect: RelicEffect): RelicDef {
+function relic(id: RelicId, minTier: RaidTierId, effect: RelicEffect): RelicDef {
   return {
     id,
     village: 'khortytsia',
+    minTier,
     effect,
     nameKey: `relic.${id}.name`,
     textKey: `relic.${id}.text`,
@@ -37,11 +45,24 @@ function relic(id: RelicId, effect: RelicEffect): RelicDef {
   };
 }
 
-/** Q5: in M3 «Пернач» and «Порохівниця»; «Кобза діда» (−5 % culture price) comes with culture in M4. */
+/**
+ * Q5: in M3 «Пернач» and «Порохівниця», from the 30-min raids (the first tier with a relic chance); M4-06 (Q14):
+ * «Кобза діда», −5 % culture price, only from raids of 1 h and longer — an old man's kobza is not found on a short
+ * scouting ride, and the 30-min raids keep their pysanky once the first two are found.
+ */
 export const RELIC_DEFS: readonly RelicDef[] = [
-  relic('pernach', { kind: 'power', share: 0.05 }),
-  relic('porokhivnytsia', { kind: 'loot', share: 0.1 }),
+  relic('pernach', 'm30', { kind: 'power', share: 0.05 }),
+  relic('porokhivnytsia', 'm30', { kind: 'loot', share: 0.1 }),
+  relic('kobza', 'h1', { kind: 'cultureCost', share: 0.05 }),
 ];
+
+/**
+ * Whether a raid of `tier` can find relic `r` at all: from its `minTier` on (M4-06). The one definition — the roll
+ * (`systems/raids.ts`), the save gate and the treasury hint all read it.
+ */
+export function relicOnTier(r: RelicDef, tier: RaidTierId): boolean {
+  return tierRank(tier) >= tierRank(r.minTier);
+}
 
 /**
  * The pity (Q5, Q16 — for every relic): `raids.pity` counts successful raids of tier ≥ `pityMinTier` that gave no

@@ -14,10 +14,11 @@ import type { IconId } from '../icons.ts';
 import { Icon } from './Icon.tsx';
 import styles from './Treasury.module.css';
 
-/** Every relic has its picture and its silhouette in the `ui` atlas (a new relic without them fails to compile). */
+/** Every relic has its picture and its silhouette in the `loot` atlas (a new relic without them fails to compile). */
 const SILHOUETTE: Readonly<Record<RelicId, IconId>> = {
   pernach: 'pernach-unknown',
   porokhivnytsia: 'porokhivnytsia-unknown',
+  kobza: 'kobza-unknown',
 };
 
 const selectRelics = (s: GameState): readonly RelicView[] => relicsView(s);

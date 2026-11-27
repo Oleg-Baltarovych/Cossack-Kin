@@ -6,8 +6,10 @@
 //   chance  = clamp(power / P, chanceMin, 1)
 //   loot    = max(rate × lootSec, REWARD floor) × lootMult (ducats; glory alike with gloryLootSec) at steadyModifiers,
 //             so the loot shown on the card is the loot granted (Q4); a failure gives failShare of it, never 0
-//   success → pysanky (chance per tier) and a relic (chance per tier × relicChanceMult, only among the unfound ones,
-//             sure on the pityThreshold-th qualifying success; all found → the relic chance goes to the pysanky)
+//   success → pysanky (chance per tier) and a relic (chance per tier × relicChanceMult, only among the unfound ones the
+//             tier can find, sure on the pityThreshold-th qualifying success; none left for the tier → the relic chance
+//             goes to the pysanky)
+//   return  = start + ceil(duration × raidTimeMult) at steadyModifiers (the Характерник), fixed at the start (M4-06)
 // lootMult and relicChanceMult are the steady Modifiers' (treasury, relics: only via collectModifiers) + the rumour's
 // share. Relic and pysanky chances are clamped to 1 after the multipliers. Everything random is drawn once at start from
 // `state.rng`, always the same number of draws in the same order (ROLL_DRAWS) — that order is frozen (golden test).
@@ -26,7 +28,7 @@ import {
   type RumorEffect,
   type RumorId,
 } from '../../content/raids.ts';
-import { RELIC_DEFS, RELICS, pityThreshold, type RelicId } from '../../content/relics.ts';
+import { RELIC_DEFS, RELICS, pityThreshold, relicOnTier, type RelicId } from '../../content/relics.ts';
 import { Big } from '../big.ts';
 import type { GameEvent } from '../events.ts';
 import { steadyModifiers, villageOf } from '../modifiers.ts';
@@ -210,35 +212,41 @@ export function heldRelics(state: GameState): readonly RelicId[] {
   return [...held];
 }
 
-/** The relics not held, in content order. */
-function unfound(held: readonly RelicId[]): readonly RelicId[] {
+/**
+ * The relics a raid of `tier` can still find: not held and found on that tier, in content order (the order is part of
+ * every pick: RELIC_DEFS is append only). Empty = the collection is complete as far as this tier goes.
+ */
+function unfound(held: readonly RelicId[], tier: RaidTierId): readonly RelicId[] {
   // M5: filter by `village` (the land of the raid) once land 2 has relics; every relic is land 1's until then.
-  return RELIC_DEFS.filter((r) => !held.includes(r.id)).map((r) => r.id);
+  return RELIC_DEFS.filter((r) => !held.includes(r.id) && relicOnTier(r, tier)).map((r) => r.id);
 }
 
-/** A relic among those not `held` by `u` ∈ [0, 1); null when all are held (no duplicates, Q5). */
-export function pickRelic(held: readonly RelicId[], u: number): RelicId | null {
-  const left = unfound(held);
+/** A relic of `tier` among those not `held` by `u` ∈ [0, 1); null when none is left for it (no duplicates, Q5). */
+export function pickRelic(held: readonly RelicId[], tier: RaidTierId, u: number): RelicId | null {
+  const left = unfound(held, tier);
   return left[Math.min(left.length - 1, Math.floor(u * left.length))] ?? null;
 }
 
 interface Odds {
-  /** Relic chance on a success (0 when all are found). */
+  /** Relic chance on a success (0 when the tier has none left to find). */
   readonly relic: number;
   /** Pysanky chance on a success. */
   readonly pysanky: number;
   /** A success is certain to give a relic (the pity). */
   readonly relicSure: boolean;
-  /** A success without a relic moves the pity counter (tier ≥ pityMinTier and a relic left to find). */
+  /** A success without a relic moves the pity counter (tier ≥ pityMinTier and a relic left for it to find). */
   readonly pityCounts: boolean;
 }
 
-/** Chances on a success after the multipliers, each clamped to 1 (ADR 012). */
+/**
+ * Chances on a success after the multipliers, each clamped to 1 (ADR 012). A tier with no relic left for it (all found,
+ * or the rest only on longer raids) turns its relic chance into pysanky and neither counts nor grants the pity.
+ */
 function oddsOf(state: GameState, tier: RaidTierId, rumor: RumorId | null): Odds {
   const t = raidTier(tier);
   const held = heldRelics(state);
   const relic = t.relicChance * (steadyModifiers(state).relicChanceMult + rumorShare(rumor, 'relic'));
-  if (unfound(held).length === 0) {
+  if (unfound(held, tier).length === 0) {
     return { relic: 0, pysanky: Math.min(1, t.pysankyChance + relic), relicSure: false, pityCounts: false };
   }
   const counts = pityCounts(tier);
@@ -279,6 +287,17 @@ export interface RaidPreview {
   readonly relicSure: boolean;
   /** A success without a relic moves the pity counter. */
   readonly pityCounts: boolean;
+  /** How long the raid would take (ms): the tier's duration × the steady `raidTimeMult` (`raidDurationMs`). */
+  readonly durationMs: number;
+}
+
+/**
+ * A raid's duration if started now (ms): the tier's × the steady `raidTimeMult` (the Характерник), rounded up to the
+ * ms — fixed at the start and stored as `returnAt` (ADR 013, Q8). `raidTimeMult` ≥ `RAIDS.minTimeMult` (its floor), so
+ * this stays in the v5 gate's window [ceil(durMs × minTimeMult), durMs]: IEEE multiplication is monotone.
+ */
+function raidDurationMs(state: GameState, tier: RaidTierId): number {
+  return Math.ceil(raidTier(tier).durationSec * MS_PER_SEC * steadyModifiers(state).raidTimeMult);
 }
 
 /**
@@ -305,6 +324,7 @@ export function previewRaid(state: GameState, tier: RaidTierId): RaidPreview {
     pysankyChance: odds.pysanky,
     relicSure: odds.relicSure,
     pityCounts: odds.pityCounts,
+    durationMs: raidDurationMs(state, tier),
   };
 }
 
@@ -335,7 +355,7 @@ export function rollRaid(
   const success = uSuccess < pre.chance;
   const { min, max } = RAIDS.pysanky;
   const pysanky = success && uPysanky < pre.pysankyChance ? min + Math.floor(uCount * (max - min + 1)) : 0;
-  const relic = success && uRelic < pre.relicChance ? pickRelic(heldRelics(state), uWhich) : null;
+  const relic = success && uRelic < pre.relicChance ? pickRelic(heldRelics(state), tier, uWhich) : null;
   const pity = relic !== null ? 0 : success && pre.pityCounts ? state.raids.pity + 1 : state.raids.pity;
   const amounts = success ? pre.success : pre.failure;
   return {
@@ -343,8 +363,8 @@ export function rollRaid(
       region: pre.region,
       tier,
       startedAt: now,
-      // Modifiers.raidTimeMult (Характерник, M4) is 1 and not applied: the v4 gate checks this to the ms (modifiers.ts).
-      returnAt: now + raidTier(tier).durationSec * MS_PER_SEC,
+      // Fixed at the start (ADR 013): a level of the Характерник later never moves a raid on the road.
+      returnAt: now + pre.durationMs,
       success,
       rumor: pre.rumor !== null,
       loot: { ducats: amounts.ducats, glory: amounts.glory, pysanky, relic },

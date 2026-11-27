@@ -31,6 +31,8 @@ export const LOOT_ICON_IDS = [
   'porokhivnytsia',
   'pernach-unknown',
   'porokhivnytsia-unknown',
+  'kobza',
+  'kobza-unknown',
 ] as const;
 export type UiIconId = (typeof ICON_IDS)[number];
 export type LootIconId = (typeof LOOT_ICON_IDS)[number];

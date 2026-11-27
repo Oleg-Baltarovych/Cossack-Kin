@@ -11,6 +11,7 @@ import {
   RAID_TIERS,
   RAIDS,
   REGIONS,
+  tierRank,
   type RaidTierId,
 } from '../../../src/content/raids.ts';
 import { pityThreshold, RELIC_DEFS, RELIC_IDS, RELICS } from '../../../src/content/relics.ts';
@@ -180,6 +181,14 @@ describe('relics (M3-02, Q5, Q16)', () => {
       expect(r.effect.share, r.id).toBeLessThan(1);
       // `{value}` of its text is share × 100: a whole percent, never «+12.5 %».
       expect(Number.isInteger(Math.round(r.effect.share * 100 * 1e6) / 1e6), r.id).toBe(true);
+    }
+  });
+
+  it('every relic can be found from its minTier on: that tier has a relic chance or is counted by the pity (M4-06)', () => {
+    for (const r of RELIC_DEFS) {
+      const t = RAID_TIERS.find((x) => x.id === r.minTier);
+      expect(t, r.id).toBeDefined();
+      expect((t?.relicChance ?? 0) > 0 || tierRank(r.minTier) >= tierRank(RELICS.pityMinTier), r.id).toBe(true);
     }
   });
 

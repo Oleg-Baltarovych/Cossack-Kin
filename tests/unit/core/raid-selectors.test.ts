@@ -282,7 +282,9 @@ describe('relicsView and raidSceneView', () => {
         IDLE,
       ],
     });
-    expect(relicHint(near(riding, 0))).toEqual({ fromTier: first, near: false });
+    // «Порохівниця» on its way home is not looked for: only «Кобза діда» is left, found from 1 h (M4-06).
+    expect(relicHint(near(riding, 0))).toEqual({ fromTier: 'h1', near: false });
+    expect(relicHint(near({ ...riding, relics: ['pernach', 'kobza'] }, 0))).toEqual({ fromTier: first, near: false });
     // Every relic found: no hint at all.
     expect(relicHint(st({ relics: RELIC_DEFS.map((r) => r.id) }))).toBeNull();
   });

@@ -14,6 +14,9 @@ export const LOOT_ICONS = [
   'porokhivnytsia',
   'pernach-unknown',
   'porokhivnytsia-unknown',
+  // M4-06, appended (frames keep their atlas places): «Кобза діда» and its silhouette.
+  'kobza',
+  'kobza-unknown',
 ] as const;
 export type LootIconId = (typeof LOOT_ICONS)[number];
 
@@ -194,10 +197,89 @@ function porokhivnytsia(i: Icon): void {
   }
 }
 
+/**
+ * Кобза діда: an old kobza laid on the slant (art-director M4-06, like the world kobzar's) — a pear-shaped bowl with a
+ * pale soundboard in a dark rim (it must not melt into the wood-3 niche of a found relic), the sound hole under the
+ * string, a bridge near the tail; a short neck carrying the one pale string; a dark pegbox bent back (a 1-px kink off
+ * the neck's axis) with brass pegs on both sides. Every px is set flat: no wood 0, 4 ramps (wood, thatch, gold, ink).
+ */
+function kobza(i: Icon): void {
+  // The bowl, drawn px by px (a 16-px ellipse left 4–5-px flat runs): [y, x0, x1] rows of a pear lying on the
+  // diagonal — round tail lower left, the shoulders stepping 1:1 into the neck (upper right); runs ≤ 3 on the outline.
+  const rows: readonly (readonly [number, number, number])[] = [
+    [6, 5, 6],
+    [7, 4, 7],
+    [8, 3, 7],
+    [9, 2, 8],
+    [10, 2, 8],
+    [11, 1, 8],
+    [12, 1, 7],
+    [13, 1, 6],
+    [14, 2, 4],
+  ];
+  const inBowl = (x: number, y: number): boolean => rows.some(([ry, x0, x1]) => ry === y && x >= x0 && x <= x1);
+  for (const [y, x0, x1] of rows) {
+    for (let x = x0; x <= x1; x++) {
+      const lit = x + y < 15;
+      const rim = !inBowl(x - 1, y) || !inBowl(x + 1, y) || !inBowl(x, y - 1) || !inBowl(x, y + 1);
+      // The rim dark (lit side wood 2, shadow side wood 1); the soundboard pale (wood 5 lit, wood 4 in shadow).
+      i.set(x, y, 'wood', rim ? (lit ? 2 : 1) : lit ? 5 : 4, { flat: true });
+    }
+  }
+  // The neck: a lit edge, the string on its axis (x + y = 16), a shadow edge.
+  for (const [x, y] of [
+    [8, 7],
+    [9, 6],
+    [10, 5],
+  ] as const)
+    i.set(x, y, 'wood', 2, { flat: true });
+  for (const [x, y] of [
+    [9, 8],
+    [10, 7],
+    [11, 6],
+  ] as const)
+    i.set(x, y, 'wood', 1, { flat: true });
+  for (const [x, y] of [
+    [8, 8],
+    [9, 7],
+    [10, 6],
+    [11, 5],
+  ] as const)
+    i.set(x, y, 'thatch', 5, { flat: true });
+  // The pegbox bent back: 2 px along the axis, 1 px lower-right of it, dark; brass pegs on both long sides.
+  for (const [x, y] of [
+    [12, 5],
+    [13, 4],
+    [13, 5],
+    [14, 4],
+  ] as const)
+    i.set(x, y, 'wood', 1, { flat: true });
+  for (const [x, y] of [
+    [12, 4],
+    [14, 5],
+    [13, 6],
+  ] as const)
+    i.set(x, y, 'gold', 3, { flat: true });
+  i.set(13, 3, 'gold', 4, { flat: true });
+  // On the soundboard the string is a fine shadowed line from the bridge to the hole; the hole and the bridge dark.
+  i.set(5, 11, 'wood', 3, { flat: true });
+  for (const [x, y] of [
+    [6, 10],
+    [7, 9],
+  ] as const)
+    i.set(x, y, 'ink', 1, { flat: true });
+  for (const [x, y] of [
+    [4, 11],
+    [5, 12],
+  ] as const)
+    i.set(x, y, 'wood', 1, { flat: true });
+}
+
 /** Relics not yet found show as their silhouette (the «Скарбниця», §0.1 П5): the shape, none of the colours. */
 const SILHOUETTE: Partial<Readonly<Record<LootIconId, true>>> = {
   'pernach-unknown': true,
   'porokhivnytsia-unknown': true,
+  'kobza-unknown': true,
 };
 
 const DRAW: Readonly<Record<LootIconId, (i: Icon) => void>> = {
@@ -207,6 +289,8 @@ const DRAW: Readonly<Record<LootIconId, (i: Icon) => void>> = {
   porokhivnytsia,
   'pernach-unknown': pernach,
   'porokhivnytsia-unknown': porokhivnytsia,
+  kobza,
+  'kobza-unknown': kobza,
 };
 
 const icon: SpriteGenerator = {
