@@ -63,19 +63,21 @@ describe('«Культура» tab (M4-12)', () => {
     expect(otaman.textContent).toContain('Рів. 4/25');
     // 2 % a level (content): 8 % now, 10 % after one more.
     expect(otaman.textContent).toContain(`+8${NBSP}% → +10${NBSP}% сили війська`);
-    expect(otaman.textContent).toContain('+1 рів.');
     const v = heroesView(store.getState(), 1).find((h) => h.id === 'otaman');
     const price = v?.price ? formatBig(v.price, 'uk', store.getState().settings.numberFormat) : '';
     const button = within(otaman).getByRole<HTMLButtonElement>('button', {
       name: `Підвищити «Кошовий отаман» на 1 рів. за ${price} слави`,
     });
     expect(button.disabled).toBe(false);
+    // The count it buys is on the button itself; no reason line while it can be pressed.
+    expect(button.textContent).toContain('Підвищити +1');
+    expect(button.getAttribute('aria-describedby')).toBeNull();
     fireEvent.click(button);
     expect(store.getState().heroes.otaman).toBe(5);
     expect(card(panel, 'otaman').textContent).toContain('Рів. 5/25');
   });
 
-  it('×10 too dear: the button is off and says why (aria-describedby); the count line gives way to the reason', () => {
+  it('×10 too dear: the button is off and says why (aria-describedby); the button names the ×10', () => {
     const store = createStore(culture());
     const panel = openCulture(store);
     fireEvent.click(within(panel).getByRole('button', { name: '×10' }));
@@ -86,7 +88,26 @@ describe('«Культура» tab (M4-12)', () => {
     const note = document.getElementById(button.getAttribute('aria-describedby') ?? '');
     expect(note?.textContent).toBe('Бракує слави');
     expect(button.getAttribute('aria-label')).toContain('на 10 рів.');
+    expect(button.textContent).toContain('Підвищити +10');
     expect(otaman.textContent).toContain(`+8${NBSP}% → +28${NBSP}% сили війська`);
+  });
+
+  it('reductions read as what they are, never as a minus range (M4-12 review)', () => {
+    const panel = openCulture(createStore(culture()));
+    expect(card(panel, 'kobzar').textContent).toContain(`знижка 1${NBSP}% → 2${NBSP}% на культуру`);
+    expect(card(panel, 'kharakternyk').textContent).toContain(`походи коротші: 1${NBSP}% → 2${NBSP}%`);
+    expect(panel.textContent).not.toMatch(/-\d/);
+  });
+
+  it('a hero at the cap: the button off, «Найвищий рівень» in its description, the effect without an arrow', () => {
+    const s = culture();
+    const panel = openCulture(createStore({ ...s, heroes: { ...s.heroes, kobzar: 25 } }));
+    const kobzar = card(panel, 'kobzar');
+    const button = within(kobzar).getByRole<HTMLButtonElement>('button', { name: 'Підвищити «Кобзар»' });
+    expect(button.disabled).toBe(true);
+    expect(document.getElementById(button.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Найвищий рівень');
+    expect(kobzar.textContent).toContain(`знижка 25${NBSP}% на культуру`);
+    expect(kobzar.textContent).not.toContain('→');
   });
 
   it('a hero who has not come: a silhouette, no name, no button, and when he comes', () => {

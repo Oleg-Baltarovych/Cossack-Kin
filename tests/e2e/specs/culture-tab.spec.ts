@@ -42,7 +42,8 @@ const barProblems = (page: Page) =>
     return out;
   });
 
-/** Layout problems of the heroes block: a button under a tap target or cut, a card past the screen edge. */
+/** Layout problems of the heroes block: a button under a tap target or cut, a line cut (the one-line title, with its
+ * `title`, ends in «…» by design), a card past the screen edge. */
 const blockProblems = (page: Page, name: string) =>
   page.getByRole('region', { name }).evaluate((box) => {
     const tap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tap'));
@@ -50,7 +51,7 @@ const blockProblems = (page: Page, name: string) =>
     for (const b of box.querySelectorAll<HTMLElement>('button'))
       if (b.offsetHeight < tap - 1 || b.scrollWidth > b.clientWidth + 1)
         out.push(`button ${b.textContent}: ${String(b.offsetHeight)} px`);
-    for (const e of box.querySelectorAll<HTMLElement>('p, li li'))
+    for (const e of box.querySelectorAll<HTMLElement>('p:not([title]), li li'))
       if (e.scrollWidth > e.clientWidth + 1) out.push(`cut: ${e.textContent}`);
     for (const li of box.querySelectorAll<HTMLElement>('li'))
       if (li.getBoundingClientRect().right > innerWidth + 0.5) out.push(`wide: ${li.textContent}`);
@@ -131,5 +132,44 @@ test.describe('M4-12 «Культура» tab @screens', () => {
         if (lang === 'uk' && key === 'day') await expectBaseline(page, 'm4-culture-full');
       });
     }
+  }
+});
+
+test.describe('M4-12 «Культура» with larger text at 360 @screens', () => {
+  test.skip(({ viewport }) => viewport?.width !== 360, 'runs on the 360-px project only');
+
+  for (const lang of LANGS) {
+    test(`hero cards stay whole (${lang})`, async ({ page }) => {
+      await gotoReady(page, url('culture', lang));
+      // «Більший текст» (SPEC §6.8): the setting comes later; its token is set here (story-quest-ui.spec).
+      await page.evaluate(() => {
+        const root = document.documentElement;
+        for (const v of ['--font-s', '--font-m'])
+          root.style.setProperty(v, `${String(parseFloat(getComputedStyle(root).getPropertyValue(v)) * 1.25)}px`);
+      });
+      await page.getByRole('tab', { name: T[lang].culture }).click();
+      await page.getByRole('button', { name: T[lang].full }).click();
+      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
+      const heroes = page.getByRole('region', { name: T[lang].heroes });
+      // Every price whole on its button, every button inside its card.
+      const problems = await heroes.evaluate((box) => {
+        const out: string[] = [];
+        for (const card of box.querySelectorAll<HTMLElement>('[data-hero]')) {
+          const c = card.getBoundingClientRect();
+          for (const b of card.querySelectorAll<HTMLElement>('button')) {
+            const r = b.getBoundingClientRect();
+            if (r.left < c.left - 0.5 || r.right > c.right + 0.5) out.push(`outside: ${b.textContent}`);
+            for (const e of b.querySelectorAll<HTMLElement>('span'))
+              if (e.scrollWidth > e.clientWidth + 1 || e.getBoundingClientRect().right > r.right + 0.5)
+                out.push(`clipped: ${e.textContent}`);
+          }
+        }
+        return out;
+      });
+      expect(problems).toEqual([]);
+      expect(await blockProblems(page, T[lang].heroes)).toEqual([]);
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({ path: join(screensDir(), `m4-12-full-large-${lang}-${test.info().project.name}.png`) });
+    });
   }
 });

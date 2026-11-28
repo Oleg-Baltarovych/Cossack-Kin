@@ -8,7 +8,7 @@ import { memo, useCallback, useId } from 'react';
 import { CULTURE_BRANCHES, CULTURE_NODES, type CultureBranchId } from '../../content/culture.ts';
 import type { StoryTrigger } from '../../content/story.ts';
 import type { Big } from '../../core/big.ts';
-import { heroesView, type EffectPreview, type HeroView } from '../../core/culture-selectors.ts';
+import { heroesView, type EffectPreview, type HeroBlock, type HeroView } from '../../core/culture-selectors.ts';
 import type { BuyMode } from '../../core/economy.ts';
 import { cultureBranchOpen } from '../../core/modifiers.ts';
 import type { GameState } from '../../core/state.ts';
@@ -66,35 +66,43 @@ const sameHero = (a: HeroView, b: HeroView): boolean =>
 const sameHeroes = (a: readonly HeroView[], b: readonly HeroView[]): boolean =>
   a.length === b.length && a.every((x, i) => b[i] !== undefined && sameHero(x, b[i]));
 
-const HeroCard = memo(function HeroCard({ v, mode }: { readonly v: HeroView; readonly mode: BuyMode }) {
+/** A hero who came: his button can only be off for the cap or glory (`levelHero` refuses `locked` before he comes). */
+type ComeHero = HeroView & { readonly blocked: Exclude<HeroBlock, 'locked'> };
+const hasCome = (v: HeroView): v is ComeHero => v.blocked !== 'locked';
+
+/** Why the button is off, with the icon that says it (not by colour alone): the cap, or not enough glory. */
+const BLOCK_ICON = { max: 'milestone', glory: 'glory' } as const;
+
+function AwaitedCard({ v }: { readonly v: HeroView }) {
+  const { t } = useText();
+  const n = triggerN(v.unlock);
+  return (
+    <li className={styles.hero} data-hero={v.id}>
+      <div className={styles.card}>
+        <Portrait id={v.id} silhouette />
+        <div className={styles.text}>
+          <p className={styles.unknown}>{t('ui.hero.unknown')}</p>
+          <p className={styles.unlock}>
+            <Icon id="lock" />
+            <span>{t(v.unlockKey, n === null ? {} : { n })}</span>
+          </p>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+const ComeCard = memo(function ComeCard({ v, mode }: { readonly v: ComeHero; readonly mode: BuyMode }) {
   const text = useText();
   const { t } = text;
   const act = useAct();
   const noteId = useId();
-  const come = v.level > 0;
   const disabled = v.blocked !== null;
   const hop = useHop<HTMLButtonElement>(!disabled, mode);
-  if (!come) {
-    const n = triggerN(v.unlock);
-    return (
-      <li className={styles.hero} data-hero={v.id}>
-        <div className={styles.card}>
-          <Portrait id={v.id} silhouette />
-          <div className={styles.text}>
-            <p className={styles.unknown}>{t('ui.hero.unknown')}</p>
-            <p className={styles.unlock}>
-              <Icon id="lock" />
-              <span>{t(v.unlockKey, n === null ? {} : { n })}</span>
-            </p>
-          </div>
-        </div>
-      </li>
-    );
-  }
   const name = t(v.nameKey);
+  const title = t(v.titleKey);
   const top = v.blocked === 'max';
   const price = v.price === null ? t('ui.price.none') : t('ui.price.glory', { value: text.num(v.price) });
-  const note = v.blocked === null ? null : t(`ui.block.${v.blocked === 'locked' ? 'max' : v.blocked}`);
   return (
     <li className={styles.hero} data-hero={v.id} data-come="">
       <div className={styles.card}>
@@ -104,7 +112,10 @@ const HeroCard = memo(function HeroCard({ v, mode }: { readonly v: HeroView; rea
             <span className={styles.name}>{name}</span>
             <span className={styles.level}>{t('ui.hero.level', { level: v.level, max: v.levelMax })}</span>
           </p>
-          <p className={styles.title}>{t(v.titleKey)}</p>
+          {/* One line; the whole title on hover and in the card's words for assistive tech. */}
+          <p className={styles.title} title={title}>
+            {title}
+          </p>
           <ul className={styles.effects}>
             {v.effects.map((e) => (
               <li key={e.kind}>{effectLine(text, e)}</li>
@@ -113,12 +124,11 @@ const HeroCard = memo(function HeroCard({ v, mode }: { readonly v: HeroView; rea
         </div>
       </div>
       <div className={styles.foot}>
-        {note !== null ? (
+        {v.blocked !== null && (
           <p id={noteId} className={styles.note}>
-            {note}
+            <Icon id={BLOCK_ICON[v.blocked]} />
+            <span>{t(`ui.block.${v.blocked}`)}</span>
           </p>
-        ) : (
-          <p className={styles.count}>{t('ui.hero.count', { count: v.count })}</p>
         )}
         <button
           ref={hop}
@@ -126,12 +136,12 @@ const HeroCard = memo(function HeroCard({ v, mode }: { readonly v: HeroView; rea
           className={styles.buy}
           disabled={disabled}
           aria-label={top ? t('ui.hero.buyTop', { name }) : t('ui.hero.buy', { name, count: v.count, price })}
-          aria-describedby={note !== null ? noteId : undefined}
+          aria-describedby={v.blocked !== null ? noteId : undefined}
           onClick={() => {
             act({ type: 'levelHero', id: v.id, mode });
           }}
         >
-          <span>{t('ui.hero.button')}</span>
+          <span>{top ? t('ui.hero.buttonTop') : t('ui.hero.button', { count: v.count })}</span>
           {v.price !== null && (
             <span className={styles.price}>
               <Icon id="glory" fallback={t('ui.price.gloryAbbr')} />
@@ -155,9 +165,7 @@ function Heroes({ mode }: { readonly mode: BuyMode }) {
         {t('ui.heroes.title')}
       </h2>
       <ul className={styles.list}>
-        {heroes.map((v) => (
-          <HeroCard key={v.id} v={v} mode={mode} />
-        ))}
+        {heroes.map((v) => (hasCome(v) ? <ComeCard key={v.id} v={v} mode={mode} /> : <AwaitedCard key={v.id} v={v} />))}
       </ul>
     </section>
   );
