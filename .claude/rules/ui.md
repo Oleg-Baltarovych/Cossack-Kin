@@ -15,7 +15,7 @@ paths:
 - No mock data in production UI; ads only through `AdsService` (`MockAds` in web/dev).
 
 ## Boundaries
-- Load `render/index.ts` only by dynamic `import()`; never import render runtime values statically (types and pure helpers like `render/viewport.ts`, `render/debug/params.ts` are fine; never `render/atmosphere/config.ts` — it pulls the layout into the start chunk). `check:dist` fails above 500 000 bytes of start scripts.
+- Load `render/index.ts` only by dynamic `import()`; never import render runtime values statically (types and pure helpers like `render/viewport.ts`, `render/debug/params.ts` are fine; never `render/atmosphere/config.ts` — it pulls the layout into the start chunk). `check:dist` fails above 500 000 bytes of start scripts (≈ 494 KB after M4-13): a new tab or window that is not on screen at start goes in its own chunk (`React.lazy`, like «Культура»; its unit tests `await findBy…`).
 - Global CSS lives in `src/ui/global.css` (no inline `<style>`: CSP). React `style` (CSSOM) is allowed.
 - Time in components = the store's `time.lastSeen` (10 Hz, frozen under `?freeze`), never `Date.now`. Local clock text: `ms + settings.tzOffsetMin` formatted in `UTC`, the day by core `dayAt` — never the device zone.
 - Percents, chances and prices come from core views (`core/percent.ts`: `wholePercent` for chances, `effectPercent` — half-percent steps — for bonus lines; both floored); never computed in UI.
@@ -42,4 +42,5 @@ paths:
 - Quest tap → target: a missing `[data-target]` or a locked Sich target shows a «Ще закрито…» hint, never «підсвічено»; the row scrolls in only after the sheet stands at its height.
 - A tab with no world zone («Культура», «Ще»): `zoneOf` null — choosing it moves no camera and the camera's zone never switches the sheet off it.
 - DOM «менше руху» = `html[data-motion=reduced]` as well as `prefers-reduced-motion`.
+- Culture tree lines: place nodes and line stubs on one box's 25/50/75 % (four quarter columns), never a gap-based grid — a 1-device-px seam where a stub meets the bar. A node's words drop under its icon (flex-wrap, `min-width: min-content`) rather than clip at larger text.
 - Durations shared with render (tier banner) live in `content/juice.ts`, passed to CSS as vars.

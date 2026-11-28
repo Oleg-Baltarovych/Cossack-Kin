@@ -2,7 +2,8 @@
 // line (uk and en, every phone); the tab opens without moving the camera, a hero levels from his card, and the red dot
 // stands on the tab only while the sheet is down. @screens: review shots of the tab at half and full height, by day and
 // evening, uk + en → reports/screens/<date>/m4-12-<state>-<time>-<lang>-<project>.png; the full sheet (uk, day) is
-// also a Linux baseline. `state=culture`: every hero come, both branch roots learned, the otaman at level 4.
+// also a Linux baseline (since M4-13 it shows the top of the «Музика» tree under the heroes). `state=culture`: every
+// hero come, both branch roots learned, the otaman at level 4.
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect, test } from '../helpers/test.ts';
@@ -100,7 +101,7 @@ test.describe('M4-12 «Культура» tab', () => {
     await tab.click();
     const heroes = page.getByRole('region', { name: T.uk.heroes });
     await expect(heroes.locator('[data-silhouette]')).toHaveCount(3);
-    await expect(heroes.getByRole('button')).toHaveCount(0);
+    await expect(heroes.locator('[data-hero]').getByRole('button')).toHaveCount(0);
     await expect(heroes).toContainText('Прийде, коли Майдан сягне рівня 10');
   });
 });
