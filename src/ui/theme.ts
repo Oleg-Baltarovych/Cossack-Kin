@@ -40,11 +40,16 @@ export const UI_ROLES = {
   edge: ['ink', 0],
   'edge-off': ['ink', 1],
   rule: ['wood', 2],
+  // Culture-tree prerequisite lines: plain, and a learned path.
+  link: ['wood', 3],
+  'link-on': ['thatch', 3],
   seam: ['wood', 1],
   'bevel-hi': ['wood', 3],
   'bevel-lo': ['ink', 1],
   // Accents.
+  // Selection (tab, picker, node, a lit row) only; keyboard focus has its own light `focus` ring (≥ 3:1 on wood 0/1).
   select: ['crimson', 3],
+  focus: ['plaster', 6],
   buy: ['gold', 4],
   'buy-hi': ['gold', 5],
   'buy-lo': ['gold', 2],
@@ -65,7 +70,7 @@ export const UI_ROLES = {
   desc: ['plaster', 3],
   meta: ['plaster', 2],
   'off-text': ['plaster', 2],
-  'off-price': ['thatch', 3],
+  'off-price': ['thatch', 4],
   // Portrait plinths and picture niches (direction C accents).
   portrait: ['wood', 2],
   plinth: ['earth', 2],
@@ -85,7 +90,9 @@ export const UI_RECIPES: readonly string[] = ['raised', 'sunken', 'stitch-rule']
 
 /** Each role's hex from the master palette. */
 export function roleColors(): Record<UiRole, string> {
-  const out = {} as Record<UiRole, string>; // filled for every key just below
+  // An empty object typed as the full record: the loop below assigns every key of UI_ROLES before it is returned.
+  const out = {} as Record<UiRole, string>;
+  // Object.entries loses the key type; the keys are exactly UiRole by construction.
   for (const [role, [ramp, i]] of Object.entries(UI_ROLES) as [UiRole, (typeof UI_ROLES)[UiRole]][]) {
     const hex = master.ramps[ramp][i];
     if (hex === undefined) throw new Error(`theme: --ui-${role} → ${ramp} ${String(i)} is not in the palette`);

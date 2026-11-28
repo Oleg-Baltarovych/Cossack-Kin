@@ -91,9 +91,14 @@
   color: var(--ui-body);
 }
 
-/* Green only on the delta (UI audit §4 p. 8): the value after the purchase (EffectLine). */
+/* Green only on the delta (UI audit §4 p. 8): «→ value after the purchase» (EffectLine), on one line. */
 .delta {
+  white-space: nowrap;
   color: var(--ui-gain);
+}
+
+.nowrap {
+  white-space: nowrap;
 }
 
 .unknown {
@@ -208,7 +213,7 @@
 }
 
 .buy:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 
@@ -320,6 +325,11 @@
   box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--ui-buy);
 }
 
+/* Reachable, but the glory is short for now: an ochre rim — gold only once it can be learned. */
+.node[data-state='glory'] {
+  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--ui-heading);
+}
+
 .node:active {
   transform: translateY(var(--press-y));
 }
@@ -328,10 +338,18 @@
 .node[aria-expanded='true'] {
   outline: calc(2 * var(--px)) solid var(--ui-select);
   outline-offset: 0;
+  /* The frame's lit inner line (the 1-px border), so the crimson clears the fill. */
+  border-color: var(--ui-bevel-hi);
+}
+
+/* Focused and selected at once: the light focus ring outside the crimson frame. */
+.node[aria-expanded='true']:focus-visible {
+  box-shadow: 0 0 0 calc(2 * var(--px)) var(--ui-select);
+  outline-offset: calc(2 * var(--px));
 }
 
 .node:focus-visible {
-  outline: calc(2 * var(--px)) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 
@@ -355,12 +373,12 @@
 .link {
   position: relative;
   height: calc(10 * var(--px));
-  --line: var(--ui-rule);
+  --line: var(--ui-link);
 }
 
-/* A learned path: ochre, like the ranks it counts (gold is only for buy and claim). */
+/* A learned path: dark ochre, like the ranks it counts (gold is only for buy and claim). */
 .link[data-lit] {
-  --line: var(--ui-heading);
+  --line: var(--ui-link-on);
 }
 
 .stub,
@@ -441,7 +459,7 @@
 }
 
 .close:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 
@@ -475,6 +493,6 @@
 }
 
 .fact:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }

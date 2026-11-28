@@ -32,6 +32,8 @@ export function effectLineParts(text: Text, e: EffectPreview): EffectLineParts {
   if (e.after === null) return { before: effectLine(text, e), after: null, rest: '' };
   const line = text.t(`${e.key}.change`, { now: shareText(text, e, e.now), after: AFTER_MARK });
   const at = line.indexOf(AFTER_MARK);
+  // A locale whose change line has no `{after}`: the line as a whole, nothing green.
+  if (at < 0) return { before: effectLine(text, e), after: null, rest: '' };
   const head = line.slice(0, at);
   const tail = line.slice(at + AFTER_MARK.length);
   const sign = /\S*$/u.exec(head)?.[0] ?? '';
@@ -41,6 +43,18 @@ export function effectLineParts(text: Text, e: EffectPreview): EffectLineParts {
     after: sign + shareText(text, e, e.after) + unit,
     rest: tail.slice(unit.length),
   };
+}
+
+/** `line` split before its last word (with the space after it): `["+2 % ", "→ "]` of «+2 % → ». */
+export function lastToken(line: string): readonly [string, string] {
+  const tail = /\S+\s*$/u.exec(line)?.[0] ?? '';
+  return [line.slice(0, line.length - tail.length), tail];
+}
+
+/** `line` split before its last two words: «сила 75,1 → 76,2» → [«сила 75,1 », «→ 76,2»], so the change wraps whole. */
+export function lastTwoTokens(line: string): readonly [string, string] {
+  const tail = /\S+\s+\S+$/u.exec(line)?.[0] ?? line;
+  return [line.slice(0, line.length - tail.length), tail];
 }
 
 const DURATION: ReadonlySet<EffectAmount['unit']> = new Set(['offlineCapSec', 'gloryCapSec', 'raidSec']);

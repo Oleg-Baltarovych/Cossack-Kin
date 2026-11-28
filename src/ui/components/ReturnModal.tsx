@@ -3,11 +3,12 @@
 // with ads (M8). A clock set back earns nothing and the window says why. Raids (M3-12, §0.1 П8) get one line, not a
 // window of their own: how many squads are back with their regions — their chests wait on «Січ» — and, if some are
 // still on the road, how many and when the first comes home (`raidSlotsView`; the report itself has no raids).
-import { memo, useId } from 'react';
+import { memo, useEffect, useId, useRef } from 'react';
 import type { RegionId } from '../../content/raids.ts';
 import { raidSlotsView } from '../../core/raid-selectors.ts';
 import type { GameState } from '../../core/state.ts';
 import { formatReturnAt } from '../../i18n/index.ts';
+import { trapTab } from '../hooks/useDialogFocus.ts';
 import { useAct, useGame } from '../hooks/useGame.ts';
 import { useText, type Text } from '../hooks/useText.ts';
 import { regionName } from '../raidText.ts';
@@ -72,17 +73,30 @@ export const ReturnModal = memo(function ReturnModal() {
   const { t, num, dur } = text;
   const titleId = useId();
   const bodyId = useId();
+  const boxRef = useRef<HTMLElement>(null);
+  const shown = report !== null;
+  // It opens on its own (a return): the window takes the focus, not its button — no focus ring on the call to action
+  // until the keyboard moves there; Tab reaches «Забрати» (M4-16a review). A passive effect, after GameUi noted the
+  // opener.
+  useEffect(() => {
+    if (shown) boxRef.current?.focus();
+  }, [shown]);
   if (!report) return null;
 
   const earned = !report.ducats.isZero() || !report.glory.isZero();
   return (
     <div className={styles.backdrop}>
       <section
+        ref={boxRef}
+        tabIndex={-1}
         className={styles.dialog}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={bodyId}
+        onKeyDown={(e) => {
+          if (boxRef.current) trapTab(e, boxRef.current);
+        }}
       >
         <h2 id={titleId} className={styles.title}>
           {t('return.title')}
@@ -119,8 +133,7 @@ export const ReturnModal = memo(function ReturnModal() {
         <button
           type="button"
           className={styles.claim}
-          // The only control in a modal dialog: focus it so Enter/Space claim at once.
-          autoFocus
+
           onClick={(e) => {
             // The coins of a large return fly from here (M2-26).
             withOrigin(e.currentTarget, () => {

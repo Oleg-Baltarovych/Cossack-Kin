@@ -12,7 +12,9 @@
 .lit {
   position: relative;
   background: var(--ui-panel);
-  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--ui-select);
+  box-shadow:
+    inset 0 0 0 calc(2 * var(--px)) var(--ui-select),
+    inset 0 0 0 calc(3 * var(--px)) var(--ui-bevel-hi);
 }
 
 /* Not by colour alone (M3-15 review): a pointer notch on the rim's left edge, pointing at the row. */
@@ -62,7 +64,13 @@
   gap: calc(2 * var(--px)) calc(6 * var(--px));
 }
 
+/* Green only on the delta (UI audit §4 p. 8): the income now is plain, «→ after» is the gain, glued on one line. */
 .income {
+  color: var(--ui-desc);
+}
+
+.delta {
+  white-space: nowrap;
   color: var(--ui-gain);
 }
 
@@ -76,13 +84,18 @@
   line-height: 1.4;
 }
 
-/* A reason that is no shortage («Найвищий рівень»): quiet. */
+/* A reason the player need not act on — «Найвищий рівень», a ducat shortage (the money comes by itself): quiet. */
 .note {
   color: var(--ui-meta);
 }
 
-/* «Бракує …» (ADR 014): crimson with the missing currency's icon — never by colour alone. An unlock condition is quiet,
-   after the lock icon. */
+/* A ducat shortage below the nearest one: read out with its button (aria-describedby), not shown (M4-16a). */
+.hiddenNote {
+  composes: srOnly from '../a11y.module.css';
+}
+
+/* «Бракує …» where the player must act (kharch, the hire, glory): crimson with the missing currency's icon — never by
+   colour alone. An unlock condition is quiet, after the lock icon. */
 .short,
 .locked {
   margin: 0;
@@ -101,7 +114,7 @@
 
 /* How many Cossacks the hire button hires under the picker (M2-14). */
 .count {
-  color: var(--ui-body);
+  color: var(--ui-gain);
 }
 
 /* A button's price: the currency icon and the compact number, never split over two lines (M2-14). */
@@ -187,7 +200,7 @@
 }
 
 .buy:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 

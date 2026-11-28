@@ -7,7 +7,7 @@
 }
 
 .block:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: calc(-2 * var(--px));
 }
 
@@ -94,7 +94,9 @@
 .cards .card.lit {
   position: relative;
   background: var(--ui-panel);
-  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--ui-select);
+  box-shadow:
+    inset 0 0 0 calc(2 * var(--px)) var(--ui-select),
+    inset 0 0 0 calc(3 * var(--px)) var(--ui-bevel-hi);
 }
 
 /* Not by colour alone: the rows' pointer notch on the left edge. */
@@ -110,11 +112,11 @@
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 
-/* A raid that is back: loot to claim, so a gold rim on the left — not by colour alone, the card says «Загін
-   повернувся». */
+/* A raid that is back: an ochre rim on the left (gold stays on its «Забрати») — not by colour alone, the card says
+   «Загін повернувся». */
 .card[data-slot='returned'] {
   box-shadow:
-    inset calc(2 * var(--px)) 0 0 var(--ui-buy),
+    inset calc(2 * var(--px)) 0 0 var(--ui-heading),
     var(--ui-sunken);
 }
 
@@ -251,7 +253,7 @@
 }
 
 .button:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 

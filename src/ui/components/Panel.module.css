@@ -12,6 +12,8 @@
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background: var(--ui-frame);
   border-top: var(--px) solid var(--ui-edge);
+  /* The sheet's lit rim under its ink edge (ADR 014 lip); the bar's raised controls carry it across the top. */
+  box-shadow: inset 0 var(--px) 0 var(--ui-bevel-hi);
   color: var(--ui-body);
   transition: height var(--sheet-ms, 180ms) ease-out;
 }
@@ -116,7 +118,10 @@
   box-shadow:
     inset 0 calc(2 * var(--px)) 0 var(--ui-select),
     inset calc(2 * var(--px)) 0 0 var(--ui-select),
-    inset calc(-2 * var(--px)) 0 0 var(--ui-select);
+    inset calc(-2 * var(--px)) 0 0 var(--ui-select),
+    inset 0 calc(3 * var(--px)) 0 var(--ui-bevel-hi),
+    inset calc(3 * var(--px)) 0 0 var(--ui-bevel-hi),
+    inset calc(-3 * var(--px)) 0 0 var(--ui-bevel-hi);
 }
 
 .body {
@@ -156,7 +161,8 @@
   background: var(--ui-control-on);
   box-shadow:
     inset 0 0 0 calc(2 * var(--px)) var(--ui-select),
-    inset calc(-3 * var(--px)) calc(-3 * var(--px)) 0 var(--ui-bevel-lo);
+    inset 0 0 0 calc(3 * var(--px)) var(--ui-bevel-hi),
+    inset calc(-4 * var(--px)) calc(-4 * var(--px)) 0 var(--ui-bevel-lo);
 }
 
 /* Pressed (SPEC §6.7): down by the shared offset (whole logical px, plan M2-26). */
@@ -175,7 +181,7 @@
 .tab:focus-visible,
 .toggle:focus-visible,
 .mode:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: calc(-2 * var(--px));
 }
 

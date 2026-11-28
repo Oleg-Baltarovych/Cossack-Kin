@@ -34,7 +34,7 @@ import type { BuyMode } from '../../core/economy.ts';
 import { villageOf } from '../../core/modifiers.ts';
 import { cultureClaimable } from '../../core/culture-selectors.ts';
 import { raidClaimable } from '../../core/raid-selectors.ts';
-import { questClaimable, questTarget, visibleSichIds, type QuestTarget } from '../../core/selectors.ts';
+import { farmRowView, questClaimable, questTarget, visibleSichIds, type QuestTarget } from '../../core/selectors.ts';
 import type { QuestKind } from '../../core/systems/quests.ts';
 import { useAct, useGame, useGameReader } from '../hooks/useGame.ts';
 import { useText, type Text } from '../hooks/useText.ts';
@@ -191,10 +191,20 @@ interface Marks {
 
 function FarmList({ mode, marks }: { mode: BuyMode; marks: Marks }) {
   const ids = useGame((s) => villageOf(s).buildings.map((b) => b.id), sameIds);
+  // The nearest goal (M4-16a): the first row, in display order, the ducats do not reach — the core's own row views say
+  // which; only its «Бракує дукатів» is shown, the others are read out with their buttons.
+  const nearest = useGame((s) => ids.find((id) => farmRowView(s, id, mode).blocked === 'ducats') ?? null);
   return (
     <ul className={styles.list}>
       {ids.map((id) => (
-        <FarmRow key={id} id={id} mode={mode} highlighted={id === marks.lit} current={id === marks.current} />
+        <FarmRow
+          key={id}
+          id={id}
+          mode={mode}
+          nearest={id === nearest}
+          highlighted={id === marks.lit}
+          current={id === marks.current}
+        />
       ))}
     </ul>
   );

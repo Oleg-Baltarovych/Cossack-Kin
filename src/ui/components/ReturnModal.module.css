@@ -41,6 +41,12 @@
   box-shadow: var(--ui-raised);
 }
 
+/* A window that opens on its own takes the focus itself (tabindex -1), not its button: no ring on the call to action
+   until the keyboard moves there (Tab). The window as a whole draws no focus ring. */
+.dialog:focus {
+  outline: none;
+}
+
 /* The title band (ADR 014): a dark plaque across the window inside its bevel, 2 px of crimson and 1 px of gold under it
    (in its own bottom padding). Shared by every window that composes it, and by the tier banner's recipe. */
 .title {
@@ -132,6 +138,6 @@
 
 /* Focus (ADR 014): the selection's frame, never a white browser ring on the gold button. */
 .claim:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }

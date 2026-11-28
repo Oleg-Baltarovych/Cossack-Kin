@@ -43,6 +43,6 @@
 }
 
 .retry:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }

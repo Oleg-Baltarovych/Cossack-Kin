@@ -14,7 +14,7 @@
 
 .strip:focus-visible,
 .board:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: calc(-2 * var(--px));
 }
 
@@ -82,7 +82,7 @@
 }
 
 .go:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 
@@ -160,7 +160,7 @@
 }
 
 .claim:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 

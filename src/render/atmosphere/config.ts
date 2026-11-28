@@ -4,12 +4,12 @@
 import type { RampName } from '../palette.ts';
 import { SHEET, TIER_CELEBRATION_MS } from '../../content/juice.ts';
 import { FOREGROUND_PARALLAX } from '../../content/villages/khortytsia.layout.ts';
-
-export type ColorRef = readonly [RampName, number];
+import type { SkyKeyId } from './skyKeys.ts';
 
 // The key hours live in a pure module the DOM UI may import (M4-16a); render keeps reading them from here.
-import type { SkyKeyId } from './skyKeys.ts';
-export { SKY_KEY_IDS, SKY_KEYS, type SkyKeyId, type SkyKeyTime } from './skyKeys.ts';
+export { SKY_KEY_IDS, SKY_KEYS, type SkyKeyId } from './skyKeys.ts';
+
+export type ColorRef = readonly [RampName, number];
 
 /**
  * File name of a key's grading LUT in `public/luts/`: `<HHMM>.png` (clear and fog), `<HHMM>-rain.png` (rain, M2-29 A4).

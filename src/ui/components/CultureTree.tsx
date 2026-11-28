@@ -15,7 +15,7 @@ import {
   type CultureView,
 } from '../../core/culture-selectors.ts';
 import { isTreeKey, TREE_CELLS, treeStep } from '../cultureTree.ts';
-import { amountLine, sameBig, sameEffects } from '../effectText.ts';
+import { amountLine, lastTwoTokens, sameBig, sameEffects } from '../effectText.ts';
 import { EffectLine } from './EffectLine.tsx';
 import { useAct, useGame } from '../hooks/useGame.ts';
 import { useHop } from '../hooks/useHop.ts';
@@ -58,6 +58,17 @@ const STATE_ICON: Readonly<Record<NodeState, 'lock' | 'glory' | 'milestone' | nu
 };
 
 /** The icon of the reason «Вивчити» is off. */
+/** The absolute line after « · », its change («→ 76,2») kept on one line. */
+function Amount({ line }: { readonly line: string }) {
+  const [head, tail] = lastTwoTokens(line);
+  return (
+    <span className={styles.amount}>
+      {` · ${head}`}
+      <span className={styles.nowrap}>{tail}</span>
+    </span>
+  );
+}
+
 const BLOCK_ICON = { locked: 'lock', prereq: 'lock', max: 'milestone', glory: 'glory' } as const;
 
 const NODE_DEF = new Map(CULTURE_NODES.map((n) => [n.id, n]));
@@ -287,7 +298,7 @@ function NodeCard({
         {n.effects.map((e) => (
           <li key={e.kind}>
             <EffectLine text={text} effect={e} />
-            {e.amount !== null && <span className={styles.amount}>{` · ${amountLine(text, e.amount)}`}</span>}
+            {e.amount !== null && <Amount line={amountLine(text, e.amount)} />}
           </li>
         ))}
       </ul>
@@ -304,8 +315,9 @@ function NodeCard({
       </button>
       <div className={styles.foot}>
         {n.blocked !== null && (
-          <p id={noteId} className={styles.note} data-short={n.blocked === 'glory' || undefined}>
-            <Icon id={BLOCK_ICON[n.blocked]} />
+          // Glory short on a node: quiet, like a ducat shortage — it comes by itself (M4-16a review); locks keep their icon.
+          <p id={noteId} className={styles.note}>
+            {n.blocked !== 'glory' && <Icon id={BLOCK_ICON[n.blocked]} />}
             <span>{blockText(text, n, b)}</span>
           </p>
         )}

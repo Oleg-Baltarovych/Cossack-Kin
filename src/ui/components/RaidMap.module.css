@@ -180,15 +180,17 @@
   pointer-events: auto;
 }
 
-/* Chosen: a gold rim with an ink line inside (not by colour alone — the card names it, and its tag shows). */
+/* Chosen: the selection's 2-px crimson frame with a lit inner line and an ink rim (not by colour alone — the card names it, and its tag shows). */
 .marker[aria-pressed='true'] {
-  outline: var(--px) solid var(--c-ink-0);
-  box-shadow: inset 0 0 0 var(--px) var(--c-gold-4);
+  outline: var(--px) solid var(--ui-edge);
+  box-shadow:
+    inset 0 0 0 calc(2 * var(--px)) var(--ui-select),
+    inset 0 0 0 calc(3 * var(--px)) var(--ui-bevel-hi);
 }
 
 .marker:focus-visible,
 .listButton:focus-visible {
-  outline: calc(2 * var(--px)) solid var(--c-plaster-6);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: 0;
 }
 
@@ -464,7 +466,7 @@
 }
 
 .button:focus-visible {
-  outline: var(--px) solid var(--ui-select);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }
 
