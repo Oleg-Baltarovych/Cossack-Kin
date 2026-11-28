@@ -39,7 +39,7 @@ describe('bottom sheet (M2-13): states, keyboard, aria', () => {
     expect(toggle().getAttribute('aria-label')).toBe('Розгорнути панель');
     // Collapsed: only the tab bar; the list is out of the page (and of the accessibility tree).
     expect(screen.queryByRole('tabpanel')).toBeNull();
-    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
 
     fireEvent.click(toggle());
     expect(toggle().getAttribute('aria-expanded')).toBe('true');

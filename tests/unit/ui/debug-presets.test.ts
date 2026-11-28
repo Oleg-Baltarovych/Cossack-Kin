@@ -120,3 +120,15 @@ describe('state=chests (M3-12): two squads back, one with a relic — the chest 
     expect(s.time.lastSeen).toBe(FROZEN_NOW);
   });
 });
+
+describe('state=culture (M4-12): every hero come, a few nodes learned — on every seed', () => {
+  it.each([1, 2, 3, 4, 5, 6])('seed %i: three heroes, the otaman levelled, both branch roots learned', (seed) => {
+    const s = presetState('culture', seed, FROZEN_NOW);
+    expect(Object.keys(s.heroes).sort()).toEqual(['kharakternyk', 'kobzar', 'otaman']);
+    expect(s.heroes.otaman).toBe(4);
+    expect([s.heroes.kobzar, s.heroes.kharakternyk]).toEqual([1, 1]);
+    expect(s.culture['music.dumy']).toBe(2);
+    expect(s.culture['customs.vechornytsi']).toBe(1);
+    expect(s.time.lastSeen).toBe(FROZEN_NOW);
+  });
+});

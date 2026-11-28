@@ -1,0 +1,225 @@
+/* «Культура» (plan M4-12): the heroes' cards (portrait, words, a footer with the reason and «Підвищити»), then the
+   branch lines. The look of the «Скарбниця» cards: wood panels in an ink rim. */
+.block {
+  display: grid;
+  gap: calc(4 * var(--px));
+  padding: calc(5 * var(--px)) calc(6 * var(--px));
+}
+
+.block p {
+  margin: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: normal;
+  color: var(--c-thatch-5);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: calc(4 * var(--px));
+}
+
+.hero {
+  display: grid;
+  gap: calc(4 * var(--px));
+  padding: calc(4 * var(--px));
+  background: var(--c-wood-1);
+  border: var(--px) solid var(--c-ink-0);
+}
+
+/* The portrait (StoryModal's frame, ×2) beside the words; it does not float here. */
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(6 * var(--px));
+}
+
+.card > [data-portrait] {
+  flex: none;
+  margin: 0;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: calc(3 * var(--px));
+  line-height: 1.5;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(4 * var(--px));
+}
+
+.name {
+  color: var(--c-plaster-5);
+}
+
+.level {
+  flex: none;
+  color: var(--c-thatch-5);
+}
+
+.title {
+  color: var(--c-plaster-3);
+}
+
+.effects {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: calc(2 * var(--px));
+  color: var(--c-grass-6);
+}
+
+.unknown {
+  color: var(--c-plaster-4);
+}
+
+/* An arrival or opening condition: cool and quiet, after the lock (as a locked Sich row). */
+.unlock {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(3 * var(--px));
+  color: var(--c-stone-5);
+}
+
+.unlock > span:last-child {
+  min-width: 0;
+}
+
+/* The reason or the count on the left, the button on the right (≥ 44 pt). */
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(6 * var(--px));
+}
+
+.count {
+  color: var(--c-gold-4);
+}
+
+.note {
+  color: var(--c-sky-6);
+}
+
+.buy {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: calc(2 * var(--px));
+  width: calc(112 * var(--px));
+  min-height: var(--tap, 44px);
+  padding: calc(3 * var(--px));
+  font: inherit;
+  word-spacing: inherit;
+  line-height: 1.4;
+  color: var(--c-ink-0);
+  background: var(--c-gold-4);
+  border: var(--px) solid var(--c-ink-0);
+  box-shadow:
+    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
+    inset 0 var(--px) 0 var(--c-gold-5);
+  cursor: pointer;
+}
+
+.buy:active:not(:disabled) {
+  transform: translateY(var(--press-y));
+  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+}
+
+/* Turned affordable (SPEC §6.7): the building rows' one hop (Rows.module.css), whole logical px. */
+.buy[data-hop] {
+  animation: hop var(--hop-ms) both;
+}
+
+@keyframes hop {
+  0% {
+    translate: 0 calc(-1 * var(--px));
+    animation-timing-function: steps(1, end);
+  }
+  20% {
+    translate: 0 calc(-1 * var(--hop-y));
+    animation-timing-function: steps(1, end);
+  }
+  60% {
+    translate: 0 calc(-1 * var(--px));
+    animation-timing-function: steps(1, end);
+  }
+  85%,
+  100% {
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buy[data-hop] {
+    animation: none;
+  }
+}
+
+:global([data-motion='reduced']) .buy[data-hop] {
+  animation: none;
+}
+
+.buy:disabled {
+  color: var(--c-plaster-6);
+  background: var(--c-stone-2);
+  box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1);
+  cursor: default;
+}
+
+.buy:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
+}
+
+.price {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(2 * var(--px));
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* A branch until the tree (M4-13): its icon in a niche, the name, how far it is learned or when it opens. */
+.branch {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--px));
+  padding: calc(4 * var(--px));
+  background: var(--c-wood-1);
+  border: var(--px) solid var(--c-ink-0);
+}
+
+.niche {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(22 * var(--px));
+  height: calc(22 * var(--px));
+  background: var(--c-plaster-1);
+  border: var(--px) solid var(--c-ink-0);
+}
+
+.branch[data-open] .niche {
+  background: var(--c-wood-3);
+  box-shadow: inset 0 0 0 var(--px) var(--c-gold-3);
+}
+
+.learned {
+  color: var(--c-plaster-4);
+}

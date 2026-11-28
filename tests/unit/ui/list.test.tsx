@@ -85,7 +85,7 @@ describe('building rows (M1-17)', () => {
     expect(within(list).queryByText('Пушкарня')).toBeNull();
   });
 
-  it('tabs take the camera to their zone (M2-02) when chosen (click / Enter / Space); «Ще» has no zone', () => {
+  it('tabs take the camera to their zone (M2-02) when chosen (click / Enter / Space); «Культура» and «Ще» have none', () => {
     const zones: string[] = [];
     mount(
       createStore(makeState()),
@@ -98,8 +98,13 @@ describe('building rows (M1-17)', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Січ' }));
     // Manual activation (M2-13): arrows only move the focus.
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Січ' }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Культура' }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Ще' }), { key: 'ArrowRight' });
     expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Хутір' }));
+    expect(zones).toEqual(['sich']);
+    // «Культура» (M4-12, ADR 011): chosen, it moves no camera.
+    fireEvent.click(screen.getByRole('tab', { name: 'Культура' }));
+    expect(screen.getByRole('tab', { name: 'Культура' }).getAttribute('aria-selected')).toBe('true');
     expect(zones).toEqual(['sich']);
     fireEvent.click(screen.getByRole('tab', { name: 'Хутір' }));
     expect(zones).toEqual(['sich', 'farm']);
