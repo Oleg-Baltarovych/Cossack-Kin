@@ -45,7 +45,7 @@ paths:
 ## Components
 - HUD counters: `useCounter` writes the element's text itself — never give that span JSX children; the visible number is `aria-hidden`, a visually hidden twin carries the full value. `shownValue` shares rounding with `formatBig` — change it in one place.
 - Bottom sheet: the bar drag follows the pointer on `window` (capturing on the bar retargets a tab click); the click that ends a drag is swallowed; tabs use manual activation. Esc is a window listener while open.
-- Half-sheet height budget is a few px on 390: any new height above the «Походи» block (strip, mode picker, header) breaks the hire-row peek (raids-block.spec) first.
+- Half-sheet height budget is a few px on 390: any new height above the «Походи» block (strip, mode picker, header) breaks the hire-row peek (raids-block.spec, `@screens` — not in the functional run; run it after any skin change) first. Skin lines take no layout height: bevels and rims are inset box-shadows, the heading stitch lies in the line's leading (a 3-px padding cost the peek 0.33 px).
 - `useDialogFocus` returns focus to the opener, or to the nearest `[tabindex]` ancestor when the window's own press removed the opener; a window that opens on its own never steals focus back. Windows never exceed the screen (`.dialog` max-height 100 %, body scrolls).
 - A running raid card re-renders only when `leftSec` changes; «Ще раз» is one action `claimRaid { again: true }` (refusal = `RaidAgainRefused`). Red dots are per tab; an idle slot never makes one.
 - Quest tap → target: a missing `[data-target]` or a locked Sich target shows a «Ще закрито…» hint, never «підсвічено»; the row scrolls in only after the sheet stands at its height.

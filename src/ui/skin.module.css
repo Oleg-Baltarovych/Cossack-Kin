@@ -1,9 +1,9 @@
 /* Shared pieces of the UI skin (ADR 014, plan M4-16a), composed by the components. Colours are roles (ui/theme.ts). */
 
 /* A section heading: ochre, over a running stitch of crimson (the рушник's one place in the sheet). The rule lies in
-   the heading's own bottom padding, 2 logical px under the letters. */
+   the line's own leading under the letters (the font's empty bottom row + the half-leading): it adds no height — the
+   half sheet has none to spare (raids-block «peek», .claude/rules/ui.md). */
 .sectionHeading {
-  padding-bottom: calc(3 * var(--px));
   color: var(--ui-heading);
   background: var(--ui-stitch-rule) left bottom / 100% var(--px) no-repeat;
 }
