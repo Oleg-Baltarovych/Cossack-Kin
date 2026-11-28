@@ -12,8 +12,6 @@
 // «Культура» (M4-12, ADR 011) has no world zone: choosing it moves no camera, and the camera never takes the tab off
 // it; it shares the strip and the picker (its heroes level by it); its red dot is core `cultureClaimable`.
 import {
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -46,9 +44,12 @@ import { RaidsBlock } from './Raids.tsx';
 import { Treasury } from './Treasury.tsx';
 import { FarmRow, HireRow, SichRow } from './Rows.tsx';
 
+import type { CultureTabProps } from './Culture.tsx';
+import { LazySlot, retryable } from './LazySlot.tsx';
+
 // The «Культура» tab is its own chunk (M4-13): the start scripts stay under `check:dist`'s budget (startup.spec), and
 // the tab is never the first thing on screen. Its red dot (`cultureClaimable`) stays here, in the start chunk.
-const CultureTab = lazy(() => import('./Culture.tsx').then((m) => ({ default: m.CultureTab })));
+const CULTURE_TAB = retryable<CultureTabProps>(() => import('./Culture.tsx').then((m) => ({ default: m.CultureTab })));
 import styles from './Panel.module.css';
 
 const TABS = ['farm', 'sich', 'culture', 'more'] as const;
@@ -686,7 +687,8 @@ export function Panel({
         className={styles.body}
       >
         {tab !== 'more' && <QuestStrip onGo={onGo} />}
-        {tab !== 'more' && <ModePicker mode={mode} onChange={setMode} />}
+        {/* On «Культура» the picker drives only the heroes: it stands in their block (M4-13 review). */}
+        {tab !== 'more' && tab !== 'culture' && <ModePicker mode={mode} onChange={setMode} />}
         <div ref={scrollRef} className={styles.scroll}>
           {tab === 'farm' && <FarmList mode={mode} marks={marks} />}
           {tab === 'sich' && (
@@ -696,9 +698,7 @@ export function Panel({
             </>
           )}
           {tab === 'culture' && (
-            <Suspense fallback={null}>
-              <CultureTab mode={mode} />
-            </Suspense>
+            <LazySlot of={CULTURE_TAB} props={{ mode, picker: <ModePicker mode={mode} onChange={setMode} /> }} />
           )}
           {tab === 'more' && (
             <>

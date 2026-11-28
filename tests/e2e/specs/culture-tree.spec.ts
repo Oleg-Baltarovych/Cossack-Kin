@@ -67,7 +67,8 @@ test.describe('M4-13 culture tree', () => {
     await maidan.click();
     await expect(maidan).toHaveAttribute('aria-expanded', 'true');
     await expect(card(page)).toContainText('Ранг 0/');
-    await expect(card(page)).toContainText('Слава:');
+    // The glory per second now → after, on the effect's line.
+    await expect(card(page)).toContainText(/ · [\d,]+\/с → [\d,]+\/с/);
     await card(page)
       .getByRole('button', { name: /^Вивчити «Пісні на майдані», ранг 1, за / })
       .click();

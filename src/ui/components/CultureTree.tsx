@@ -6,7 +6,7 @@
 // reason it is off (`aria-describedby`). One tab stop for the tree; the arrows move along it (`treeStep`). Every
 // number is `cultureView`'s.
 import { Fragment, memo, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { CULTURE_NODES, type CultureNodeId } from '../../content/culture.ts';
+import { CULTURE_NODE_IDS, CULTURE_NODES, type CultureNodeId } from '../../content/culture.ts';
 import {
   cultureView,
   type CultureBlock,
@@ -149,7 +149,10 @@ function Link({
   );
 }
 
-/** A row may be learned: open branch and prerequisites met (a node at the max had them). */
+/**
+ * Whether a link is drawn gold: the row below may be learned (open branch, prerequisites met — a node at the max had
+ * them). Presentation read from the view's refusals, not an economy rule: `buyCulture` alone decides.
+ */
 const reachable = (row: readonly CultureNodeView[]): boolean =>
   row.some((n) => n.blocked !== 'locked' && n.blocked !== 'prereq');
 
@@ -218,10 +221,10 @@ function blockText(text: Text, n: CultureNodeView, b: CultureBranchView): string
       const names = n.requires.ids.map((id) =>
         text.t('ui.node.quote', { name: text.t(NODE_DEF.get(id)?.nameKey ?? id) }),
       );
-      const list = new Intl.ListFormat(text.lang, {
-        type: n.requires.kind === 'anyOf' ? 'disjunction' : 'conjunction',
-      });
-      return text.t('ui.node.block.prereq', { nodes: list.format(names) });
+      // «{a} або {b}» / «{a} і {b}» from our own keys, folded left (content: one or two nodes of the row above).
+      const join = `ui.node.list.${n.requires.kind}`;
+      const nodes = names.reduce((x, y) => text.t(join, { a: x, b: y }));
+      return text.t('ui.node.block.prereq', { nodes });
     }
     case 'max':
       return text.t('ui.node.block.max');
@@ -254,6 +257,7 @@ function NodeCard({
   // Another node's card is not «became affordable»: the node id is the hop's mode.
   const hop = useHop<HTMLButtonElement>(!disabled, n.id);
   const pressed = useRef(false);
+  const [factOpen, setFactOpen] = useState(false);
   // A press that turned the button off (the max, or the glory spent) would drop focus to the page: back to the node.
   useEffect(() => {
     if (disabled && pressed.current) onRefocus();
@@ -275,18 +279,28 @@ function NodeCard({
           <p className={styles.level}>{t('ui.node.rankLong', { rank: n.rank, max: n.maxRank })}</p>
         </div>
         <button type="button" className={styles.close} aria-label={t('ui.node.close')} onClick={onClose}>
-          ×
+          {t('ui.node.closeShort')}
         </button>
       </div>
       <ul className={styles.effects}>
         {n.effects.map((e) => (
           <li key={e.kind}>
-            <span>{effectLine(text, e)}</span>
-            {e.amount !== null && <span className={styles.amount}>{amountLine(text, e.amount)}</span>}
+            {effectLine(text, e)}
+            {e.amount !== null && <span className={styles.amount}>{` · ${amountLine(text, e.amount)}`}</span>}
           </li>
         ))}
       </ul>
-      <p className={styles.fact}>{t(n.factKey)}</p>
+      {/* Two lines until tapped (the card leaves room for the tree); assistive tech reads it whole either way. */}
+      <button
+        type="button"
+        className={styles.fact}
+        aria-expanded={factOpen}
+        onClick={() => {
+          setFactOpen((o) => !o);
+        }}
+      >
+        <span className={styles.factText}>{t(n.factKey)}</span>
+      </button>
       <div className={styles.foot}>
         {n.blocked !== null && (
           <p id={noteId} className={styles.note}>
@@ -319,7 +333,8 @@ function NodeCard({
   );
 }
 
-const FIRST: CultureNodeId = TREE_CELLS[0]?.id ?? 'music.dumy';
+/** The first node of the tree (content orders the nodes branch by branch, row by row — the tree's own order). */
+const FIRST: CultureNodeId = CULTURE_NODE_IDS[0];
 
 export function CultureTree() {
   const { t } = useText();
@@ -361,12 +376,9 @@ export function CultureTree() {
     }),
     [focus, open, cardId],
   );
-  const refocus = useCallback(() => {
+  /** Focus back to the open card's node: after its button turned off under the finger, or on close. */
+  const toNode = useCallback(() => {
     if (open !== null) buttons.current.get(open)?.focus();
-  }, [open]);
-  const close = useCallback(() => {
-    if (open !== null) buttons.current.get(open)?.focus();
-    setOpen(null);
   }, [open]);
   const branch = open === null ? undefined : view.branches.find((b) => b.nodes.some((n) => n.id === open));
   const node = branch?.nodes.find((n) => n.id === open);
@@ -382,7 +394,17 @@ export function CultureTree() {
       </section>
       {/* A direct child of the sheet's scroller (`CultureTab` is a fragment), so it sticks to its bottom. */}
       {node !== undefined && branch !== undefined && (
-        <NodeCard id={cardId} n={node} b={branch} onClose={close} onRefocus={refocus} />
+        <NodeCard
+          key={node.id}
+          id={cardId}
+          n={node}
+          b={branch}
+          onClose={() => {
+            toNode();
+            setOpen(null);
+          }}
+          onRefocus={toNode}
+        />
       )}
     </>
   );

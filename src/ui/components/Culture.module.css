@@ -10,6 +10,11 @@
   margin: 0;
 }
 
+/* The shared ×1/×10/×25/Max picker inside «Герої» (it levels only them): the block's own padding is its margin. */
+.block > [role='group'] {
+  padding: 0;
+}
+
 .heading {
   margin: 0;
   font-size: inherit;
@@ -282,9 +287,11 @@
   background: var(--c-stone-2);
 }
 
-/* Can be learned now: a gold rim, with the glory icon beside the ranks. */
+/* Can be learned now: a brighter fill in a 2-px gold rim, with the glory icon beside the ranks (a node too dear for
+   now keeps the plain fill and no icon). */
 .node[data-state='open'] {
-  box-shadow: inset 0 0 0 var(--px) var(--c-gold-4);
+  background: var(--c-wood-3);
+  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--c-gold-4);
 }
 
 .node:active {
@@ -395,9 +402,9 @@
 
 .close {
   flex: none;
-  width: var(--tap, 44px);
-  height: var(--tap, 44px);
-  padding: 0;
+  min-width: var(--tap, 44px);
+  min-height: var(--tap, 44px);
+  padding: 0 calc(4 * var(--px));
   font: inherit;
   color: var(--c-plaster-5);
   background: var(--c-wood-2);
@@ -410,15 +417,36 @@
   outline-offset: var(--px);
 }
 
-.effects li {
-  display: grid;
-  gap: var(--px);
-}
-
+/* The percent, then the absolute number on the same line (it wraps where it must). */
 .amount {
   color: var(--c-plaster-4);
 }
 
+/* The fact: two lines, the rest on a tap (aria-expanded); one tap target the card's width. */
 .fact {
+  display: block;
+  width: 100%;
+  min-height: var(--tap, 44px);
+  padding: 0;
+  font: inherit;
+  word-spacing: inherit;
+  line-height: 1.5;
+  text-align: left;
   color: var(--c-plaster-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.fact[aria-expanded='false'] .factText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.fact:focus-visible {
+  outline: var(--px) solid var(--c-plaster-6);
+  outline-offset: var(--px);
 }

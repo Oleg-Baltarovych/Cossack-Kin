@@ -31,6 +31,13 @@ describe('culture tree keyboard steps (M4-13)', () => {
     expect(walk('music.lirnyky', 'ArrowDown')).toBe('music.great');
     expect(walk('music.great', 'ArrowDown')).toBe('customs.vechornytsi');
     expect(walk('customs.didukh', 'ArrowDown')).toBe('customs.didukh');
+    expect(walk('music.maidan', 'ArrowDown')).toBe('music.bandura');
+    expect(walk('customs.hostyna', 'ArrowDown')).toBe('customs.kupala');
+  });
+
+  it('up from a pair: to the centred node above', () => {
+    expect(walk('music.maidan', 'ArrowUp')).toBe('music.dumy');
+    expect(walk('customs.hostyna', 'ArrowUp')).toBe('customs.vechornytsi');
   });
 
   it('up mirrors down; left and right stay in the row', () => {

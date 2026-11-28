@@ -4,7 +4,7 @@
 // «Невідомий гість» and when he comes (his beat's trigger from content). Below, the two branches as trees with the
 // node card (`CultureTree`, M4-13). Every number is a core view's (`heroesView`, percents by `effectPercent`); the UI
 // only formats.
-import { memo, useCallback, useId } from 'react';
+import { memo, useCallback, useId, type ReactNode } from 'react';
 import type { StoryTrigger } from '../../content/story.ts';
 import { heroesView, type HeroBlock, type HeroView } from '../../core/culture-selectors.ts';
 import type { BuyMode } from '../../core/economy.ts';
@@ -138,7 +138,7 @@ const ComeCard = memo(function ComeCard({ v, mode }: { readonly v: ComeHero; rea
   );
 });
 
-function Heroes({ mode }: { readonly mode: BuyMode }) {
+function Heroes({ mode, picker }: { readonly mode: BuyMode; readonly picker: ReactNode }) {
   const { t } = useText();
   const headingId = useId();
   const select = useCallback((s: GameState) => heroesView(s, mode), [mode]);
@@ -148,6 +148,7 @@ function Heroes({ mode }: { readonly mode: BuyMode }) {
       <h2 id={headingId} className={styles.heading}>
         {t('ui.heroes.title')}
       </h2>
+      {picker}
       <ul className={styles.list}>
         {heroes.map((v) => (hasCome(v) ? <ComeCard key={v.id} v={v} mode={mode} /> : <AwaitedCard key={v.id} v={v} />))}
       </ul>
@@ -155,10 +156,16 @@ function Heroes({ mode }: { readonly mode: BuyMode }) {
   );
 }
 
-export function CultureTab({ mode }: { readonly mode: BuyMode }) {
+/** `picker`: the shared ×1/×10/×25/Max picker — on this tab it levels only the heroes, so it stands in their block. */
+export interface CultureTabProps {
+  readonly mode: BuyMode;
+  readonly picker: ReactNode;
+}
+
+export function CultureTab({ mode, picker }: CultureTabProps) {
   return (
     <>
-      <Heroes mode={mode} />
+      <Heroes mode={mode} picker={picker} />
       <CultureTree />
     </>
   );

@@ -101,7 +101,7 @@ test.describe('M4-12 «Культура» tab', () => {
     await tab.click();
     const heroes = page.getByRole('region', { name: T.uk.heroes });
     await expect(heroes.locator('[data-silhouette]')).toHaveCount(3);
-    await expect(heroes.getByRole('button')).toHaveCount(0);
+    await expect(heroes.locator('[data-hero]').getByRole('button')).toHaveCount(0);
     await expect(heroes).toContainText('Прийде, коли Майдан сягне рівня 10');
   });
 });

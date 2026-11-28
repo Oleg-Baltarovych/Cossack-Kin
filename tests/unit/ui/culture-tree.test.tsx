@@ -103,7 +103,11 @@ describe('culture tree (M4-13)', () => {
     expect(c.textContent).toContain(`Ранг 0/${String(n.maxRank)}`);
     expect(c.textContent).toMatch(/\+0\s%\s→\s\+\d/);
     // The absolute number under the percent (П4).
-    expect(c.textContent).toMatch(/(Дохід|Слава|Офлайн|Сила війська|Ліміт разом|Комора разом): .+ → /);
+    // The absolute number after the percent, on the same line (П4).
+    const line = within(c)
+      .getAllByRole('listitem')
+      .find((li) => li.textContent.includes(' · '));
+    expect(line?.textContent).toMatch(/^\+0\s%\s→\s\+\d.* · .+ → .+$/);
     const name = c.querySelector('p')?.textContent ?? '';
     expect(b.getAttribute('aria-label')).toContain(name);
     const price = n.price ? formatBig(n.price, 'uk', s.settings.numberFormat) : '';
@@ -192,5 +196,41 @@ describe('culture tree (M4-13)', () => {
     const learn = within(card()).getByRole('button', { name: /^Learn/ });
     expect(reason(learn)).toBe('Learn Songs on the maidan or Dumas of campaigns first');
     expect(card().textContent).toContain('Rank 0/');
+    fireEvent.click(button(panel, 'music.great'));
+    expect(reason(within(card()).getByRole('button', { name: /^Learn/ }))).toBe(
+      'Learn A bandura in the kurin and Lirnyks on the road first',
+    );
+  });
+
+  it('a node learned in a branch that is closed (e.g. after a migration): its rank, the lock, the branch condition', async () => {
+    const s = createInitialState({ seed: 5, now: FROZEN_NOW });
+    const panel = await openCulture(createStore({ ...s, culture: { 'music.dumy': 2 } }));
+    const dumy = button(panel, 'music.dumy');
+    expect(dumy.getAttribute('aria-label')).toMatch(/: ранг 2 з \d+, гілка закрита$/);
+    expect(dumy.textContent).toContain('2/');
+    expect(dumy.querySelector('[data-icon="lock"]')).not.toBeNull();
+    const music = within(panel).getByRole('group', { name: 'Музика' });
+    expect(music.textContent).toContain('Відкриється, коли в передмісті стане шинок');
+    fireEvent.click(dumy);
+    expect(card().textContent).toContain('Ранг 2/');
+    const learn = within(card()).getByRole<HTMLButtonElement>('button', { name: /^Вивчити/ });
+    expect(learn.disabled).toBe(true);
+    expect(reason(learn)).toBe('Відкриється, коли в передмісті стане шинок');
+  });
+
+  it('the fact: two lines until tapped (aria-expanded), the whole text always in the DOM', async () => {
+    const panel = await openCulture(createStore(culture()));
+    fireEvent.click(button(panel, 'music.bandura'));
+    const fact = within(card()).getByRole('button', { name: /^Бандура — / });
+    expect(fact.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(fact);
+    expect(fact.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('the ×1/×10/×25/Max picker stands in the «Герої» block on this tab, not above the tree', async () => {
+    const panel = await openCulture(createStore(culture()));
+    const heroes = within(panel).getByRole('region', { name: 'Герої' });
+    expect(within(heroes).getByRole('group', { name: 'Скільки купувати' })).toBeDefined();
+    expect(within(panel).getAllByRole('group', { name: 'Скільки купувати' })).toHaveLength(1);
   });
 });
