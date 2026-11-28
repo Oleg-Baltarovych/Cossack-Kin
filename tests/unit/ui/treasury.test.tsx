@@ -47,7 +47,10 @@ describe('Скарбниця (M3-12)', () => {
     expect(flask.querySelector('[data-icon="porokhivnytsia"]')).not.toBeNull();
     // The unfound one gives away neither its name nor its bonus — only its outline and the hint.
     expect(pernach.textContent).toContain('Невідома реліквія');
-    expect(pernach.textContent).toContain('Трапляється в походах від 30 хвилин');
+    expect(pernach.textContent).toContain('Трапляється в походах — 30 хвилин і довше');
+    // Each silhouette names its own shortest tier, in a form that reads right for any duration («1 година і довше»).
+    const kobza = items.find((li) => li.querySelector('[data-icon="kobza-unknown"]') !== null);
+    expect(kobza?.textContent).toContain('Трапляється в походах — 1 година і довше');
     expect(pernach.textContent).not.toContain('Пернач');
     expect(pernach.textContent).not.toContain('сили');
     expect(pernach.querySelector('[data-icon="pernach-unknown"]')).not.toBeNull();
