@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The «Культура» tab (plan M4-12, SPEC §10.3): between «Січ» and «Ще», the «Герої» block on top — a card per hero who
 // came (level of the cap, each effect «зараз → після» for the shared picker, «Підвищити» with its price, the refusal in
-// its description), a silhouette and «Прийде, коли…» for one who did not — the branch lines below, and the red dot from
+// its description), a silhouette and «Прийде, коли…» for one who did not — the branch trees below (M4-13), and the red dot from
 // core `cultureClaimable` while the sheet is down.
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -29,10 +29,13 @@ function mount(store: GameStore, initial: 'half' | 'collapsed' = 'half') {
   );
 }
 
-function openCulture(store: GameStore, name = 'Культура'): HTMLElement {
+async function openCulture(store: GameStore, name = 'Культура'): Promise<HTMLElement> {
   mount(store);
   fireEvent.click(screen.getByRole('tab', { name }));
-  return screen.getByRole('tabpanel');
+  const panel = screen.getByRole('tabpanel');
+  // The tab is a lazy chunk (M4-13): wait for its content.
+  await within(panel).findByRole('region', { name: /^(Гілки культури|Culture branches)$/ });
+  return panel;
 }
 
 const card = (panel: HTMLElement, id: string): HTMLElement => {
@@ -49,9 +52,9 @@ describe('«Культура» tab (M4-12)', () => {
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Хутір', 'Січ', 'Культура', 'Ще']);
   });
 
-  it('a hero who came: level of the cap, effect now → after, «Підвищити» for the picker’s count and price', () => {
+  it('a hero who came: level of the cap, effect now → after, «Підвищити» for the picker’s count and price', async () => {
     const store = createStore(culture());
-    const panel = openCulture(store);
+    const panel = await openCulture(store);
     const heroes = within(panel).getByRole('region', { name: 'Герої' });
     expect(
       within(heroes)
@@ -77,9 +80,9 @@ describe('«Культура» tab (M4-12)', () => {
     expect(card(panel, 'otaman').textContent).toContain('Рів. 5/25');
   });
 
-  it('×10 too dear: the button is off and says why (aria-describedby); the button names the ×10', () => {
+  it('×10 too dear: the button is off and says why (aria-describedby); the button names the ×10', async () => {
     const store = createStore(culture());
-    const panel = openCulture(store);
+    const panel = await openCulture(store);
     fireEvent.click(within(panel).getByRole('button', { name: '×10' }));
     expect(heroesView(store.getState(), 10).find((h) => h.id === 'otaman')?.blocked).toBe('glory');
     const otaman = card(panel, 'otaman');
@@ -92,16 +95,16 @@ describe('«Культура» tab (M4-12)', () => {
     expect(otaman.textContent).toContain(`+8${NBSP}% → +28${NBSP}% сили війська`);
   });
 
-  it('reductions read as what they are, never as a minus range (M4-12 review)', () => {
-    const panel = openCulture(createStore(culture()));
+  it('reductions read as what they are, never as a minus range (M4-12 review)', async () => {
+    const panel = await openCulture(createStore(culture()));
     expect(card(panel, 'kobzar').textContent).toContain(`знижка 1${NBSP}% → 2${NBSP}% на культуру`);
     expect(card(panel, 'kharakternyk').textContent).toContain(`походи коротші: 1${NBSP}% → 2${NBSP}%`);
     expect(panel.textContent).not.toMatch(/-\d/);
   });
 
-  it('a hero at the cap: the button off, «Найвищий рівень» in its description, the effect without an arrow', () => {
+  it('a hero at the cap: the button off, «Найвищий рівень» in its description, the effect without an arrow', async () => {
     const s = culture();
-    const panel = openCulture(createStore({ ...s, heroes: { ...s.heroes, kobzar: 25 } }));
+    const panel = await openCulture(createStore({ ...s, heroes: { ...s.heroes, kobzar: 25 } }));
     const kobzar = card(panel, 'kobzar');
     const button = within(kobzar).getByRole<HTMLButtonElement>('button', { name: 'Підвищити «Кобзар»' });
     expect(button.disabled).toBe(true);
@@ -110,9 +113,9 @@ describe('«Культура» tab (M4-12)', () => {
     expect(kobzar.textContent).not.toContain('→');
   });
 
-  it('a hero who has not come: a silhouette, no name, no button, and when he comes', () => {
+  it('a hero who has not come: a silhouette, no name, no button, and when he comes', async () => {
     const s = createInitialState({ seed: 5, now: FROZEN_NOW });
-    const panel = openCulture(createStore(s));
+    const panel = await openCulture(createStore(s));
     for (const id of ['otaman', 'kobzar', 'kharakternyk']) {
       const li = card(panel, id);
       expect(li.textContent).toContain('Невідомий гість');
@@ -124,19 +127,20 @@ describe('«Культура» tab (M4-12)', () => {
     expect(panel.textContent).not.toContain('Кошовий отаман');
   });
 
-  it('the branches: how far each is learned, or the lock and when it opens', () => {
-    const open = openCulture(createStore(culture()));
-    const lines = within(within(open).getByRole('region', { name: 'Гілки культури' })).getAllByRole('listitem');
-    expect(lines.map((li) => li.textContent)).toEqual(['МузикаВивчено 1 з 6', 'ЗвичаїВивчено 1 з 6']);
+  it('the branches: how far each is learned, or the lock and when it opens', async () => {
+    const open = await openCulture(createStore(culture()));
+    const region = within(open).getByRole('region', { name: 'Гілки культури' });
+    expect(within(region).getByRole('group', { name: 'Музика' }).textContent).toContain('Вивчено 1 з 6');
+    expect(within(region).getByRole('group', { name: 'Звичаї' }).textContent).toContain('Вивчено 1 з 6');
     cleanup();
-    const closed = openCulture(createStore(createInitialState({ seed: 5, now: FROZEN_NOW })));
-    const region = within(closed).getByRole('region', { name: 'Гілки культури' });
-    expect(region.textContent).toContain('Відкриється, коли в передмісті стане шинок');
-    expect(region.textContent).toContain('Відкриється, коли на Січі стане церква');
+    const closed = await openCulture(createStore(createInitialState({ seed: 5, now: FROZEN_NOW })));
+    const shut = within(closed).getByRole('region', { name: 'Гілки культури' });
+    expect(shut.textContent).toContain('Відкриється, коли в передмісті стане шинок');
+    expect(shut.textContent).toContain('Відкриється, коли на Січі стане церква');
   });
 
-  it('en: the tab, the level and the button read in English', () => {
-    const panel = openCulture(createStore(culture('en')), 'Culture');
+  it('en: the tab, the level and the button read in English', async () => {
+    const panel = await openCulture(createStore(culture('en')), 'Culture');
     const otaman = card(panel, 'otaman');
     expect(otaman.textContent).toContain('Lv 4/25');
     expect(otaman.textContent).toContain(`+8${NBSP}% → +10${NBSP}% army power`);

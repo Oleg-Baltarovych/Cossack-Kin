@@ -12,6 +12,8 @@
 // «Культура» (M4-12, ADR 011) has no world zone: choosing it moves no camera, and the camera never takes the tab off
 // it; it shares the strip and the picker (its heroes level by it); its red dot is core `cultureClaimable`.
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -42,8 +44,11 @@ import { lessMotion } from '../motion.ts';
 import { QuestList, QuestStrip } from './QuestStrip.tsx';
 import { RaidsBlock } from './Raids.tsx';
 import { Treasury } from './Treasury.tsx';
-import { CultureTab } from './Culture.tsx';
 import { FarmRow, HireRow, SichRow } from './Rows.tsx';
+
+// The «Культура» tab is its own chunk (M4-13): the start scripts stay under `check:dist`'s budget (startup.spec), and
+// the tab is never the first thing on screen. Its red dot (`cultureClaimable`) stays here, in the start chunk.
+const CultureTab = lazy(() => import('./Culture.tsx').then((m) => ({ default: m.CultureTab })));
 import styles from './Panel.module.css';
 
 const TABS = ['farm', 'sich', 'culture', 'more'] as const;
@@ -690,7 +695,11 @@ export function Panel({
               <SichList mode={mode} marks={marks} />
             </>
           )}
-          {tab === 'culture' && <CultureTab mode={mode} />}
+          {tab === 'culture' && (
+            <Suspense fallback={null}>
+              <CultureTab mode={mode} />
+            </Suspense>
+          )}
           {tab === 'more' && (
             <>
               <QuestList onGo={onGo} />
