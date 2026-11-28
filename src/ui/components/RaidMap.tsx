@@ -51,6 +51,7 @@ import { useText, type Text } from '../hooks/useText.ts';
 import { raidWhere, regionName } from '../raidText.ts';
 import { squadStride, useRaidMapAtlas, type MapSprite, type RaidMapAtlas } from '../raidMap.ts';
 import { grantedText } from '../rewards.ts';
+import { Icon } from './Icon.tsx';
 import styles from './RaidMap.module.css';
 
 const MS_PER_SEC = 1000;
@@ -258,6 +259,7 @@ function OfferCard({ offer, slot, onStarted }: { offer: RaidOfferView; slot: num
         </header>
         {weak && (
           <p className={styles.need}>
+            <Icon id="cossack" />
             {text.t('ui.map.toStart', { value: text.num(offer.powerToStart), count: offer.powerToStart })}
           </p>
         )}

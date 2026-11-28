@@ -7,7 +7,7 @@
 
 .loading {
   padding: calc(5 * var(--px)) calc(6 * var(--px));
-  color: var(--c-plaster-4);
+  color: var(--ui-desc);
 }
 
 .failed {
@@ -16,9 +16,9 @@
   justify-items: start;
   margin: calc(5 * var(--px)) calc(6 * var(--px));
   padding: calc(6 * var(--px));
-  color: var(--c-plaster-5);
-  background: var(--c-wood-1);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-body);
+  background: var(--ui-panel);
+  border: var(--px) solid var(--ui-edge);
 }
 
 .retry {
@@ -26,21 +26,21 @@
   padding: calc(3 * var(--px)) calc(8 * var(--px));
   font: inherit;
   word-spacing: inherit;
-  color: var(--c-ink-0);
-  background: var(--c-gold-4);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-buy-text);
+  background: var(--ui-buy);
+  border: var(--px) solid var(--ui-edge);
   box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
-    inset 0 var(--px) 0 var(--c-gold-5);
+    inset 0 calc(-2 * var(--px)) 0 var(--ui-buy-lo),
+    inset 0 var(--px) 0 var(--ui-buy-hi);
   cursor: pointer;
 }
 
 .retry:active {
   transform: translateY(var(--press-y));
-  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+  box-shadow: inset 0 var(--px) 0 var(--ui-buy-lo);
 }
 
 .retry:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: calc(2 * var(--px)) solid var(--ui-focus);
   outline-offset: var(--px);
 }

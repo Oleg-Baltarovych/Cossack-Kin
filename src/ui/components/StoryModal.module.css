@@ -36,10 +36,12 @@
   margin: 0;
 }
 
-/* The ×2 sprite (PORTRAIT_MAX_PX atlas px at most) in a 1-px ink frame with a gold rim, on a neutral wood ground a
-   step lighter than the panel with a lighter floor line (the boots stay on it): a framed likeness belongs to the frame's
-   material, not the clock (art-director M2-29 B1; a fixed noon sky was the loudest thing in a night window). */
+/* The ×2 sprite (PORTRAIT_MAX_PX atlas px at most) on its plinth (ADR 014, direction C): neutral wood, an earth ground
+   strip the boots stand on, a 1-px rim lit top-left: a framed likeness belongs to the frame's material, not the clock
+   (art-director M2-29 B1; a fixed noon sky was the loudest thing in a night window). */
 .portrait {
+  composes: plinth from '../skin.module.css';
+  --plinth: 6;
   position: relative;
   float: left;
   /* ×2 the largest portrait frame (PORTRAIT_MAX_PX, set by Portrait.tsx) + 2 px of ground under the feet. */
@@ -47,11 +49,6 @@
   height: calc((2 * var(--frame-h, 36) + 2) * var(--px));
   margin: 0 calc(8 * var(--px)) calc(4 * var(--px)) 0;
   overflow: hidden;
-  background: var(--c-wood-2);
-  border: var(--px) solid var(--c-ink-0);
-  box-shadow:
-    inset 0 0 0 var(--px) var(--c-gold-3),
-    inset 0 calc(-6 * var(--px)) 0 var(--c-wood-3);
 }
 
 /* The frame at 1 css px per atlas px, scaled about its foot to 2 logical px per atlas px (whole device px). */
@@ -68,11 +65,10 @@
 /* A hero who has not come (M4-12): his outline in ink on a dark recess — the sprite's alpha masks a flat colour, so the
    shape stays on the pixel grid and gives away no face or clothes. */
 .portrait[data-silhouette] {
-  background: var(--c-wood-1);
-  box-shadow: inset 0 calc(-6 * var(--px)) 0 var(--c-wood-2);
+  background: var(--ui-panel);
 }
 
 .shade {
-  background-color: var(--c-ink-1);
+  background-color: var(--ui-edge-off);
   mask-repeat: no-repeat;
 }

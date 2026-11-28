@@ -105,7 +105,8 @@ test.describe('M2-25 story windows and the quest strip @screens', () => {
       const dialog = page.getByRole('dialog');
       await expect(dialog).toHaveCount(1);
       await expect(dialog.locator('dd')).toHaveText(/^\+\d/);
-      await expect(dialog.getByRole('button')).toBeFocused();
+      // The window holds the focus itself (M4-16a: no ring on its button until the keyboard moves there).
+      await expect(dialog).toBeFocused();
       const p = await portraitScale(page);
       expect(Math.abs(p.logicalW - 64)).toBeLessThan(0.1);
       expect(Math.abs(p.perAtlasPx - Math.round(p.perAtlasPx))).toBeLessThan(0.1);

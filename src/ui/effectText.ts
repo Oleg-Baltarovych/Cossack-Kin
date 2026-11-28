@@ -17,6 +17,46 @@ export function effectLine(text: Text, e: EffectPreview): string {
     : text.t(`${e.key}.change`, { now: shareText(text, e, e.now), after: shareText(text, e, e.after) });
 }
 
+/** An effect line around its delta (M4-16a: green only on the delta, never on the whole sentence). */
+export interface EffectLineParts {
+  readonly before: string;
+  /** The value after the purchase with its sign and unit («+4 %»); null at the max (no delta). */
+  readonly after: string | null;
+  readonly rest: string;
+}
+
+const AFTER_MARK = '\u{E000}';
+
+/** `effectLine` split around the `after` value, with its sign before it and a «%» after it (word order: the locale's). */
+export function effectLineParts(text: Text, e: EffectPreview): EffectLineParts {
+  if (e.after === null) return { before: effectLine(text, e), after: null, rest: '' };
+  const line = text.t(`${e.key}.change`, { now: shareText(text, e, e.now), after: AFTER_MARK });
+  const at = line.indexOf(AFTER_MARK);
+  // A locale whose change line has no `{after}`: the line as a whole, nothing green.
+  if (at < 0) return { before: effectLine(text, e), after: null, rest: '' };
+  const head = line.slice(0, at);
+  const tail = line.slice(at + AFTER_MARK.length);
+  const sign = /\S*$/u.exec(head)?.[0] ?? '';
+  const unit = /^\s?%/u.exec(tail)?.[0] ?? '';
+  return {
+    before: head.slice(0, head.length - sign.length),
+    after: sign + shareText(text, e, e.after) + unit,
+    rest: tail.slice(unit.length),
+  };
+}
+
+/** `line` split before its last word (with the space after it): `["+2 % ", "→ "]` of «+2 % → ». */
+export function lastToken(line: string): readonly [string, string] {
+  const tail = /\S+\s*$/u.exec(line)?.[0] ?? '';
+  return [line.slice(0, line.length - tail.length), tail];
+}
+
+/** `line` split before its last two words: «сила 75,1 → 76,2» → [«сила 75,1 », «→ 76,2»], so the change wraps whole. */
+export function lastTwoTokens(line: string): readonly [string, string] {
+  const tail = /\S+\s+\S+$/u.exec(line)?.[0] ?? line;
+  return [line.slice(0, line.length - tail.length), tail];
+}
+
 const DURATION: ReadonlySet<EffectAmount['unit']> = new Set(['offlineCapSec', 'gloryCapSec', 'raidSec']);
 
 /** The absolute line (П4): «Дохід: 1,2тис./с → 1,3тис./с»; at the max only the number now. */

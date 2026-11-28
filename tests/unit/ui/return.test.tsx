@@ -97,8 +97,11 @@ describe('ReturnModal (M1-18)', () => {
     screen.getByRole('button', { name: 'Collect' });
   });
 
-  it('the claim button gets the focus (Enter claims at once)', () => {
+  it('the window takes the focus (no ring on its button until the keyboard moves there); Tab reaches «Забрати»', () => {
     mount(applyOffline(farm(), T0 + HOUR).state, T0 + HOUR);
+    const dialog = screen.getByRole('dialog');
+    expect(document.activeElement).toBe(dialog);
+    fireEvent.keyDown(dialog, { key: 'Tab' });
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Забрати' }));
   });
 });

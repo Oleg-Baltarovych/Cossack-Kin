@@ -82,11 +82,11 @@ test.describe('M2-24 story beats and quests across a reload', () => {
     expect(reached.story.seen).toEqual([...start.story.seen, 'khortytsia.pokrova']);
     // The beat's reward came once (the church itself costs ducats, not glory).
     expect(reached.currencies.glory.gt(gloryBefore)).toBe(true);
-    // Its window (M2-25) tells of it and holds the focus; Esc closes it and gives the focus back to the church button.
+    // Its window (M2-25) tells of it and holds the focus (the window itself, M4-16a); Esc closes it and gives the focus back to the church button.
     const pokrova = page.getByRole('dialog', { name: 'Освячення Покрови' });
     // Any formatted amount (the Кобзар's glory share since M4-08 lifts it past «тис.»).
     await expect(pokrova).toContainText(/Нагорода\+\d[^А-Яа-яІіЇїЄє]*(тис\. )?слави/);
-    await expect(pokrova.getByRole('button', { name: 'Гаразд' })).toBeFocused();
+    await expect(pokrova).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(pokrova).toBeHidden();
     await expect(church).toBeFocused();

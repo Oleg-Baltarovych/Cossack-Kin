@@ -11,12 +11,20 @@ import { sameView, useAct, useGame } from '../hooks/useGame.ts';
 import { useHop } from '../hooks/useHop.ts';
 import { useText, type Text } from '../hooks/useText.ts';
 import type { Big } from '../../core/big.ts';
+import type { UiIconId } from '../icons.ts';
 import { Icon } from './Icon.tsx';
 import styles from './Rows.module.css';
 
 function blockText(text: Text, blocked: Exclude<BuyBlock, 'locked'> | 'kharch'): string | null {
   return blocked === null ? null : text.t(`ui.block.${blocked}`);
 }
+
+/** The icon of what is short (ADR 014: a shortage is crimson with its icon, never by colour alone); none otherwise. */
+const SHORT_ICON: Readonly<Partial<Record<NonNullable<BuyBlock> | 'kharch', UiIconId>>> = {
+  ducats: 'ducat',
+  glory: 'glory',
+  kharch: 'kharch',
+};
 
 function unlockText(text: Text, u: SichUnlock): string | null {
   switch (u.kind) {
@@ -56,6 +64,27 @@ function withSlots(template: string, nodes: readonly ReactNode[]): ReactNode {
     .map((part, i) => <Fragment key={i}>{i % 2 === 1 ? nodes[Number(part)] : part}</Fragment>);
 }
 
+/**
+ * `template` with its SLOT placeholders replaced by `nodes`, the change after the current value in the gain colour:
+ * «{now} → {after}» → now (desc), then «→ after» glued in one nowrap span (green only on the delta, M4-16a).
+ */
+function deltaLine(template: string, nodes: readonly [ReactNode, ReactNode]): ReactNode {
+  const at = template.indexOf(SLOT[1]);
+  if (at < 0) return withSlots(template, nodes);
+  const head = template.slice(0, at);
+  const glue = /\S+\s*$/u.exec(head.slice(head.indexOf(SLOT[0]) + SLOT[0].length))?.[0] ?? '';
+  return (
+    <>
+      {withSlots(head.slice(0, head.length - glue.length), nodes)}
+      <span className={styles.delta}>
+        {glue}
+        {nodes[1]}
+      </span>
+      {template.slice(at + SLOT[1].length)}
+    </>
+  );
+}
+
 interface RowProps {
   readonly name: string;
   readonly level: string;
@@ -63,6 +92,10 @@ interface RowProps {
   readonly note: string | null;
   /** A locked building: its note is the unlock condition, set apart from «not enough». */
   readonly locked?: boolean;
+  /** Why the button is off, when it is a shortage the player must act on: crimson, the missing currency's icon first. */
+  readonly short?: UiIconId | undefined;
+  /** The note is read out (the button's description) but not shown: a ducat shortage below the nearest one. */
+  readonly noteHidden?: boolean;
   /** The button's face (icon + compact number); its accessible name is `buyLabel`. */
   readonly price: ReactNode;
   readonly buyLabel: string;
@@ -86,6 +119,8 @@ function Row({
   info,
   note,
   locked = false,
+  short,
+  noteHidden = false,
   price,
   buyLabel,
   disabled,
@@ -112,8 +147,18 @@ function Row({
         </p>
         <div className={styles.info}>{info}</div>
         {note !== null && (
-          <p id={noteId} className={locked ? styles.locked : styles.note}>
+          <p
+            id={noteId}
+            className={[
+              locked ? styles.locked : short ? styles.short : styles.note,
+              noteHidden ? styles.hiddenNote : '',
+            ]
+              .join(' ')
+              .trim()}
+            data-note={noteHidden ? 'hidden' : undefined}
+          >
             {locked && <Icon id="lock" />}
+            {!locked && short && <Icon id={short} />}
             {note}
           </p>
         )}
@@ -145,7 +190,11 @@ export const FarmRow = memo(function FarmRow({
   mode,
   highlighted = false,
   current = false,
-}: BuildingRowProps<FarmBuildingId>) {
+  nearest = true,
+}: BuildingRowProps<FarmBuildingId> & {
+  /** The first row the ducats do not reach (the list says which): only its «Бракує дукатів» is shown (M4-16a). */
+  readonly nearest?: boolean;
+}) {
   const select = useCallback((s: GameState) => farmRowView(s, id, mode), [id, mode]);
   const v = useGame(select, sameView);
   const act = useAct();
@@ -162,7 +211,7 @@ export const FarmRow = memo(function FarmRow({
           <span className={styles.income}>
             {top
               ? withSlots(text.t('ui.row.incomeTop', { now: SLOT[0] }), [rate(text, v.incomeNow)])
-              : withSlots(text.t('ui.row.income', { now: SLOT[0], after: SLOT[1] }), [
+              : deltaLine(text.t('ui.row.income', { now: SLOT[0], after: SLOT[1] }), [
                   rate(text, v.incomeNow),
                   rate(text, v.incomeAfter),
                 ])}
@@ -175,6 +224,7 @@ export const FarmRow = memo(function FarmRow({
         </>
       }
       note={blockText(text, v.blocked)}
+      noteHidden={v.blocked === 'ducats' && !nearest}
       price={priceTag(text, 'ducat', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
       disabled={v.blocked !== null}
@@ -209,6 +259,7 @@ export const SichRow = memo(function SichRow({
       level={text.t('ui.row.level', { level: v.level })}
       info={<span className={styles.desc}>{text.t(v.descKey)}</span>}
       note={v.blocked === 'locked' ? unlockText(text, v.unlock) : blockText(text, v.blocked)}
+      short={v.blocked === null ? undefined : SHORT_ICON[v.blocked]}
       locked={v.blocked === 'locked'}
       price={priceTag(text, 'glory', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
@@ -256,6 +307,7 @@ export const HireRow = memo(function HireRow({
         </>
       }
       note={blockText(text, v.blocked)}
+      short={v.blocked === null ? undefined : SHORT_ICON[v.blocked]}
       price={priceTag(text, 'ducat', full ? null : v.price)}
       buyLabel={full ? text.t('ui.hire.buttonFull') : text.t('ui.hire.button', { count: v.count, price })}
       disabled={v.blocked !== null}

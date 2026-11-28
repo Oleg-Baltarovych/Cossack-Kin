@@ -4,37 +4,18 @@
 import type { RampName } from '../palette.ts';
 import { SHEET, TIER_CELEBRATION_MS } from '../../content/juice.ts';
 import { FOREGROUND_PARALLAX } from '../../content/villages/khortytsia.layout.ts';
+import type { SkyKeyId } from './skyKeys.ts';
+
+// The key hours live in a pure module the DOM UI may import (M4-16a); render keeps reading them from here.
+export { SKY_KEY_IDS, SKY_KEYS, type SkyKeyId } from './skyKeys.ts';
 
 export type ColorRef = readonly [RampName, number];
-
-export const SKY_KEY_IDS = ['dawn', 'morning', 'day', 'golden', 'dusk', 'night'] as const;
-export type SkyKeyId = (typeof SKY_KEY_IDS)[number];
-
-export interface SkyKeyTime {
-  readonly id: SkyKeyId;
-  /** Minutes after midnight where the key is reached in full (screenshot keys 0530…2300). */
-  readonly at: number;
-  /** Minutes the key holds unchanged after `at`; the transition to the next key fills the rest. */
-  readonly hold: number;
-  /** `HHMM` label: LUT file `public/luts/<lut>.png`, screenshot names. */
-  readonly lut: string;
-}
 
 /**
  * File name of a key's grading LUT in `public/luts/`: `<HHMM>.png` (clear and fog), `<HHMM>-rain.png` (rain, M2-29 A4).
  */
 export const lutFile = (lut: string, weather: 'clear' | 'rain' | 'fog'): string =>
   weather === 'rain' ? `${lut}-rain.png` : `${lut}.png`;
-
-/** Ordered by `at`; the last key wraps over midnight into the first. */
-export const SKY_KEYS: readonly SkyKeyTime[] = [
-  { id: 'dawn', at: 5 * 60 + 30, hold: 15, lut: '0530' },
-  { id: 'morning', at: 7 * 60, hold: 60, lut: '0700' },
-  { id: 'day', at: 13 * 60, hold: 4 * 60, lut: '1300' },
-  { id: 'golden', at: 19 * 60 + 30, hold: 30, lut: '1930' },
-  { id: 'dusk', at: 21 * 60, hold: 15, lut: '2100' },
-  { id: 'night', at: 23 * 60, hold: 5 * 60, lut: '2300' },
-];
 
 /** Grading LUT: 16³ colors as a 256×16 strip (x = b·16 + r, y = g), the `ColorMapFilter` layout. */
 export const LUT_SIZE = 16;

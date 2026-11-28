@@ -33,10 +33,19 @@ paths:
 - Prices: `formatPrice` (≤ `PRICE_MAX_CHARS`), the full form in `aria-label`; no atlas → `Icon fallback` text.
 - Day-sky blue in DOM = `water-5` (the `sky` ramp is dusk-warm).
 
+## Skin (ADR 014)
+- Colours in component CSS are roles `var(--ui-<role>)` from `UI_ROLES` (`ui/theme.ts`), not ramps; a new role goes in the table (the theme test resolves each into `master.json` and rejects hex/`rgb(`/`--c-stone-*` and unknown `--ui-*` in `src/ui/**/*.css`). Exception: the raid-map parchment keeps its ramps.
+- Surfaces: `frame` wood 0 (HUD, sheet, plaques), `panel` wood 1 (boards, window body), `card` wood 0 + `--ui-sunken`, `control` wood 2 + `--ui-raised`, `disabled` flat wood 1 with an `edge-off` rim. Selection = 2-px `select` (crimson) frame with a 1-px `bevel-hi` line inside; keyboard focus = 2-px `focus` (plaster 6) outline on every `:focus-visible`, never crimson; gold only on what can be bought or claimed now.
+- Shortages: crimson `short` + icon only where the player must act (kharch, the hire, glory on Sich rows and heroes); a ducat shortage (and glory on a culture node) is quiet `meta`, shown only on the nearest unaffordable row (the list picks it from core row views), visually hidden elsewhere (still the button's `aria-describedby`).
+- A window that opens on its own (return, story beat) focuses itself (`tabIndex={-1}`, `trapTab` sends Tab to its controls), not its call to action; one opened by a press (chest, map) focuses its action.
+- Check text tiers on their surface: `short` and `meta` fail AA on wood 1 (3.95 / 4.35:1) — on a `panel` use `desc` for meta and keep shortages on wood 0.
+- The UI's phase of day is `html[data-phase]` (`ui/phase.ts` from the sky keys in `render/atmosphere/skyKeys.ts`, the pure module UI may import — never `config.ts`).
+
+
 ## Components
 - HUD counters: `useCounter` writes the element's text itself — never give that span JSX children; the visible number is `aria-hidden`, a visually hidden twin carries the full value. `shownValue` shares rounding with `formatBig` — change it in one place.
 - Bottom sheet: the bar drag follows the pointer on `window` (capturing on the bar retargets a tab click); the click that ends a drag is swallowed; tabs use manual activation. Esc is a window listener while open.
-- Half-sheet height budget is a few px on 390: any new height above the «Походи» block (strip, mode picker, header) breaks the hire-row peek (raids-block.spec) first.
+- Half-sheet height budget is a few px on 390: any new height above the «Походи» block (strip, mode picker, header) breaks the hire-row peek (raids-block.spec, `@screens` — not in the functional run; run it after any skin change) first. Skin lines take no layout height: bevels and rims are inset box-shadows, the heading stitch lies in the line's leading (a 3-px padding cost the peek 0.33 px).
 - `useDialogFocus` returns focus to the opener, or to the nearest `[tabindex]` ancestor when the window's own press removed the opener; a window that opens on its own never steals focus back. Windows never exceed the screen (`.dialog` max-height 100 %, body scrolls).
 - A running raid card re-renders only when `leftSec` changes; «Ще раз» is one action `claimRaid { again: true }` (refusal = `RaidAgainRefused`). Red dots are per tab; an idle slot never makes one.
 - Quest tap → target: a missing `[data-target]` or a locked Sich target shows a «Ще закрито…» hint, never «підсвічено»; the row scrolls in only after the sheet stands at its height.

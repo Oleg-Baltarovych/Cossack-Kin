@@ -13,9 +13,9 @@ import {
   SUN_X_LOW,
   type SkyKeyId,
 } from './config.ts';
+import { wrapMinutes } from './skyKeys.ts';
 
 const DAY = 1440;
-const FALLBACK_MINUTES = 13 * 60;
 const RAD = Math.PI / 180;
 
 export interface SkyPoint {
@@ -32,12 +32,6 @@ export interface DayCycle {
   readonly t: number;
   readonly sun: SkyPoint;
   readonly moon: SkyPoint;
-}
-
-export function wrapMinutes(minutes: number): number {
-  if (!Number.isFinite(minutes)) return FALLBACK_MINUTES;
-  const m = minutes % DAY;
-  return m < 0 ? m + DAY : m;
 }
 
 export function dayCycle(minutes: number): DayCycle {

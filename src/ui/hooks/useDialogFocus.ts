@@ -16,6 +16,12 @@ export function trapTab(e: KeyboardEvent<HTMLElement>, box: HTMLElement): void {
   const last = items[items.length - 1];
   if (!first || !last) return;
   const edge = e.shiftKey ? first : last;
+  // The window itself holds the focus (it opened on its own): Tab goes to its first control, Shift+Tab to its last.
+  if (document.activeElement === box) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+    return;
+  }
   if (document.activeElement === edge || !box.contains(document.activeElement)) {
     e.preventDefault();
     (e.shiftKey ? last : first).focus();

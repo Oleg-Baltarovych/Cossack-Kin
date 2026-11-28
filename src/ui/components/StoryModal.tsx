@@ -36,9 +36,10 @@ export function StoryModal({ beat, onClose }: StoryModalProps) {
     l.launch(buttonRef.current, l.granted);
     l.onClose();
   }, []);
-  // The only control: focused at once, so Enter/Space go on. A passive effect, after GameUi noted the opener.
+  // A beat opens on its own: the window takes the focus, not its button — no focus ring on the call to action until the
+  // keyboard moves there; Tab reaches «Гаразд» (M4-16a review). A passive effect, after GameUi noted the opener.
   useEffect(() => {
-    buttonRef.current?.focus();
+    boxRef.current?.focus();
   }, []);
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent): void => {
@@ -63,6 +64,7 @@ export function StoryModal({ beat, onClose }: StoryModalProps) {
     <div className={styles.backdrop}>
       <section
         ref={boxRef}
+        tabIndex={-1}
         className={styles.dialog}
         role="dialog"
         aria-modal="true"

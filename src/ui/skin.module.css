@@ -1,0 +1,20 @@
+/* Shared pieces of the UI skin (ADR 014, plan M4-16a), composed by the components. Colours are roles (ui/theme.ts). */
+
+/* A section heading: ochre, over a running stitch of crimson (the рушник's one place in the sheet). The rule lies in
+   the line's own leading under the letters (the font's empty bottom row + the half-leading): it adds no height — the
+   half sheet has none to spare (raids-block «peek», .claude/rules/ui.md). */
+.sectionHeading {
+  color: var(--ui-heading);
+  background: var(--ui-stitch-rule) left bottom / 100% var(--px) no-repeat;
+}
+
+/* A portrait or a picture on its plinth (direction C): a ground strip of earth under the feet, a 1-px rim lit on the
+   top and left, shaded on the bottom and right. The ground strip's height is the user's `--plinth` (4–6 logical px). */
+.plinth {
+  background: var(--ui-portrait);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow:
+    inset var(--px) var(--px) 0 var(--ui-plinth-hi),
+    inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--ui-plinth-lo),
+    inset 0 calc(-1 * var(--plinth, 6) * var(--px)) 0 var(--ui-plinth);
+}

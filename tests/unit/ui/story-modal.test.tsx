@@ -108,6 +108,9 @@ describe('story beat windows (M2-25)', () => {
     // The council brings the otaman, not glory (Q16, M4-04): no reward line; the hero's own CTA is M4-16.
     expect(dialog.textContent).not.toMatch(/Нагорода/);
     const ok = within(dialog).getByRole('button', { name: 'Гаразд' });
+    // The window holds the focus (no ring on «Гаразд» until the keyboard moves there); Tab goes to its button.
+    expect(document.activeElement).toBe(dialog);
+    fireEvent.keyDown(dialog, { key: 'Tab' });
     expect(document.activeElement).toBe(ok);
     // The HUD and the panel are out of reach while it is open.
     expect(screen.getByRole('banner').closest('[inert]')).not.toBeNull();
