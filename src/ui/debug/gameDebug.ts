@@ -7,6 +7,8 @@
 //                     on a 30-min one (back RAIDS_PRESET.leftMin after the preset's `now`) — all through the real actions
 //   ?state=chests     — the chest window (M3-12): the same farm and army, squad 1 back from a 30-min raid that brings a
 //                     relic, squad 2 back from a 30-min patrol (real actions; «Забрати все» opens one window for both)
+//   ?state=culture    — the «Культура» tab (M4-12): the showcase farm (both branches open), all three heroes come
+//                     through their beats (15 raids won by real actions), a few nodes learned and the otaman levelled
 //   ?state=tiers&tier=N — every building at visual tier N (0 = empty plots … 6; the Sich tops out at IV, plan M2-05),
 //                     locked ones too (the church at I–II: the scene ignores unlock conditions); invalid N: the top tier
 //   ?freeze           — the game clock stands still (no loop) at FROZEN_NOW, so numbers and the wind are fixed
@@ -33,7 +35,7 @@ import { MAX_PARAM_LENGTH, parseDebugParams } from '../../render/debug/params.ts
 
 const OFF_FLAGS: readonly string[] = ['0', 'false'];
 
-export const PRESETS = ['fresh', 'rich', 'mid', 'away', 'showcase', 'tiers', 'raids', 'chests'] as const;
+export const PRESETS = ['fresh', 'rich', 'mid', 'away', 'showcase', 'tiers', 'raids', 'chests', 'culture'] as const;
 export type Preset = (typeof PRESETS)[number];
 
 /** `?state=away`: 9 h, over the 8 h offline limit, so the window shows the cap. */
@@ -245,10 +247,41 @@ function withChests(seed: number, now: number): GameState {
   return advance(s, now).state;
 }
 
+/**
+ * `?state=culture` (M4-12): the showcase farm (the tavern and the church stand: both branches open; Майдан 10 and
+ * шинок 10 brought the otaman and the kobzar), then 5-min scoutings won one after another until the kharakternyk comes
+ * (`raidsWon` of his beat), the glory store filled over `fillMin`, and a few purchases through the real actions: the
+ * root of each branch, one more rank of «Думи», the otaman three levels
+ * (×1 each). The glory left buys the next level of every hero at ×1, not at ×10 (the picker's refusal shows). The kobzar and the kharakternyk stay at level 1.
+ */
+const CULTURE_PRESET = { fillMin: 6 * 60, raidsMin: 3 * 60, otamanLevels: 3 } as const;
+
+function withCulture(seed: number, now: number): GameState {
+  const m5 = 5 * MIN_MS;
+  let t = now - (CULTURE_PRESET.fillMin + CULTURE_PRESET.raidsMin) * MIN_MS;
+  let s = presetState('showcase', seed, t);
+  const step = (action: Action, at: number): void => {
+    s = applyAction(s, action, at).state;
+  };
+  const end = t + CULTURE_PRESET.raidsMin * MIN_MS;
+  while (s.heroes.kharakternyk === undefined && t + m5 <= end) {
+    step({ type: 'startRaid', slot: 0, tier: 'm5' }, t);
+    t += m5;
+    step({ type: 'claimRaid', slot: 0 }, t);
+  }
+  s = advance(s, now).state;
+  step({ type: 'buyCulture', id: 'music.dumy' }, now);
+  step({ type: 'buyCulture', id: 'customs.vechornytsi' }, now);
+  step({ type: 'buyCulture', id: 'music.dumy' }, now);
+  for (let i = 0; i < CULTURE_PRESET.otamanLevels; i += 1) step({ type: 'levelHero', id: 'otaman', mode: 1 }, now);
+  return s;
+}
+
 /** The state of `preset` at `now` with `seed` (`tier`: the visual tier of `state=tiers`). */
 export function presetState(preset: Preset, seed: number, now: number, tier = TOP_TIER): GameState {
   if (preset === 'raids') return withRaids(seed, now);
   if (preset === 'chests') return withChests(seed, now);
+  if (preset === 'culture') return withCulture(seed, now);
   if (preset === 'away') return applyOffline(presetState('mid', seed, now - AWAY_MS), now).state;
   const s = createInitialState({ seed, now });
   if (preset === 'fresh') return s;

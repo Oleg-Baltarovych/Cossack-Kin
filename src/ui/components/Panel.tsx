@@ -1,4 +1,4 @@
-// The bottom sheet (SPEC §6.1, plan M2-13): tabs Хутір / Січ / Ще, the buy amount (×1 / ×10 / ×25 / MAX, shared by
+// The bottom sheet (SPEC §6.1, plan M2-13): tabs Хутір / Січ / Культура (M4-12) / Ще, the buy amount (×1 / ×10 / ×25 / MAX, shared by
 // every row) and the list, in three states — collapsed (only the tab bar), half, full (up to the HUD). A drag on the
 // bar snaps between them (ui/sheet.ts), the bar's button cycles them, Esc collapses. A tap on a building in the world
 // (`reveal`) opens half with that building's row in view and lit; `onReveal` then lets the camera clear it. Choosing
@@ -9,6 +9,8 @@
 // A tap on a quest's title (strip or «Ще», M3-15, SPEC §10.3) leads to core `questTarget`: its tab, the sheet at half,
 // the row lit (a building, the hire row, a raid card) and the camera at the building (the reveal path) or the Sich;
 // a counter with no row (taps, any purchase) shows a hint under the strip instead. Both are read out (role=status).
+// «Культура» (M4-12, ADR 011) has no world zone: choosing it moves no camera, and the camera never takes the tab off
+// it; it shares the strip and the picker (its heroes level by it); its red dot is core `cultureClaimable`.
 import {
   useCallback,
   useEffect,
@@ -30,6 +32,7 @@ import { BUY_MODES } from '../../content/economy.ts';
 import { LANGS, type GameState } from '../../core/state.ts';
 import type { BuyMode } from '../../core/economy.ts';
 import { villageOf } from '../../core/modifiers.ts';
+import { cultureClaimable } from '../../core/culture-selectors.ts';
 import { raidClaimable } from '../../core/raid-selectors.ts';
 import { questClaimable, questTarget, visibleSichIds, type QuestTarget } from '../../core/selectors.ts';
 import type { QuestKind } from '../../core/systems/quests.ts';
@@ -39,13 +42,16 @@ import { lessMotion } from '../motion.ts';
 import { QuestList, QuestStrip } from './QuestStrip.tsx';
 import { RaidsBlock } from './Raids.tsx';
 import { Treasury } from './Treasury.tsx';
+import { CultureTab } from './Culture.tsx';
 import { FarmRow, HireRow, SichRow } from './Rows.tsx';
 import styles from './Panel.module.css';
 
-const TABS = ['farm', 'sich', 'more'] as const;
+const TABS = ['farm', 'sich', 'culture', 'more'] as const;
 type Tab = (typeof TABS)[number];
-/** The world zone a tab shows (`more` has none). */
-export type TabZone = Exclude<Tab, 'more'>;
+/** The world zone a tab shows (`culture` and `more` have none). */
+export type TabZone = Exclude<Tab, 'culture' | 'more'>;
+/** A tab of no zone: the camera neither follows it nor takes the sheet off it. */
+const zoneOf = (tab: Tab): TabZone | null => (tab === 'farm' || tab === 'sich' ? tab : null);
 /** The tab of a world zone: the suburb's buildings are in the farm list. */
 const TAB_OF_ZONE: Record<ZoneId, TabZone> = { farm: 'farm', suburb: 'farm', sich: 'sich' };
 
@@ -283,7 +289,7 @@ export function Panel({
   useEffect(
     () =>
       zoneSource?.((zone) => {
-        setTab((current) => (current === 'more' ? current : TAB_OF_ZONE[zone]));
+        setTab((current) => (zoneOf(current) === null ? current : TAB_OF_ZONE[zone]));
       }),
     [zoneSource],
   );
@@ -305,7 +311,8 @@ export function Panel({
     setFocusTab(next);
     setCurrent(null);
     dispatch({ type: 'open' });
-    if (next !== 'more') onZone?.(next);
+    const zone = zoneOf(next);
+    if (zone !== null) onZone?.(zone);
   };
 
   // The box, the bar and the HUD, kept in step with the screen (rotation, safe areas, larger text).
@@ -579,9 +586,12 @@ export function Panel({
   // says it.
   const questDot = useGame(questClaimable);
   const raidDot = useGame(selectRaidClaimable);
+  // «Культура» (Q13): a node never learned that can be learned now, or a hero just come whose first level is affordable.
+  const cultureDot = useGame(cultureClaimable);
   const dots: Readonly<Record<Tab, string | null>> = {
     farm: null,
     sich: collapsed && raidDot ? 'ui.raids.claimable' : null,
+    culture: collapsed && cultureDot ? 'ui.culture.claimable' : null,
     more: collapsed && questDot ? 'ui.quest.claimable' : null,
   };
   return (
@@ -680,6 +690,7 @@ export function Panel({
               <SichList mode={mode} marks={marks} />
             </>
           )}
+          {tab === 'culture' && <CultureTab mode={mode} />}
           {tab === 'more' && (
             <>
               <QuestList onGo={onGo} />

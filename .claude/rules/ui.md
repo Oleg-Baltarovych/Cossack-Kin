@@ -40,5 +40,6 @@ paths:
 - `useDialogFocus` returns focus to the opener, or to the nearest `[tabindex]` ancestor when the window's own press removed the opener; a window that opens on its own never steals focus back. Windows never exceed the screen (`.dialog` max-height 100 %, body scrolls).
 - A running raid card re-renders only when `leftSec` changes; «Ще раз» is one action `claimRaid { again: true }` (refusal = `RaidAgainRefused`). Red dots are per tab; an idle slot never makes one.
 - Quest tap → target: a missing `[data-target]` or a locked Sich target shows a «Ще закрито…» hint, never «підсвічено»; the row scrolls in only after the sheet stands at its height.
+- A tab with no world zone («Культура», «Ще»): `zoneOf` null — choosing it moves no camera and the camera's zone never switches the sheet off it.
 - DOM «менше руху» = `html[data-motion=reduced]` as well as `prefers-reduced-motion`.
 - Durations shared with render (tier banner) live in `content/juice.ts`, passed to CSS as vars.

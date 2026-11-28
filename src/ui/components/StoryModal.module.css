@@ -64,3 +64,15 @@
   transform: scale(calc(2 * var(--px-n, 1)));
   transform-origin: 50% 100%;
 }
+
+/* A hero who has not come (M4-12): his outline in ink on a dark recess — the sprite's alpha masks a flat colour, so the
+   shape stays on the pixel grid and gives away no face or clothes. */
+.portrait[data-silhouette] {
+  background: var(--c-wood-1);
+  box-shadow: inset 0 calc(-6 * var(--px)) 0 var(--c-wood-2);
+}
+
+.shade {
+  background-color: var(--c-ink-1);
+  mask-repeat: no-repeat;
+}
