@@ -11,12 +11,20 @@ import { sameView, useAct, useGame } from '../hooks/useGame.ts';
 import { useHop } from '../hooks/useHop.ts';
 import { useText, type Text } from '../hooks/useText.ts';
 import type { Big } from '../../core/big.ts';
+import type { UiIconId } from '../icons.ts';
 import { Icon } from './Icon.tsx';
 import styles from './Rows.module.css';
 
 function blockText(text: Text, blocked: Exclude<BuyBlock, 'locked'> | 'kharch'): string | null {
   return blocked === null ? null : text.t(`ui.block.${blocked}`);
 }
+
+/** The icon of what is short (ADR 014: a shortage is crimson with its icon, never by colour alone); none otherwise. */
+const SHORT_ICON: Readonly<Partial<Record<NonNullable<BuyBlock> | 'kharch', UiIconId>>> = {
+  ducats: 'ducat',
+  glory: 'glory',
+  kharch: 'kharch',
+};
 
 function unlockText(text: Text, u: SichUnlock): string | null {
   switch (u.kind) {
@@ -63,6 +71,8 @@ interface RowProps {
   readonly note: string | null;
   /** A locked building: its note is the unlock condition, set apart from «not enough». */
   readonly locked?: boolean;
+  /** Why the button is off, when it is a shortage: the missing currency's icon before the note. */
+  readonly short?: UiIconId | undefined;
   /** The button's face (icon + compact number); its accessible name is `buyLabel`. */
   readonly price: ReactNode;
   readonly buyLabel: string;
@@ -86,6 +96,7 @@ function Row({
   info,
   note,
   locked = false,
+  short,
   price,
   buyLabel,
   disabled,
@@ -112,8 +123,9 @@ function Row({
         </p>
         <div className={styles.info}>{info}</div>
         {note !== null && (
-          <p id={noteId} className={locked ? styles.locked : styles.note}>
+          <p id={noteId} className={locked ? styles.locked : short ? styles.short : styles.note}>
             {locked && <Icon id="lock" />}
+            {!locked && short && <Icon id={short} />}
             {note}
           </p>
         )}
@@ -175,6 +187,7 @@ export const FarmRow = memo(function FarmRow({
         </>
       }
       note={blockText(text, v.blocked)}
+      short={v.blocked === null ? undefined : SHORT_ICON[v.blocked]}
       price={priceTag(text, 'ducat', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
       disabled={v.blocked !== null}
@@ -209,6 +222,7 @@ export const SichRow = memo(function SichRow({
       level={text.t('ui.row.level', { level: v.level })}
       info={<span className={styles.desc}>{text.t(v.descKey)}</span>}
       note={v.blocked === 'locked' ? unlockText(text, v.unlock) : blockText(text, v.blocked)}
+      short={v.blocked === null ? undefined : SHORT_ICON[v.blocked]}
       locked={v.blocked === 'locked'}
       price={priceTag(text, 'glory', top ? null : v.price)}
       buyLabel={text.t('ui.row.buy', { count: v.count, name, price })}
@@ -256,6 +270,7 @@ export const HireRow = memo(function HireRow({
         </>
       }
       note={blockText(text, v.blocked)}
+      short={v.blocked === null ? undefined : SHORT_ICON[v.blocked]}
       price={priceTag(text, 'ducat', full ? null : v.price)}
       buyLabel={full ? text.t('ui.hire.buttonFull') : text.t('ui.hire.button', { count: v.count, price })}
       disabled={v.blocked !== null}

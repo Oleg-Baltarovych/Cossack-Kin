@@ -12,7 +12,8 @@ import type { GameState } from '../../core/state.ts';
 import { useAct, useGame } from '../hooks/useGame.ts';
 import { useHop } from '../hooks/useHop.ts';
 import { useText } from '../hooks/useText.ts';
-import { effectLine, sameBig } from '../effectText.ts';
+import { sameBig } from '../effectText.ts';
+import { EffectLine } from './EffectLine.tsx';
 import { Icon } from './Icon.tsx';
 import { Portrait } from './Portrait.tsx';
 import { CultureTree } from './CultureTree.tsx';
@@ -102,14 +103,16 @@ const ComeCard = memo(function ComeCard({ v, mode }: { readonly v: ComeHero; rea
           </p>
           <ul className={styles.effects}>
             {v.effects.map((e) => (
-              <li key={e.kind}>{effectLine(text, e)}</li>
+              <li key={e.kind}>
+                <EffectLine text={text} effect={e} />
+              </li>
             ))}
           </ul>
         </div>
       </div>
       <div className={styles.foot}>
         {v.blocked !== null && (
-          <p id={noteId} className={styles.note}>
+          <p id={noteId} className={styles.note} data-short={v.blocked === 'glory' || undefined}>
             <Icon id={BLOCK_ICON[v.blocked]} />
             <span>{t(`ui.block.${v.blocked}`)}</span>
           </p>

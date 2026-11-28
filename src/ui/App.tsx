@@ -9,6 +9,7 @@ import type { WorldApp } from '../render/index.ts';
 import { BootNotice } from './components/BootNotice.tsx';
 import { CoinFlight, type BuildingAt } from './components/CoinFlight.tsx';
 import { DocumentLang } from './components/DocumentLang.tsx';
+import { DocumentPhase } from './components/DocumentPhase.tsx';
 import { Hud } from './components/Hud.tsx';
 import { Panel, type Reveal } from './components/Panel.tsx';
 import { RaidChest } from './components/RaidChest.tsx';
@@ -68,6 +69,7 @@ export function App({ game }: { game: Game }) {
   return (
     <GameProvider store={game.store} now={game.now}>
       <DocumentLang />
+      <DocumentPhase />
       <div ref={hostRef} id="world" />
       {failed && <WorldError onRetry={retry} />}
       {game.ui && <GameUi world={world} notice={game.notice} />}

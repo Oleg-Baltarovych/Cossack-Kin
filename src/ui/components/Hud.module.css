@@ -1,4 +1,6 @@
-/* Top HUD (SPEC §6.1): a dark wood strip under the status bar. Colours: master palette vars (ui/theme.ts). */
+/* Top HUD (SPEC §6.1): the frame's dark wood under the status bar (colour roles, ui/theme.ts). Its lip over the sky
+   (ADR 014): 1 px of bevel light, 1 px of frame, then 2 px of ink — the inner two in shadows, the ink as the border plus
+   an outer shadow, so the HUD keeps its height. */
 .hud {
   position: absolute;
   top: 0;
@@ -6,10 +8,13 @@
   right: 0;
   padding: calc(env(safe-area-inset-top) + 4 * var(--px)) calc(env(safe-area-inset-right) + 6 * var(--px))
     calc(4 * var(--px)) calc(env(safe-area-inset-left) + 6 * var(--px));
-  background: var(--c-wood-0);
-  border-bottom: var(--px) solid var(--c-ink-0);
-  box-shadow: inset 0 calc(-1 * var(--px)) 0 var(--c-wood-2);
-  color: var(--c-plaster-5);
+  background: var(--ui-frame);
+  border-bottom: var(--px) solid var(--ui-edge);
+  box-shadow:
+    inset 0 calc(-1 * var(--px)) 0 var(--ui-frame),
+    inset 0 calc(-2 * var(--px)) 0 var(--ui-bevel-hi),
+    0 var(--px) 0 var(--ui-edge);
+  color: var(--ui-body);
 }
 
 .currencies {
@@ -37,7 +42,7 @@
   align-items: center;
   gap: calc(3 * var(--px));
   font-size: var(--font-s);
-  color: var(--c-thatch-5);
+  color: var(--ui-heading);
 }
 
 .amount {
@@ -47,7 +52,7 @@
 
 .rate {
   font-size: var(--font-s);
-  color: var(--c-grass-6);
+  color: var(--ui-gain);
 }
 
 .stats {
@@ -58,7 +63,7 @@
   flex-wrap: wrap;
   gap: calc(2 * var(--px)) calc(8 * var(--px));
   font-size: var(--font-s);
-  color: var(--c-plaster-3);
+  color: var(--ui-desc);
 }
 
 .stats li {

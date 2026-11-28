@@ -288,7 +288,7 @@
   flex: none;
   margin: 0 0 auto;
   padding: calc(6 * var(--px)) calc(6 * var(--px)) calc(6 * var(--px) + env(safe-area-inset-bottom));
-  color: var(--c-plaster-4);
+  color: var(--ui-meta);
   text-align: center;
 }
 
@@ -298,9 +298,9 @@
   gap: calc(3 * var(--px));
   margin: 0 calc(6 * var(--px)) auto;
   padding: calc(6 * var(--px));
-  background: var(--c-wood-1);
-  border: var(--px) solid var(--c-ink-0);
-  box-shadow: inset 0 var(--px) 0 var(--c-wood-2);
+  background: var(--ui-card);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-sunken);
 }
 
 .cardHead {
@@ -312,22 +312,26 @@
   margin: 0;
   font-size: inherit;
   font-weight: normal;
-  color: var(--c-thatch-6);
+  color: var(--ui-title);
 }
 
 .when {
   margin: 0;
-  color: var(--c-plaster-4);
+  color: var(--ui-meta);
 }
 
 .dotSep {
-  color: var(--c-plaster-3);
+  color: var(--ui-meta);
 }
 
-/* Off for want of power: how much is missing, in place of the chance (only its floor then). */
+/* Off for want of power — a shortage (ADR 014): crimson after the power icon, how much is missing, in place of the
+   chance (only its floor then). */
 .need {
   margin: 0;
-  color: var(--c-sky-6);
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--px));
+  color: var(--ui-short);
 }
 
 .facts {
@@ -345,7 +349,7 @@
 }
 
 .fact dt {
-  color: var(--c-thatch-5);
+  color: var(--ui-heading);
 }
 
 .fact dd {
@@ -358,33 +362,33 @@
 
 /* The chance and the success first; the rest a step quieter. */
 .major dd {
-  color: var(--c-plaster-5);
+  color: var(--ui-body);
 }
 
 .minor dt,
 .minor dd {
-  color: var(--c-plaster-3);
+  color: var(--ui-desc);
 }
 
-/* What a raid out of reach would bring: quieter still (plaster-2 on wood-1 is 4.35:1 — text stays ≥ 6.3:1 here). */
+/* What a raid out of reach would bring: quieter still (`meta` on the sunken wood-0 card is 5.8:1). */
 .dim dt,
 .dim dd {
-  color: var(--c-plaster-3);
+  color: var(--ui-meta);
 }
 
 .good {
-  color: var(--c-grass-6);
+  color: var(--ui-gain);
 }
 
-/* The rumour: one gold line, left-aligned, no label (its name says what it is). */
+/* The rumour: one ochre line, left-aligned, no label (its name says what it is); gold is only for buy and claim. */
 .rumor {
   margin: 0;
-  color: var(--c-gold-4);
+  color: var(--ui-heading);
 }
 
 .sure {
   margin: 0;
-  color: var(--c-gold-5);
+  color: var(--ui-title);
 }
 
 /* The footer — the reason and «Вирушити» — is the window's own, full width, pinned to its bottom: on a tall screen
@@ -396,21 +400,22 @@
   flex: none;
   margin: 0;
   padding: calc(3 * var(--px)) calc(6 * var(--px)) calc(6 * var(--px) + env(safe-area-inset-bottom));
-  background: var(--c-wood-1);
+  background: var(--ui-frame);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: calc(3 * var(--px)) calc(6 * var(--px));
-  border-top: var(--px) solid var(--c-wood-0);
-  /* A whole-px ink shade above the rim, so a card running under the footer reads as scrolling, not cut (static). */
-  box-shadow: 0 calc(-2 * var(--px)) 0 var(--c-ink-0);
+  /* The frame's lit rim (ADR 014), and a whole-px ink shade above it, so a card running under the footer reads as
+     scrolling, not cut (static). */
+  border-top: var(--px) solid var(--ui-bevel-hi);
+  box-shadow: 0 calc(-2 * var(--px)) 0 var(--ui-edge);
 }
 
 .note {
   flex: 1 1 auto;
   margin: 0;
-  color: var(--c-sky-6);
+  color: var(--ui-calm);
 }
 
 .note:empty {
@@ -424,40 +429,42 @@
   padding: calc(3 * var(--px)) calc(8 * var(--px));
   font: inherit;
   word-spacing: inherit;
-  color: var(--c-ink-0);
-  background: var(--c-gold-4);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-buy-text);
+  background: var(--ui-buy);
+  border: var(--px) solid var(--ui-edge);
   box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
-    inset 0 var(--px) 0 var(--c-gold-5);
+    inset 0 calc(-2 * var(--px)) 0 var(--ui-buy-lo),
+    inset 0 var(--px) 0 var(--ui-buy-hi);
   cursor: pointer;
 }
 
 .second {
-  color: var(--c-plaster-5);
-  background: var(--c-wood-2);
-  box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-wood-1),
-    inset 0 var(--px) 0 var(--c-wood-3);
+  color: var(--ui-name);
+  background: var(--ui-control);
+  box-shadow: var(--ui-raised);
 }
 
 .button:active:not(:disabled) {
   transform: translateY(var(--press-y));
-  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+  box-shadow: inset 0 var(--px) 0 var(--ui-buy-lo);
 }
 
-/* Off: plaster-3 on wood-1 (6.3:1) with a dashed rim — not by colour alone, the reason stands beside it. */
+.second:active:not(:disabled) {
+  box-shadow: inset 0 var(--px) 0 var(--ui-bevel-lo);
+}
+
+/* Off (ADR 014): the flat off recipe — wood in an ink rim, quiet text, no dashed web border; not by colour alone, the
+   reason stands beside it. */
 .button:disabled {
-  color: var(--c-plaster-3);
-  background: var(--c-wood-1);
-  border-style: dashed;
-  border-color: var(--c-plaster-1);
+  color: var(--ui-off-text);
+  background: var(--ui-disabled);
+  border-color: var(--ui-edge-off);
   box-shadow: none;
   cursor: default;
 }
 
 .button:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: var(--px);
 }
 

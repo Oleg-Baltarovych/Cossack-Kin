@@ -1,5 +1,6 @@
 /* «Культура» (plan M4-12, M4-13): the heroes' cards (portrait, words, a footer with the reason and «Підвищити»), then
-   the branch trees and the sticky node card. The look of the «Скарбниця» cards: wood panels in an ink rim. */
+   the branch trees and the sticky node card. The look of the «Скарбниця» cards: sunken cards in an ink rim (ADR 014);
+   the nodes are raised controls. */
 .block {
   display: grid;
   gap: calc(4 * var(--px));
@@ -16,10 +17,10 @@
 }
 
 .heading {
+  composes: sectionHeading from '../skin.module.css';
   margin: 0;
   font-size: inherit;
   font-weight: normal;
-  color: var(--c-thatch-5);
 }
 
 .list {
@@ -34,8 +35,9 @@
   display: grid;
   gap: calc(4 * var(--px));
   padding: calc(4 * var(--px));
-  background: var(--c-wood-1);
-  border: var(--px) solid var(--c-ink-0);
+  background: var(--ui-card);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-sunken);
 }
 
 /* The portrait (StoryModal's frame, ×2) beside the words; it does not float here. */
@@ -65,19 +67,19 @@
 }
 
 .name {
-  color: var(--c-plaster-5);
+  color: var(--ui-name);
 }
 
 .level {
   flex: none;
-  color: var(--c-thatch-5);
+  color: var(--ui-heading);
 }
 
 .title {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--c-plaster-3);
+  color: var(--ui-desc);
 }
 
 .effects {
@@ -86,19 +88,24 @@
   list-style: none;
   display: grid;
   gap: calc(2 * var(--px));
-  color: var(--c-grass-6);
+  color: var(--ui-body);
+}
+
+/* Green only on the delta (UI audit §4 p. 8): the value after the purchase (EffectLine). */
+.delta {
+  color: var(--ui-gain);
 }
 
 .unknown {
-  color: var(--c-plaster-4);
+  color: var(--ui-body);
 }
 
-/* An arrival or opening condition: cool and quiet, after the lock (as a locked Sich row). */
+/* An arrival or opening condition: quiet, after the lock (as a locked Sich row). */
 .unlock {
   display: flex;
   align-items: flex-start;
   gap: calc(3 * var(--px));
-  color: var(--c-stone-5);
+  color: var(--ui-meta);
 }
 
 .unlock > span:last-child {
@@ -119,7 +126,12 @@
   display: flex;
   align-items: center;
   gap: calc(3 * var(--px));
-  color: var(--c-sky-6);
+  color: var(--ui-meta);
+}
+
+/* «Бракує слави» (ADR 014): crimson, after the glory icon. */
+.note[data-short] {
+  color: var(--ui-short);
 }
 
 .buy {
@@ -134,18 +146,18 @@
   font: inherit;
   word-spacing: inherit;
   line-height: 1.4;
-  color: var(--c-ink-0);
-  background: var(--c-gold-4);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-buy-text);
+  background: var(--ui-buy);
+  border: var(--px) solid var(--ui-edge);
   box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
-    inset 0 var(--px) 0 var(--c-gold-5);
+    inset 0 calc(-2 * var(--px)) 0 var(--ui-buy-lo),
+    inset 0 var(--px) 0 var(--ui-buy-hi);
   cursor: pointer;
 }
 
 .buy:active:not(:disabled) {
   transform: translateY(var(--press-y));
-  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+  box-shadow: inset 0 var(--px) 0 var(--ui-buy-lo);
 }
 
 /* Turned affordable (SPEC §6.7): the building rows' one hop (Rows.module.css), whole logical px. */
@@ -182,15 +194,21 @@
   animation: none;
 }
 
+/* Off (ADR 014): flat wood in an ink rim, quiet text, the price in dark ochre — no slate. */
 .buy:disabled {
-  color: var(--c-plaster-6);
-  background: var(--c-stone-2);
-  box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1);
+  color: var(--ui-off-text);
+  background: var(--ui-disabled);
+  border-color: var(--ui-edge-off);
+  box-shadow: none;
   cursor: default;
 }
 
+.buy:disabled .price {
+  color: var(--ui-off-price);
+}
+
 .buy:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: var(--px);
 }
 
@@ -207,8 +225,9 @@
   display: grid;
   gap: calc(4 * var(--px));
   padding: calc(4 * var(--px));
-  background: var(--c-wood-1);
-  border: var(--px) solid var(--c-ink-0);
+  background: var(--ui-card);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-sunken);
 }
 
 .branchHead {
@@ -223,19 +242,23 @@
   place-items: center;
   width: calc(22 * var(--px));
   height: calc(22 * var(--px));
-  background: var(--c-plaster-1);
-  border: var(--px) solid var(--c-ink-0);
+  background: var(--ui-disabled);
+  border: var(--px) solid var(--ui-edge-off);
 }
 
+/* Open or learned: lit wood in the plinths' rim (ADR 014), no gold — gold is only for buy and claim. */
 .branch[data-open] > .branchHead .niche,
 .node[data-learned] .niche,
 .niche[data-learned] {
-  background: var(--c-wood-3);
-  box-shadow: inset 0 0 0 var(--px) var(--c-gold-3);
+  background: var(--ui-niche);
+  border-color: var(--ui-edge);
+  box-shadow:
+    inset var(--px) var(--px) 0 var(--ui-plinth-hi),
+    inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--ui-plinth-lo);
 }
 
 .learned {
-  color: var(--c-plaster-4);
+  color: var(--ui-meta);
 }
 
 /* The tree: rows of four quarter columns — a pair of nodes takes a half each, the root and the top the middle half —
@@ -262,9 +285,10 @@
   word-spacing: inherit;
   line-height: 1.4;
   text-align: left;
-  color: var(--c-plaster-5);
-  background: var(--c-wood-2);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-name);
+  background: var(--ui-control);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-raised);
   cursor: pointer;
 }
 
@@ -280,32 +304,34 @@
   grid-column: 2 / 4;
 }
 
-/* Out of reach (closed branch, prerequisite): stone and quiet, with the lock beside the ranks. */
+/* Out of reach (closed branch, prerequisite): the flat off recipe (ADR 014, no slate), with the lock beside the ranks;
+   still a button (it opens the card), so its words keep the `desc` tier (6.3:1). */
 .node[data-state='locked'],
 .node[data-state='prereq'] {
-  color: var(--c-plaster-4);
-  background: var(--c-stone-2);
+  color: var(--ui-desc);
+  background: var(--ui-disabled);
+  border-color: var(--ui-edge-off);
+  box-shadow: none;
 }
 
-/* Can be learned now: a brighter fill in a 2-px gold rim, with the glory icon beside the ranks (a node too dear for
-   now keeps the plain fill and no icon). */
+/* Can be learned now — a buy: a 2-px gold rim on the raised control, with the glory icon beside the ranks (a node too
+   dear for now keeps the plain control and no icon). */
 .node[data-state='open'] {
-  background: var(--c-wood-3);
-  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--c-gold-4);
+  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--ui-buy);
 }
 
 .node:active {
   transform: translateY(var(--press-y));
 }
 
-/* The node of the open card: a light ring outside, the state's own fill kept. */
+/* The node of the open card — a selection (ADR 014): the 2-px crimson frame outside, the state's own fill kept. */
 .node[aria-expanded='true'] {
-  outline: var(--px) solid var(--c-plaster-6);
-  outline-offset: var(--px);
+  outline: calc(2 * var(--px)) solid var(--ui-select);
+  outline-offset: 0;
 }
 
 .node:focus-visible {
-  outline: calc(2 * var(--px)) solid var(--c-plaster-6);
+  outline: calc(2 * var(--px)) solid var(--ui-select);
   outline-offset: var(--px);
 }
 
@@ -322,18 +348,19 @@
   display: flex;
   align-items: center;
   gap: calc(2 * var(--px));
-  color: var(--c-thatch-5);
+  color: var(--ui-heading);
 }
 
 /* The prerequisite lines (two logical px thick): stubs at a node centre, a bar between the two halves' centres. */
 .link {
   position: relative;
   height: calc(10 * var(--px));
-  --line: var(--c-stone-4);
+  --line: var(--ui-rule);
 }
 
+/* A learned path: ochre, like the ranks it counts (gold is only for buy and claim). */
 .link[data-lit] {
-  --line: var(--c-gold-4);
+  --line: var(--ui-heading);
 }
 
 .stub,
@@ -385,9 +412,9 @@
   margin-top: calc(2 * var(--px));
   padding: calc(4 * var(--px)) calc(6 * var(--px));
   line-height: 1.5;
-  background: var(--c-wood-1);
-  border-top: calc(2 * var(--px)) solid var(--c-ink-0);
-  box-shadow: inset 0 var(--px) 0 var(--c-wood-3);
+  background: var(--ui-card);
+  border-top: calc(2 * var(--px)) solid var(--ui-edge);
+  box-shadow: inset 0 var(--px) 0 var(--ui-bevel-hi);
 }
 
 .nodeCard p {
@@ -406,20 +433,21 @@
   min-height: var(--tap, 44px);
   padding: 0 calc(4 * var(--px));
   font: inherit;
-  color: var(--c-plaster-5);
-  background: var(--c-wood-2);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-body);
+  background: var(--ui-control);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-raised);
   cursor: pointer;
 }
 
 .close:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: var(--px);
 }
 
 /* The percent, then the absolute number on the same line (it wraps where it must). */
 .amount {
-  color: var(--c-plaster-4);
+  color: var(--ui-meta);
 }
 
 /* The fact: two lines, the rest on a tap (aria-expanded); one tap target the card's width. */
@@ -432,7 +460,7 @@
   word-spacing: inherit;
   line-height: 1.5;
   text-align: left;
-  color: var(--c-plaster-3);
+  color: var(--ui-desc);
   background: none;
   border: 0;
   cursor: pointer;
@@ -447,6 +475,6 @@
 }
 
 .fact:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: var(--px);
 }

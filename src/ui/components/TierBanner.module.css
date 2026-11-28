@@ -1,4 +1,5 @@
-/* «Тір II» banner (plan M2-12): a gold-rimmed wood plaque under the HUD, centred, never in the way of taps. */
+/* «Тір II» banner (plan M2-12): the windows' title plaque under the HUD (ADR 014: dark wood, 2 px of crimson and 1 px
+   of gold along its foot), centred, never in the way of taps. */
 .region {
   position: absolute;
   /* Just under the HUD strip: its measured height (safe area included), the shared `--hud-h` token (M2-13). */
@@ -12,20 +13,19 @@
 
 .banner {
   margin: 0;
-  padding: calc(4 * var(--px)) calc(8 * var(--px));
+  padding: calc(4 * var(--px)) calc(8 * var(--px)) calc(7 * var(--px));
   max-width: 100%;
   /* Two lines at most (the longest name, «Вали, частокіл і брама», wraps once on 360 px); never taller. */
-  max-height: calc(2 * 1.25 * var(--font-s) + 8 * var(--px) + 2 * var(--px));
+  max-height: calc(2 * 1.25 * var(--font-s) + 11 * var(--px) + 2 * var(--px));
   overflow: hidden;
   overflow-wrap: anywhere;
-  background: var(--c-wood-1);
-  /* A plain 1-px ink border + inset gold rim (box-shadow) rather than a 9-slice border-image: the plaque is a flat
-     rectangle with no corner ornament yet, so a frame asset would add a texture for nothing (UI frames come in M2). */
-  border: var(--px) solid var(--c-ink-0);
+  background: var(--ui-frame);
+  /* A 1-px ink border + the band in box-shadows; the 9-slice `ui-frame` sheet comes in M4.5 (ADR 014). */
+  border: var(--px) solid var(--ui-edge);
   box-shadow:
-    inset 0 0 0 var(--px) var(--c-gold-3),
-    inset 0 calc(-2 * var(--px)) 0 var(--px) var(--c-wood-0);
-  color: var(--c-gold-5);
+    inset 0 calc(-1 * var(--px)) 0 var(--ui-band-gold),
+    inset 0 calc(-3 * var(--px)) 0 var(--ui-select);
+  color: var(--ui-title);
   font-size: var(--font-s);
   line-height: 1.25;
   text-align: center;

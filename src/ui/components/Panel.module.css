@@ -10,10 +10,9 @@
   display: flex;
   flex-direction: column;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  background: var(--c-wood-0);
-  border-top: var(--px) solid var(--c-ink-0);
-  box-shadow: inset 0 var(--px) 0 var(--c-wood-2);
-  color: var(--c-plaster-5);
+  background: var(--ui-frame);
+  border-top: var(--px) solid var(--ui-edge);
+  color: var(--ui-body);
   transition: height var(--sheet-ms, 180ms) ease-out;
 }
 
@@ -53,7 +52,7 @@
   width: calc(16 * var(--px));
   height: var(--px);
   margin-left: calc(-8 * var(--px));
-  background: var(--c-wood-2);
+  background: var(--ui-rule);
   pointer-events: none;
 }
 
@@ -67,10 +66,11 @@
   flex: none;
   width: var(--tap, 44px);
   min-height: var(--tap, 44px);
-  background: var(--c-wood-1);
+  background: var(--ui-panel);
   border: none;
-  border-bottom: var(--px) solid var(--c-ink-0);
-  border-left: var(--px) solid var(--c-ink-0);
+  border-bottom: var(--px) solid var(--ui-edge);
+  border-left: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-raised);
   cursor: pointer;
 }
 
@@ -83,23 +83,24 @@
   margin: calc(-2 * var(--px)) 0 0 calc(-4 * var(--px));
   border-left: calc(4 * var(--px)) solid transparent;
   border-right: calc(4 * var(--px)) solid transparent;
-  border-bottom: calc(4 * var(--px)) solid var(--c-thatch-5);
+  border-bottom: calc(4 * var(--px)) solid var(--ui-heading);
 }
 
 .panel[data-state='full'] .toggle::after {
   border-bottom: none;
-  border-top: calc(4 * var(--px)) solid var(--c-thatch-5);
+  border-top: calc(4 * var(--px)) solid var(--ui-heading);
 }
 
 .tab {
   flex: 1;
   min-height: var(--tap, 44px);
   font: inherit;
-  color: var(--c-plaster-3);
-  background: var(--c-wood-1);
+  color: var(--ui-desc);
+  background: var(--ui-panel);
   border: none;
-  border-bottom: var(--px) solid var(--c-ink-0);
-  border-right: var(--px) solid var(--c-ink-0);
+  border-bottom: var(--px) solid var(--ui-edge);
+  border-right: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-raised);
   cursor: pointer;
 }
 
@@ -108,10 +109,14 @@
 }
 
 .tab[aria-selected='true'] {
-  color: var(--c-thatch-6);
-  background: var(--c-wood-0);
+  color: var(--ui-title);
+  background: var(--ui-frame);
   border-bottom-color: transparent;
-  box-shadow: inset 0 calc(2 * var(--px)) 0 var(--c-gold-4);
+  /* Selection (ADR 014): a 2-px crimson frame on the top and sides, open into the sheet it heads. */
+  box-shadow:
+    inset 0 calc(2 * var(--px)) 0 var(--ui-select),
+    inset calc(2 * var(--px)) 0 0 var(--ui-select),
+    inset calc(-2 * var(--px)) 0 0 var(--ui-select);
 }
 
 .body {
@@ -138,16 +143,20 @@
   flex: 1;
   min-height: var(--tap, 44px);
   font: inherit;
-  color: var(--c-plaster-4);
-  background: var(--c-wood-1);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-body);
+  background: var(--ui-control);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-raised);
   cursor: pointer;
 }
 
+/* The chosen one: a lighter raised control in the selection's 2-px crimson frame, its shade inside the frame. */
 .mode[aria-pressed='true'] {
-  color: var(--c-ink-0);
-  background: var(--c-thatch-5);
-  box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-thatch-3);
+  color: var(--ui-name);
+  background: var(--ui-control-on);
+  box-shadow:
+    inset 0 0 0 calc(2 * var(--px)) var(--ui-select),
+    inset calc(-3 * var(--px)) calc(-3 * var(--px)) 0 var(--ui-bevel-lo);
 }
 
 /* Pressed (SPEC §6.7): down by the shared offset (whole logical px, plan M2-26). */
@@ -156,17 +165,17 @@
 }
 
 /* Tabs and the open/close button are pressed too, but they do not move: they are joined edge to edge in the bar
-   (shared borders, the selected tab's gold rim), so a shift would open a gap and break the rims. A shade of the same
-   depth along the top shows the press instead — no layout change. */
+   (shared borders, the selected tab's crimson frame), so a shift would open a gap and break the rims. A shade of the
+   same depth along the top shows the press instead — no layout change. */
 .tab:active:not([aria-selected='true']),
 .toggle:active {
-  box-shadow: inset 0 var(--press-y) 0 var(--c-wood-0);
+  box-shadow: inset 0 var(--press-y) 0 var(--ui-frame);
 }
 
 .tab:focus-visible,
 .toggle:focus-visible,
 .mode:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: calc(-2 * var(--px));
 }
 
@@ -188,10 +197,10 @@
 }
 
 .title {
+  composes: sectionHeading from '../skin.module.css';
   margin: 0 0 calc(6 * var(--px));
   font-size: inherit;
   font-weight: normal;
-  color: var(--c-thatch-5);
 }
 
 /* Something to claim (M2-25, SPEC §6.7): a 4×4 crimson dot with an ink rim at the tab's top right. */
@@ -205,8 +214,8 @@
   right: calc(4 * var(--px));
   width: calc(4 * var(--px));
   height: calc(4 * var(--px));
-  background: var(--c-crimson-4);
-  box-shadow: 0 0 0 var(--px) var(--c-ink-0);
+  background: var(--ui-dot);
+  box-shadow: 0 0 0 var(--px) var(--ui-edge);
 }
 
 /* The read-out of a quest tap (M3-15): off screen when a lit row shows the target … */
@@ -225,14 +234,14 @@
   margin: 0;
   padding: calc(3 * var(--px)) calc(6 * var(--px));
   overflow-wrap: anywhere;
-  color: var(--c-plaster-5);
-  background: var(--c-wood-1);
-  border-top: var(--px) solid var(--c-ink-0);
-  box-shadow: inset 0 var(--px) 0 var(--c-wood-2);
+  color: var(--ui-body);
+  background: var(--ui-panel);
+  border-top: var(--px) solid var(--ui-edge);
+  box-shadow: inset 0 var(--px) 0 var(--ui-bevel-hi);
   cursor: pointer;
 }
 
 .panel[data-state='full'] > .hint {
   bottom: env(safe-area-inset-bottom);
-  border-bottom: var(--px) solid var(--c-ink-0);
+  border-bottom: var(--px) solid var(--ui-edge);
 }

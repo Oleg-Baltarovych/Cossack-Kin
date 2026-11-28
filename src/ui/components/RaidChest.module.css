@@ -24,18 +24,15 @@
   margin: 0;
 }
 
-/* The chest on a lighter wood ground with a floor line, like the portraits' frame. */
+/* The chest on the portraits' plinth (ADR 014): neutral wood, a 5-px earth ground strip, a rim lit top-left. */
 .chest {
+  composes: plinth from '../skin.module.css';
+  --plinth: 5;
   justify-self: center;
   display: grid;
   place-items: center;
   width: calc(48 * var(--px));
   height: calc(40 * var(--px));
-  background: var(--c-wood-2);
-  border: var(--px) solid var(--c-ink-0);
-  box-shadow:
-    inset 0 0 0 var(--px) var(--c-gold-3),
-    inset 0 calc(-5 * var(--px)) 0 var(--c-wood-3);
 }
 
 /* The shake: ± shakePx logical px sideways, a jump every step (no tween — whole px), shakeMs in all. */
@@ -65,24 +62,25 @@
 
 .skip {
   text-align: center;
-  color: var(--c-thatch-5);
+  color: var(--ui-heading);
 }
 
 .skip[data-hide] {
   visibility: hidden;
 }
 
-/* One squad's part of the chest. */
+/* One squad's part of the chest: a sunken card, like the return window's gains. */
 .squad {
   display: grid;
   gap: calc(4 * var(--px));
   padding: calc(6 * var(--px));
-  background: var(--c-wood-1);
-  border: var(--px) solid var(--c-ink-0);
+  background: var(--ui-card);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-sunken);
 }
 
 .squadLine {
-  color: var(--c-thatch-5);
+  color: var(--ui-heading);
 }
 
 /* The outcome: words first, colour only seconds them (success green, «з частиною здобичі» a calm sky). */
@@ -99,11 +97,11 @@
 }
 
 .won {
-  color: var(--c-grass-6);
+  color: var(--ui-gain);
 }
 
 .lost {
-  color: var(--c-sky-6);
+  color: var(--ui-calm);
 }
 
 .won[data-shown],
@@ -125,20 +123,21 @@
   align-items: center;
   gap: calc(6 * var(--px));
   font-size: var(--font-m);
-  color: var(--c-plaster-6);
+  color: var(--ui-name);
   overflow-wrap: anywhere;
 }
 
-/* A relic: its own beat — a gold-rimmed card with the relic ×2, its name, its bonus and a fact. */
+/* A relic: its own beat — a sunken card with the relic ×2, its name, its bonus and a fact (gold is only
+   for buy and claim, ADR 014). */
 .relic {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: calc(6 * var(--px));
   padding: calc(6 * var(--px));
-  background: var(--c-wood-2);
-  border: var(--px) solid var(--c-ink-0);
-  box-shadow: inset 0 0 0 var(--px) var(--c-gold-3);
+  background: var(--ui-card);
+  border: var(--px) solid var(--ui-edge);
+  box-shadow: var(--ui-sunken);
 }
 
 .relicText {
@@ -150,16 +149,16 @@
 }
 
 .relicHead {
-  color: var(--c-gold-4);
+  color: var(--ui-heading);
 }
 
 .relicName {
   font-size: var(--font-m);
-  color: var(--c-thatch-6);
+  color: var(--ui-title);
 }
 
 .fact {
-  color: var(--c-plaster-4);
+  color: var(--ui-desc);
 }
 
 /* The whole loot in words, for screen readers only. */

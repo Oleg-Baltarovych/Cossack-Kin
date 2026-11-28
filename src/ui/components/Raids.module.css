@@ -1,12 +1,13 @@
 /* The «Походи» block over the Sich list (plan M3-09): a darker board like the quest strip, one card per slot, the
-   gold buttons of the rows (≥ the --tap target). Every size in whole logical px (--px). Text on wood-1 ≥ 5.9:1. */
+   gold buttons of the rows (≥ the --tap target). Every size in whole logical px (--px). The board is a `panel`, the
+   cards sunken (`card`, wood 0: meta and shortage text pass AA there). */
 .block {
-  background: var(--c-wood-1);
-  border-bottom: var(--px) solid var(--c-ink-0);
+  background: var(--ui-panel);
+  border-bottom: var(--px) solid var(--ui-edge);
 }
 
 .block:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: calc(-2 * var(--px));
 }
 
@@ -19,10 +20,10 @@
 }
 
 .heading {
+  composes: sectionHeading from '../skin.module.css';
   margin: 0;
   font-size: inherit;
   font-weight: normal;
-  color: var(--c-thatch-5);
 }
 
 /* «Забрати все · N» (Q17) under the heading, over the cards, at the right like the cards' buttons. */
@@ -38,7 +39,7 @@
   align-items: center;
   gap: calc(3 * var(--px));
   white-space: nowrap;
-  color: var(--c-plaster-5);
+  color: var(--ui-body);
 }
 
 .relics {
@@ -58,16 +59,16 @@
   overflow-wrap: anywhere;
   white-space: normal;
   padding: var(--px) calc(3 * var(--px));
-  color: var(--c-gold-4);
-  border: var(--px) solid var(--c-gold-2);
-  background: var(--c-wood-0);
+  color: var(--ui-heading);
+  border: var(--px) solid var(--ui-rule);
+  background: var(--ui-frame);
 }
 
 .cards {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: var(--px) solid var(--c-ink-0);
+  border-top: var(--px) solid var(--ui-edge);
 }
 
 .card {
@@ -75,7 +76,8 @@
   align-items: center;
   gap: calc(6 * var(--px));
   padding: calc(4 * var(--px)) calc(6 * var(--px));
-  background: var(--c-wood-0);
+  background: var(--ui-card);
+  box-shadow: var(--ui-sunken);
 }
 
 /* An idle card is one line beside its button: the button's tap height is the card's height. */
@@ -84,14 +86,15 @@
 }
 
 .card + .card {
-  border-top: var(--px) solid var(--c-wood-1);
+  border-top: var(--px) solid var(--ui-edge);
 }
 
-/* The slot a raid quest led to (M3-15): the rows' gold rim (the sheet also scrolls to it), over the returned mark. */
+/* The slot a raid quest led to (M3-15): the rows' selection frame (the sheet also scrolls to it), over the returned
+   mark. */
 .cards .card.lit {
   position: relative;
-  background: var(--c-wood-1);
-  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--c-gold-4);
+  background: var(--ui-panel);
+  box-shadow: inset 0 0 0 calc(2 * var(--px)) var(--ui-select);
 }
 
 /* Not by colour alone: the rows' pointer notch on the left edge. */
@@ -103,13 +106,16 @@
   width: calc(3 * var(--px));
   height: calc(6 * var(--px));
   margin-top: calc(-3 * var(--px));
-  background: var(--c-gold-4);
+  background: var(--ui-select);
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 
-/* A raid that is back: a gold rim on the left — not by colour alone, the card says «Загін повернувся». */
+/* A raid that is back: loot to claim, so a gold rim on the left — not by colour alone, the card says «Загін
+   повернувся». */
 .card[data-slot='returned'] {
-  box-shadow: inset calc(2 * var(--px)) 0 0 var(--c-gold-4);
+  box-shadow:
+    inset calc(2 * var(--px)) 0 0 var(--ui-buy),
+    var(--ui-sunken);
 }
 
 .text {
@@ -150,42 +156,42 @@
 }
 
 .dotSep {
-  color: var(--c-plaster-3);
+  color: var(--ui-meta);
 }
 
 .name {
-  color: var(--c-plaster-5);
+  color: var(--ui-name);
 }
 
 .left {
   white-space: nowrap;
-  color: var(--c-gold-4);
+  color: var(--ui-name);
 }
 
 .where {
-  color: var(--c-thatch-5);
+  color: var(--ui-heading);
 }
 
 .quiet {
-  color: var(--c-plaster-3);
+  color: var(--ui-meta);
 }
 
 .back {
   display: flex;
   align-items: center;
   gap: calc(3 * var(--px));
-  color: var(--c-grass-6);
+  color: var(--ui-gain);
 }
 
 .note {
-  color: var(--c-sky-6);
+  color: var(--ui-calm);
 }
 
 /* The road bar: the share behind, cut to whole logical px (round() where supported; a plain share before that). */
 .bar {
   height: calc(4 * var(--px));
-  background: var(--c-ink-0);
-  border: var(--px) solid var(--c-ink-0);
+  background: var(--ui-edge);
+  border: var(--px) solid var(--ui-edge);
 }
 
 .fill {
@@ -193,7 +199,7 @@
   height: 100%;
   width: calc(var(--p, 0) * 100%);
   width: round(down, calc(var(--p, 0) * 100%), var(--px));
-  background: var(--c-gold-4);
+  background: var(--ui-progress);
 }
 
 .actions {
@@ -210,38 +216,42 @@
   padding: calc(3 * var(--px)) calc(6 * var(--px));
   font: inherit;
   word-spacing: inherit;
-  color: var(--c-ink-0);
-  background: var(--c-gold-4);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-buy-text);
+  background: var(--ui-buy);
+  border: var(--px) solid var(--ui-edge);
   box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
-    inset 0 var(--px) 0 var(--c-gold-5);
+    inset 0 calc(-2 * var(--px)) 0 var(--ui-buy-lo),
+    inset 0 var(--px) 0 var(--ui-buy-hi);
   cursor: pointer;
 }
 
-/* «Ще раз»: the second choice, in wood. */
+/* «Ще раз»: the second choice, a raised wood control. */
 .second {
-  color: var(--c-plaster-6);
-  background: var(--c-wood-2);
-  box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-wood-1),
-    inset 0 var(--px) 0 var(--c-wood-3);
+  color: var(--ui-name);
+  background: var(--ui-control);
+  box-shadow: var(--ui-raised);
 }
 
 .button:active:not(:disabled) {
   transform: translateY(var(--press-y));
-  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+  box-shadow: inset 0 var(--px) 0 var(--ui-buy-lo);
 }
 
+.second:active:not(:disabled) {
+  box-shadow: inset 0 var(--px) 0 var(--ui-bevel-lo);
+}
+
+/* Off (ADR 014): flat wood in an ink rim and quiet text, no slate; the reason stands beside it. */
 .button:disabled {
-  color: var(--c-plaster-6);
-  background: var(--c-stone-2);
-  box-shadow: inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1);
+  color: var(--ui-off-text);
+  background: var(--ui-disabled);
+  border-color: var(--ui-edge-off);
+  box-shadow: none;
   cursor: default;
 }
 
 .button:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: var(--px);
 }
 

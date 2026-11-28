@@ -1,10 +1,11 @@
 /* Quests in the sheet (plan M2-25 + review). The strip: one line over the list on a darker board (≈ one tap target +
    padding: the title takes at most two lines, the reward one). The «Ще» board: both quests in full. «Забрати» is the
-   gold button of the rows (≥ the --tap target). Text colours on wood-1 are ≥ 5.9:1 (WCAG AA). */
+   gold button of the rows (≥ the --tap target). The board is a `panel` (wood 1): its text tiers are ≥ 5.9:1 there
+   (WCAG AA) — the meta line takes the `desc` tier, `meta` itself is 4.35:1 on wood 1. */
 .strip {
   flex: none;
-  background: var(--c-wood-1);
-  border-bottom: var(--px) solid var(--c-ink-0);
+  background: var(--ui-panel);
+  border-bottom: var(--px) solid var(--ui-edge);
 }
 
 .board {
@@ -13,24 +14,24 @@
 
 .strip:focus-visible,
 .board:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: calc(-2 * var(--px));
 }
 
 .heading {
+  composes: sectionHeading from '../skin.module.css';
   margin: 0 calc(6 * var(--px)) calc(4 * var(--px));
   font-size: inherit;
   font-weight: normal;
-  color: var(--c-thatch-5);
 }
 
 .list {
   margin: 0;
   padding: 0;
   list-style: none;
-  background: var(--c-wood-1);
-  border-top: var(--px) solid var(--c-ink-0);
-  border-bottom: var(--px) solid var(--c-ink-0);
+  background: var(--ui-panel);
+  border-top: var(--px) solid var(--ui-edge);
+  border-bottom: var(--px) solid var(--ui-edge);
 }
 
 .line {
@@ -47,7 +48,7 @@
 }
 
 .line + .line {
-  border-top: var(--px) solid var(--c-wood-0);
+  border-top: var(--px) solid var(--ui-frame);
 }
 
 .text {
@@ -81,7 +82,7 @@
 }
 
 .go:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: var(--px);
 }
 
@@ -89,7 +90,7 @@
   display: flex;
   align-items: center;
   gap: calc(3 * var(--px));
-  color: var(--c-plaster-5);
+  color: var(--ui-name);
 }
 
 .titleText {
@@ -109,7 +110,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: calc(1 * var(--px)) calc(6 * var(--px));
-  color: var(--c-plaster-3);
+  color: var(--ui-desc);
 }
 
 /* Each token whole: «12 з 50» and «3 хвилини доходу» never break inside. */
@@ -122,11 +123,11 @@
   display: inline-flex;
   align-items: center;
   gap: calc(2 * var(--px));
-  color: var(--c-grass-6);
+  color: var(--ui-gain);
 }
 
 .warn {
-  color: var(--c-sky-6);
+  color: var(--ui-calm);
 }
 
 .claim {
@@ -135,31 +136,31 @@
   min-height: var(--tap, 44px);
   padding: calc(3 * var(--px)) calc(6 * var(--px));
   font: inherit;
-  color: var(--c-ink-0);
-  background: var(--c-gold-4);
-  border: var(--px) solid var(--c-ink-0);
+  color: var(--ui-buy-text);
+  background: var(--ui-buy);
+  border: var(--px) solid var(--ui-edge);
   box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-gold-2),
-    inset 0 var(--px) 0 var(--c-gold-5);
+    inset 0 calc(-2 * var(--px)) 0 var(--ui-buy-lo),
+    inset 0 var(--px) 0 var(--ui-buy-hi);
   cursor: pointer;
 }
 
-/* Past the day's limit: still a button (the chore is counted), but grey — it pays nothing (6.8:1, like a disabled buy). */
+/* Past the day's limit: still a button (the chore is counted), but in the off recipe — it pays nothing (ADR 014:
+   flat wood in an ink rim; the body text, 9.4:1, since it can still be pressed). */
 .empty {
-  color: var(--c-plaster-6);
-  background: var(--c-stone-2);
-  box-shadow:
-    inset 0 calc(-2 * var(--px)) 0 var(--c-stone-1),
-    inset 0 var(--px) 0 var(--c-stone-3);
+  color: var(--ui-body);
+  background: var(--ui-disabled);
+  border-color: var(--ui-edge-off);
+  box-shadow: none;
 }
 
 .claim:active {
   transform: translateY(var(--press-y));
-  box-shadow: inset 0 var(--px) 0 var(--c-gold-2);
+  box-shadow: inset 0 var(--px) 0 var(--ui-buy-lo);
 }
 
 .claim:focus-visible {
-  outline: var(--px) solid var(--c-plaster-6);
+  outline: var(--px) solid var(--ui-select);
   outline-offset: var(--px);
 }
 
