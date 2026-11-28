@@ -2,7 +2,7 @@
 // count, the relics, the render's slot states and the notification hook. Pure reads; the UI never does economy.
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { RAID_TIER_IDS, RAIDS, type RaidTierId } from '../../../src/content/raids.ts';
-import { pityThreshold, RELIC_DEFS, RELICS, type RelicId } from '../../../src/content/relics.ts';
+import { pityThreshold, RELIC_DEFS, RELICS, relicOnTier, type RelicId } from '../../../src/content/relics.ts';
 import { Big } from '../../../src/core/big.ts';
 import {
   raidAlerts,
@@ -262,6 +262,19 @@ describe('relicsView and raidSceneView', () => {
       expect(r.value, r.id).toBe(Math.round((def?.effect.share ?? 0) * 100));
       expect([r.nameKey, r.textKey, r.factKey]).toEqual([def?.nameKey, def?.textKey, def?.factKey]);
     }
+  });
+
+  it('each silhouette says where to look for that relic: the shortest tier its minTier allows (M4-06 «Кобза» → 1 h)', () => {
+    const v = relicsView(st());
+    for (const r of v) {
+      const def = RELIC_DEFS.find((d) => d.id === r.id);
+      if (!def) throw new Error(`no def ${r.id}`);
+      // No shorter tier could find it: below its minTier, or a tier with neither a relic chance nor the pity.
+      expect(relicOnTier(def, r.fromTier), r.id).toBe(true);
+      for (const t of RAID_TIER_IDS.slice(0, RAID_TIER_IDS.indexOf(r.fromTier)))
+        expect(relicOnTier(def, t) && tierOf(t).relicChance > 0, `${r.id} ${t}`).toBe(false);
+    }
+    expect(v.find((r) => r.id === 'kobza')?.fromTier).toBe('h1');
   });
 
   it('relicHint (M3-12, §0.1 П5): where to look — the shortest tier that can find one — and the pity, as the card says', () => {

@@ -228,6 +228,18 @@ export interface RelicView {
   readonly factKey: string;
   /** The bonus in whole percent (share × 100; content test: shares are whole percents). */
   readonly value: number;
+  /** Where to look for this relic: the shortest tier that can find it (its `minTier`, a relic chance or the pity). */
+  readonly fromTier: RaidTierId;
+}
+
+/** The shortest tier that can bring `relic`: one with a relic chance (or past the pity's floor) and ≥ its `minTier`. */
+function firstTierFor(relic: (typeof RELIC_DEFS)[number]): RaidTierId {
+  const pityRank = tierRank(RELICS.pityMinTier);
+  // RAID_TIER_IDS is in ascending duration (content/raids.ts), so the first match is the shortest tier.
+  return (
+    RAID_TIER_IDS.find((t) => (raidTier(t).relicChance > 0 || tierRank(t) >= pityRank) && relicOnTier(relic, t)) ??
+    RELICS.pityMinTier
+  );
 }
 
 export function relicsView(state: GameState): readonly RelicView[] {
@@ -238,6 +250,7 @@ export function relicsView(state: GameState): readonly RelicView[] {
     textKey: r.textKey,
     factKey: r.factKey,
     value: Math.round(r.effect.share * PERCENT),
+    fromTier: firstTierFor(r),
   }));
 }
 
@@ -261,12 +274,12 @@ export function relicHint(state: GameState): RelicHintView | null {
   // The relics a raid can still bring: not found and not already on its way home in a slot (as the roll counts them).
   const held = heldRelics(state);
   const left = RELIC_DEFS.filter((r) => !held.includes(r.id));
-  const pityRank = tierRank(RELICS.pityMinTier);
-  // RAID_TIER_IDS is in ascending duration (content/raids.ts), so the first match is the shortest tier.
+  // The shortest of the tiers that can bring any relic still left.
   const fromTier =
-    RAID_TIER_IDS.find(
-      (t) => (raidTier(t).relicChance > 0 || tierRank(t) >= pityRank) && left.some((r) => relicOnTier(r, t)),
-    ) ?? RELICS.pityMinTier;
+    left
+      .map(firstTierFor)
+      .reduce<RaidTierId | null>((best, t) => (best === null || tierRank(t) < tierRank(best) ? t : best), null) ??
+    RELICS.pityMinTier;
   return { fromTier, near: previewRaid(state, fromTier).relicSure };
 }
 
