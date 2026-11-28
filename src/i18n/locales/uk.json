@@ -543,7 +543,7 @@
   "ui.treasury.title": "Скарбниця",
   "ui.treasury.count": "Знайдено {found} з {total}",
   "ui.treasury.unknown": "Невідома реліквія",
-  "ui.treasury.hint": "Трапляється в походах від {time}",
+  "ui.treasury.hint": "Трапляється в походах — {time} і довше",
   "ui.treasury.all": "Усі реліквії краю знайдено",
   "ui.chest.title": "Здобич походу"
 }

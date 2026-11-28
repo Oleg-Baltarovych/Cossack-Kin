@@ -23,7 +23,10 @@ const SILHOUETTE: Readonly<Record<RelicId, IconId>> = {
 
 const selectRelics = (s: GameState): readonly RelicView[] => relicsView(s);
 const sameRelics = (a: readonly RelicView[], b: readonly RelicView[]): boolean =>
-  a.length === b.length && a.every((x, i) => x.id === b[i]?.id && x.found === b[i].found && x.value === b[i].value);
+  a.length === b.length &&
+  a.every(
+    (x, i) => x.id === b[i]?.id && x.found === b[i].found && x.value === b[i].value && x.fromTier === b[i].fromTier,
+  );
 const sameHint = (a: RelicHintView | null, b: RelicHintView | null): boolean =>
   a === null || b === null ? a === b : sameView(a, b);
 
@@ -34,7 +37,8 @@ export function Treasury() {
   const relics = useGame(selectRelics, sameRelics);
   const hint = useGame(relicHint, sameHint);
   const found = relics.filter((r) => r.found).length;
-  const where = hint ? t('ui.treasury.hint', { time: text.dur(raidTier(hint.fromTier).durationSec) }) : null;
+  // Each silhouette says where to look for that relic (its own shortest tier: «Кобза» only from 1 h, M4-06).
+  const where = (r: RelicView): string => t('ui.treasury.hint', { time: text.dur(raidTier(r.fromTier).durationSec) });
   return (
     <section className={styles.treasury} aria-labelledby={headingId}>
       <h2 id={headingId} className={styles.title}>
@@ -59,7 +63,7 @@ export function Treasury() {
               ) : (
                 <>
                   <p className={styles.unknown}>{t('ui.treasury.unknown')}</p>
-                  {where !== null && <p className={styles.fact}>{where}</p>}
+                  {hint !== null && <p className={styles.fact}>{where(r)}</p>}
                 </>
               )}
             </div>

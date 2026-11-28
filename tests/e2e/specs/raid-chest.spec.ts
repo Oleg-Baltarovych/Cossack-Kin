@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect, test } from '../helpers/test.ts';
 import { RAID_REVEAL } from '../../../src/content/juice.ts';
+import { RELIC_IDS } from '../../../src/content/relics.ts';
 // Type-only: brings the window.__CK_GAME__ declaration.
 import type {} from '../../../src/ui/debug/gameDebug.ts';
 import { screensDir } from '../helpers/reports.ts';
@@ -171,7 +172,8 @@ test.describe('M3-12 chest, return window, treasury @screens', () => {
       await page.getByRole('button', { name: T[lang].sheet }).click();
       const treasury = page.getByRole('region', { name: T[lang].treasury });
       await treasury.scrollIntoViewIfNeeded();
-      await expect(treasury.getByRole('listitem')).toHaveCount(2);
+      // One niche per relic in content (M4-06 added «Кобза діда»): never a literal count.
+      await expect(treasury.getByRole('listitem')).toHaveCount(RELIC_IDS.length);
       expect(
         await problems(page, `section[aria-labelledby="${(await treasury.getAttribute('aria-labelledby')) ?? ''}"]`),
       ).toEqual([]);
@@ -202,7 +204,7 @@ test.describe('M3-18 chest and treasury baselines @screens', () => {
     await page.getByRole('button', { name: T.uk.sheet }).click();
     const treasury = page.getByRole('region', { name: T.uk.treasury });
     await treasury.scrollIntoViewIfNeeded();
-    await expect(treasury.getByRole('listitem')).toHaveCount(2);
+    await expect(treasury.getByRole('listitem')).toHaveCount(RELIC_IDS.length);
     await expectBaseline(page, 'm3-treasury');
   });
 });
